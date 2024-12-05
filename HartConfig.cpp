@@ -1458,6 +1458,147 @@ HartConfig::configAclint(System<URV>& system, Hart<URV>& hart, uint64_t clintSta
 }
 
 
+template <typename URV>
+bool
+HartConfig::applyAplicConfig(System<URV>& system) const
+{
+  std::string_view tag = "aplic";
+  if (not config_ -> contains(tag))
+    return true;  // Nothing to apply
+
+  const auto& aplic_cfg = config_ -> at(tag);
+
+  URV interrupt_count;
+
+  for (std::string_view tag : { "interrupt_count", "domains" } )
+    {
+      if (not aplic_cfg.contains(tag))
+        {
+          std::cerr << "Error: Missing " << tag << " field in aplic section of configuration file.\n";
+          return false;
+        }
+    }
+
+  tag = "interrupt_count";
+  if (not getJsonUnsigned("aplic.interrupt_count", aplic_cfg.at(tag), interrupt_count))
+    return false;
+
+  tag = "domains";
+  const auto& domains = aplic_cfg.at(tag);
+  std::vector<DomainInfo> domain_infos;
+
+  // used for error checking:
+  std::unordered_map<std::string, std::vector<int>> child_indices;
+  std::unordered_set<std::string> domain_names;
+  int num_roots = 0;
+
+  for (auto& el : domains.items())
+    {
+      DomainInfo domain_info;
+      domain_info.name = el.key();
+      const auto& domain = el.value();
+
+      if (domain_info.name == "")
+        {
+          std::cerr << "Error: the empty string is not a valid domain name.\n";
+          return false;
+        }
+      if (domain_names.find(domain_info.name) != domain_names.end())
+        {
+          std::cerr << "Error: domain names must be unique.\n";
+          return false;
+        }
+      domain_names.insert(domain_info.name);
+
+      for (std::string_view tag : { "parent", "base", "size", "is_machine" } )
+        {
+          if (not domain.contains(tag))
+            {
+              std::cerr << "Error: Missing " << tag << " field for domain '" << domain_info.name << "' in configuration file.\n";
+              return false;
+            }
+        }
+
+      if (not getJsonUnsigned("base", domain.at("base"), domain_info.base))
+        return false;
+
+      if (not getJsonUnsigned("size", domain.at("size"), domain_info.size))
+        return false;
+
+      tag = "parent";
+      const auto& parent = domain.at(tag);
+      if (parent.is_null())
+        {
+          domain_info.parent = "";
+          num_roots++;
+        }
+      else
+        {
+          domain_info.parent = parent.get<std::string>();
+          if (domain_info.parent == "")
+            {
+              std::cerr << "Error: domain '" << domain_info.name << "' uses the empty string for parent domain name; use 'null' to make this the root domain.\n";
+              return false;
+            }
+        }
+
+      tag = "child_index";
+      URV child_index = 0; // default
+      if (domain.contains(tag) and not getJsonUnsigned(tag, domain.at(tag), child_index))
+        return false;
+      domain_info.child_index = child_index;
+      child_indices[domain_info.parent].push_back(child_index);
+      auto& indices = child_indices[domain_info.parent];
+      std::sort(indices.begin(), indices.end());
+
+      tag = "is_machine";
+      if (not getJsonBoolean(tag, domain.at(tag), domain_info.is_machine))
+        return false;
+
+      domain_infos.push_back(domain_info);
+    }
+
+  // error-checking on child indices
+  for (const auto& ci : child_indices)
+    {
+      bool valid = true;
+      auto& indices = ci.second;
+      if (indices[0] != 0)
+        valid = false;
+      for (size_t i = 1; i < indices.size(); i++)
+        {
+          if (indices[i] != indices[i-1]+1)
+            valid = false;
+        }
+      if (not valid)
+        {
+          std::cerr << "Error: domain '" << ci.first << "' has invalid child indices: ";
+          for (auto i : indices)
+            std::cerr << i << " ";
+          std::cerr << "\n";
+          return false;
+        }
+    }
+
+  for (const auto& di : domain_infos)
+    {
+      if (domain_names.find(di.parent) == domain_names.end() and di.parent != "")
+        {
+          std::cerr << "Error: domain '" << di.name << "' refers to a non-existent parent, '" << di.parent << "'.\n";
+          return false;
+        }
+    }
+
+  if (num_roots != 1)
+    {
+      std::cerr << "Error: expected exactly 1 root domain; found " << num_roots << ".\n";
+      return false;
+    }
+
+  return system.configAplic(interrupt_count, domain_infos);
+}
+
+
 template<typename URV>
 bool
 HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
@@ -2919,3 +3060,9 @@ HartConfig::applyImsicConfig(System<uint32_t>&) const;
 
 template bool
 HartConfig::applyImsicConfig(System<uint64_t>&) const;
+
+template bool
+HartConfig::applyAplicConfig(System<uint32_t>&) const;
+
+template bool
+HartConfig::applyAplicConfig(System<uint64_t>&) const;

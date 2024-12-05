@@ -135,6 +135,9 @@ namespace TT_IMSIC      // TensTorrent Incoming Message Signaled Interrupt Contr
     unsigned threshold() const
     { return threshold_; }
 
+    unsigned delivery() const
+    { return delivery_; }
+
     /// Return the id of the highest priority (smallest id) interrupt
     /// id that is pending and enabled and is below the threshold id.
     unsigned topId() const
@@ -556,6 +559,15 @@ namespace TT_IMSIC      // TensTorrent Incoming Message Signaled Interrupt Contr
 	}
       return sfile_.iregRead(select, value);
     }
+
+    unsigned machineDelivery() const
+    { return mfile_.delivery(); }
+
+    unsigned supervisorDelivery() const
+    { return sfile_.delivery(); }
+
+    unsigned guestDelivery(unsigned guestIx) const
+    { return guestIx < gfiles_.size() ? gfiles_.at(guestIx).delivery() : 0; }
 
     /// Return the machine file top pending and enabled interrupt id.
     /// Ids filetered out by the threshold mechanism are not

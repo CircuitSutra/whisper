@@ -25,6 +25,7 @@
 #include "Syscall.hpp"
 #include "pci/Pci.hpp"
 #include "pci/virtio/Blk.hpp"
+#include "aplic/Aplic.hpp"
 
 
 namespace TT_PERF
@@ -48,6 +49,15 @@ namespace WdRiscv
   class DecodedInst;
   class IoDevice;
   class SparseMem;
+
+  struct DomainInfo {
+    std::string name;
+    std::string parent;
+    size_t child_index;
+    uint64_t base;
+    uint64_t size;
+    bool is_machine;
+  };
 
   /// Model a system consisting of n cores with m-harts per core and a
   /// memory. The harts in the system are indexed from 0 to n*m -
@@ -277,6 +287,9 @@ namespace WdRiscv
                      const std::vector<unsigned>& thresholdMasks,
                      bool trace);
 
+    // TODO(paul): document
+    bool configAplic(unsigned interrupt_count, const std::vector<DomainInfo>& domain_infos);
+
     /// Enable memory consistency model with given merge buffer size. This is relevant in
     /// server/interactive where RTL monitor or interactive command may initiate out of
     /// order memory transactions. Behavior is undefined if used in
@@ -435,6 +448,7 @@ namespace WdRiscv
     std::string consoleIoSym_ = "__whisper_console_io";  // ELF symbol to use as console-io addr.
     std::vector<std::shared_ptr<IoDevice>> ioDevs_;
     std::shared_ptr<Pci> pci_;
+    std::shared_ptr<TT_APLIC::Aplic> aplic_;
 
     // Name, size, and address in memory of a binary file.
     typedef std::tuple<std::string, uint64_t, uint64_t> BinaryFile;

@@ -167,6 +167,9 @@ Session<URV>::configureSystem(const Args& args, const HartConfig& config)
   if (not config.applyImsicConfig(system))
     return false;
 
+  if (not config.applyAplicConfig(system))
+    return false;
+
   for (unsigned i = 0; i < system.hartCount(); ++i)
     if (not applyCmdLineArgs(args, *system.ithHart(i), config, clib))
       if (not args.interactive)
