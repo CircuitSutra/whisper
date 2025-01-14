@@ -270,43 +270,14 @@ PerfApi::execute(unsigned hartIx, uint64_t time, uint64_t tag)
     }
 
   // Collect register operand values.
-  bool peekOk = true;
-  assert(di.operandCount() <= packet.opVal_.size());
-  for (unsigned i = 0; i < di.operandCount(); ++i)
-    {
-      if (di.ithOperandType(i) == WdRiscv::OperandType::Imm)
-	{
-	  packet.opVal_.at(i) = di.ithOperand(i);
-	  continue;
-	}
-      assert(di.ithOperandMode(i) != WdRiscv::OperandMode::None);
-      unsigned regNum = di.ithOperand(i);
-      unsigned gri = globalRegIx(di.ithOperandType(i), regNum);
-      uint64_t value = 0;
-
-      auto& producer = packet.opProducers_.at(i);
-      if (producer)
-	{
-	  value = getDestValue(*producer, gri);
-	  if (not producer->executed())
-	    {
-	      std::cerr << "Error: PerfApi::execute: Hart-ix=" << hartIx << "tag=" << tag
-			<< " depends on tag=" << producer->tag_ << " which is not yet executed.\n";
-	      assert(0);
-	      return false;
-	    }
-	}
-      else
-	peekOk = peekRegister(hart, di.ithOperandType(i), regNum, value) and peekOk;
-
-      packet.opVal_.at(i) = value;
-    }
+  bool peekOk = collectOperandValues(hart, packet);
 
   // Execute the instruction: Poke source register values, execute, recover destination
-  // values.
+  // register values.
   if (not execute(hartIx, packet))
     assert(0);
 
+  // We should not fail to read an operand value unless there is an exception.
   if (not peekOk)
     assert(packet.trap_);
 
@@ -337,6 +308,52 @@ PerfApi::execute(unsigned hartIx, uint64_t time, uint64_t tag)
     }
 
   return true;
+}
+
+
+bool
+PerfApi::collectOperandValues(Hart64& hart, InstrPac& packet)
+{
+  bool peekOk = true;
+
+  auto& di = packet.decodedInst();
+  assert(di.operandCount() <= packet.opVal_.size());
+
+  auto hartIx = hart.sysHartIndex();
+  auto tag = packet.tag();
+
+  for (unsigned i = 0; i < di.operandCount(); ++i)
+    {
+      if (di.ithOperandType(i) == WdRiscv::OperandType::Imm)
+	{
+	  packet.opVal_.at(i) = di.ithOperand(i);
+	  continue;
+	}
+      assert(di.ithOperandMode(i) != WdRiscv::OperandMode::None);
+
+      unsigned regNum = di.ithOperand(i);
+      unsigned gri = globalRegIx(di.ithOperandType(i), regNum);
+      uint64_t value = 0;
+
+      auto& producer = packet.opProducers_.at(i);
+      if (producer)
+	{
+	  value = getDestValue(*producer, gri);
+	  if (not producer->executed())
+	    {
+	      std::cerr << "Error: PerfApi::execute: Hart-ix=" << hartIx << "tag=" << tag
+			<< " depends on tag=" << producer->tag_ << " which is not yet executed.\n";
+	      assert(0);
+	      return false;
+	    }
+	}
+      else
+	peekOk = peekRegister(hart, di.ithOperandType(i), regNum, value) and peekOk;
+
+      packet.opVal_.at(i) = value;
+    }
+
+  return peekOk;
 }
 
 

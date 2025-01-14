@@ -384,6 +384,12 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
 
   protected:
 
+    /// Collect the register operand values for the instruction in the given packet. The
+    /// values are either obtained from whisper or from the instructions in flight.
+    /// Return true on success and false if we fail to read (peek) the value of a register
+    /// in whisper.
+    bool collectOperandValues(Hart64& hart, InstrPac& packet);
+
     /// Return the page number corresponding to the given address
     uint64_t pageNum(uint64_t addr) const
     { return addr >> 12; }
