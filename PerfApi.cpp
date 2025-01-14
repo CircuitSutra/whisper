@@ -732,6 +732,7 @@ PerfApi::getLoadData(unsigned hartIx, uint64_t tag, uint64_t va, uint64_t pa1,
   if (forwarded == mask)
     return true;
 
+  // Non-forward bytes are read from memory.
   unsigned size1 = size;
   if (pa1 != pa2 and pageNum(pa1) != pageNum(pa2))
     size1 = offsetToNextPage(pa1);
@@ -740,16 +741,9 @@ PerfApi::getLoadData(unsigned hartIx, uint64_t tag, uint64_t va, uint64_t pa1,
     if (not (forwarded & (1 << i)))
       {
 	uint8_t byte = 0;
-	if (i < size1)
-	  {
-	    if (not hart->peekMemory(pa1 + i, byte, true))
-	      assert(0);
-	  }
-	else
-	  {
-	    if (not hart->peekMemory(pa2 + (i-size1), byte, true))
-	      assert(0);
-	  }
+        uint64_t pa = i < size1 ? pa1 + i : pa2 + (i - size1);
+        if (not hart->peekMemory(pa, byte, true))
+          assert(0);
 	data |= uint64_t(byte) << (i*8);
       }
 
