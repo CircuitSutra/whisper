@@ -1070,6 +1070,19 @@ namespace WdRiscv
       return ldStSize_;
     }
 
+    /// Similar tos previous lastLdStAddress but also returns in pa2 the address
+    /// on the other page for a page crossing store. If store is not page crossing
+    /// then pa2 will be the same as pa1.
+    unsigned lastLdStAddress(uint64_t& virtAddr, uint64_t& pa1, uint64_t& pa2) const
+    {
+      if (ldStSize_ == 0)
+	return 0;
+      virtAddr = ldStAddr_;
+      pa1 = ldStPhysAddr1_;
+      pa2 = ldStPhysAddr2_;
+      return ldStSize_;
+    }
+
     /// Return the size of the last ld/st instruction or 0 if last
     /// instruction was not a ld/st.
     unsigned lastLdStSize() const

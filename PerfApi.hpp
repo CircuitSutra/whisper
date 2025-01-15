@@ -176,13 +176,17 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     uint64_t tag() const
     { return tag_; }
 
-    /// Return true if this a load instruction.  Packet must be decoded.
+    /// Return true if this is a load instruction. Packet must be decoded.
     bool isLoad() const
     { return di_.isLoad(); }
 
-    /// Return true if this a load instruction.  Packet must be decoded.
+    /// Return true if this is a load instruction. Packet must be decoded.
     bool isStore() const
     { return di_.isStore(); }
+
+    /// Return true if this is a vector store instruction. Pakced must be decoed.
+    bool isVectorStore() const
+    { return di_.isVectorStore(); }
 
     /// Return true if this an AMO instruction (does not include lr/sc).  Packet must be
     /// decoded.
@@ -229,8 +233,14 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
 
     uint64_t dva_ = 0;        // ld/st data virtual address
     uint64_t dpa_ = 0;        // ld/st data physical address
+    uint64_t dpa2_ = 0;       // ld/st data 2nd physical address for page croessing access
     uint64_t dsize_ = 0;      // ld/st data size (total)
-    uint64_t storeData_ = 0;  // Store data.
+
+    uint64_t stData_ = 0;     // Store data: Used for committing scalar io store.
+
+    // Used for commiting vector store and for forwarding.
+    std::unordered_map<uint64_t, uint8_t> stDataMap_;
+
     uint64_t flushVa_ = 0;    // Redirect PC for packets that should be flushed.
 
     WdRiscv::DecodedInst di_; // decoded instruction.
@@ -364,7 +374,8 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
 
     /// Set the data value of a store/amo instruction to be commited to memory
     /// at drain/retire time.
-    bool setStoreData(unsigned hart, uint64_t tag, uint64_t value);
+    bool setStoreData(unsigned hart, uint64_t tag, uint64_t pa1, uint64_t pa2,
+                      unsigned size, uint64_t value);
 
     /// Return a pointer of the hart having the given index or null if no such hart.
     std::shared_ptr<Hart64> getHart(unsigned hartIx)
@@ -403,7 +414,9 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     unsigned offsetToNextPage(uint64_t addr) const
     { return pageSize_ - (addr & (pageSize_ - 1)); }
 
-    bool commitMemoryWrite(Hart64& hart, uint64_t addr, unsigned size, uint64_t value);
+    bool commitMemoryWrite(Hart64& hart, uint64_t pa1, uint64_t pa2, unsigned size, uint64_t value);
+
+    bool commitMemoryWrite(Hart64& hart, const InstrPac& packet);
 
     void insertPacket(unsigned hartIx, uint64_t tag, std::shared_ptr<InstrPac> ptr)
     {

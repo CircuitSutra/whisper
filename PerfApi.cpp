@@ -535,7 +535,7 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
       uint64_t sva = 0, spa1 = 0, spa2 = 0, sval = 0;
       unsigned size = hart->lastStore(sva, spa1, spa2, sval);
       if (size != 0)   // Could be zero for a failed sc
-	if (not commitMemoryWrite(*hart, spa1, size, packet.storeData_))
+	if (not commitMemoryWrite(*hart, spa1, spa2, size, packet.stData_))
 	  assert(0);
       if (packet.isSc())
 	hart->cancelLr(WdRiscv::CancelLrCause::SC);
@@ -628,10 +628,7 @@ PerfApi::drainStore(unsigned hartIx, uint64_t time, uint64_t tag)
 	  assert(0);
 	}
 
-      uint64_t value = packet.storeData_;
-      uint64_t addr = packet.dpa_;    // FIX TODO : Handle page crossing store.
-
-      if (packet.dsize_ and not commitMemoryWrite(*hart, addr, packet.dsize_, value))
+      if (packet.dsize_ and not commitMemoryWrite(*hart, packet))
 	assert(0);
 
       packet.drained_ = true;
@@ -700,11 +697,10 @@ PerfApi::getLoadData(unsigned hartIx, uint64_t tag, uint64_t va, uint64_t pa1,
   for (auto& kv : storeMap)
     {
       auto stTag = kv.first;
-      auto& stPac = kv.second;
-
       if (stTag > tag)
 	break;
 
+      auto& stPac = kv.second;
       if (not stPac->executed())
 	continue;
 
@@ -713,19 +709,21 @@ PerfApi::getLoadData(unsigned hartIx, uint64_t tag, uint64_t va, uint64_t pa1,
       if (stAddr + stSize < va or va + size < stSize)
 	continue;  // No overlap.
 
-      uint64_t stData = stPac->opVal_.at(0);
+      auto& stMap = stPac->stDataMap_;
 
       for (unsigned i = 0; i < size; ++i)
 	{
 	  unsigned byteMask = 1 << i;
 	  uint64_t byteAddr = va + i;
-	  if (byteAddr >= stAddr and byteAddr < stAddr + stSize)
-	    {
-	      data &= ~(0xffull << (i * 8));
-	      uint64_t stByte = (stData >> (byteAddr - stAddr)*8) & 0xff;
-	      data |= stByte << (i*8);
-	      forwarded |= byteMask;
-	    }
+
+          auto iter = stMap.find(byteAddr);
+          if (iter == stMap.end())
+            continue;
+
+          data &= ~(0xffLL << (i * 8));     // Clear byte location in data
+          uint8_t byte = iter->second;
+          data |= uint64_t(byte) << (i*8);  // Insert forwarded value instead
+          forwarded |= byteMask;
 	}
     }
 
@@ -752,9 +750,10 @@ PerfApi::getLoadData(unsigned hartIx, uint64_t tag, uint64_t va, uint64_t pa1,
 
 
 bool
-PerfApi::setStoreData(unsigned hartIx, uint64_t tag, uint64_t value)
+PerfApi::setStoreData(unsigned hartIx, uint64_t tag, uint64_t pa1, uint64_t pa2,
+                      unsigned size, uint64_t value)
 {
-  auto hart = checkHart("Set-store-data", hartIx);
+  auto hartPtr = checkHart("Set-store-data", hartIx);
   auto packetPtr = checkTag("Set-store-Data", hartIx, tag);
   if (not packetPtr)
     {
@@ -763,36 +762,97 @@ PerfApi::setStoreData(unsigned hartIx, uint64_t tag, uint64_t value)
     }
 
   auto& packet = *packetPtr;
-  if (not hart or not (packet.isStore() or packet.isAmo()))
+  if (not hartPtr or not (packet.isStore() or packet.isAmo() or packet.isVectorStore()))
     {
       assert(0);
       return false;
     }
 
-  packet.storeData_ = value;
+  auto& hart = *hartPtr;
+
+  if (pa1 != pa2)
+    {
+      bool isDev = hart.isAclintAddr(pa1) or hart.isImsicAddr(pa1) or hart.isPciAddr(pa1);
+      assert(not isDev);
+
+      isDev = hart.isAclintAddr(pa2) or hart.isImsicAddr(pa2) or hart.isPciAddr(pa2);
+      assert(not isDev);
+    }
+
+  packet.dpa_ = pa1;
+  packet.dpa2_ = pa2;
+  packet.stData_ = value;
+  packet.dsize_ = size;
+
+  unsigned size1 = size;
+  if (pa1 != pa2 and pageNum(pa1) != pageNum(pa2))
+    size1 = offsetToNextPage(pa1);
+
+  for (unsigned i = 0; i < size; ++i, value >>= 8)
+    {
+      uint64_t pa = i < size1 ? pa1 + i : pa2 + (i - size1);
+      uint8_t byte = value;
+      packet.stDataMap_[pa] = byte;
+    }      
+
   return true;
 }
 
 
 bool
-PerfApi::commitMemoryWrite(Hart64& hart, uint64_t addr, unsigned size, uint64_t value)
+PerfApi::commitMemoryWrite(Hart64& hart, uint64_t pa1, uint64_t pa2, unsigned size, uint64_t value)
 {
-  if (hart.isToHostAddr(addr))
+  if (hart.isToHostAddr(pa1))
     {
-      hart.handleStoreToHost(addr, value);
+      hart.handleStoreToHost(pa1, value);
       return true;
     }
 
-  switch (size)
-    {
-    case 1:  return hart.pokeMemory(addr, uint8_t(value), true);
-    case 2:  return hart.pokeMemory(addr, uint16_t(value), true);
-    case 4:  return hart.pokeMemory(addr, uint32_t(value), true);
-    case 8:  return hart.pokeMemory(addr, value, true);
-    default: assert(0);
-    }
+  auto commit = [] (Hart64& hart, uint64_t pa, unsigned sz, uint64_t val) -> bool {
+    switch (sz)
+      {
+      case 1:  return hart.pokeMemory(pa, uint8_t(val), true);
+      case 2:  return hart.pokeMemory(pa, uint16_t(val), true);
+      case 4:  return hart.pokeMemory(pa, uint32_t(val), true);
+      case 8:  return hart.pokeMemory(pa, val, true);
+      default:
+        {
+          bool ok = true;
+          for (unsigned i = 0; i < sz; ++i, val >>= 8)
+            {
+              uint8_t byte = val;
+              ok = hart.pokeMemory(pa + i, byte, true) and ok;
+            }
+          return ok;
+        }
+      }
+    return true;
+  };
 
-  return false;
+  if (pa1 == pa2 or pageNum(pa1) == pageNum(pa2))
+    return commit(hart, pa1, size, value);
+
+  unsigned size1 = offsetToNextPage(pa1);
+  bool ok = commit(hart, pa1, size1, value);
+
+  value = value >> size1*8;
+  ok = commit(hart, pa2, size - size1, value) and ok;
+  return ok;
+}
+
+
+bool
+PerfApi::commitMemoryWrite(Hart64& hart, const InstrPac& packet)
+{
+  if (not packet.isVectorStore())
+    return commitMemoryWrite(hart, packet.dpa_, packet.dpa2_, packet.dsize_, packet.stData_);
+
+  auto ok = true;
+
+  for (auto [addr, val] : packet.stDataMap_)
+    ok = hart.pokeMemory(addr, val, true) and ok;
+
+  return ok;
 }
 
 
@@ -1214,7 +1274,7 @@ PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
 
   if (di.isLoad())
     {
-      hart.lastLdStAddress(packet.dva_, packet.dpa_);  // FIX TODO : handle page corrsing
+      hart.lastLdStAddress(packet.dva_, packet.dpa_, packet.dpa2_);
       packet.dsize_ = di.loadSize();
     }
   else if (di.isStore() or di.isAmo())
@@ -1230,6 +1290,7 @@ PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
 
       packet.dva_ = sva;
       packet.dpa_ = spa1;  // FIX TODO : handle page corrsing
+      packet.dpa2_ = spa2;
       packet.dsize_ = ssize;
       assert(ssize == packet.dsize_);
       if (di.isStore() and not di.isSc())

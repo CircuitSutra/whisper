@@ -2232,7 +2232,7 @@ Hart<URV>::writeForStore(uint64_t virtAddr, uint64_t pa1, uint64_t pa2, STORE_TY
   if (ooo_)
     {
       if (perfApi_)
-	perfApi_->setStoreData(hartIx_, instCounter_, storeVal);
+	perfApi_->setStoreData(hartIx_, instCounter_, pa1, pa2, ldStSize_, storeVal);
       return true;  // Memory updated & lr-canceled when merge buffer is written.
     }
 

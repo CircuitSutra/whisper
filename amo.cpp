@@ -355,7 +355,7 @@ Hart<URV>::storeConditional(const DecodedInst* di, URV virtAddr, STORE_TYPE stor
 
   uint64_t addr1 = virtAddr, addr2 = virtAddr;
   uint64_t gaddr1 = virtAddr, gaddr2 = virtAddr;
-  auto cause = determineStoreException(addr1, addr2, gaddr1, gaddr2, sizeof(storeVal), false /*hyper*/);
+  auto cause = determineStoreException(addr1, addr2, gaddr1, gaddr2, ldStSize_, false /*hyper*/);
   ldStPhysAddr1_ = addr1;
   ldStPhysAddr2_ = addr2;
 
@@ -380,7 +380,7 @@ Hart<URV>::storeConditional(const DecodedInst* di, URV virtAddr, STORE_TYPE stor
       return false;
     }
 
-  if (not memory_.hasLr(hartIx_, addr1, sizeof(storeVal)))
+  if (not memory_.hasLr(hartIx_, addr1, ldStSize_))
     return false;
 
   ldStData_ = storeVal;
@@ -389,7 +389,7 @@ Hart<URV>::storeConditional(const DecodedInst* di, URV virtAddr, STORE_TYPE stor
   if (ooo_)
     {
       if (perfApi_)
-	perfApi_->setStoreData(hartIx_, instCounter_, storeVal);
+	perfApi_->setStoreData(hartIx_, instCounter_, addr1, addr2, ldStSize_, storeVal);
       return true;  // Memory updated when merge-buffer written or when sc is retired.
     }
 
