@@ -248,7 +248,11 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     uint64_t execTime_ = 0;   // Execution time
     uint64_t prTarget_ = 0;   // Predicted branch target
 
-    std::array<uint64_t, 4> opVal_;       // Operand values (count and types are in di_)
+    std::array<uint64_t, 4> opVal_;  // Operand values (count and types are in di_)
+
+    // Ith entry is used if ith operand is vector. Value is effective group multiplier for
+    // the vector operand.
+    std::array<uint64_t, 4> opLmul_;
 
     // Entry i is the in-flight producer of the ith operand.
     std::array<std::shared_ptr<InstrPac>, 4> opProducers_;
@@ -400,6 +404,11 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     /// Return true on success and false if we fail to read (peek) the value of a register
     /// in whisper.
     bool collectOperandValues(Hart64& hart, InstrPac& packet);
+
+    /// Determine the effective group multiplier of each vector operand of the instruction
+    /// associated with the given packet. Put results in packet.opLmul_. This is a helper
+    /// to collectOperandValues.
+    void getVectorOperandLmul(Hart64& hart, InstrPac& packet);
 
     /// Return the page number corresponding to the given address
     uint64_t pageNum(uint64_t addr) const

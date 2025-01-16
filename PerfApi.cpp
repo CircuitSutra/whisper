@@ -269,7 +269,8 @@ PerfApi::execute(unsigned hartIx, uint64_t time, uint64_t tag)
 	}
     }
 
-  // Collect register operand values.
+  // Collect register operand values. Some values come from in-flight instructions
+  // (register renaming).
   bool peekOk = collectOperandValues(hart, packet);
 
   // Execute the instruction: Poke source register values, execute, recover destination
@@ -308,52 +309,6 @@ PerfApi::execute(unsigned hartIx, uint64_t time, uint64_t tag)
     }
 
   return true;
-}
-
-
-bool
-PerfApi::collectOperandValues(Hart64& hart, InstrPac& packet)
-{
-  bool peekOk = true;
-
-  auto& di = packet.decodedInst();
-  assert(di.operandCount() <= packet.opVal_.size());
-
-  auto hartIx = hart.sysHartIndex();
-  auto tag = packet.tag();
-
-  for (unsigned i = 0; i < di.operandCount(); ++i)
-    {
-      if (di.ithOperandType(i) == WdRiscv::OperandType::Imm)
-	{
-	  packet.opVal_.at(i) = di.ithOperand(i);
-	  continue;
-	}
-      assert(di.ithOperandMode(i) != WdRiscv::OperandMode::None);
-
-      unsigned regNum = di.ithOperand(i);
-      unsigned gri = globalRegIx(di.ithOperandType(i), regNum);
-      uint64_t value = 0;
-
-      auto& producer = packet.opProducers_.at(i);
-      if (producer)
-	{
-	  value = getDestValue(*producer, gri);
-	  if (not producer->executed())
-	    {
-	      std::cerr << "Error: PerfApi::execute: Hart-ix=" << hartIx << "tag=" << tag
-			<< " depends on tag=" << producer->tag_ << " which is not yet executed.\n";
-	      assert(0);
-	      return false;
-	    }
-	}
-      else
-	peekOk = peekRegister(hart, di.ithOperandType(i), regNum, value) and peekOk;
-
-      packet.opVal_.at(i) = value;
-    }
-
-  return peekOk;
 }
 
 
@@ -1325,4 +1280,251 @@ PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
     }
 
   // Memory should not have changed.
+}
+
+
+void
+PerfApi::getVectorOperandLmul(Hart64& hart, InstrPac& packet)
+{
+  auto di = packet.decodedInst();
+  if (not di.isVector())
+    return;
+
+  auto& vecRegs = hart.vecRegs();
+
+  auto groupX8 = vecRegs.groupMultiplierX8();
+  unsigned effLmul = groupX8 <= 8 ? 1 : groupX8 / 8;
+
+  auto wideX8 = 2*groupX8;
+  unsigned effWideLmul = wideX8 <= 8 ? 1 : wideX8 / 8;
+
+  for (unsigned i = 0; i < 3; ++i)
+    packet.opLmul_[i] = effLmul;
+
+  if (di.isVectorLoad() or di.isVectorStore())
+    {
+      if (di.isVectorLoadIndexed() or di.isVectorStoreIndexed())
+        {
+          auto ig8 = groupX8 * hart.vecLdStIndexElemSize(di) / vecRegs.elemWidthInBytes();
+          auto dg8 = groupX8;
+
+          if (di.vecFieldCount() > 0)
+            {
+              ig8 *= di.vecFieldCount();
+              dg8 *= di.vecFieldCount();
+            }
+
+          unsigned dmul = dg8 <= 8 ? 1 : dg8 / 8;   // Data reg effective lmul
+          unsigned imul = ig8 <= 8 ? 1 : ig8 / 8;   // Index reg effective lmul
+          packet.opLmul_[0] = dmul;
+          packet.opLmul_[2] = imul;
+        }
+      else
+        {
+          auto dg8 = groupX8 * hart.vecLdStElemSize(di) / vecRegs.elemWidthInBytes();
+          if (di.vecFieldCount() > 0)
+            dg8 *= di.vecFieldCount();
+          unsigned dmul = dg8 <= 8 ? 1 : dg8 / 8;   // Data reg effective lmul
+          packet.opLmul_[0] = dmul;
+        }
+
+      return;
+    }
+
+
+  using InstId = WdRiscv::InstId;
+
+  switch(di.instId())
+    {
+    case InstId::vwaddu_vv:
+    case InstId::vwaddu_vx:
+    case InstId::vwsubu_vv:
+    case InstId::vwsubu_vx:
+    case InstId::vwadd_vv:
+    case InstId::vwadd_vx:
+    case InstId::vwsub_vv:
+    case InstId::vwsub_vx:
+    case InstId::vwredsumu_vs:
+    case InstId::vwredsum_vs:
+    case InstId::vwmulu_vv:
+    case InstId::vwmulu_vx:
+    case InstId::vwmul_vv:
+    case InstId::vwmul_vx:
+    case InstId::vwmulsu_vv:
+    case InstId::vwmulsu_vx:
+    case InstId::vwmaccu_vv:
+    case InstId::vwmaccu_vx:
+    case InstId::vwmacc_vv:
+    case InstId::vwmacc_vx:
+    case InstId::vwmaccsu_vv:
+    case InstId::vwmaccsu_vx:
+    case InstId::vwmaccus_vx:
+    case InstId::vwsll_vv:
+    case InstId::vwsll_vx:
+    case InstId::vwsll_vi:
+    case InstId::vfwcvt_xu_f_v:
+    case InstId::vfwcvt_x_f_v:
+    case InstId::vfwcvt_rtz_xu_f_v:
+    case InstId::vfwcvt_rtz_x_f_v:
+    case InstId::vfwcvt_f_xu_v:
+    case InstId::vfwcvt_f_x_v:
+    case InstId::vfwcvt_f_f_v:
+    case InstId::vfwredusum_vs:
+    case InstId::vfwredosum_vs:
+    case InstId::vfwcvtbf16_f_f_v:
+    case InstId::vfwmaccbf16_vv:
+    case InstId::vfwmaccbf16_vf:
+      packet.opLmul_[0] = effWideLmul;
+      break;
+
+    case InstId::vwaddu_wv:
+    case InstId::vwaddu_wx:
+    case InstId::vwsubu_wv:
+    case InstId::vwsubu_wx:
+    case InstId::vwadd_wv:
+    case InstId::vwadd_wx:
+    case InstId::vwsub_wv:
+    case InstId::vwsub_wx:
+    case InstId::vfwadd_wv:
+    case InstId::vfwadd_wf:
+    case InstId::vfwsub_wv:
+    case InstId::vfwsub_wf:
+      packet.opLmul_[0] = effWideLmul;
+      packet.opLmul_[1] = effWideLmul;
+      break;
+
+    case InstId::vnsrl_wv:
+    case InstId::vnsrl_wx:
+    case InstId::vnsrl_wi:
+    case InstId::vnsra_wv:
+    case InstId::vnsra_wx:
+    case InstId::vnsra_wi:
+    case InstId::vnclipu_wv:
+    case InstId::vnclipu_wx:
+    case InstId::vnclipu_wi:
+    case InstId::vnclip_wv:
+    case InstId::vnclip_wx:
+    case InstId::vnclip_wi:
+      packet.opLmul_[1] = effWideLmul;
+      break;
+
+    case InstId::vfncvt_xu_f_w:
+    case InstId::vfncvt_x_f_w:
+    case InstId::vfncvt_rtz_xu_f_w:
+    case InstId::vfncvt_rtz_x_f_w :
+    case InstId::vfncvt_f_xu_w:
+    case InstId::vfncvt_f_x_w :
+    case InstId::vfncvt_f_f_w:
+    case InstId::vfncvt_rod_f_f_w:
+    case InstId::vfncvtbf16_f_f_w:
+      packet.opLmul_[1] = effWideLmul;
+      break;
+
+    case InstId::vsext_vf2:
+    case InstId::vzext_vf2:
+      packet.opLmul_[1] = effLmul < 2 ? 1 : effLmul / 2;
+      break;
+
+    case InstId::vsext_vf4:
+    case InstId::vzext_vf4:
+      packet.opLmul_[1] = effLmul < 4 ? 1 : effLmul / 4;
+      break;
+
+    case InstId::vsext_vf8:
+    case InstId::vzext_vf8:
+      packet.opLmul_[1] = effLmul < 8 ? 1 : effLmul / 8;
+      break;
+
+    case InstId::vmseq_vv:
+    case InstId::vmseq_vx:
+    case InstId::vmseq_vi:
+    case InstId::vmsne_vv:
+    case InstId::vmsne_vx:
+    case InstId::vmsne_vi:
+    case InstId::vmsltu_vv:
+    case InstId::vmsltu_vx:
+    case InstId::vmslt_vv:
+    case InstId::vmslt_vx:
+    case InstId::vmsleu_vv:
+    case InstId::vmsleu_vx:
+    case InstId::vmsleu_vi:
+    case InstId::vmsle_vv:
+    case InstId::vmsle_vx:
+    case InstId::vmsle_vi:
+    case InstId::vmsgtu_vx:
+    case InstId::vmsgtu_vi:
+    case InstId::vmsgt_vx:
+    case InstId::vmsgt_vi:
+      packet.opLmul_[0] = 1;
+      break;
+
+    case InstId::vmand_mm:
+    case InstId::vmnand_mm:
+    case InstId::vmandn_mm:
+    case InstId::vmxor_mm:
+    case InstId::vmor_mm:
+    case InstId::vmnor_mm:
+    case InstId::vmorn_mm:
+    case InstId::vmxnor_mm:
+    case InstId::vcpop_m:
+    case InstId::vfirst_m:
+    case InstId::vmsbf_m:
+    case InstId::vmsif_m:
+    case InstId::vmsof_m:
+    case InstId::viota_m:
+      packet.opLmul_[0] = packet.opLmul_[1] = packet.opLmul_[2] = 1;
+      break;
+
+    default:
+      break;
+    }
+}
+
+
+bool
+PerfApi::collectOperandValues(Hart64& hart, InstrPac& packet)
+{
+  bool peekOk = true;
+
+  auto& di = packet.decodedInst();
+  assert(di.operandCount() <= packet.opVal_.size());
+
+  if (di.isVector())
+    getVectorOperandLmul(hart, packet);
+
+  auto hartIx = hart.sysHartIndex();
+  auto tag = packet.tag();
+
+  for (unsigned i = 0; i < di.operandCount(); ++i)
+    {
+      if (di.ithOperandType(i) == WdRiscv::OperandType::Imm)
+	{
+	  packet.opVal_.at(i) = di.ithOperand(i);
+	  continue;
+	}
+      assert(di.ithOperandMode(i) != WdRiscv::OperandMode::None);
+
+      unsigned regNum = di.ithOperand(i);
+      unsigned gri = globalRegIx(di.ithOperandType(i), regNum);
+      uint64_t value = 0;
+
+      auto& producer = packet.opProducers_.at(i);
+      if (producer)
+	{
+	  value = getDestValue(*producer, gri);
+	  if (not producer->executed())
+	    {
+	      std::cerr << "Error: PerfApi::execute: Hart-ix=" << hartIx << "tag=" << tag
+			<< " depends on tag=" << producer->tag_ << " which is not yet executed.\n";
+	      assert(0);
+	      return false;
+	    }
+	}
+      else
+	peekOk = peekRegister(hart, di.ithOperandType(i), regNum, value) and peekOk;
+
+      packet.opVal_.at(i) = value;
+    }
+
+  return peekOk;
 }
