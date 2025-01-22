@@ -28,15 +28,21 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
   using ExceptionCause = WdRiscv::ExceptionCause;
   using OperandType = WdRiscv::OperandType;
 
+  /// Operand value.
+  struct OpVal
+  {
+    uint64_t scalar = 0;        // For scalar/immediate operands.
+    std::vector<uint8_t> vec;   // For vector operands.
+  };
+
   /// Strucuture to recover the source/destination operands of an instruction packet.
   struct Operand
   {
     OperandType type = OperandType::IntReg;
-    unsigned number = 0;                  // Register number.
-    uint64_t value = 0;
-    uint64_t prevValue = 0;               // Used for modified registers.
+    unsigned number = 0;  // Register number (0 for immidiate operands).
+    OpVal value;          // Immidiate or register value.
+    OpVal prevValue;      // Used for modified registers.
   };
-
 
   /// Instruction packet.
   class InstrPac
@@ -248,7 +254,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     uint64_t execTime_ = 0;   // Execution time
     uint64_t prTarget_ = 0;   // Predicted branch target
 
-    std::array<uint64_t, 4> opVal_;  // Operand values (count and types are in di_)
+    std::array<OpVal, 4> opValues_;  // Operand values (count and types are in di_)
 
     // Ith entry is used if ith operand is vector. Value is effective group multiplier for
     // the vector operand.
@@ -258,7 +264,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     std::array<std::shared_ptr<InstrPac>, 4> opProducers_;
 
     // Global register index of a destination register and its corresponding value.
-    typedef std::pair<unsigned, uint64_t> DestValue;
+    typedef std::pair<unsigned, OpVal> DestValue;
     std::array<DestValue, 2> destValues_;
 
     uint32_t opcode_ = 0;
@@ -400,9 +406,9 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
   protected:
 
     /// Collect the register operand values for the instruction in the given packet. The
-    /// values are either obtained from whisper or from the instructions in flight.
-    /// Return true on success and false if we fail to read (peek) the value of a register
-    /// in whisper.
+    /// values are either obtained from the register files or from the instructions in
+    /// flight (which models register renaming).  Return true on success and false if we
+    /// fail to read (peek) the value of a register in Whisper.
     bool collectOperandValues(Hart64& hart, InstrPac& packet);
 
     /// Determine the effective group multiplier of each vector operand of the instruction
@@ -460,32 +466,23 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     }
 
     bool peekRegister(Hart64& hart, WdRiscv::OperandType type, unsigned regNum,
-		      uint64_t& value)
-    {
-      using OT = WdRiscv::OperandType;
-      switch(type)
-	{
-	case OT::IntReg: return hart.peekIntReg(regNum, value);
-	case OT::FpReg:  return hart.peekFpReg(regNum, value);
-	case OT::CsReg:  return hart.peekCsr(WdRiscv::CsrNumber(regNum), value);
-	case OT::VecReg:
-	case OT::Imm:
-	case OT::None:   assert(0); return ~unsigned(0);
-	}
+		      OpVal& value);
 
-      return false;
-    }
+    bool pokeRegister(Hart64& hart, WdRiscv::OperandType type, unsigned regNum,
+                      const OpVal& value);
 
     /// Get from the producing packet, the value of the register with the given
     /// global register index.
-    uint64_t getDestValue(const InstrPac& producer, unsigned gri) const
+    void getDestValue(const InstrPac& producer, unsigned gri, OpVal& val) const
     {
       assert(producer.executed());
       for (auto& p : producer.destValues_)
 	if (p.first == gri)
-	  return p.second;
+          {
+            val = p.second;
+            return;
+          }
       assert(0);
-      return 0;
     }
 
     /// Save hart register values corresponding to packet operands in prevVal.  Return

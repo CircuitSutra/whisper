@@ -263,16 +263,26 @@ namespace WdRiscv
     bool externalPokeCsr(CsrNumber csr, URV val, bool virtMode)
     { if (csr == CsrNumber::MIP) mipPoked_ = true; return pokeCsr(csr, val, virtMode); }
 
-    /// Put in value the bytes of the given vector register (most
-    /// significant byte first). Return true on success, return false
-    /// if reg is out of bounds.
+    /// Put in value the bytes of the given vector register (most significant byte
+    /// first). Return true on success, return false if reg is out of bounds.
     bool peekVecReg(unsigned reg, std::vector<uint8_t>& value) const;
 
-    /// Put the bytes of the value in the given vector register.
-    /// The first byte in value should be the most significant.
-    /// If value is smaller than vector register size, it is padded
-    /// with zeros on the most-significant side.
+    /// Put the bytes of the value in the given vector register. The first byte in value
+    /// is more significant than the next. If value is smaller than vector register size, the
+    /// vector register is padded with zeros on the most-significant side.
     bool pokeVecReg(unsigned reg, const std::vector<uint8_t>& value);
+
+    /// Put in value the bytes of the given vector register (least significant byte
+    /// first). Return true on success, return false if reg is out of bounds.
+    bool peekVecRegLsb(unsigned reg, std::vector<uint8_t>& value) const;
+
+    /// Put the bytes of value in the given vector register. The first byte in value
+    /// should be the least significant. If value is smaller than vector register size, it
+    /// is padded with zeros on the most-significant side.
+    bool pokeVecRegLsb(unsigned reg, const std::vector<uint8_t>& value);
+
+    /// Simular to above but with a span instead of a vector.
+    bool pokeVecRegLsb(unsigned reg, const std::span<const uint8_t>& value);
 
     /// Find the integer register with the given name (which may
     /// represent an integer or a symbolic name). Set num to the

@@ -624,7 +624,10 @@ PerfApi::getLoadData(unsigned hartIx, uint64_t tag, uint64_t va, uint64_t pa1,
   if (packet->executed() and not packet->isAmo())
     {
       assert(size == packet->dataSize());
-      data = packet->destValues_.at(0).second;
+      if (packet->decodedInst().isVector())
+        assert(0);
+      else
+        data = packet->destValues_.at(0).second.scalar;
       return true;
     }
 
@@ -950,8 +953,8 @@ InstrPac::getSourceOperands(std::array<Operand, 3>& ops)
 	{
 	  auto& op = ops.at(count);
 	  op.type = di_.ithOperandType(i);
-	  op.number = (di_.ithOperandType(i) == OperandType::Imm) ? 0 : di_.ithOperand(i);
-	  op.value = opVal_.at(i);
+	  op.number = (op.type == OperandType::Imm) ? 0 : di_.ithOperand(i);
+          op.value = opValues_.at(i);
 	  ++count;
 	}
     }
@@ -980,7 +983,7 @@ InstrPac::getDestOperands(std::array<Operand, 2>& ops)
 	  op.type = di_.ithOperandType(i);
 	  op.number = di_.ithOperand(i);
 	  op.value = destValues_.at(count).second;
-	  op.prevValue = opVal_.at(i);
+	  op.prevValue = opValues_.at(i);
 	  ++count;
 	}
     }
@@ -1177,46 +1180,90 @@ PerfApi::restoreHartValues(Hart64& hart, const InstrPac& packet,
 bool
 PerfApi::setHartValues(Hart64& hart, const InstrPac& packet)
 {
-  using OM = WdRiscv::OperandMode;
-  using OT = WdRiscv::OperandType;
-
   auto& di = packet.decodedInst();
-
   bool ok = true;
 
   for (unsigned i = 0; i < di.operandCount(); ++i)
     {
       auto mode = di.ithOperandMode(i);
-      auto type = di.ithOperandType(i);
-      uint32_t operand = di.ithOperand(i);
-      uint64_t val = packet.opVal_.at(i);
-      if (mode == OM::None)
+      if (mode == WdRiscv::OperandMode::None)
  	continue;
 
-      switch (type)
- 	{
- 	case OT::IntReg:
- 	  if (not hart.pokeIntReg(operand, val))
- 	    assert(0);
- 	  break;
- 	case OT::FpReg:
- 	  ok = hart.pokeFpReg(operand, val) and ok;
- 	  break;
- 	case OT::CsReg:
- 	  ok = hart.pokeCsr(CSRN(operand), val) and ok;
- 	  break;
- 	case OT::VecReg:
- 	  assert(0);
- 	  break;
- 	case OT::Imm:
- 	  break;
- 	default:
- 	  assert(0);
- 	  break;
- 	}
+      auto type = di.ithOperandType(i);
+      uint32_t operand = di.ithOperand(i);
+      const OpVal& value = packet.opValues_.at(i);
+      ok = pokeRegister(hart, type, operand, value) and ok;
     }
 
   return ok;
+}
+
+
+bool
+PerfApi::peekRegister(Hart64& hart, WdRiscv::OperandType type, unsigned regNum,
+                      OpVal& value)
+{
+  using OT = WdRiscv::OperandType;
+  switch(type)
+    {
+    case OT::IntReg: return hart.peekIntReg(regNum, value.scalar);
+    case OT::FpReg:  return hart.peekFpReg(regNum, value.scalar);
+    case OT::CsReg:  return hart.peekCsr(WdRiscv::CsrNumber(regNum), value.scalar);
+    case OT::VecReg: return hart.peekVecRegLsb(regNum, value.vec);
+    case OT::Imm:
+    case OT::None:   assert(0); return false;
+    }
+  return false;
+}
+
+
+bool
+PerfApi::pokeRegister(Hart64& hart, WdRiscv::OperandType type, unsigned regNum,
+		      const OpVal& value)
+{
+  using OT = WdRiscv::OperandType;
+
+  uint64_t scalar = value.scalar;
+  const std::vector<uint8_t>& vecVal = value.vec;
+
+  switch (type)
+    {
+    case OT::IntReg:
+      if (hart.pokeIntReg(regNum, scalar))
+        return true;
+      assert(0);
+      return false;
+
+    case OT::FpReg:
+      return hart.pokeFpReg(regNum, scalar);
+
+    case OT::CsReg:
+      return hart.pokeCsr(CSRN(regNum), scalar);
+      
+    case OT::VecReg:
+      {
+        bool ok = true;
+
+        size_t bytesPerReg = hart.vecRegs().bytesPerRegister();
+        size_t count = vecVal.size() / bytesPerReg;
+        assert(count * bytesPerReg == vecVal.size());
+
+        for (unsigned i = 0; i < count; ++i)
+          {
+            auto pokeData = vecVal.data() + i*bytesPerReg;
+            ok = hart.pokeVecRegLsb(regNum, std::span(pokeData, bytesPerReg)) and ok;
+          }
+
+        return ok;
+      }
+
+    case OT::Imm:
+    default:
+      break;
+    }
+
+  assert(0);
+  return false;
 }
 
 
@@ -1271,7 +1318,7 @@ PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
 	{
 	  unsigned regNum = di.ithOperand(i);
 	  unsigned gri = globalRegIx(di.ithOperandType(i), regNum);
-	  uint64_t destVal = 0;
+	  OpVal destVal;
 	  if (not peekRegister(hart, di.ithOperandType(i), regNum, destVal))
 	    assert(0);
 	  packet.destValues_.at(destIx) = InstrPac::DestValue(gri, destVal);
@@ -1487,7 +1534,7 @@ PerfApi::collectOperandValues(Hart64& hart, InstrPac& packet)
   bool peekOk = true;
 
   auto& di = packet.decodedInst();
-  assert(di.operandCount() <= packet.opVal_.size());
+  assert(di.operandCount() <= packet.opValues_.size());
 
   if (di.isVector())
     getVectorOperandLmul(hart, packet);
@@ -1499,19 +1546,18 @@ PerfApi::collectOperandValues(Hart64& hart, InstrPac& packet)
     {
       if (di.ithOperandType(i) == WdRiscv::OperandType::Imm)
 	{
-	  packet.opVal_.at(i) = di.ithOperand(i);
+	  packet.opValues_.at(i).scalar = di.ithOperand(i);
 	  continue;
 	}
       assert(di.ithOperandMode(i) != WdRiscv::OperandMode::None);
 
       unsigned regNum = di.ithOperand(i);
       unsigned gri = globalRegIx(di.ithOperandType(i), regNum);
-      uint64_t value = 0;
+      OpVal value;
 
       auto& producer = packet.opProducers_.at(i);
       if (producer)
 	{
-	  value = getDestValue(*producer, gri);
 	  if (not producer->executed())
 	    {
 	      std::cerr << "Error: PerfApi::execute: Hart-ix=" << hartIx << "tag=" << tag
@@ -1519,11 +1565,12 @@ PerfApi::collectOperandValues(Hart64& hart, InstrPac& packet)
 	      assert(0);
 	      return false;
 	    }
+	  getDestValue(*producer, gri, value);
 	}
       else
-	peekOk = peekRegister(hart, di.ithOperandType(i), regNum, value) and peekOk;
+        peekOk = peekRegister(hart, di.ithOperandType(i), regNum, value) and peekOk;
 
-      packet.opVal_.at(i) = value;
+      packet.opValues_.at(i) = value;
     }
 
   return peekOk;
