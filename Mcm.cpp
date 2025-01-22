@@ -212,11 +212,22 @@ Mcm<URV>::readOp_(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa, uns
 
       // Adjust indices of all the instructions referencing ops that are now after new op
       // in sysMemOps_.
+
+      // One set of adjusted tags per hart.
+      std::vector< std::unordered_set<uint64_t> > adjustedTags(hartData_.size()); 
+
       for (size_t i = ix + 1; i < sysMemOps_.size(); ++i)
         {
           auto& movedOp = sysMemOps_.at(i);
           auto& instrVec = hartData_.at(movedOp.hartIx_).instrVec_;
-          auto& instr = instrVec.at(movedOp.tag_);
+
+          auto& tagSet = adjustedTags.at(movedOp.hartIx_);
+          auto tag = movedOp.tag_;
+          if (tagSet.contains(tag))
+            continue;
+          tagSet.insert(tag);
+
+          auto& instr = instrVec.at(tag);
           for (auto& instrOpIx : instr.memOps_)
             if (instrOpIx >= ix)
               instrOpIx++;
@@ -1784,8 +1795,11 @@ Mcm<URV>::checkRtlRead(Hart<URV>& hart, const McmInstr& instr,
   // Major hack (temporary until RTL HTIF addresses are rationalized).
   skip = skip or (addr >= 0x70000000 and addr <= 0x70000008);
 
+  skip = skip or (not isReadDataCheckEnabled(addr));
+
   if (skip)
     return true;
+
 
   if (op.rtlData_ != op.data_)
     {
@@ -2446,6 +2460,9 @@ Mcm<URV>::commitVecReadOpsStride0(Hart<URV>& hart, McmInstr& instr)
               mask &= ~byteMask;
               op.canceled_ = false;
 
+              if (not isReadDataCheckEnabled(byteAddr))
+                continue;
+
               unsigned offset = byteAddr - op.pa_;
               uint8_t refVal = op.data_ >> (offset*8);
               uint8_t rtlVal = op.rtlData_ >> (offset*8);
@@ -2518,15 +2535,19 @@ Mcm<URV>::commitVecReadOpsUnitStride(Hart<URV>& hart, McmInstr& instr)
             continue;  // Address already covered by another read op.
 
           covered = true;
-          uint8_t refVal = op.data_ >> (i*8);
-          uint8_t rtlVal = op.rtlData_ >> (i*8);
 
-          if (refVal != rtlVal)
+          if (isReadDataCheckEnabled(addr))
             {
-              if (not mismatch)
-                printReadMismatch(hart, op.time_, op.tag_, addr, op.size_, rtlVal, refVal);
-              mismatch = true;
-              ok = false;
+              uint8_t refVal = op.data_ >> (i*8);
+              uint8_t rtlVal = op.rtlData_ >> (i*8);
+
+              if (refVal != rtlVal)
+                {
+                  if (not mismatch)
+                    printReadMismatch(hart, op.time_, op.tag_, addr, op.size_, rtlVal, refVal);
+                  mismatch = true;
+                  ok = false;
+                }
             }
 
           low = std::min(low, addr);
@@ -2655,15 +2676,19 @@ Mcm<URV>::commitVecReadOps(Hart<URV>& hart, McmInstr& instr)
             continue;  // Address already covered by another read op.
 
           covered = true;
-          uint8_t refVal = op.data_ >> (i*8);
-          uint8_t rtlVal = op.rtlData_ >> (i*8);
 
-          if (refVal != rtlVal)
+          if (isReadDataCheckEnabled(addr))
             {
-              if (not mismatch)
-                printReadMismatch(hart, op.time_, op.tag_, addr, op.size_, rtlVal, refVal);
-              mismatch = true;
-              ok = false;
+              uint8_t refVal = op.data_ >> (i*8);
+              uint8_t rtlVal = op.rtlData_ >> (i*8);
+
+              if (refVal != rtlVal)
+                {
+                  if (not mismatch)
+                    printReadMismatch(hart, op.time_, op.tag_, addr, op.size_, rtlVal, refVal);
+                  mismatch = true;
+                  ok = false;
+                }
             }
 
           low = std::min(low, addr);
