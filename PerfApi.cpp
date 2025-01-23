@@ -605,7 +605,8 @@ PerfApi::drainStore(unsigned hartIx, uint64_t time, uint64_t tag)
 
 bool
 PerfApi::getLoadData(unsigned hartIx, uint64_t tag, uint64_t va, uint64_t pa1,
-		     uint64_t pa2, unsigned size, uint64_t& data)
+		     uint64_t pa2, unsigned size, uint64_t& data, unsigned elemIx,
+                     unsigned field)
 {
   auto hart = checkHart("Get-load-data", hartIx);
   auto packet = checkTag("Get-load-Data", hartIx, tag);
@@ -620,14 +621,12 @@ PerfApi::getLoadData(unsigned hartIx, uint64_t tag, uint64_t va, uint64_t pa1,
 
   // If AMO destination register is x0, we lose the loaded value: redo the read for AMOs
   // to avoid that case. AMOs should not have a discrepancy between early read and read at
-  // excecute, so redoing the read is ok.
-  if (packet->executed() and not packet->isAmo())
+  // retire, so redoing the read is ok.
+  bool amoRedo = packet->isAmo() and packet->di_.op0() == 0;
+
+  if (packet->executed() and not amoRedo)
     {
-      assert(size == packet->dataSize());
-      if (packet->decodedInst().isVector())
-        assert(0);
-      else
-        data = packet->destValues_.at(0).second.scalar;
+      data = packet->executedDestVal(*hart, size, elemIx, field);
       return true;
     }
 
@@ -1018,6 +1017,42 @@ InstrPac::branchTargetFromDecode() const
     default:
       return 0;
     }
+}
+
+
+uint64_t
+InstrPac::executedDestVal(const Hart64& hart, unsigned size, unsigned elemIx, unsigned field) const
+{
+  assert(executed());
+
+  OpVal destVal = destValues_.at(0).second;
+
+  if (not di_.isVector())
+    {
+      assert(size == dataSize());
+      return destVal.scalar;
+    }
+
+  std::vector<uint8_t>& vec = destVal.vec;   // Vector register value.
+
+  auto& info = hart.getLastVectorMemory();
+  unsigned elemSize = info.elemSize_;
+
+  unsigned offset = elemSize * elemIx;
+  if (info.fields_ > 0)
+    offset = offset*info.fields_ + field;
+  else
+    assert(field == 0);
+
+  assert(offset + size <= vec.size());
+
+  uint64_t val = 0;
+  for (unsigned i = 0; i < size; ++i)
+    {
+      uint64_t byte = vec.at(offset + i);
+      val |= byte << i*8;
+    }
+  return val;
 }
 
 

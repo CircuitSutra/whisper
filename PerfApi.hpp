@@ -229,6 +229,16 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     /// executed.  Return the number of operands written into the array.
     unsigned getDestOperands(std::array<Operand, 2>& ops);
 
+  protected:
+
+    /// Return the value of the destination register of the instruction of this packet
+    /// which must be the instruction currently being retired. The instruction must be
+    /// executed. The element index and field are used for vector instructions. If
+    /// instruction produces more than one register (e.g. f0 and fcsr), this returns the
+    /// value of the first register.
+    uint64_t executedDestVal(const Hart64& hart, unsigned size, unsigned elemIx,
+                             unsigned field) const;
+
   private:
 
     uint64_t tag_ = 0;
@@ -378,9 +388,10 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
 
     /// Set data to the load value of the given instruction tag and return true on
     /// success. Return false on failure leaving data unmodified: tag is not valid or
-    /// corresponding instruction is not executed or is not a load.
+    /// corresponding instruction is not a load.
     bool getLoadData(unsigned hart, uint64_t tag, uint64_t va, uint64_t pa1,
-		     uint64_t pa2, unsigned size, uint64_t& data);
+		     uint64_t pa2, unsigned size, uint64_t& data,
+                     unsigned elemIx, unsigned field);
 
     /// Set the data value of a store/amo instruction to be commited to memory
     /// at drain/retire time.

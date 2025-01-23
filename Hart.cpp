@@ -1786,7 +1786,8 @@ Hart<URV>::getOooLoadValue(uint64_t va, uint64_t pa1, uint64_t pa2, unsigned siz
     return mcm_->getCurrentLoadValue(*this, instCounter_, va, pa1, pa2, size, isVec,
 				     value, elemIx, field);
   if (perfApi_)
-    return perfApi_->getLoadData(hartIx_, instCounter_, va, pa1, pa2, size, value);
+    return perfApi_->getLoadData(hartIx_, instCounter_, va, pa1, pa2, size, value,
+                                 elemIx, field);
   assert(0);
   return false;
 }
