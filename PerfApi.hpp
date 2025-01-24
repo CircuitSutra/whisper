@@ -468,7 +468,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
 	case OT::IntReg: return regNum + intRegOffset_;
 	case OT::FpReg:  return regNum + fpRegOffset_;
 	case OT::CsReg:  return regNum + csRegOffset_;
-	case OT::VecReg:
+	case OT::VecReg: return regNum + vecRegOffset_;
 	case OT::Imm:
 	case OT::None:   assert(0); return ~unsigned(0);
 	}
@@ -500,7 +500,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     /// true on success. Return false if any of the required hart registers cannot be
     /// read.
     bool saveHartValues(Hart64& hart, const InstrPac& packet,
-			std::array<uint64_t, 4>& prevVal);
+			std::array<OpVal, 4>& prevVal);
 
     /// Install packet operand values (some obtained from previous in-flight instructions)
     /// into the hart registers. Return true on success. Return false if any of the
@@ -510,7 +510,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     /// Restore the hart registers corresponding to the packet operands to the values in
     /// the prevVal array.
     void restoreHartValues(Hart64& hart, const InstrPac& packet,
-			   const std::array<uint64_t, 4>& prevVal);
+			   const std::array<OpVal, 4>& prevVal);
 
     /// Helper to execute. Restore IMSIC top interrupt if csrn is one of M/S/VS TOPEI.
     void restoreImsicTopei(Hart64& hart, WdRiscv::CsrNumber csrn, unsigned id, unsigned guest);
@@ -556,10 +556,11 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     unsigned pageSize_ = 4096;
 
     /// Global indexing for all registers.
-    const unsigned intRegOffset_ = 0;
-    const unsigned fpRegOffset_ = 32;
-    const unsigned csRegOffset_ = 64;
-    const unsigned totalRegCount_ = csRegOffset_ + 4096; // 4096: max CSR count.
+    const unsigned intRegOffset_  = 0;
+    const unsigned fpRegOffset_   = intRegOffset_ + 32;
+    const unsigned vecRegOffset_  = fpRegOffset_  + 32;
+    const unsigned csRegOffset_   = vecRegOffset_ + 32;
+    const unsigned totalRegCount_ = csRegOffset_  + 4096; // 4096: max CSR count.
 
     static constexpr uint64_t haltPc = ~uint64_t(1);  // value assigned to InstPac->nextIva_ when program termination is encountered
   };

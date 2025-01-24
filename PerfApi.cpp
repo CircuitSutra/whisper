@@ -191,6 +191,7 @@ PerfApi::decode(unsigned hartIx, uint64_t time, uint64_t tag)
   packet->decoded_ = true;
 
   // Collect producers of operands of this instruction.
+  // FIX: need vtype to determine operand LMUL, in flight vsetvli must be executed
   auto& di = packet->decodedInst();
   auto& producers = hartRegProducers_.at(hartIx);
   for (unsigned i = 0; i < di.operandCount(); ++i)
@@ -327,7 +328,7 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
   hart.pokePc(packet.instrVa());
   hart.setInstructionCount(packet.tag_ - 1);
 
-  std::array<uint64_t, 4> prevVal;  // Previous operand values
+  std::array<OpVal, 4> prevVal;  // Previous operand values
 
   // Save hart register values corresponding to packet operands in prevVal.
   bool saveOk = saveHartValues(hart, packet, prevVal);
@@ -1058,7 +1059,7 @@ InstrPac::executedDestVal(const Hart64& hart, unsigned size, unsigned elemIx, un
 
 bool
 PerfApi::saveHartValues(Hart64& hart, const InstrPac& packet,
-			std::array<uint64_t, 4>& prevVal)
+			std::array<OpVal, 4>& prevVal)
 {
   using OM = WdRiscv::OperandMode;
   using OT = WdRiscv::OperandType;
@@ -1077,16 +1078,17 @@ PerfApi::saveHartValues(Hart64& hart, const InstrPac& packet,
       switch (type)
 	{
 	case OT::IntReg:
-	  if (not hart.peekIntReg(operand, prevVal.at(i)))
+	  if (not hart.peekIntReg(operand, prevVal.at(i).scalar))
 	    assert(0);
 	  break;
 	case OT::FpReg:
-	  ok = hart.peekFpReg(operand, prevVal.at(i)) and ok;
+	  ok = hart.peekFpReg(operand, prevVal.at(i).scalar) and ok;
 	  break;
 	case OT::CsReg:
-	  ok = hart.peekCsr(CSRN(operand), prevVal.at(i)) and ok;
+	  ok = hart.peekCsr(CSRN(operand), prevVal.at(i).scalar) and ok;
 	  break;
 	case OT::VecReg:
+          // We don't know lmul, we would need to set vtype
 	  assert(0);
 	  break;
 	case OT::Imm:
@@ -1165,7 +1167,7 @@ PerfApi::restoreImsicTopei(Hart64& hart, CSRN csrn, unsigned id, unsigned guest)
 
 void
 PerfApi::restoreHartValues(Hart64& hart, const InstrPac& packet,
-			   const std::array<uint64_t, 4>& prevVal)
+			   const std::array<OpVal, 4>& prevVal)
 {
   using OM = WdRiscv::OperandMode;
   using OT = WdRiscv::OperandType;
@@ -1177,7 +1179,8 @@ PerfApi::restoreHartValues(Hart64& hart, const InstrPac& packet,
       auto mode = di.ithOperandMode(i);
       auto type = di.ithOperandType(i);
       uint32_t operand = di.ithOperand(i);
-      uint64_t prev = prevVal.at(i);
+      uint64_t prev = prevVal.at(i).scalar;
+      const std::vector<uint8_t>& vec = prevVal.at(i).vec;
       if (mode == OM::None)
 	continue;
 
@@ -1201,7 +1204,17 @@ PerfApi::restoreHartValues(Hart64& hart, const InstrPac& packet,
 	  break;
 
 	case OT::VecReg:
-	  assert(0);
+          {
+            size_t bytesPerReg = hart.vecRegs().bytesPerRegister();
+            size_t count = vec.size() / bytesPerReg;
+            assert(count * bytesPerReg == vec.size());
+            for (unsigned i = 0; i < count; ++i)
+              {
+                auto pokeData = vec.data() + i*bytesPerReg;
+                if (not hart.pokeVecRegLsb(operand + i, std::span(pokeData, bytesPerReg)))
+                  assert(0);
+              }
+          }
 	  break;
 
 	default:
@@ -1286,7 +1299,7 @@ PerfApi::pokeRegister(Hart64& hart, WdRiscv::OperandType type, unsigned regNum,
         for (unsigned i = 0; i < count; ++i)
           {
             auto pokeData = vecVal.data() + i*bytesPerReg;
-            ok = hart.pokeVecRegLsb(regNum, std::span(pokeData, bytesPerReg)) and ok;
+            ok = hart.pokeVecRegLsb(regNum + i, std::span(pokeData, bytesPerReg)) and ok;
           }
 
         return ok;
@@ -1342,7 +1355,8 @@ PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
 
   if (di.isBranch()) packet.taken_ = hart.lastBranchTaken();
 
-  // Record the values of the destination register.
+  // Record the values of the destination register.  FIX : break vector destination
+  // group into individual vector registers.
   unsigned destIx = 0;
   for (unsigned i = 0; i < di.operandCount(); ++i)
     {
@@ -1577,6 +1591,8 @@ PerfApi::collectOperandValues(Hart64& hart, InstrPac& packet)
   auto hartIx = hart.sysHartIndex();
   auto tag = packet.tag();
 
+  // FIX break vector register group into components
+
   for (unsigned i = 0; i < di.operandCount(); ++i)
     {
       if (di.ithOperandType(i) == WdRiscv::OperandType::Imm)
@@ -1589,6 +1605,8 @@ PerfApi::collectOperandValues(Hart64& hart, InstrPac& packet)
       unsigned regNum = di.ithOperand(i);
       unsigned gri = globalRegIx(di.ithOperandType(i), regNum);
       OpVal value;
+
+      // If we have a vector operand, vtype has to bet set to the one in flight.
 
       auto& producer = packet.opProducers_.at(i);
       if (producer)
