@@ -148,7 +148,7 @@ PerfApi::fetch(unsigned hartIx, uint64_t time, uint64_t tag, uint64_t vpc,
     assert(0);
   prevFetch_ = packet;
 
-  trap = cause != ExceptionCause::NONE;
+  packet->trap_ = trap = cause != ExceptionCause::NONE;
 
   if (prev and not prev->trapped() and prev->executed() and prev->nextIva_ != vpc)
     {
