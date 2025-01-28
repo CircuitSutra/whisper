@@ -364,6 +364,9 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
   // into the hart registers.
   bool setOk = setHartValues(hart, packet);
 
+  assert(packet.tag_ > hartLastRetired_.at(hartIx));
+  hart.adjustTime(packet.tag_ - hartLastRetired_.at(hartIx) - 1);
+
   auto& di = packet.decodedInst();
 
   unsigned imsicId = 0, imsicGuest = 0;
@@ -390,7 +393,7 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
 
   // Undo changes to the hart.
 
-  hart.untickTime();  // Restore timer value.
+  hart.adjustTime(-(int64_t)(packet.tag_ - hartLastRetired_.at(hartIx)));  // Restore timer value.
 
   // Restore CSRs modified by the instruction or trap. TODO: For vector ld/st we have to
   // restore partially modified vectors.
@@ -460,6 +463,7 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
 		<< " Out of order retire\n";
       return false;
     }
+  hartLastRetired_.at(hartIx) = tag;
 
   if (packet.retired())
     {
