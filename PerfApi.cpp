@@ -1209,6 +1209,7 @@ PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
     {
       hart.lastLdStAddress(packet.dva_, packet.dpa_);  // FIX TODO : handle page corrsing
       packet.dsize_ = di.loadSize();
+      packet.deviceAccess_ = hart.isAclintMtimeAddr(packet.dpa_) or hart.isImsicAddr(packet.dpa_) or hart.isPciAddr(packet.dpa_);
     }
   else if (di.isStore() or di.isAmo())
     {
@@ -1229,6 +1230,7 @@ PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
 	{
 	  auto& storeMap =  hartStoreMaps_.at(hartIx);
 	  storeMap[packet.tag()] = getInstructionPacket(hartIx, packet.tag());
+	  packet.deviceAccess_ = hart.isAclintMtimeAddr(packet.dpa_) or hart.isImsicAddr(packet.dpa_) or hart.isPciAddr(packet.dpa_);
 	}
     }
 
