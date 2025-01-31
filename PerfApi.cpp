@@ -697,7 +697,7 @@ PerfApi::getLoadData(unsigned hartIx, uint64_t tag, uint64_t va, uint64_t pa1,
 
       uint64_t stAddr = stPac->dataVa();
       unsigned stSize = stPac->dataSize();
-      if (stAddr + stSize < va or va + size < stSize)
+      if (stAddr + stSize < va or va + size < stAddr)
 	continue;  // No overlap.
 
       uint64_t stData = stPac->opVal_.at(0);
