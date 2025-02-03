@@ -1527,11 +1527,10 @@ CsRegs<URV>::writeSie(URV value, bool recordWr)
   if (mideleg and mvien and mvip)
     {
       URV smask = mvien->read() & ~mideleg->read();
+      sieMask &= ~ smask;  // Don't write SIE where SIE is indepedent of MIE
       // We always write the shadow SIE on SIE write to match RTL behavior. This is legal
       // because when the writable SIE portion is enabled, its value is undefined by the spec.
-      URV mask = smask | sieMask;
-      shadowSie_ = (shadowSie_ & ~mask) | (value & mask);
-      sieMask &= ~ smask;  // Don't write SIE where SIE is indepedent of MIE
+      shadowSie_ = value;
     }
 
   sie->setWriteMask(sieMask);
@@ -4527,47 +4526,24 @@ CsRegs<URV>::addMachineFields()
   setCsrFields(CsrNumber::MNSTATUS,
       {{"res0", 3}, {"NMIE",   1}, {"res1", 3}, {"MNPV", 1},
        {"res2", 1}, {"MNPELP", 2}, {"res3", 1}, {"MNPP", 2}, {"res4", xlen-14}});
-  //stateen
-  std::vector<typename Csr<URV>::Field> stateen_start = {{"C", 1}, {"FCSR", 1}, {"JVT", 1}}; // stateen common fields
-  std::vector<typename Csr<URV>::Field> stateen_end = {{"CNTXT", 1}, {"IMSIC", 1}, {"AIA", 1}, {"CSRIND", 1}, {"zero", 1}, {"ENVCFG", 1}, {"SEO", 1}};
-  for (auto &i : {CsrNumber::MSTATEEN0, CsrNumber::SSTATEEN0, CsrNumber::HSTATEEN0})
+
+  if (rv32_)
     {
-      std::vector<typename Csr<URV>::Field> stateen, stateenh;
-      stateen.insert(stateen.end(), stateen_start.begin(), stateen_start.end());
-      if (rv32_)
-        stateen.push_back({"zero",  xlen-3});
-      if (i == CsrNumber::MSTATEEN0)
-        {
-          if (rv32_)
-            {
-             stateenh.push_back({"zero", 24});
-             stateenh.push_back({"p1p13", 1});
-            }
-          else
-            {
-            stateen.push_back({"zero", 53});
-            stateen.push_back({"p1p13", 1});
-            }
-          stateenh.insert(stateenh.end(), stateen_end.begin(), stateen_end.end());
-          stateen.insert(stateen.end(), stateen_end.begin(), stateen_end.end());
-        }
-      else if (i == CsrNumber::HSTATEEN0)
-        {
-          if (rv32_)
-            stateenh.push_back({"zero", 25});
-          else
-            stateen.push_back({"zero", 54});
-          stateenh.insert(stateenh.end(), stateen_end.begin(), stateen_end.end());
-          stateen.insert(stateen.end(), stateen_end.begin(), stateen_end.end());
-        }
-      else
-        {
-          if (!rv32_)
-            stateen.push_back({"zero", 61});
-        }
-      setCsrFields(i, stateen);
-      if (rv32_ && i != CsrNumber::SSTATEEN0)
-        setCsrFields(advance(i, 0x10), stateenh);
+       setCsrFields(CsrNumber::MSTATEEN0, {{"C", 1}, {"FCSR", 1}, {"JVT", 1}, {"zero", 29}});
+       setCsrFields(CsrNumber::MSTATEEN0H, {{"zero", 24},{"P1P13", 1},{"CNTXT", 1}, {"IMSIC", 1}, {"AIA", 1},
+                                           {"CSRIND",1}, {"zero",  1},{"ENVCFG",1}, {"SEO", 1}});
+       // no fields defined yet for mstateen1,2,3
+       setCsrFields(CsrNumber::MSTATEEN1H, {{"zero", 31}, {"SEO", 1}});
+       setCsrFields(CsrNumber::MSTATEEN2H, {{"zero", 31}, {"SEO", 1}});
+       setCsrFields(CsrNumber::MSTATEEN3H, {{"zero", 31}, {"SEO", 1}});
+    }
+  else
+    {
+       setCsrFields(CsrNumber::MSTATEEN0, {{"C", 1},    {"FCSR", 1}, {"JVT", 1}, {"zero",  53}, {"P1P13", 1}, {"CNTXT",1},
+                                           {"IMSIC", 1},{"AIA",1}, {"CSRIND",1}, {"zero",1}, {"ENVCFG", 1}, {"SEO",  1}});
+       setCsrFields(CsrNumber::MSTATEEN1, {{"zero", 63}, {"SEO", 1}});
+       setCsrFields(CsrNumber::MSTATEEN2, {{"zero", 63}, {"SEO", 1}});
+       setCsrFields(CsrNumber::MSTATEEN3, {{"zero", 63}, {"SEO", 1}});
     }
 
   if (rv32_)
@@ -4750,6 +4726,11 @@ CsRegs<URV>::addSupervisorFields()
         {{"FIOM", 1}, {"res0",  3}, {"CBIE", 2}, {"CBCFE", 1},
          {"CBZE", 1}, {"res1", 24}, {"PMM",  2}, {"res2", xlen - 34}});
     }
+
+  if (rv32_)
+     setCsrFields(CsrNumber::SSTATEEN0, {{"C", 1}, {"FCSR", 1}, {"JVT", 1}, {"zero", 29}});
+  else
+     setCsrFields(CsrNumber::SSTATEEN0, {{"C", 1}, {"FCSR", 1}, {"JVT", 1}, {"zero",  61}});
 }
 
 
@@ -4926,6 +4907,24 @@ CsRegs<URV>::addHypervisorFields()
          {"res6", 29}, {"SD",   1}});
       setCsrFields(Csrn::VSATP,
         {{"PPN", 44}, {"ASID", 16}, {"MODE", 4}});
+    }
+  if (rv32_)
+    {
+       setCsrFields(CsrNumber::HSTATEEN0, {{"C", 1}, {"FCSR", 1}, {"JVT", 1}, {"zero", 29}});
+       setCsrFields(CsrNumber::HSTATEEN0H, {{"zero", 25}, {"CNTXT", 1}, {"IMSIC", 1}, {"AIA", 1},
+                                           {"CSRIND",1}, {"zero",  1},{"ENVCFG",1}, {"SEO", 1}});
+       // no fields defined yet for Hstateen1,2,3
+       setCsrFields(CsrNumber::HSTATEEN1H, {{"zero", 31}, {"SEO", 1}});
+       setCsrFields(CsrNumber::HSTATEEN2H, {{"zero", 31}, {"SEO", 1}});
+       setCsrFields(CsrNumber::HSTATEEN3H, {{"zero", 31}, {"SEO", 1}});
+    }
+  else
+    {
+       setCsrFields(CsrNumber::HSTATEEN0, {{"C", 1}, {"FCSR", 1}, {"JVT", 1}, {"zero",  54}, {"CNTXT",1},
+                                           {"IMSIC", 1},{"AIA",1}, {"CSRIND",1}, {"zero",1}, {"ENVCFG",1}, {"SEO",  1}});
+       setCsrFields(CsrNumber::HSTATEEN1, {{"zero", 63}, {"SEO", 1}});
+       setCsrFields(CsrNumber::HSTATEEN2, {{"zero", 63}, {"SEO", 1}});
+       setCsrFields(CsrNumber::HSTATEEN3, {{"zero", 63}, {"SEO", 1}});
     }
 }
 
