@@ -190,14 +190,16 @@ PerfApi::decode(unsigned hartIx, uint64_t time, uint64_t tag)
   hart->decode(packet->instrVa(), packet->instrPa(), packet->opcode_, packet->di_);
   packet->decoded_ = true;
 
+  using OM = WdRiscv::OperandMode;
+
+  if (packet->di_.isVector())
+    getVectorOperandsLmul(*hart, *packet);
+
   // Collect producers of operands of this instruction.
-  // FIX: need vtype to determine operand LMUL, in flight vsetvli must be executed
   auto& di = packet->decodedInst();
   auto& producers = hartRegProducers_.at(hartIx);
   for (unsigned i = 0; i < di.operandCount(); ++i)
     {
-      using OM = WdRiscv::OperandMode;
-
       auto mode = di.ithOperandMode(i);
       if (mode != OM::None)
 	{
@@ -210,8 +212,6 @@ PerfApi::decode(unsigned hartIx, uint64_t time, uint64_t tag)
   // Mark this insruction as the producer of each of its destination registers.
   for (unsigned i = 0; i < di.operandCount(); ++i)
     {
-      using OM = WdRiscv::OperandMode;
-
       auto mode = di.effectiveIthOperandMode(i);
       if (mode == OM::Write or mode == OM::ReadWrite)
 	{
@@ -1380,12 +1380,44 @@ PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
 
 
 void
-PerfApi::getVectorOperandLmul(Hart64& hart, InstrPac& packet)
+PerfApi::getVectorOperandsLmul(Hart64& hart, InstrPac& packet)
 {
   auto di = packet.decodedInst();
   if (not di.isVector())
     return;
 
+  using CN = WdRiscv::CsrNumber;
+  using OT = WdRiscv::OperandType;
+
+  // 1. Set vtype value if it is in-flight.
+  auto hartIx = hart.sysHartIndex();
+  auto& producers = hartRegProducers_.at(hartIx);
+  auto vtypeGri = globalRegIx(OT::CsReg, unsigned(CN::VTYPE));
+  auto producer = producers.at(vtypeGri);  // Producer of vtype
+
+  uint64_t prevVal = 0;
+  if (producer)
+    {
+      if (not hart.peekCsr(CN::VTYPE, prevVal))
+        assert(0);
+
+      OpVal vtypeVal;
+      getDestValue(*producer, vtypeGri, vtypeVal);
+      hart.pokeCsr(CN::VTYPE, vtypeVal.scalar);
+    }
+
+  // 2. Determine the operands LMUL
+  getVecOpsLmul(hart, packet);
+
+  // 3. Restore vtype if it was set.
+  if (producer)
+    hart.pokeCsr(CN::VTYPE, prevVal);
+}
+
+
+void
+PerfApi::getVecOpsLmul(Hart64& hart, InstrPac& packet)
+{
   auto& vecRegs = hart.vecRegs();
 
   auto groupX8 = vecRegs.groupMultiplierX8();
@@ -1396,6 +1428,8 @@ PerfApi::getVectorOperandLmul(Hart64& hart, InstrPac& packet)
 
   for (unsigned i = 0; i < 3; ++i)
     packet.opLmul_[i] = effLmul;
+
+  auto di = packet.decodedInst();
 
   if (di.isVectorLoad() or di.isVectorStore())
     {
@@ -1584,9 +1618,6 @@ PerfApi::collectOperandValues(Hart64& hart, InstrPac& packet)
 
   auto& di = packet.decodedInst();
   assert(di.operandCount() <= packet.opValues_.size());
-
-  if (di.isVector())
-    getVectorOperandLmul(hart, packet);
 
   auto hartIx = hart.sysHartIndex();
   auto tag = packet.tag();

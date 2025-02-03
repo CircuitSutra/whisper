@@ -425,7 +425,10 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     /// Determine the effective group multiplier of each vector operand of the instruction
     /// associated with the given packet. Put results in packet.opLmul_. This is a helper
     /// to collectOperandValues.
-    void getVectorOperandLmul(Hart64& hart, InstrPac& packet);
+    void getVectorOperandsLmul(Hart64& hart, InstrPac& packet);
+
+    /// Helper to getVectorOperandsLmul
+    void getVecOpsLmul(Hart64& hart, InstrPac& packet);
 
     /// Return the page number corresponding to the given address
     uint64_t pageNum(uint64_t addr) const
