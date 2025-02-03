@@ -176,27 +176,30 @@ PerfApi::decode(unsigned hartIx, uint64_t time, uint64_t tag)
   if (not checkTime("Decode", time))
     return false;
 
-  auto hart = checkHart("Decode", hartIx);
-  if (not hart)
+  auto hartPtr = checkHart("Decode", hartIx);
+  if (not hartPtr)
     return false;
+  auto& hart = *hartPtr;
 
-  auto packet = checkTag("Decode", hartIx, tag);
-  if (not packet)
+  auto packPtr = checkTag("Decode", hartIx, tag);
+  if (not packPtr)
     return false;
+  auto& packet = *packPtr;
 
-  if (packet->decoded())
+  if (packet.decoded())
     return true;
 
-  hart->decode(packet->instrVa(), packet->instrPa(), packet->opcode_, packet->di_);
-  packet->decoded_ = true;
+  hart.decode(packet.instrVa(), packet.instrPa(), packet.opcode_, packet.di_);
+  packet.decoded_ = true;
 
   using OM = WdRiscv::OperandMode;
+  using OT = WdRiscv::OperandType;
 
-  if (packet->di_.isVector())
-    getVectorOperandsLmul(*hart, *packet);
+  if (packet.di_.isVector())
+    getVectorOperandsLmul(hart, packet);
 
   // Collect producers of operands of this instruction.
-  auto& di = packet->decodedInst();
+  auto& di = packet.decodedInst();
   auto& producers = hartRegProducers_.at(hartIx);
   for (unsigned i = 0; i < di.operandCount(); ++i)
     {
@@ -204,8 +207,20 @@ PerfApi::decode(unsigned hartIx, uint64_t time, uint64_t tag)
       if (mode != OM::None)
 	{
 	  unsigned regNum = di.ithOperand(i);
-	  unsigned gri = globalRegIx(di.ithOperandType(i), regNum);
-	  packet->opProducers_.at(i) = producers.at(gri);
+          auto type = di.ithOperandType(i);
+	  unsigned gri = globalRegIx(type, regNum);
+          if (type != OT::VecReg)
+            packet.opProducers_.at(i).scalar = producers.at(gri);
+          else
+            {
+              auto lmul = packet.opLmul_.at(i);
+              assert(lmul != 0);
+              for (unsigned n = 0; n < lmul; ++n)
+                {
+                  unsigned vgri = gri + n;
+                  packet.opProducers_.at(i).vec.push_back(producers.at(vgri));
+                }
+            }
 	}
     }
 
@@ -217,9 +232,9 @@ PerfApi::decode(unsigned hartIx, uint64_t time, uint64_t tag)
 	{
 	  unsigned regNum = di.ithOperand(i);
 	  unsigned gri = globalRegIx(di.ithOperandType(i), regNum);
-	  if (regNum == 0 and di.ithOperandType(i) == WdRiscv::OperandType::IntReg)
+	  if (regNum == 0 and di.ithOperandType(i) == OT::IntReg)
 	    continue;  // Reg X0 has no producer
-	  producers.at(gri) = packet;
+	  producers.at(gri) = packPtr;
 	}
     }
 
@@ -502,7 +517,7 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
 
   // Clear dependency on other packets to expedite release of packet memory.
   for (auto& producer : packet.opProducers_)
-    producer = nullptr;
+    producer.clear();
 
   // Stores erased at drain time.
   if (not packet.isStore())
@@ -628,7 +643,7 @@ PerfApi::drainStore(unsigned hartIx, uint64_t time, uint64_t tag)
 
   // Clear dependency on other packets to expedite release of packet memory.
   for (auto& producer : packet.opProducers_)
-    producer = nullptr;
+    producer.clear();
 
   auto& packetMap = hartPacketMaps_.at(hartIx);
   packetMap.erase(packet.tag());
@@ -892,10 +907,29 @@ PerfApi::flush(unsigned hartIx, uint64_t time, uint64_t tag)
               unsigned gri = globalRegIx(di.ithOperandType(i), regNum);
 	      if (gri != 0)
 		assert(producers.at(gri)->tag_ == packet.tag_);
-              auto prev = packet.opProducers_.at(i);
-	      if (prev and prev->retired_)
-                prev = nullptr;
-	      producers.at(gri) = prev;
+
+              auto& iop = packet.opProducers_.at(i);  // ith op producer
+
+              using OT = WdRiscv::OperandType;
+              OT type = di.ithOperandType(i);
+
+              if (type != OT::VecReg)
+                {
+                  auto prev = iop.scalar;
+                  if (prev and prev->retired_)
+                    prev = nullptr;
+                  producers.at(gri) = prev;
+                }
+              else
+                {
+                  for (unsigned n = 0; n < iop.vec.size(); ++n)
+                    {
+                      auto prev = iop.vec.at(n);
+                      if (prev and prev->retired_)
+                        prev = nullptr;
+                      producers.at(gri+n) = prev;
+                    }
+                }
             }
         }
 
@@ -1658,37 +1692,47 @@ PerfApi::collectOperandValues(Hart64& hart, InstrPac& packet)
   auto hartIx = hart.sysHartIndex();
   auto tag = packet.tag();
 
-  // FIX break vector register group into components
+  using OT = WdRiscv::OperandType;
 
   for (unsigned i = 0; i < di.operandCount(); ++i)
     {
-      if (di.ithOperandType(i) == WdRiscv::OperandType::Imm)
+      OT type = di.ithOperandType(i);
+      if (type == OT::Imm)
 	{
 	  packet.opValues_.at(i).scalar = di.ithOperand(i);
 	  continue;
 	}
+
       assert(di.ithOperandMode(i) != WdRiscv::OperandMode::None);
 
       unsigned regNum = di.ithOperand(i);
       unsigned gri = globalRegIx(di.ithOperandType(i), regNum);
       OpVal value;
 
-      // If we have a vector operand, vtype has to bet set to the one in flight.
+      auto& iop = packet.opProducers_.at(i);   // Ith operand producer;
 
-      auto& producer = packet.opProducers_.at(i);
-      if (producer)
-	{
-	  if (not producer->executed())
-	    {
-	      std::cerr << "Error: PerfApi::execute: Hart-ix=" << hartIx << "tag=" << tag
-			<< " depends on tag=" << producer->tag_ << " which is not yet executed.\n";
-	      assert(0);
-	      return false;
-	    }
-	  getDestValue(*producer, gri, value);
-	}
+      if (type != OT::VecReg)
+        {
+          auto& producer = iop.scalar;
+          if (producer)
+            {
+              if (not producer->executed())
+                {
+                  std::cerr << "Error: PerfApi::execute: Hart-ix=" << hartIx << "tag=" << tag
+                            << " depends on tag=" << producer->tag_ << " which is not yet executed.\n";
+                  assert(0);
+                  return false;
+                }
+              getDestValue(*producer, gri, value);
+            }
+          else
+            peekOk = peekRegister(hart, di.ithOperandType(i), regNum, value) and peekOk;
+        }
       else
-        peekOk = peekRegister(hart, di.ithOperandType(i), regNum, value) and peekOk;
+        {
+          // FIX break vector register group into components
+          assert(0);
+        }
 
       packet.opValues_.at(i) = value;
     }

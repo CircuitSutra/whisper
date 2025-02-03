@@ -45,6 +45,20 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     OpVal prevValue;      // Used for modified registers.
   };
 
+  class InstrPac;
+
+  struct OpProducer
+  {
+    std::shared_ptr<InstrPac> scalar;               // Scalar operand
+    std::vector<std::shared_ptr<InstrPac>> vec;     // Vector operand
+
+    void clear()
+    {
+      scalar =  nullptr;
+      vec.clear();
+    }
+  };
+
   /// Instruction packet.
   class InstrPac
   {
@@ -138,9 +152,12 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
 	  auto mode = di_.ithOperandMode(i);
 	  if (mode == OM::Read or mode == OM::ReadWrite)
 	    {
-	      auto producer = opProducers_.at(i);
-	      if (producer and producer->tag_ == other.tag_)
+	      auto& producer = opProducers_.at(i);
+	      if (producer.scalar and producer.scalar->tag_ == other.tag_)
 		return true;
+              for (auto& entry : producer.vec)
+                if (entry and entry->tag_ == other.tag_)
+                  return true;
 	    }
 	}
       return false;
@@ -272,7 +289,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     std::array<uint64_t, 4> opLmul_;
 
     // Entry i is the in-flight producer of the ith operand.
-    std::array<std::shared_ptr<InstrPac>, 4> opProducers_;
+    std::array<OpProducer, 4> opProducers_;
 
     // Global register index of a destination register and its corresponding value.
     typedef std::pair<unsigned, OpVal> DestValue;
