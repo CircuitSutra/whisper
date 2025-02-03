@@ -519,6 +519,7 @@ WdRiscv::ExceptionCause
 PerfApi::translateInstrAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa)
 {
   auto hart = checkHart("Translate-instr-addr", hartIx);
+  hart->clearPageTableWalk();
   bool r = false, w = false, x = true;
   auto pm = hart->privilegeMode();
   return  hart->transAddrNoUpdate(iva, pm, hart->virtMode(), r, w, x, ipa);
@@ -529,6 +530,7 @@ WdRiscv::ExceptionCause
 PerfApi::translateLoadAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa)
 {
   auto hart = checkHart("translate-load-addr", hartIx);
+  hart->clearPageTableWalk();
   bool r = true, w = false, x = false;
   auto pm = hart->privilegeMode();
   return  hart->transAddrNoUpdate(iva, pm, hart->virtMode(), r, w, x, ipa);
@@ -539,9 +541,43 @@ WdRiscv::ExceptionCause
 PerfApi::translateStoreAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa)
 {
   auto hart = checkHart("translate-store-addr", hartIx);
+  hart->clearPageTableWalk();
   bool r = false, w = true, x = false;
   auto pm = hart->privilegeMode();
   return  hart->transAddrNoUpdate(iva, pm, hart->virtMode(), r, w, x, ipa);
+}
+
+
+WdRiscv::ExceptionCause
+PerfApi::translateInstrAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa,
+                            std::vector<std::vector<WalkEntry>>& walks)
+{
+  auto ec = translateInstrAddr(hartIx, iva, ipa);
+  auto hart = checkHart("translate-instr-addr", hartIx);
+  walks = hart->virtMem().getFetchWalks();
+  return ec;
+}
+
+
+WdRiscv::ExceptionCause
+PerfApi::translateLoadAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa,
+                           std::vector<std::vector<WalkEntry>>& walks)
+{
+  auto ec = translateLoadAddr(hartIx, iva, ipa);
+  auto hart = checkHart("translate-load-addr", hartIx);
+  walks = hart->virtMem().getDataWalks();
+  return ec;
+}
+
+
+WdRiscv::ExceptionCause
+PerfApi::translateStoreAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa,
+                            std::vector<std::vector<WalkEntry>>& walks)
+{
+  auto ec = translateStoreAddr(hartIx, iva, ipa);
+  auto hart = checkHart("translate-store-addr", hartIx);
+  walks = hart->virtMem().getDataWalks();
+  return ec;
 }
 
 
