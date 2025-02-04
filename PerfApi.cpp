@@ -1707,9 +1707,9 @@ PerfApi::collectOperandValues(Hart64& hart, InstrPac& packet)
 
       unsigned regNum = di.ithOperand(i);
       unsigned gri = globalRegIx(di.ithOperandType(i), regNum);
-      OpVal value;
+      OpVal opVal;
 
-      auto& iop = packet.opProducers_.at(i);   // Ith operand producer;
+      auto& iop = packet.opProducers_.at(i);   // Ith operand producer
 
       if (type != OT::VecReg)
         {
@@ -1723,18 +1723,37 @@ PerfApi::collectOperandValues(Hart64& hart, InstrPac& packet)
                   assert(0);
                   return false;
                 }
-              getDestValue(*producer, gri, value);
+              getDestValue(*producer, gri, opVal);
             }
           else
-            peekOk = peekRegister(hart, di.ithOperandType(i), regNum, value) and peekOk;
+            peekOk = peekRegister(hart, di.ithOperandType(i), regNum, opVal) and peekOk;
         }
       else
         {
-          // FIX break vector register group into components
-          assert(0);
+          OpVal val;  // Single register value
+          for (unsigned n = 0; n < iop.vec.size(); ++n)
+            {
+              auto& producer = iop.vec.at(n);
+              if (producer)
+                {
+                  if (not producer->executed())
+                    {
+                      std::cerr << "Error: PerfApi::execute: Hart-ix=" << hartIx << "tag=" << tag
+                                << " depends on tag=" << producer->tag_ << " which is not yet executed.\n";
+                      assert(0);
+                      return false;
+                    }
+                  getDestValue(*producer, gri + n, val);
+                }
+              else
+                peekOk = peekRegister(hart, type, regNum+n, val) and peekOk;
+            }
+
+          // Append val to opVal.
+          opVal.vec.insert(opVal.vec.end(), val.vec.begin(), val.vec.end());
         }
 
-      packet.opValues_.at(i) = value;
+      packet.opValues_.at(i) = opVal;
     }
 
   return peekOk;
