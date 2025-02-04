@@ -200,7 +200,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     { return deviceAccess_; }
 
     /// Return true if this is a privileged instruction (ebreak/ecall/mret)
-    bool isPrivilegedControl() const
+    bool isPrivileged() const
     {
       if (di_.instEntry())
         {
