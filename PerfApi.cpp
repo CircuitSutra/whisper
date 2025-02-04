@@ -1153,18 +1153,32 @@ PerfApi::saveHartValues(Hart64& hart, const InstrPac& packet,
 	  if (not hart.peekIntReg(operand, prevVal.at(i).scalar))
 	    assert(0);
 	  break;
+
 	case OT::FpReg:
 	  ok = hart.peekFpReg(operand, prevVal.at(i).scalar) and ok;
 	  break;
+
 	case OT::CsReg:
 	  ok = hart.peekCsr(CSRN(operand), prevVal.at(i).scalar) and ok;
 	  break;
+
 	case OT::VecReg:
-          // We don't know lmul, we would need to set vtype
-	  assert(0);
+          {
+            std::vector<uint8_t>& opData = prevVal.at(i).vec;
+            std::vector<uint8_t> vecVal;  // Single vector value.
+            auto lmul = packet.opLmul_.at(i);
+            for (unsigned n = 0; n < lmul; ++n)
+              {
+                ok = hart.peekVecReg(operand + n, vecVal) and ok;
+                // Append single vector value to opVal.
+                opData.insert(opData.end(), vecVal.begin(), vecVal.end());
+              }
+          }
 	  break;
+
 	case OT::Imm:
 	  break;
+
 	default:
 	  assert(0);
 	  break;
