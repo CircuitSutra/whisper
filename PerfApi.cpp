@@ -148,7 +148,7 @@ PerfApi::fetch(unsigned hartIx, uint64_t time, uint64_t tag, uint64_t vpc,
     assert(0);
   prevFetch_ = packet;
 
-  trap = cause != ExceptionCause::NONE;
+  packet->trap_ = trap = cause != ExceptionCause::NONE;
 
   if (prev and not prev->trapped() and prev->executed() and prev->nextIva_ != vpc)
     {
@@ -364,6 +364,9 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
   // into the hart registers.
   bool setOk = setHartValues(hart, packet);
 
+  assert(packet.tag_ > hartLastRetired_.at(hartIx));
+  hart.adjustTime(packet.tag_ - hartLastRetired_.at(hartIx) - 1);
+
   auto& di = packet.decodedInst();
 
   unsigned imsicId = 0, imsicGuest = 0;
@@ -390,7 +393,7 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
 
   // Undo changes to the hart.
 
-  hart.untickTime();  // Restore timer value.
+  hart.adjustTime(-(int64_t)(packet.tag_ - hartLastRetired_.at(hartIx)));  // Restore timer value.
 
   // Restore CSRs modified by the instruction or trap. TODO: For vector ld/st we have to
   // restore partially modified vectors.
@@ -460,6 +463,7 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
 		<< " Out of order retire\n";
       return false;
     }
+  hartLastRetired_.at(hartIx) = tag;
 
   if (packet.retired())
     {
@@ -662,13 +666,11 @@ PerfApi::getLoadData(unsigned hartIx, uint64_t tag, uint64_t va, uint64_t pa1,
   data = 0;
   bool isDev = hart->isAclintMtimeAddr(pa1) or hart->isImsicAddr(pa1) or hart->isPciAddr(pa1);
   if (isDev)
-    {
-#if 0
-      // FIX : enable after coordinating with Arch team
+    {      
       if (skipIoLoad_)
         return true;  // Load from IO space happens at execute.
-#endif
       hart->deviceRead(pa1, size, data);
+
       return true;
     }
 
@@ -693,7 +695,7 @@ PerfApi::getLoadData(unsigned hartIx, uint64_t tag, uint64_t va, uint64_t pa1,
 
       uint64_t stAddr = stPac->dataVa();
       unsigned stSize = stPac->dataSize();
-      if (stAddr + stSize < va or va + size < stSize)
+      if (stAddr + stSize < va or va + size < stAddr)
 	continue;  // No overlap.
 
       uint64_t stData = stPac->opVal_.at(0);
@@ -1205,6 +1207,7 @@ PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
     {
       hart.lastLdStAddress(packet.dva_, packet.dpa_);  // FIX TODO : handle page corrsing
       packet.dsize_ = di.loadSize();
+      packet.deviceAccess_ = hart.isAclintMtimeAddr(packet.dpa_) or hart.isImsicAddr(packet.dpa_) or hart.isPciAddr(packet.dpa_) or hart.isHtifAddr(packet.dpa_);
     }
   else if (di.isStore() or di.isAmo())
     {
@@ -1225,6 +1228,7 @@ PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
 	{
 	  auto& storeMap =  hartStoreMaps_.at(hartIx);
 	  storeMap[packet.tag()] = getInstructionPacket(hartIx, packet.tag());
+	  packet.deviceAccess_ = hart.isAclintMtimeAddr(packet.dpa_) or hart.isImsicAddr(packet.dpa_) or hart.isPciAddr(packet.dpa_) or hart.isHtifAddr(packet.dpa_);
 	}
     }
 
