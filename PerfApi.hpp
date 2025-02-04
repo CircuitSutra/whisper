@@ -221,6 +221,12 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     bool isSc() const
     { return di_.isSc(); }
 
+    bool isLr() const
+    { return di_.isLr(); }
+
+    bool isDeviceLdSt()
+    { return deviceAccess_; }
+
     /// Return true if this is a privileged instruction (ebreak/ecall/mret)
     bool isPrivileged() const
     {
@@ -232,6 +238,8 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
           else if (instId == WdRiscv::InstId::ecall)
             return true;
           else if (instId == WdRiscv::InstId::mret)
+            return true;
+          else if (instId == WdRiscv::InstId::sret)
             return true;
         }
       return false;
@@ -310,6 +318,8 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     bool retired_      : 1 = false;  // true if instruction retired (committed)
     bool drained_      : 1 = false;  // true if a store that has been drained
     bool trap_         : 1 = false;  // true if instruction trapped
+
+    bool deviceAccess_ : 1 = false;  // true if access is to device
   };
 
 

@@ -2445,6 +2445,19 @@ namespace WdRiscv
       --timeSample_;
     }
 
+    // Adjust time base and timer value either forwards (positive diff) or
+    // backwards (negative diff).  This is used by PerfApi.
+    void adjustTime(int64_t diff) {
+      if (diff >= 0)
+        {
+          for (int64_t i = 0; i < diff; i++) tickTime();
+        }
+      else
+        {
+          for (int64_t i = 0; i < -diff; i++) untickTime();
+        }
+    }
+
     /// Return the data vector register number associated with the given ld/st element
     /// info.  We return the individual register and not the base register of a group.
     unsigned identifyDataRegister(const VecLdStInfo& info, const VecLdStElem& elem) const
