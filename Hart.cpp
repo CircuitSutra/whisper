@@ -803,6 +803,10 @@ namespace WdRiscv
     virtMem_.setSum(mstatus_.bits_.SUM);
     if (virtMode_)
       updateCachedVsstatus();
+
+    pmaskManager_.setExecReadable(mstatus_.bits_.MXR);
+    pmaskManager_.setStage1ExecReadable(mstatus_.bits_.MXR);
+
     updateBigEndian();
   }
 
@@ -817,8 +821,13 @@ namespace WdRiscv
     virtMem_.setExecReadable(mstatus_.bits_.MXR);
     virtMem_.setStage1ExecReadable(mstatus_.bits_.MXR);
     virtMem_.setSum(mstatus_.bits_.SUM);
+
     if (virtMode_)
       updateCachedVsstatus();
+
+    pmaskManager_.setExecReadable(mstatus_.bits_.MXR);
+    pmaskManager_.setStage1ExecReadable(mstatus_.bits_.MXR);
+
     updateBigEndian();
   }
 
@@ -852,6 +861,8 @@ Hart<URV>::updateCachedVsstatus()
 
   virtMem_.setStage1ExecReadable(vsstatus_.bits_.MXR);
   virtMem_.setVsSum(vsstatus_.bits_.SUM);
+
+  pmaskManager_.setStage1ExecReadable(vsstatus_.bits_.MXR);
 
   updateBigEndian();
 }
@@ -11101,7 +11112,7 @@ Hart<URV>::doCsrWrite(const DecodedInst* di, CsrNumber csr, URV val,
 
           HenvcfgFields<uint64_t> hf{val};
           unsigned pmm = hf.bits_.PMM;
-          if (not virtMem_.isPmmSupported(VirtMem::Pmm{pmm}))
+          if (not pmaskManager_.isSupported(PmaskManager::Mode{pmm}))
             {
               pmm = HenvcfgFields<uint64_t>(oldVal).bits_.PMM;
               hf.bits_.PMM = pmm;
@@ -11119,7 +11130,7 @@ Hart<URV>::doCsrWrite(const DecodedInst* di, CsrNumber csr, URV val,
 
           HstatusFields<uint64_t> hf{val};
           unsigned pmm = hf.bits_.HUPMM;
-          if (not virtMem_.isPmmSupported(VirtMem::Pmm{pmm}))
+          if (not pmaskManager_.isSupported(PmaskManager::Mode{pmm}))
             {
               pmm = HstatusFields<uint64_t>(oldVal).bits_.HUPMM;
               hf.bits_.HUPMM = pmm;
