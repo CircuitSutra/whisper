@@ -1176,17 +1176,7 @@ PerfApi::saveHartValues(Hart64& hart, const InstrPac& packet,
 	  break;
 
 	case OT::VecReg:
-          {
-            std::vector<uint8_t>& opData = prevVal.at(i).vec;
-            std::vector<uint8_t> vecVal;  // Single vector value.
-            auto lmul = packet.opLmul_.at(i);
-            for (unsigned n = 0; n < lmul; ++n)
-              {
-                ok = hart.peekVecRegLsb(operand + n, vecVal) and ok;
-                // Append single vector value to opVal.
-                opData.insert(opData.end(), vecVal.begin(), vecVal.end());
-              }
-          }
+          ok = peekVecRegGroup(hart, operand, packet.opLmul_.at(i), prevVal.at(i));
 	  break;
 
 	case OT::Imm:
@@ -1414,6 +1404,26 @@ PerfApi::pokeRegister(Hart64& hart, WdRiscv::OperandType type, unsigned regNum,
 }
 
 
+bool
+PerfApi::peekVecRegGroup(Hart64& hart, unsigned regNum, unsigned lmul, OpVal& value)
+{
+  std::vector<uint8_t>& data = value.vec;
+  std::vector<uint8_t> vecVal;  // Single vector value.
+
+  bool ok = true;
+
+  for (unsigned n = 0; n < lmul; ++n)
+    {
+      ok = hart.peekVecRegLsb(regNum + n, vecVal) and ok;
+
+      // Append single vector value to data.
+      data.insert(data.end(), vecVal.begin(), vecVal.end());
+    }
+
+  return ok;
+}
+
+
 void
 PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
 {
@@ -1439,7 +1449,7 @@ PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
 	}
 
       packet.dva_ = sva;
-      packet.dpa_ = spa1;  // FIX TODO : handle page corrsing
+      packet.dpa_ = spa1;  // FIX TODO : handle page crossing
       packet.dpa2_ = spa2;
       packet.dsize_ = ssize;
       assert(ssize == packet.dsize_);
@@ -1456,21 +1466,32 @@ PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
 
   if (di.isBranch()) packet.taken_ = hart.lastBranchTaken();
 
-  // Record the values of the destination register.  FIX : break vector destination
-  // group into individual vector registers.
+  // Record the values of the destination register.
   unsigned destIx = 0;
   for (unsigned i = 0; i < di.operandCount(); ++i)
     {
       using OM = WdRiscv::OperandMode;
+      using OT = WdRiscv::OperandType;
 
       auto mode = di.effectiveIthOperandMode(i);
+      auto type = di.ithOperandType(i);
+
       if (mode == OM::Write or mode == OM::ReadWrite)
 	{
 	  unsigned regNum = di.ithOperand(i);
 	  unsigned gri = globalRegIx(di.ithOperandType(i), regNum);
 	  OpVal destVal;
-	  if (not peekRegister(hart, di.ithOperandType(i), regNum, destVal))   // FIX peek reg group
-	    assert(0);
+          if (type != OT::VecReg)
+            {
+              if (not peekRegister(hart, di.ithOperandType(i), regNum, destVal))
+                assert(0);
+            }
+          else
+            {
+              auto lmul = packet.opLmul_.at(i);
+              if (not peekVecRegGroup(hart, regNum, lmul, destVal))
+                assert(0);
+            }
 	  packet.destValues_.at(destIx) = InstrPac::DestValue(gri, destVal);
 	  destIx++;
 	}

@@ -525,6 +525,8 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     bool pokeRegister(Hart64& hart, WdRiscv::OperandType type, unsigned regNum,
                       const OpVal& value);
 
+    bool peekVecRegGroup(Hart64& hart, unsigned regNum, unsigned lmul, OpVal& value);
+
     /// Get from the producing packet, the value of the register with the given
     /// global register index.
     void getDestValue(const InstrPac& producer, unsigned gri, OpVal& val) const
