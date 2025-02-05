@@ -209,6 +209,7 @@ PerfApi::decode(unsigned hartIx, uint64_t time, uint64_t tag)
 	  unsigned regNum = di.ithOperand(i);
           auto type = di.ithOperandType(i);
 	  unsigned gri = globalRegIx(type, regNum);
+
           if (type != OT::VecReg)
             packet.opProducers_.at(i).scalar = producers.at(gri);
           else
@@ -231,10 +232,22 @@ PerfApi::decode(unsigned hartIx, uint64_t time, uint64_t tag)
       if (mode == OM::Write or mode == OM::ReadWrite)
 	{
 	  unsigned regNum = di.ithOperand(i);
+          auto type = di.ithOperandType(i);
 	  unsigned gri = globalRegIx(di.ithOperandType(i), regNum);
 	  if (regNum == 0 and di.ithOperandType(i) == OT::IntReg)
 	    continue;  // Reg X0 has no producer
-	  producers.at(gri) = packPtr;
+
+          if (type != OT::VecReg)
+            producers.at(gri) = packPtr;
+          else
+            {
+              auto lmul = packet.opLmul_.at(i);
+              for (unsigned n = 0; n < lmul; ++n)
+                {
+                  unsigned vgri = gri + n;
+                  producers.at(vgri) = packPtr;
+                }
+            }
 	}
     }
 
@@ -1169,7 +1182,7 @@ PerfApi::saveHartValues(Hart64& hart, const InstrPac& packet,
             auto lmul = packet.opLmul_.at(i);
             for (unsigned n = 0; n < lmul; ++n)
               {
-                ok = hart.peekVecReg(operand + n, vecVal) and ok;
+                ok = hart.peekVecRegLsb(operand + n, vecVal) and ok;
                 // Append single vector value to opVal.
                 opData.insert(opData.end(), vecVal.begin(), vecVal.end());
               }
@@ -1456,7 +1469,7 @@ PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
 	  unsigned regNum = di.ithOperand(i);
 	  unsigned gri = globalRegIx(di.ithOperandType(i), regNum);
 	  OpVal destVal;
-	  if (not peekRegister(hart, di.ithOperandType(i), regNum, destVal))
+	  if (not peekRegister(hart, di.ithOperandType(i), regNum, destVal))   // FIX peek reg group
 	    assert(0);
 	  packet.destValues_.at(destIx) = InstrPac::DestValue(gri, destVal);
 	  destIx++;
@@ -1748,9 +1761,9 @@ PerfApi::collectOperandValues(Hart64& hart, InstrPac& packet)
         }
       else
         {
-          OpVal val;  // Single register value
           for (unsigned n = 0; n < iop.vec.size(); ++n)
             {
+              OpVal val;  // Single register value
               auto& producer = iop.vec.at(n);
               if (producer)
                 {
@@ -1765,10 +1778,10 @@ PerfApi::collectOperandValues(Hart64& hart, InstrPac& packet)
                 }
               else
                 peekOk = peekRegister(hart, type, regNum+n, val) and peekOk;
-            }
 
-          // Append val to opVal.
-          opVal.vec.insert(opVal.vec.end(), val.vec.begin(), val.vec.end());
+              // Append val to opVal.
+              opVal.vec.insert(opVal.vec.end(), val.vec.begin(), val.vec.end());
+            }
         }
 
       packet.opValues_.at(i) = opVal;
