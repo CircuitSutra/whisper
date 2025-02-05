@@ -357,32 +357,6 @@ namespace WdRiscv
       return false;
     }
 
-    static Pma overridePmaWithPbmt(Pma pma, Pbmt pbmt)
-    {
-      if (not pma.attributesToInt())
-        return pma;
-      if (pbmt == Pbmt::None or pbmt == Pbmt::Reserved)
-        return pma;
-
-      pma.disable(Pma::Attrib::Cacheable);
-      pma.disable(Pma::Attrib::Amo);
-      pma.disable(Pma::Attrib::Rsrv);
-
-      if (pbmt == Pbmt::Nc)
-        {
-          pma.enable(Pma::Attrib::Idempotent);
-          pma.disable(Pma::Attrib::Io);
-        }
-      else
-        {
-          pma.disable(Pma::Attrib::Idempotent);
-          pma.enable(Pma::Attrib::Io);
-          pma.disable(Pma::Attrib::MisalOk);
-          pma.enable(Pma::Attrib::MisalAccFault);
-        }
-      return pma;
-    }
-
     /// Return true if given PTE is valid: Valid bit is one, reserved bits all zero, and
     /// combintation of read/write/execute bits is not reserved.
     template <typename PTE>

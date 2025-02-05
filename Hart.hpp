@@ -2464,6 +2464,32 @@ namespace WdRiscv
     /// which must be an indexed vector load/store.
     unsigned vecLdStIndexElemSize(const DecodedInst& di) const;
 
+    static Pma overridePmaWithPbmt(Pma pma, VirtMem::Pbmt pbmt)
+    {
+      if (not pma.attributesToInt())
+        return pma;
+      if (pbmt == VirtMem::Pbmt::None or pbmt == VirtMem::Pbmt::Reserved)
+        return pma;
+
+      pma.disable(Pma::Attrib::Cacheable);
+      pma.disable(Pma::Attrib::Amo);
+      pma.disable(Pma::Attrib::Rsrv);
+
+      if (pbmt == VirtMem::Pbmt::Nc)
+        {
+          pma.enable(Pma::Attrib::Idempotent);
+          pma.disable(Pma::Attrib::Io);
+        }
+      else
+        {
+          pma.disable(Pma::Attrib::Idempotent);
+          pma.enable(Pma::Attrib::Io);
+          pma.disable(Pma::Attrib::MisalOk);
+          pma.enable(Pma::Attrib::MisalAccFault);
+        }
+      return pma;
+    }
+
   protected:
 
     // Retun cached value of the mpp field of the mstatus CSR.
