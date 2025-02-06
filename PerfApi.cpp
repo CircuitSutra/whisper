@@ -404,17 +404,23 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
       hart.setPrivilegeMode(hart.lastPrivMode());
     }
 
-  // Restore changed CSR changes due to a trap or to mret/sret.
-  if (trap or di.isXRet())
+  // Restore CSR changes due to a trap or to mret/sret or to side effects from
+  // vector/fp instructions (MSTATUS.VS, MSTATUS.FS, FCSR, etc...). Restore MSTATUS
+  // last; otherwise, restoring FCSR/VTYPE will re-modify MSTATUS.
+  std::vector<CSRN> csrns;
+  hart.lastCsr(csrns);
+  auto iter = std::find(csrns.begin(), csrns.end(), CSRN::MSTATUS);
+  if (iter != csrns.end())
     {
-      std::vector<CSRN> csrns;
-      hart.lastCsr(csrns);
-      for (auto csrn : csrns)
-	{
-	  uint64_t value = hart.lastCsrValue(csrn);
-	  if (not hart.pokeCsr(csrn, value))
-	    assert(0);
-	}
+      csrns.erase(iter);
+      csrns.push_back(CSRN::MSTATUS);
+    }
+  
+  for (auto csrn : csrns)
+    {
+      uint64_t value = hart.lastCsrValue(csrn);
+      if (not hart.pokeCsr(csrn, value))
+        assert(0);
     }
 
   if (trap)
