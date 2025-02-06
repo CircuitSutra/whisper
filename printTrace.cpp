@@ -250,7 +250,7 @@ printPageTableWalk(FILE* out, const Hart<URV>& hart, const char* tag,
           fprintf(out, "=0x%" PRIx64, pte);
 
           Pma pma = hart.getPma(entry.addr_);
-          pma = VirtMem::overridePmaWithPbmt(pma, entry.pbmt_);
+          pma = hart.overridePmaWithPbmt(pma, entry.pbmt_);
           fprintf(out, ", ma=%s", pma.attributesToString(pma.attributesToInt()).c_str());
         }
       head = false;
@@ -805,7 +805,7 @@ Hart<URV>::printInstCsvTrace(const DecodedInst& di, FILE* out)
                   buffer.printChar('=').print(entries.at(entryIx++));
 
                   Pma pma = getPma(addrs.at(i).addr_);
-                  pma = VirtMem::overridePmaWithPbmt(pma, addrs.at(i).pbmt_);
+                  pma = overridePmaWithPbmt(pma, addrs.at(i).pbmt_);
                   buffer.print(";ma=").print(pma.attributesToInt());
                 }
               sep = ";";
@@ -827,7 +827,7 @@ Hart<URV>::printInstCsvTrace(const DecodedInst& di, FILE* out)
                   buffer.printChar('=').print(entries.at(entryIx++));
 
                   Pma pma = getPma(addrs.at(i).addr_);
-                  pma = VirtMem::overridePmaWithPbmt(pma, addrs.at(i).pbmt_);
+                  pma = overridePmaWithPbmt(pma, addrs.at(i).pbmt_);
                   buffer.print(";ma=").print(pma.attributesToInt());
                 }
               sep = ";";

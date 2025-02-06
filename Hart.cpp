@@ -803,6 +803,10 @@ namespace WdRiscv
     virtMem_.setSum(mstatus_.bits_.SUM);
     if (virtMode_)
       updateCachedVsstatus();
+
+    pmaskManager_.setExecReadable(mstatus_.bits_.MXR);
+    pmaskManager_.setStage1ExecReadable(mstatus_.bits_.MXR);
+
     updateBigEndian();
   }
 
@@ -817,8 +821,13 @@ namespace WdRiscv
     virtMem_.setExecReadable(mstatus_.bits_.MXR);
     virtMem_.setStage1ExecReadable(mstatus_.bits_.MXR);
     virtMem_.setSum(mstatus_.bits_.SUM);
+
     if (virtMode_)
       updateCachedVsstatus();
+
+    pmaskManager_.setExecReadable(mstatus_.bits_.MXR);
+    pmaskManager_.setStage1ExecReadable(mstatus_.bits_.MXR);
+
     updateBigEndian();
   }
 
@@ -852,6 +861,8 @@ Hart<URV>::updateCachedVsstatus()
 
   virtMem_.setStage1ExecReadable(vsstatus_.bits_.MXR);
   virtMem_.setVsSum(vsstatus_.bits_.SUM);
+
+  pmaskManager_.setStage1ExecReadable(vsstatus_.bits_.MXR);
 
   updateBigEndian();
 }
@@ -1576,7 +1587,7 @@ Hart<URV>::determineLoadException(uint64_t& addr1, uint64_t& addr2, uint64_t& ga
       if (steeEnabled_)
 	a1 = stee_.clearSecureBits(addr1);
       Pma pma = accessPma(a1);
-      pma = virtMem_.overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt(virtMode_));
+      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt(virtMode_));
       if (not pma.isMisalignedOk())
 	return pma.misalOnMisal()? EC::LOAD_ADDR_MISAL : EC::LOAD_ACC_FAULT;
     }
@@ -1640,7 +1651,7 @@ Hart<URV>::determineLoadException(uint64_t& addr1, uint64_t& addr2, uint64_t& ga
       uint64_t next = addr1 == addr2? aligned + ldSize : addr2;
       ldStFaultAddr_ = va2;
       pma = accessPma(next);
-      pma = virtMem_.overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt(virtMode_));
+      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt(virtMode_));
       if (not pma.isRead()  or  (virtMem_.isExecForRead() and not pma.isExec()))
 	return EC::LOAD_ACC_FAULT;
       if (not pma.isMisalignedOk())
@@ -11167,7 +11178,7 @@ Hart<URV>::doCsrWrite(const DecodedInst* di, CsrNumber csr, URV val,
 
           HenvcfgFields<uint64_t> hf{val};
           unsigned pmm = hf.bits_.PMM;
-          if (not virtMem_.isPmmSupported(VirtMem::Pmm{pmm}))
+          if (not pmaskManager_.isSupported(PmaskManager::Mode{pmm}))
             {
               pmm = HenvcfgFields<uint64_t>(oldVal).bits_.PMM;
               hf.bits_.PMM = pmm;
@@ -11185,7 +11196,7 @@ Hart<URV>::doCsrWrite(const DecodedInst* di, CsrNumber csr, URV val,
 
           HstatusFields<uint64_t> hf{val};
           unsigned pmm = hf.bits_.HUPMM;
-          if (not virtMem_.isPmmSupported(VirtMem::Pmm{pmm}))
+          if (not pmaskManager_.isSupported(PmaskManager::Mode{pmm}))
             {
               pmm = HstatusFields<uint64_t>(oldVal).bits_.HUPMM;
               hf.bits_.HUPMM = pmm;
@@ -11640,7 +11651,7 @@ Hart<URV>::determineStoreException(uint64_t& addr1, uint64_t& addr2,
       if (steeEnabled_)
 	a1 = stee_.clearSecureBits(addr1);
       Pma pma = accessPma(a1);
-      pma = virtMem_.overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt(virtMode_));
+      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt(virtMode_));
       if (not pma.isMisalignedOk())
 	return pma.misalOnMisal()? EC::STORE_ADDR_MISAL : EC::STORE_ACC_FAULT;
     }
@@ -11703,7 +11714,7 @@ Hart<URV>::determineStoreException(uint64_t& addr1, uint64_t& addr2,
       uint64_t aligned = addr1 & ~alignMask;
       uint64_t next = addr1 == addr2? aligned + stSize : addr2;
       pma = accessPma(next);
-      pma = virtMem_.overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt(virtMode_));
+      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt(virtMode_));
       if (not pma.isWrite())
 	{
 	  ldStFaultAddr_ = va2;

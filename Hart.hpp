@@ -42,6 +42,7 @@
 #include "FetchCache.hpp"
 #include "pci/Pci.hpp"
 #include "Stee.hpp"
+#include "PmaskManager.hpp"
 
 
 namespace TT_PERF
@@ -406,8 +407,8 @@ namespace WdRiscv
     { virtMem_.setSupportedModes(modes); }
 
     /// Configure the address translation pointer masking modes supported by this hart.
-    void configAddressTranslationPmms(const std::vector<VirtMem::Pmm>& pmms)
-    { virtMem_.setSupportedPmms(pmms); }
+    void configAddressTranslationPmms(const std::vector<PmaskManager::Mode>& pmms)
+    { pmaskManager_.setSupportedModes(pmms); }
 
     /// Enable support for ebreak semi-hosting.  See ebreak documentation in the
     /// unprivileged spec.
@@ -490,27 +491,27 @@ namespace WdRiscv
       if (isRvSmmpm())
         {
           uint8_t pmm = csRegs_.mseccfgPmm();
-          virtMem_.enablePointerMasking(VirtMem::Pmm(pmm), PM::Machine, false);
+          pmaskManager_.enablePointerMasking(PmaskManager::Mode(pmm), PM::Machine, false);
         }
 
       if (isRvSsnpm())
         {
           uint8_t pmm = csRegs_.senvcfgPmm();
           if (isRvu())
-            virtMem_.enablePointerMasking(VirtMem::Pmm(pmm), PM::User, false);
+            pmaskManager_.enablePointerMasking(PmaskManager::Mode(pmm), PM::User, false);
 
           pmm = csRegs_.henvcfgPmm();
           if (isRvh())
-            virtMem_.enablePointerMasking(VirtMem::Pmm(pmm), PM::Supervisor, true);
+            pmaskManager_.enablePointerMasking(PmaskManager::Mode(pmm), PM::Supervisor, true);
         }
 
       if (isRvSmnpm())
         {
           uint8_t pmm = csRegs_.menvcfgPmm();
           if (isRvs())
-            virtMem_.enablePointerMasking(VirtMem::Pmm(pmm), PM::Supervisor, false);
+            pmaskManager_.enablePointerMasking(PmaskManager::Mode(pmm), PM::Supervisor, false);
           else if (isRvu())
-            virtMem_.enablePointerMasking(VirtMem::Pmm(pmm), PM::User, false);
+            pmaskManager_.enablePointerMasking(PmaskManager::Mode(pmm), PM::User, false);
         }
     }
 
@@ -552,7 +553,10 @@ namespace WdRiscv
                               bool hyper = false) const
     {
       auto [pm, virt] = effLdStMode(hyper);
-      return virtMem_.applyPointerMask(addr, pm, virt, isLoad);
+      bool bare = virtMem_.mode() == VirtMem::Mode::Bare;
+      if (virt)
+        bare = virtMem_.vsMode() == VirtMem::Mode::Bare;
+      return pmaskManager_.applyPointerMask(addr, pm, virt, isLoad, bare);
     }
 
     /// Determines the load/store instruction's effective privilege mode
@@ -2490,6 +2494,32 @@ namespace WdRiscv
     /// Return the element size in bytes of the index-vector of the given instruction
     /// which must be an indexed vector load/store.
     unsigned vecLdStIndexElemSize(const DecodedInst& di) const;
+
+    static Pma overridePmaWithPbmt(Pma pma, VirtMem::Pbmt pbmt)
+    {
+      if (not pma.attributesToInt())
+        return pma;
+      if (pbmt == VirtMem::Pbmt::None or pbmt == VirtMem::Pbmt::Reserved)
+        return pma;
+
+      pma.disable(Pma::Attrib::Cacheable);
+      pma.disable(Pma::Attrib::Amo);
+      pma.disable(Pma::Attrib::Rsrv);
+
+      if (pbmt == VirtMem::Pbmt::Nc)
+        {
+          pma.enable(Pma::Attrib::Idempotent);
+          pma.disable(Pma::Attrib::Io);
+        }
+      else
+        {
+          pma.disable(Pma::Attrib::Idempotent);
+          pma.enable(Pma::Attrib::Io);
+          pma.disable(Pma::Attrib::MisalOk);
+          pma.enable(Pma::Attrib::MisalAccFault);
+        }
+      return pma;
+    }
 
   protected:
 
@@ -5561,6 +5591,9 @@ namespace WdRiscv
     // Physical memory protection.
     bool pmpEnabled_ = false; // True if one or more pmp register defined.
     PmpManager pmpManager_;
+
+    // Pointer masking modes.
+    PmaskManager pmaskManager_;
 
     // Static tee (truseted execution environment).
     bool steeEnabled_ = false;

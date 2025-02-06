@@ -19,7 +19,6 @@
 #include "InstEntry.hpp"
 #include "InstId.hpp"
 
-
 namespace WdRiscv
 {
 
