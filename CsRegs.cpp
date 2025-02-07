@@ -5433,52 +5433,55 @@ CsRegs<URV>::isStateEnabled(CsrNumber num, PrivilegeMode pm, bool vm) const
   else if (vm)
     csrn = rv32_? CN::HSTATEEN0H : CN::HSTATEEN0;
 
-  int enableBit = -1;
+  uint64_t enableMask = 0;
   unsigned offset = 0;
   if (num == CN::SRMCFG)
-    enableBit = 55;
+    enableMask = (uint64_t(1) << 55);
   if (num == CN::HCONTEXT or num == CN::SCONTEXT)
-    enableBit = 57;
+    enableMask = (uint64_t(1) << 57);
   else if (num == CN::MISELECT or num == CN::MIREG or num == CN::MTOPEI or num == CN::MTOPI or
 	   num == CN::MVIEN or num == CN::MVIP or num == CN::MIDELEGH or num == CN::MIEH or
 	   num == CN::MVIENH or num == CN::MVIPH or num == CN::MIPH or num == CN::STOPEI or
 	   num == CN::VSTOPEI)
-    enableBit = 58;  // IMSIC state.
+    enableMask = (uint64_t(1) << 58);  // IMSIC state.
   if (num == CN::SIPH or num == CN::SIEH or num == CN::STOPI or num == CN::HIDELEGH or
       num == CN::HVIEN or num == CN::HVIENH or num == CN::HVIPH or num == CN::HVICTL or
       num == CN::HVIPRIO1 or num == CN::HVIPRIO1H or num == CN::HVIPRIO2 or
       num == CN::HVIPRIO2H or num == CN::VSIPH or num == CN::VSIEH or num == CN::VSTOPI)
-    enableBit = 59;  // AIA state not controlled by bits 58 and 60
+    enableMask = (uint64_t(1) << 59);  // AIA state not controlled by bits 58 and 60
   else if (num == CN::SISELECT or num == CN::SIREG or num == CN::VSISELECT or num == CN::VSIREG)
-    enableBit = 60;
-  else if (num == CN::SIREG)
     {
-      URV select = 0;
-      if (peek(CN::SISELECT, select))
-	{
-	  if (select >= 0x30 and select <= 0x3f)
-	    enableBit = 59;  // Sections 2.5 and 5.4.1 of AIA
-	}
+      enableMask = (uint64_t(1) << 60);
+
+      if (num == CN::SIREG and not vm)
+        {
+          URV select = 0;
+          if (peek(CN::SISELECT, select))
+            {
+              if (select >= 0x30 and select <= 0x3f)
+                enableMask |= (uint64_t(1) << 59);  // Sections 2.5 and 5.4.1 of AIA
+            }
+        }
     }
   else if (num == CN::HENVCFG or num == CN::HENVCFGH or num == CN::SENVCFG)
-    enableBit = 62;
+    enableMask = (uint64_t(1) << 62);
   else if (num >= CN::HSTATEEN0 and num <= CN::HSTATEEN3)
     {
-      enableBit = 63;
+      enableMask = (uint64_t(1) << 63);
       offset = unsigned(num) - unsigned(CN::HSTATEEN0);
     }
   else if (num >= CN::HSTATEEN0H and num <= CN::HSTATEEN3H)
     {
-      enableBit = 63;
+      enableMask = (uint64_t(1) << 63);
       offset = unsigned(num) - unsigned(CN::HSTATEEN0H);
     }
   else if (num >= CN::SSTATEEN0 and num <= CN::SSTATEEN3)
     {
-      enableBit = 63;
+      enableMask = (uint64_t(1) << 63);
       offset = unsigned(num) - unsigned(CN::SSTATEEN0);
     }
 
-  if (enableBit < 0)
+  if (not enableMask)
     return true;  // CSR not affected by STATEEN
 
   csrn = advance(csrn, offset);
@@ -5486,8 +5489,9 @@ CsRegs<URV>::isStateEnabled(CsrNumber num, PrivilegeMode pm, bool vm) const
   if (not csr)
     return true;
 
-  if (rv32_) enableBit -= 8*sizeof(URV);
-  URV value = csr->read();
+  if constexpr (sizeof(URV) == 4)
+    enableMask >>= 8*sizeof(URV);
+  uint64_t value = csr->read();
 
   if ((csrn >= CN::HSTATEEN0 and csrn <= CN::HSTATEEN3) or
       (csrn >= CN::HSTATEEN0H and csrn <= CN::HSTATEEN3H))
@@ -5495,7 +5499,7 @@ CsRegs<URV>::isStateEnabled(CsrNumber num, PrivilegeMode pm, bool vm) const
   else if (csrn >= CN::SSTATEEN0 and csrn <= CN::SSTATEEN3)
     value = adjustSstateenValue(csrn, value, vm);
 
-  return (value >> enableBit) & 1;
+  return (value & enableMask) == enableMask;
 }
 
 
