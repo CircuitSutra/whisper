@@ -1089,7 +1089,7 @@ Hart<URV>::execVsetivli(const DecodedInst* di)
   vecRegs_.elemCount(elems);  // Update cached value of VL.
   intRegs_.write(rd, elems);
 
-  // Pack vtype values and update vtype
+  // Pack vtype values and update vtype. Vtype is read-only, poke it.
   URV vtype = 0;
   vtype |= URV(gm) | (URV(ew) << 3) | (URV(ta) << 6) | (URV(ma) << 7);
   vtype |= (URV(vill) << (8*sizeof(URV) - 1));

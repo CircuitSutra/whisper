@@ -374,6 +374,16 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
   if (di.isCsr())
     saveImsicTopei(hart, CSRN(di.ithOperand(2)), imsicId, imsicGuest);
 
+  uint64_t prevMstatus = 0;
+  if (not hart.peekCsr(CSRN::MSTATUS, prevMstatus))
+    assert(0);
+  uint64_t prevVtype = 0, prevVl = 0;
+  if (di.isVector())
+    {
+      if (not hart.peekCsr(CSRN::VTYPE, prevVtype) or not hart.peekCsr(CSRN::VL, prevVl))
+        assert(0);
+    }
+
   // Execute
   skipIoLoad_ = true;   // Load from IO space takes effect at retire.
   hart.singleStep();
@@ -405,17 +415,9 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
     }
 
   // Restore CSR changes due to a trap or to mret/sret or to side effects from
-  // vector/fp instructions (MSTATUS.VS, MSTATUS.FS, FCSR, etc...). Restore MSTATUS
-  // last; otherwise, restoring FCSR/VTYPE will re-modify MSTATUS.
+  // vector/fp instructions (MSTATUS.VS, MSTATUS.FS, FCSR, etc...).
   std::vector<CSRN> csrns;
   hart.lastCsr(csrns);
-  auto iter = std::find(csrns.begin(), csrns.end(), CSRN::MSTATUS);
-  if (iter != csrns.end())
-    {
-      csrns.erase(iter);
-      csrns.push_back(CSRN::MSTATUS);
-    }
-  
   for (auto csrn : csrns)
     {
       uint64_t value = hart.lastCsrValue(csrn);
@@ -431,6 +433,18 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
 
   // Restore hart registers that we changed before single step.
   restoreHartValues(hart, packet, prevVal);
+
+  if (di.isVector())
+    {
+      hart.pokeCsr(CSRN::VTYPE, prevVtype);
+      hart.pokeCsr(CSRN::VL, prevVl);
+    }
+
+  uint64_t mstatus = 0;
+  if (not hart.peekCsr(CSRN::MSTATUS, mstatus))
+    assert(0);
+  if (mstatus != prevMstatus)
+    hart.pokeCsr(CSRN::MSTATUS, prevMstatus);
 
   if (di.isCsr())
     restoreImsicTopei(hart, CSRN(di.ithOperand(2)), imsicId, imsicGuest);
