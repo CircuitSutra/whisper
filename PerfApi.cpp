@@ -511,14 +511,28 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
   for (size_t i = 0; i < di.operandCount(); ++i)
     {
       using OM = WdRiscv::OperandMode;
+      using OT = WdRiscv::OperandType;
       auto mode = di.ithOperandMode(i);
       if (mode == OM::Write or mode == OM::ReadWrite)
 	{
 	  unsigned regNum = di.ithOperand(i);
 	  unsigned gri = globalRegIx(di.ithOperandType(i), regNum);
-	  auto& producer = producers.at(gri);
-	  if (producer and producer->tag() == packet.tag())
-	    producer = nullptr;
+          auto type = di.ithOperandType(i);
+          if (type != OT::VecReg)
+            {
+              auto& producer = producers.at(gri);
+              if (producer and producer->tag() == packet.tag())
+                producer = nullptr;
+            }
+          else
+            {
+              for (unsigned n = 0; n < packet.opLmul_.at(i); ++n)
+                {
+                  auto& producer = producers.at(gri + n);
+                  if (producer and producer->tag() == packet.tag())
+                    producer = nullptr;
+                }
+            }
 	}
     }
 
@@ -557,7 +571,7 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
     producer.clear();
 
   // Stores erased at drain time.
-  if (not packet.isStore())
+  if (not packet.isStore() and not packet.di_.isVectorStore())
     {
       auto& packetMap = hartPacketMaps_.at(hartIx);
       packetMap.erase(packet.tag());
@@ -643,18 +657,19 @@ PerfApi::drainStore(unsigned hartIx, uint64_t time, uint64_t tag)
   if (not checkTime("Drain-store", time))
     return false;
 
-  auto hart = checkHart("Drain-store", hartIx);
+  auto hartPtr = checkHart("Drain-store", hartIx);
   auto pacPtr = checkTag("Drain-store", hartIx, tag);
 
-  if (not hart or not pacPtr or not pacPtr->retired())
+  if (not hartPtr or not pacPtr or not pacPtr->retired())
     {
       assert(0);
       return false;
     }
 
+  auto& hart = *hartPtr;
   auto& packet = *pacPtr;
 
-  if (not packet.di_.isStore())
+  if (not packet.di_.isStore() and not packet.di_.isVectorStore())
     {
       std::cerr << "Hart=" << hartIx << " time=" << time << " tag=" << tag
 		<< " Draining a non-store instruction\n";
@@ -672,7 +687,7 @@ PerfApi::drainStore(unsigned hartIx, uint64_t time, uint64_t tag)
 	  assert(0);
 	}
 
-      if (packet.dsize_ and not commitMemoryWrite(*hart, packet))
+      if (packet.dsize_ and not commitMemoryWrite(hart, packet))
 	assert(0);
 
       packet.drained_ = true;
@@ -700,7 +715,8 @@ PerfApi::getLoadData(unsigned hartIx, uint64_t tag, uint64_t va, uint64_t pa1,
   auto hart = checkHart("Get-load-data", hartIx);
   auto packet = checkTag("Get-load-Data", hartIx, tag);
 
-  bool isLoad = packet->di_.isLoad() or packet->di_.isAmo();
+  bool isLoad = ( packet->di_.isLoad() or packet->di_.isAmo() or
+                  packet->di_.isVectorLoad() );
 
   if (not hart or not packet or not isLoad or packet->trapped())
     {
