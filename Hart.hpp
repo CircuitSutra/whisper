@@ -419,6 +419,11 @@ namespace WdRiscv
     void enableHintOps(bool flag)
     { hintOps_ = flag; }
 
+    /// Enable speculatively marking G-stage page tables dirty for non-leaf
+    /// PTEs.
+    void enableDirtyGForVsNonleaf(bool flag)
+    { virtMem_.enableDirtyGForVsNonleaf(flag); }
+
     /// Enable page based memory types.
     void enableTranslationPbmt(bool flag)
     { enableExtension(RvExtension::Svpbmt, flag); updateTranslationPbmt(); }

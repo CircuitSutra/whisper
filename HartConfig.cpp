@@ -2136,6 +2136,14 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
       hart.enableSemihosting(flag);
     }
 
+  tag = "mark_dirty_gstage_for_vs_nonleaf_pte";
+  if (config_->contains(tag))
+    {
+      bool flag = false;
+      getJsonBoolean(tag, config_->at(tag), flag) or errors++;
+      hart.enableDirtyGForVsNonleaf(flag);
+    }
+
   return errors == 0;
 }
 

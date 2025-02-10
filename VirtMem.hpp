@@ -622,6 +622,11 @@ namespace WdRiscv
       return true;
     }
 
+    /// Enable speculatively marking G-stage page tables dirty for non-leaf
+    /// PTEs.
+    void enableDirtyGForVsNonleaf(bool flag)
+    { dirtyGForVsNonleaf_ = flag; }
+
   private:
 
     struct UpdatedPte
@@ -670,6 +675,7 @@ namespace WdRiscv
     bool faultOnFirstAccess1_ = true;    // For stage1
     bool faultOnFirstAccess2_ = true;    // For stage2
     bool accessDirtyCheck_ = true;  // To be able to suppress AD check
+    bool dirtyGForVsNonleaf_ = false;
 
     bool xForR_ = false;   // True for hlvx.hu and hlvx.wu instructions: use exec for read
 
