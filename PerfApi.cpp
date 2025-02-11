@@ -469,14 +469,16 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
   if (not checkTime("Retire", time))
     return false;
 
-  auto hart = checkHart("Retire", hartIx);
-  if (not hart)
+  auto hartPtr = checkHart("Retire", hartIx);
+  if (not hartPtr)
     return false;
 
   auto pacPtr = checkTag("Retire", hartIx, tag);
   if (not pacPtr)
     return false;
+
   auto& packet = *pacPtr;
+  auto& hart = *hartPtr;
 
   if (tag <= hartLastRetired_.at(hartIx))
     {
@@ -493,17 +495,16 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
       return false;
     }
 
-
-  if (packet.instrVa() != hart->peekPc())
+  if (packet.instrVa() != hart.peekPc())
     {
       std::cerr << "Hart=" << hartIx << " time=" << time << " tag=" << tag << std::hex
 		<< " Wrong pc at retire: 0x" << packet.instrVa() << " expecting 0x"
-		<< hart->peekPc() << '\n' << std::dec;
+		<< hart.peekPc() << '\n' << std::dec;
       return false;
     }
 
-  hart->setInstructionCount(tag - 1);
-  hart->singleStep(traceFiles_.at(hartIx));
+  hart.setInstructionCount(tag - 1);
+  hart.singleStep(traceFiles_.at(hartIx));
 
   // Undo renaming of destination registers.
   auto& producers = hartRegProducers_.at(hartIx);
@@ -536,16 +537,16 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
 	}
     }
 
+  bool trap = hart.lastInstructionTrapped();
   if (di.isLr())
     {
-      bool trap = hart->lastInstructionTrapped();
       packet.trap_ = packet.trap_ or trap;
 
       // Record PC of subsequent packet.
-      packet.nextIva_ = hart->peekPc();
+      packet.nextIva_ = hart.peekPc();
 
       if (not trap)
-        recordExecutionResults(*hart, packet);
+        recordExecutionResults(hart, packet);
 
       packet.executed_ = true;
     }
@@ -555,12 +556,12 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
   if (packet.isAmo() or packet.isSc())
     {
       uint64_t sva = 0, spa1 = 0, spa2 = 0, sval = 0;
-      unsigned size = hart->lastStore(sva, spa1, spa2, sval);
+      unsigned size = hart.lastStore(sva, spa1, spa2, sval);
       if (size != 0)   // Could be zero for a failed sc
-	if (not commitMemoryWrite(*hart, spa1, spa2, size, packet.stData_))
+	if (not commitMemoryWrite(hart, spa1, spa2, size, packet.stData_))
 	  assert(0);
       if (packet.isSc())
-	hart->cancelLr(WdRiscv::CancelLrCause::SC);
+	hart.cancelLr(WdRiscv::CancelLrCause::SC);
       auto& storeMap = hartStoreMaps_.at(hartIx);
       packet.drained_ = true;
       storeMap.erase(packet.tag());
@@ -570,12 +571,25 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
   for (auto& producer : packet.opProducers_)
     producer.clear();
 
-  // Stores erased at drain time.
-  if (not packet.isStore() and not packet.di_.isVectorStore())
+  // If instruction trapped, remove it from packet map, unless it is a partially executed
+  // vector store since that needs to be drained.
+  auto& packetMap = hartPacketMaps_.at(hartIx);
+  bool vecStore = packet.di_.isVectorStore();
+  if (trap)
     {
-      auto& packetMap = hartPacketMaps_.at(hartIx);
-      packetMap.erase(packet.tag());
+      bool erase = true;
+      if (vecStore)
+        {
+          uint64_t vstart = 0;
+          erase = hart.peekCsr(WdRiscv::CsrNumber::VSTART, vstart) and vstart == 0;
+        }
+      if (erase)
+        packetMap.erase(packet.tag());
     }
+
+  // Stores erased at drain time.
+  if (not packet.isStore() and not vecStore)
+    packetMap.erase(packet.tag());
 
   return true;
 }
@@ -1587,6 +1601,8 @@ PerfApi::getVecOpsLmul(Hart64& hart, InstrPac& packet)
   for (unsigned i = 0; i < 3; ++i)
     packet.opLmul_[i] = effLmul;
 
+  using InstId = WdRiscv::InstId;
+
   auto di = packet.decodedInst();
 
   if (di.isVectorLoad() or di.isVectorStore())
@@ -1609,18 +1625,21 @@ PerfApi::getVecOpsLmul(Hart64& hart, InstrPac& packet)
         }
       else
         {
-          auto dg8 = groupX8 * hart.vecLdStElemSize(di) / vecRegs.elemWidthInBytes();
-          if (di.vecFieldCount() > 0)
-            dg8 *= di.vecFieldCount();
-          unsigned dmul = dg8 <= 8 ? 1 : dg8 / 8;   // Data reg effective lmul
-          packet.opLmul_[0] = dmul;
+          auto id = di.instId();
+          if (id >= InstId::vlre8_v and id <= InstId::vlre64_v)
+            packet.opLmul_[0] = di.vecFieldCount();
+          else
+            {
+              auto dg8 = groupX8 * hart.vecLdStElemSize(di) / vecRegs.elemWidthInBytes();
+              if (di.vecFieldCount() > 0)
+                dg8 *= di.vecFieldCount();
+              unsigned dmul = dg8 <= 8 ? 1 : dg8 / 8;   // Data reg effective lmul
+              packet.opLmul_[0] = dmul;
+            }
         }
 
       return;
     }
-
-
-  using InstId = WdRiscv::InstId;
 
   switch(di.instId())
     {
