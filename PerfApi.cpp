@@ -1176,7 +1176,14 @@ InstrPac::executedDestVal(const Hart64& hart, unsigned size, unsigned elemIx, un
 
   unsigned offset = elemSize * elemIx;
   if (info.fields_ > 0)
-    offset = offset*info.fields_ + field;
+    {
+      // Segmented load.
+      unsigned bytesPerReg = hart.vecRegs().bytesPerRegister();
+      unsigned regsPerField = opLmul_[0] / info.fields_;
+      if (regsPerField == 0)
+        regsPerField = 1;
+      offset += field*bytesPerReg*regsPerField;
+    }
   else
     assert(field == 0);
 
