@@ -15,6 +15,7 @@
 #pragma once
 
 #include <iosfwd>
+#include <functional>
 #include "trapEnums.hpp"
 #include "Tlb.hpp"
 #include "Pte.hpp"
@@ -151,11 +152,11 @@ namespace WdRiscv
     {
       std::fill(supportedModes_.begin(), supportedModes_.end(), false);
       for (auto mode : modes)
-	{
-	  unsigned ix = unsigned(mode);
-	  if (ix < supportedModes_.size())
-	    supportedModes_.at(ix) = true;
-	}
+      {
+        unsigned ix = unsigned(mode);
+        if (ix < supportedModes_.size())
+          supportedModes_.at(ix) = true;
+      }
     }
 
     /// Return true if given translation mode is supported. On construction all modes are
@@ -289,7 +290,40 @@ namespace WdRiscv
     Pbmt lastVsPbmt() const
     { return vsPbmt_; }
 
+    // =======================
+    // Callback setter APIs 
+    void setMemReadCallback(const std::function<bool(uint64_t, bool, uint64_t&)>& cb)
+    { memReadCallback_ = cb; }
+    void setMemWriteCallback(const std::function<bool(uint64_t, bool, uint64_t)>& cb)
+    { memWriteCallback_ = cb; }
+    void setPmpIsReadableCallback(const std::function<bool(uint64_t, PrivilegeMode)>& cb)
+    { pmpReadableCallback_ = cb; }
+    void setPmpIsWritableCallback(const std::function<bool(uint64_t, PrivilegeMode)>& cb)
+    { pmpWritableCallback_ = cb; }
+
+    const std::function<bool(uint64_t, bool, uint64_t&)>& getMemReadCallback() const {
+        return memReadCallback_;
+    }
+    const std::function<bool(uint64_t, bool, uint64_t)>& getMemWriteCallback() const {
+        return memWriteCallback_;
+    }
+    const std::function<bool(uint64_t, PrivilegeMode)>& getPmpReadableCallback() const {
+        return pmpReadableCallback_;
+    }
+    const std::function<bool(uint64_t, PrivilegeMode)>& getPmpWritableCallback() const {
+        return pmpWritableCallback_;
+    }
+
+
+    // =======================
+
   protected:
+    // Callback member variables.
+    std::function<bool(uint64_t, bool, uint64_t&)> memReadCallback_ = nullptr;
+    std::function<bool(uint64_t, bool, uint64_t)>  memWriteCallback_ = nullptr;
+    std::function<bool(uint64_t, PrivilegeMode)>     pmpReadableCallback_ = nullptr;
+    std::function<bool(uint64_t, PrivilegeMode)>     pmpWritableCallback_ = nullptr;
+
 
     /// Return current big-endian mode of implicit memory read/write
     /// used by translation.
@@ -300,70 +334,6 @@ namespace WdRiscv
     /// by translation.
     void setBigEndian(bool be)
     { bigEnd_ = be; }
-
-    /// Read a memory word honoring the big-endian flag. Return true
-    /// on success and false on failure.
-  //   bool memRead(uint64_t addr, bool bigEnd, uint32_t& data) const
-  //   {
-  //     if (not memory_.read(addr, data))
-	// return false;
-  //     if (bigEnd)
-	// data = util::byteswap(data);
-  //     return true;
-  //   }
-
-    /// Read a memory double-word honoring the big-endian flag. Return
-    /// true on success and false on failure.
-  //   bool memRead(uint64_t addr, bool bigEnd, uint64_t& data) const
-  //   {
-  //     if (not memory_.read(addr, data))
-	// return false;
-  //     if (bigEnd)
-	// data = util::byteswap(data);
-  //     return true;
-  //   }
-
-    /// Write a memory word honoring the big-endian flag. Return true on success and false
-    /// on failure. This is used to update A/D bits. Memory must have reserve-eventual
-    /// attribute.
-  //   bool memWrite(uint64_t addr, bool bigEnd, uint32_t data)
-  //   {
-  //     if (bigEnd)
-	// data = util::byteswap(data);
-  //     if (not memory_.hasReserveAttribute(addr))
-	// return false;
-  //     return memory_.write(hartIx_, addr, data);
-  //   }
-
-    /// Write a memory double-word honoring the big-endian flag. Return true on success
-    /// and false on failure. This is used to update A/D bits. Memory must have
-    /// reserve-eventual attribute.
-  //   bool memWrite(uint64_t addr, bool bigEnd, uint64_t data)
-  //   {
-  //     if (bigEnd)
-	// data = util::byteswap(data);
-  //     if (not memory_.hasReserveAttribute(addr))
-	// return false;
-  //     return memory_.write(hartIx_, addr, data);
-  //   }
-
-    /// Check physical memory protection returning true if given address is readable.
-  //   bool pmpIsReadable(uint64_t addr, PrivilegeMode pm) const
-  //   {
-  //     if (not pmpMgr_.isEnabled())
-	// return true;
-  //     const Pmp& pmp = pmpMgr_.accessPmp(addr);
-  //     return pmp.isRead(pm);
-  //   }
-
-    /// Check physical memory protection returning true if given address is writable.
-  //   bool pmpIsWritable(uint64_t addr, PrivilegeMode pm) const
-  //   {
-  //     if (not pmpMgr_.isEnabled())
-	// return true;
-  //     const Pmp& pmp = pmpMgr_.accessPmp(addr);
-  //     return pmp.isWrite(pm);
-  //   }
 
     /// Use exec access permission for read permission.
     void useExecForRead(bool flag)
