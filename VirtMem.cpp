@@ -14,9 +14,6 @@ VirtMem::VirtMem(unsigned hartIx, Memory& memory, unsigned pageSize,
   supportedModes_.resize(unsigned(Mode::Limit_));
   setSupportedModes({Mode::Bare, Mode::Sv32, Mode::Sv39, Mode::Sv48, Mode::Sv57, Mode::Sv64});
 
-  supportedPmms_.resize(unsigned(Pmm::Limit_));
-  setSupportedPmms({Pmm::Off, Pmm::Pm57, Pmm::Pm48});
-
   pageBits_ = static_cast<unsigned>(std::log2(pageSize_));
   unsigned p2PageSize =  unsigned(1) << pageBits_;
   (void)p2PageSize;
@@ -464,7 +461,7 @@ VirtMem::twoStageTranslate(uint64_t va, PrivilegeMode priv, bool read, bool writ
 	  if (entry->valid_)
 	    {
 	      // Use TLB entry.
-	      pbmt_ = Pbmt(entry->pbmt_);
+	      vsPbmt_ = Pbmt(entry->pbmt_);
 	      gpa = (entry->physPageNum_ << pageBits_) | (va & pageMask_);
 	    }
 	}
@@ -641,16 +638,17 @@ VirtMem::pageTableWalk(uint64_t address, PrivilegeMode privMode, bool read, bool
 	    // B2. Compare pte to memory.
 	    PTE pte2(0);
 	    memRead(pteAddr, bigEnd_, pte2.data_);
+            // Preserve the original pte.ppn (no NAPOT fixup).
+            PTE orig = pte2;
             if (not napotCheck(pte2, va))
               return stage1PageFaultType(read, write, exec);
 
 	    if (pte.data_ != pte2.data_)
 	      continue;  // Comparison fails: return to step 2.
-	    pte.bits_.accessed_ = 1;
+	    pte.bits_.accessed_ = orig.bits_.accessed_ = 1;
 	    if (write)
-	      pte.bits_.dirty_ = 1;
-
-	    if (not memWrite(pteAddr, bigEnd_, pte.data_))
+	      pte.bits_.dirty_ = orig.bits_.dirty_ = 1;
+	    if (not memWrite(pteAddr, bigEnd_, orig.data_))
 	      return stage1PageFaultType(read, write, exec);
 	  }
 	}
@@ -673,6 +671,7 @@ VirtMem::pageTableWalk(uint64_t address, PrivilegeMode privMode, bool read, bool
   tlbEntry.virtPageNum_ = address >> pageBits_;
   tlbEntry.physPageNum_ = pa >> pageBits_;
   tlbEntry.asid_ = asid_;
+  tlbEntry.wid_ = wid_;
   tlbEntry.valid_ = true;
   tlbEntry.global_ = global;
   tlbEntry.user_ = pte.user();
@@ -778,12 +777,14 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 	if (pte.ppn(j) != 0)
           return stage2PageFaultType(read, write, exec);
 
+      bool failCheck = not pte.accessed() or (write and not pte.dirty());
+
       // 7.
-      if (accessDirtyCheck_ and (not pte.accessed() or (write and not pte.dirty())))
+      if (accessDirtyCheck_ and (failCheck or (dirtyGForVsNonleaf_ and not pte.dirty() and isPteAddr)))
 	{
 	  // We have a choice:
 	  // A. Page fault
-	  if (faultOnFirstAccess2_)
+	  if (faultOnFirstAccess2_ and failCheck)
 	    return stage2PageFaultType(read, write, exec);  // A
 
 	  // Or B
@@ -797,16 +798,18 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 	    // B2. Compare pte to memory.
 	    PTE pte2(0);
 	    memRead(pteAddr, bigEnd_, pte2.data_);
+            // Preserve the original pte.ppn (no NAPOT fixup).
+            PTE orig = pte2;
             if (not napotCheck(pte2, va))
               return stage2PageFaultType(read, write, exec);
 
 	    if (pte.data_ != pte2.data_)
 	      continue;  // Comparison fails: return to step 2.
-	    pte.bits_.accessed_ = 1;
-	    if (write)
-	      pte.bits_.dirty_ = 1;
-
-	    if (not memWrite(pteAddr, bigEnd_, pte.data_))
+	    pte.bits_.accessed_ = orig.bits_.accessed_ = 1;
+	    if (write or
+                (dirtyGForVsNonleaf_ and isPteAddr))
+	      pte.bits_.dirty_ = orig.bits_.dirty_ = 1;
+	    if (not memWrite(pteAddr, bigEnd_, orig.data_))
 	      return stage2PageFaultType(read, write, exec);
 	  }
 	}
@@ -830,6 +833,7 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
   tlbEntry.physPageNum_ = pa >> pageBits_;
   tlbEntry.asid_ = vsAsid_;
   tlbEntry.vmid_ = vmid_;
+  tlbEntry.wid_ = wid_;
   tlbEntry.valid_ = true;
   tlbEntry.global_ = global;
   tlbEntry.user_ = pte.user();
@@ -968,14 +972,16 @@ VirtMem::stage1PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 	    // B2. Compare pte to memory.
 	    PTE pte2(0);
 	    memRead(pteAddr, bigEnd_, pte2.data_);
+            // Preserve the original pte.ppn (no NAPOT fixup).
+            PTE orig = pte2;
             if (not napotCheck(pte2, va))
               return stage1PageFaultType(read, write, exec);
 
 	    if (pte.data_ != pte2.data_)
 	      continue;  // Comparison fails: return to step 2.
-	    pte.bits_.accessed_ = 1;
+	    pte.bits_.accessed_ = orig.bits_.accessed_ = 1;
 	    if (write)
-	      pte.bits_.dirty_ = 1;
+	      pte.bits_.dirty_ = orig.bits_.dirty_ = 1;
 
 	    // Need to make sure we have write access to page.
 	    uint64_t pteAddr2 = gpteAddr; pa = gpteAddr;
@@ -983,7 +989,7 @@ VirtMem::stage1PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 	    if (ec != ExceptionCause::NONE)
 	      return stage2ExceptionToStage1(ec, read, write, exec);
 	    assert(pteAddr == pteAddr2);
-	    if (not memWrite(pteAddr2, bigEnd_, pte.data_))
+	    if (not memWrite(pteAddr2, bigEnd_, orig.data_))
 	      return stage1PageFaultType(read, write, exec);
 	  }
 	}
@@ -1007,6 +1013,7 @@ VirtMem::stage1PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
   tlbEntry.physPageNum_ = pa >> pageBits_;
   tlbEntry.asid_ = vsAsid_;
   tlbEntry.vmid_ = vmid_;
+  tlbEntry.wid_ = wid_;
   tlbEntry.valid_ = true;
   tlbEntry.global_ = global;
   tlbEntry.user_ = pte.user();

@@ -49,6 +49,9 @@ Hart<URV>::validateAmoAddr(uint64_t& addr, uint64_t& gaddr, unsigned accessSize)
   if (misal)
     return misalAtomicCauseAccessFault_? EC::STORE_ACC_FAULT : EC::STORE_ADDR_MISAL;
 
+  if (injectException_ != EC::NONE and injectExceptionIsLd_)
+    return injectException_;
+
   return ExceptionCause::NONE;
 }
 
@@ -88,7 +91,7 @@ Hart<URV>::amoLoad32([[maybe_unused]] const DecodedInst* di, uint64_t virtAddr,
     {
       Pma pma = memory_.pmaMgr_.accessPma(addr);
       // Check for non-cacheable pbmt
-      pma = virtMem_.overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt(virtMode_));
+      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt(virtMode_));
       if (not pma.hasAttrib(attrib))
 	cause = ExceptionCause::STORE_ACC_FAULT;
     }
@@ -158,7 +161,7 @@ Hart<URV>::amoLoad64([[maybe_unused]] const DecodedInst* di, uint64_t virtAddr,
     {
       Pma pma = memory_.pmaMgr_.accessPma(addr);
       // Check for non-cacheable pbmt
-      pma = virtMem_.overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt(virtMode_));
+      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt(virtMode_));
       if (not pma.hasAttrib(attrib))
 	cause = ExceptionCause::STORE_ACC_FAULT;
     }
@@ -245,7 +248,7 @@ Hart<URV>::loadReserve(const DecodedInst* di, uint32_t rd, uint32_t rs1)
   if (cause == ExceptionCause::NONE)
     {
       Pma pma = memory_.pmaMgr_.accessPma(addr1);
-      pma = virtMem_.overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt(virtMode_));
+      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt(virtMode_));
       fail = fail or not pma.isRsrv();
     }
 
@@ -362,7 +365,7 @@ Hart<URV>::storeConditional(const DecodedInst* di, URV virtAddr, STORE_TYPE stor
   if (cause == EC::NONE)
     {
       Pma pma = memory_.pmaMgr_.accessPma(addr1);
-      pma = virtMem_.overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt(virtMode_));
+      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt(virtMode_));
       if (not pma.isRsrv())
 	cause = EC::STORE_ACC_FAULT;
     }
@@ -372,6 +375,12 @@ Hart<URV>::storeConditional(const DecodedInst* di, URV virtAddr, STORE_TYPE stor
 
   if (cause == EC::NONE and misal)
     cause = misalAtomicCauseAccessFault_ ? EC::STORE_ACC_FAULT : EC::STORE_ADDR_MISAL;
+
+  // Special case for injected exception on non-load instruction.
+  if (cause != EC::NONE and
+      injectException_ != EC::NONE
+      and injectExceptionIsLd_)
+    cause = injectException_;
 
   if (cause != EC::NONE)
     {

@@ -212,16 +212,20 @@ Mcm<URV>::readOp_(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa, uns
 
       // Adjust indices of all the instructions referencing ops that are now after new op
       // in sysMemOps_.
-      std::unordered_set<uint64_t> adjustedTags;
+
+      // One set of adjusted tags per hart.
+      std::vector< std::unordered_set<uint64_t> > adjustedTags(hartData_.size()); 
+
       for (size_t i = ix + 1; i < sysMemOps_.size(); ++i)
         {
           auto& movedOp = sysMemOps_.at(i);
           auto& instrVec = hartData_.at(movedOp.hartIx_).instrVec_;
 
+          auto& tagSet = adjustedTags.at(movedOp.hartIx_);
           auto tag = movedOp.tag_;
-          if (adjustedTags.contains(tag))
+          if (tagSet.contains(tag))
             continue;
-          adjustedTags.insert(tag);
+          tagSet.insert(tag);
 
           auto& instr = instrVec.at(tag);
           for (auto& instrOpIx : instr.memOps_)
@@ -990,75 +994,27 @@ Mcm<URV>::bypassOp(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa,
 
   bool result = true;
 
-  if (size > 8)
-    {
-      if (instr->di_.instId() != InstId::cbo_zero or (size % 8) != 0)
-	{
-	  cerr << "Mcm::byppassOp: Error: hart-id=" << hart.hartId() << " time=" << time
-	       << " invalid size: " << size << '\n';
-	  return false;
-	}
-      if (rtlData != 0)
-	{
-	  cerr << "Mcm::byppassOp: Error: hart-id=" << hart.hartId() << " time=" << time
-	       << " invalid data (must be 0) for a cbo.zero instruction: " << rtlData << '\n';
-	  return false;
-	}
-      uint64_t lineStart = lineAlign(pa);
-      if (pa + size - lineStart > lineSize_)
-	return false;
+  assert(size <= 8);
 
-      if ((pa % 8) != 0)
-	return false;
+  MemoryOp op = {};
+  op.time_ = time;
+  op.pa_ = pa;
+  op.rtlData_ = rtlData;
+  op.tag_ = tag;
+  op.hartIx_ = hartIx;
+  op.size_ = size;
+  op.isRead_ = false;
+  op.bypass_ = true;
+  op.elemIx_ = elemIx;
+  op.field_ = field;
+  op.isIo_ = hart.getPma(op.pa_).isIo();
 
-      if (rtlData != 0)
-	return false;
+  // Associate write op with instruction.
+  instr->addMemOp(sysMemOps_.size());
+  sysMemOps_.push_back(op);
 
-      for (unsigned i = 0; i < size; i += 8)
-	{
-	  uint64_t addr = pa + i;
-	  MemoryOp op = {};
-	  op.time_ = time;
-	  op.pa_ = addr;
-	  op.rtlData_ = rtlData;
-	  op.tag_ = tag;
-	  op.hartIx_ = hartIx;
-	  op.size_ = 8;
-	  op.isRead_ = false;
-	  op.bypass_ = true;
-          op.elemIx_ = elemIx;
-          op.field_ = field;
-	  op.isIo_ = hart.getPma(op.pa_).isIo();
-
-	  // Associate write op with instruction.
-	  instr->addMemOp(sysMemOps_.size());
-	  sysMemOps_.push_back(op);
-
-	  result = pokeHartMemory(hart, addr, 0, 8) and result;
-	}
-    }
-  else
-    {
-      MemoryOp op = {};
-      op.time_ = time;
-      op.pa_ = pa;
-      op.rtlData_ = rtlData;
-      op.tag_ = tag;
-      op.hartIx_ = hartIx;
-      op.size_ = size;
-      op.isRead_ = false;
-      op.bypass_ = true;
-      op.elemIx_ = elemIx;
-      op.field_ = field;
-      op.isIo_ = hart.getPma(op.pa_).isIo();
-
-      // Associate write op with instruction.
-      instr->addMemOp(sysMemOps_.size());
-      sysMemOps_.push_back(op);
-
-      result = pokeHartMemory(hart, pa, rtlData, size) and result;
-    }
-
+  result = pokeHartMemory(hart, pa, rtlData, size) and result;
+  
   instr->complete_ = checkStoreComplete(hartIx, *instr);
   if (instr->complete_)
     {
@@ -5193,7 +5149,7 @@ Mcm<URV>::checkLoadVsPriorCmo(Hart<URV>& hart, const McmInstr& instrB) const
   auto hartIx = hart.sysHartIndex();
   const auto& instrVec = hartData_.at(hartIx).instrVec_;
 
-  auto earlyB = earliestOpTime(instrB);
+  auto earlyB = effectiveMinTime(hart, instrB);
 
   for (auto ix = instrB.tag_; ix > 0; --ix)
     {
@@ -5216,7 +5172,9 @@ Mcm<URV>::checkLoadVsPriorCmo(Hart<URV>& hart, const McmInstr& instrB) const
               {
                 cerr << "Error: Read op of load instruction happens before retire time of "
                      << "preceding overlapping cbo.clean/flush: hart-id=" << hart.hartId()
-                     << " cbo-tag=" << instrA.tag_ << " load-tag=" << instrB.tag_ << '\n';
+                     << " cbo-tag=" << instrA.tag_ << " load-tag=" << instrB.tag_
+                     << " cbo-time=" << instrA.retireTime_ << " read-time=" << op.time_
+                     << '\n';
                 return false;
               }
           }

@@ -42,6 +42,7 @@
 #include "FetchCache.hpp"
 #include "pci/Pci.hpp"
 #include "Stee.hpp"
+#include "PmaskManager.hpp"
 
 
 namespace TT_PERF
@@ -345,6 +346,11 @@ namespace WdRiscv
     void configTriggerUseTcontrol(bool flag)
     { csRegs_.triggers_.enableTcontrol(flag); }
 
+    /// Enable trigger icount such that it counts down
+    /// on an instruction write to icount.
+    void configTriggerIcountOnModified(bool flag)
+    { csRegs_.triggers_.enableIcountOnModified(flag); }
+
     /// Set the maximum NAPOT range with maskmax.
     void configTriggerNapotMaskMax(unsigned bits)
     { csRegs_.triggers_.configNapotMaskMax(bits); }
@@ -391,8 +397,8 @@ namespace WdRiscv
     { virtMem_.setSupportedModes(modes); }
 
     /// Configure the address translation pointer masking modes supported by this hart.
-    void configAddressTranslationPmms(const std::vector<VirtMem::Pmm>& pmms)
-    { virtMem_.setSupportedPmms(pmms); }
+    void configAddressTranslationPmms(const std::vector<PmaskManager::Mode>& pmms)
+    { pmaskManager_.setSupportedModes(pmms); }
 
     /// Enable support for ebreak semi-hosting.  See ebreak documentation in the
     /// unprivileged spec.
@@ -402,6 +408,11 @@ namespace WdRiscv
     /// Enable whisper HINT ops for various functions.
     void enableHintOps(bool flag)
     { hintOps_ = flag; }
+
+    /// Enable speculatively marking G-stage page tables dirty for non-leaf
+    /// PTEs.
+    void enableDirtyGForVsNonleaf(bool flag)
+    { virtMem_.enableDirtyGForVsNonleaf(flag); }
 
     /// Enable page based memory types.
     void enableTranslationPbmt(bool flag)
@@ -475,27 +486,27 @@ namespace WdRiscv
       if (isRvSmmpm())
         {
           uint8_t pmm = csRegs_.mseccfgPmm();
-          virtMem_.enablePointerMasking(VirtMem::Pmm(pmm), PM::Machine, false);
+          pmaskManager_.enablePointerMasking(PmaskManager::Mode(pmm), PM::Machine, false);
         }
 
       if (isRvSsnpm())
         {
           uint8_t pmm = csRegs_.senvcfgPmm();
           if (isRvu())
-            virtMem_.enablePointerMasking(VirtMem::Pmm(pmm), PM::User, false);
+            pmaskManager_.enablePointerMasking(PmaskManager::Mode(pmm), PM::User, false);
 
           pmm = csRegs_.henvcfgPmm();
           if (isRvh())
-            virtMem_.enablePointerMasking(VirtMem::Pmm(pmm), PM::Supervisor, true);
+            pmaskManager_.enablePointerMasking(PmaskManager::Mode(pmm), PM::Supervisor, true);
         }
 
       if (isRvSmnpm())
         {
           uint8_t pmm = csRegs_.menvcfgPmm();
           if (isRvs())
-            virtMem_.enablePointerMasking(VirtMem::Pmm(pmm), PM::Supervisor, false);
+            pmaskManager_.enablePointerMasking(PmaskManager::Mode(pmm), PM::Supervisor, false);
           else if (isRvu())
-            virtMem_.enablePointerMasking(VirtMem::Pmm(pmm), PM::User, false);
+            pmaskManager_.enablePointerMasking(PmaskManager::Mode(pmm), PM::User, false);
         }
     }
 
@@ -537,7 +548,10 @@ namespace WdRiscv
                               bool hyper = false) const
     {
       auto [pm, virt] = effLdStMode(hyper);
-      return virtMem_.applyPointerMask(addr, pm, virt, isLoad);
+      bool bare = virtMem_.mode() == VirtMem::Mode::Bare;
+      if (virt)
+        bare = virtMem_.vsMode() == VirtMem::Mode::Bare;
+      return pmaskManager_.applyPointerMask(addr, pm, virt, isLoad, bare);
     }
 
     /// Determines the load/store instruction's effective privilege mode
@@ -887,6 +901,17 @@ namespace WdRiscv
     /// Return the current state of the Supervisor external interrupt pin.
     bool getSeiPin() const
     { return seiPin_; }
+
+    /// Set/clear low priorty exception for fetch/ld scenarios. For vector
+    /// loads, we use the element index to determine the exception. This is
+    /// useful for TB to inject errors.
+    void injectException(bool isLoad, URV code, unsigned elemIx)
+    {
+      injectException_ = static_cast<ExceptionCause>(code);
+      injectExceptionIsLd_ = isLoad;
+      injectExceptionElemIx_ = elemIx;
+    }
+
 
     /// Define address to which a write will stop the simulator. An
     /// sb, sh, or sw instruction will stop the simulator if the write
@@ -2402,6 +2427,19 @@ namespace WdRiscv
       --timeSample_;
     }
 
+    // Adjust time base and timer value either forwards (positive diff) or
+    // backwards (negative diff).  This is used by PerfApi.
+    void adjustTime(int64_t diff) {
+      if (diff >= 0)
+        {
+          for (int64_t i = 0; i < diff; i++) tickTime();
+        }
+      else
+        {
+          for (int64_t i = 0; i < -diff; i++) untickTime();
+        }
+    }
+
     /// Return the data vector register number associated with the given ld/st element
     /// info.  We return the individual register and not the base register of a group.
     unsigned identifyDataRegister(const VecLdStInfo& info, const VecLdStElem& elem) const
@@ -2434,6 +2472,32 @@ namespace WdRiscv
     /// Return the element size in bytes of the index-vector of the given instruction
     /// which must be an indexed vector load/store.
     unsigned vecLdStIndexElemSize(const DecodedInst& di) const;
+
+    static Pma overridePmaWithPbmt(Pma pma, VirtMem::Pbmt pbmt)
+    {
+      if (not pma.attributesToInt())
+        return pma;
+      if (pbmt == VirtMem::Pbmt::None or pbmt == VirtMem::Pbmt::Reserved)
+        return pma;
+
+      pma.disable(Pma::Attrib::Cacheable);
+      pma.disable(Pma::Attrib::Amo);
+      pma.disable(Pma::Attrib::Rsrv);
+
+      if (pbmt == VirtMem::Pbmt::Nc)
+        {
+          pma.enable(Pma::Attrib::Idempotent);
+          pma.disable(Pma::Attrib::Io);
+        }
+      else
+        {
+          pma.disable(Pma::Attrib::Idempotent);
+          pma.enable(Pma::Attrib::Io);
+          pma.disable(Pma::Attrib::MisalOk);
+          pma.enable(Pma::Attrib::MisalAccFault);
+        }
+      return pma;
+    }
 
   protected:
 
@@ -2896,7 +2960,7 @@ namespace WdRiscv
     /// load/store instructions (e.g. hlv.b).
     ExceptionCause determineLoadException(uint64_t& addr1, uint64_t& addr2,
                                           uint64_t& gaddr1, uint64_t& gaddr2,
-					  unsigned ldSize, bool hyper);
+					  unsigned ldSize, bool hyper, unsigned elemIx = 0);
 
     /// Helper to load method. Vaddr is the virtual address. Paddr1 is the physical
     /// address.  Paddr2 is identical to paddr1 for non-page-crossing loads; otherwise, it
@@ -5506,11 +5570,19 @@ namespace WdRiscv
     bool pmpEnabled_ = false; // True if one or more pmp register defined.
     PmpManager pmpManager_;
 
+    // Pointer masking modes.
+    PmaskManager pmaskManager_;
+
     // Static tee (truseted execution environment).
     bool steeEnabled_ = false;
     TT_STEE::Stee stee_;
     bool steeInsec1_ = false;  // True if insecure access to a secure region.
     bool steeInsec2_ = false;  // True if insecure access to a secure region.
+
+    // Exceptions injected by user.
+    ExceptionCause injectException_ = ExceptionCause::NONE;
+    bool injectExceptionIsLd_ = false;
+    unsigned injectExceptionElemIx_ = 0;
 
     // Landing pad (zicfilp)
     bool mLpEnabled_ = false;

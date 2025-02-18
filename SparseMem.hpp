@@ -33,7 +33,7 @@ namespace WdRiscv
   {
   public:
 
-    SparseMem() : pageMapCache_(16384) {};
+    SparseMem() : pageMapCache_(cacheSize_) {}
 
     ~SparseMem();
 
@@ -102,53 +102,65 @@ namespace WdRiscv
     /// it has never been accessed before.
     inline std::vector<uint8_t>& findOrCreatePage(uint64_t pageNum)
     {
-      std::lock_guard<SpinLock> lock(spinlock_);
-      std::vector<uint8_t>* p = pageMapCache_.find(pageNum);
+      PageMapCache::entry_t& entry = pageMapCache_.get_entry(pageNum);
+
+      std::vector<uint8_t>* p = entry.compare(pageNum);
       if (p != nullptr) {
         return *p;
       }
 
+      mapSpinLock_.lock();
+
       auto end = pageMap_.end();
       auto iter = pageMap_.find(pageNum);
       if (iter != end) {
-        std::vector<uint8_t>& page = iter->second;
-        pageMapCache_.update(pageNum, page);
-    	return page;
+        p = &iter->second;
+      } else {
+        p = &createPage(pageNum);;
       }
+      mapSpinLock_.unlock();
 
-      return createPage(pageNum);
+      entry.update(pageNum, *p);
+
+      return *p;
     }
 
   private:
 
     class PageMapCache {
+        public:
         struct entry_t {
+            SpinLock lock;
             uint64_t pageNum = 0;
             std::vector<uint8_t>* page = nullptr;
+
+            inline std::vector<uint8_t>* compare(uint64_t pageNum) {
+                std::vector<uint8_t>* p = nullptr;
+                std::lock_guard<SpinLock> lock(this->lock);
+                if (page and pageNum == this->pageNum) {
+                    p = page;
+                }
+                return p;
+            }
+            inline void update(uint64_t pageNum, std::vector<uint8_t>& page) {
+                std::lock_guard<SpinLock> lock(this->lock);
+                this->pageNum = pageNum;
+                this->page = &page;
+            }
         };
+
+        private:
         uint64_t mask_;
-        std::vector<entry_t> cache_;
+        std::unique_ptr<entry_t[]> cache_;
 
         public:
         PageMapCache(uint64_t n) : mask_(n - 1) {
             assert((n & (n - 1)) == 0 && "Cache size must be a power of 2");
-            cache_.resize(n);
+            cache_ = std::make_unique<entry_t[]>(n);
         }
 
-        inline uint64_t idx(uint64_t pageNum) { return pageNum & mask_; }
-
-        inline std::vector<uint8_t>* find(uint64_t pageNum) {
-            entry_t& e = cache_[idx(pageNum)];
-            if (e.page == nullptr or e.pageNum != pageNum) {
-                return nullptr;
-            }
-            return e.page;
-        }
-
-        inline void update(uint64_t pageNum, std::vector<uint8_t>& page) {
-            uint64_t idx = this->idx(pageNum);
-            cache_[idx].pageNum = pageNum;
-            cache_[idx].page = &page;
+        inline struct entry_t& get_entry(uint64_t pageNum) {
+            return cache_[pageNum & mask_];
         }
     };
 
@@ -156,16 +168,16 @@ namespace WdRiscv
     {
 	  auto iter = pageMap_.try_emplace(pageNum, pageSize_, 0).first;
       auto& page = iter->second;
-	  pageMapCache_.update(pageNum, page);
       return page;
     }
 
     size_t pageSize_ = UINT64_C(4)*1024;
     unsigned pageShift_ = 12;
     unsigned pageMask_ = 0xfff;
+    size_t cacheSize_ = 16384;
 
     std::unordered_map<uint64_t, std::vector<uint8_t>> pageMap_;  // Map address to page
+    SpinLock mapSpinLock_;
     PageMapCache pageMapCache_;
-    SpinLock spinlock_;
   };
 }

@@ -51,32 +51,33 @@ Hart<URV>::execHfence_vvma(const DecodedInst* di)
   auto& stage2Tlb = virtMem_.stage2Tlb_;
 
   auto vmid = virtMem_.vmid();
+  uint32_t wid = steeEnabled_? stee_.secureWorld() : 0;
 
   if (di->op0() == 0 and di->op1() == 0)
     {
-      vsTlb.invalidateVmid(vmid);
-      stage2Tlb.invalidateVmid(vmid);
+      vsTlb.invalidateVmid(vmid, wid);
+      stage2Tlb.invalidateVmid(vmid, wid);
     }
   else if (di->op0() == 0 and di->op1() != 0)
     {
       URV asid = intRegs_.read(di->op1());
-      vsTlb.invalidateAsidVmid(asid, vmid);
-      stage2Tlb.invalidateAsidVmid(asid, vmid);
+      vsTlb.invalidateAsidVmid(asid, vmid, wid);
+      stage2Tlb.invalidateAsidVmid(asid, vmid, wid);
     }
   else if (di->op0() != 0 and di->op1() == 0)
     {
       URV addr = intRegs_.read(di->op0());
       uint64_t vpn = virtMem_.pageNumber(addr);
-      vsTlb.invalidateVirtualPageVmid(vpn, vmid);
-      stage2Tlb.invalidateVmid(vmid);
+      vsTlb.invalidateVirtualPageVmid(vpn, vmid, wid);
+      stage2Tlb.invalidateVmid(vmid, wid);
     }
   else
     {
       URV addr = intRegs_.read(di->op0());
       uint64_t vpn = virtMem_.pageNumber(addr);
       URV asid = intRegs_.read(di->op1());
-      vsTlb.invalidateVirtualPageAsid(vpn, asid);
-      stage2Tlb.invalidateAsidVmid(asid, vmid);
+      vsTlb.invalidateVirtualPageAsid(vpn, asid, wid);
+      stage2Tlb.invalidateAsidVmid(asid, vmid, wid);
     }
 }
 
@@ -109,6 +110,7 @@ Hart<URV>::execHfence_gvma(const DecodedInst* di)
   auto& vsTlb = virtMem_.vsTlb_;
 
   auto vmid = virtMem_.vmid();
+  uint32_t wid = steeEnabled_? stee_.secureWorld() : 0;
 
   // Some implementations do not store guest-physical-addresses in the TLB. For those, we
   // over-invalidate.
@@ -117,24 +119,24 @@ Hart<URV>::execHfence_gvma(const DecodedInst* di)
   // Invalidate whole VS TLB. This is overkill.
   if (di->op0() == 0 and di->op1() == 0)
     {
-      stage2Tlb.invalidateVmid(vmid);
-      vsTlb.invalidateVmid(vmid);
+      stage2Tlb.invalidateVmid(vmid, wid);
+      vsTlb.invalidateVmid(vmid, wid);
     }
   else if (di->op0() == 0 and di->op1() != 0)
     {
       URV vmid = intRegs_.read(di->op1());
-      stage2Tlb.invalidateVmid(vmid);
-      vsTlb.invalidateVmid(vmid);
+      stage2Tlb.invalidateVmid(vmid, wid);
+      vsTlb.invalidateVmid(vmid, wid);
     }
   else if (di->op0() != 0 and di->op1() == 0)
     {
       URV addr = intRegs_.read(di->op0()) << 2;
       uint64_t vpn = virtMem_.pageNumber(addr);
       if (useGpa)
-	stage2Tlb.invalidateVirtualPageVmid(vpn, vmid);
+	stage2Tlb.invalidateVirtualPageVmid(vpn, vmid, wid);
       else
-        stage2Tlb.invalidateVmid(vmid);
-      vsTlb.invalidateVmid(vmid);
+        stage2Tlb.invalidateVmid(vmid, wid);
+      vsTlb.invalidateVmid(vmid, wid);
     }
   else
     {
@@ -142,11 +144,11 @@ Hart<URV>::execHfence_gvma(const DecodedInst* di)
       uint64_t vpn = virtMem_.pageNumber(addr);
       URV vmid = intRegs_.read(di->op1());
       if (useGpa)
-        stage2Tlb.invalidateVirtualPageVmid(vpn, vmid);
+        stage2Tlb.invalidateVirtualPageVmid(vpn, vmid, wid);
       else
-        stage2Tlb.invalidateVmid(vmid);
+        stage2Tlb.invalidateVmid(vmid, wid);
 
-      vsTlb.invalidateVmid(vmid);
+      vsTlb.invalidateVmid(vmid, wid);
     }
 }
 
@@ -179,15 +181,16 @@ Hart<URV>::hyperLoad(const DecodedInst* di)
   bool prevMxr = virtMem_.stage1ExecReadable();  // Previous stage1 MXR.
   bool prevVsSum = virtMem_.vsSum();
 
-  VirtMem::Pmm prevPmm = virtMem_.pmMode(PrivilegeMode::User, true /* twoStage */);
+  PmaskManager::Mode prevPmm = pmaskManager_.getMode(PrivilegeMode::User, true /* twoStage */);
   virtMem_.setBigEndian(hstatus_.bits_.VSBE);
   virtMem_.setStage1ExecReadable(vsstatus_.bits_.MXR);
   virtMem_.setVsSum(vsstatus_.bits_.SUM);
+  pmaskManager_.setStage1ExecReadable(vsstatus_.bits_.MXR);
 
   if constexpr (isRv64())
     if (privMode_ == PrivilegeMode::User and not virtMode_)
-      virtMem_.enablePointerMasking(VirtMem::Pmm(hstatus_.bits_.HUPMM),
-                                        PrivilegeMode::User, true);
+      pmaskManager_.enablePointerMasking(PmaskManager::Mode(hstatus_.bits_.HUPMM),
+                                         PrivilegeMode::User, true);
   hyperLs_ = true;
 
   URV virtAddr = intRegs_.read(di->op1());
@@ -201,10 +204,11 @@ Hart<URV>::hyperLoad(const DecodedInst* di)
   virtMem_.setBigEndian(prevTbe);            // Restore big endian mod.
   virtMem_.setStage1ExecReadable(prevMxr);   // Restore stage1 MXR.
   virtMem_.setVsSum(prevVsSum);
+  pmaskManager_.setStage1ExecReadable(prevMxr);   // Restore stage1 MXR.
 
   if constexpr (isRv64())
     if (savedPrivMode == PrivilegeMode::User and not savedVirtMode)
-      virtMem_.enablePointerMasking(prevPmm, PrivilegeMode::User, true);
+      pmaskManager_.enablePointerMasking(prevPmm, PrivilegeMode::User, true);
 }
 
 
@@ -261,8 +265,12 @@ void
 Hart<URV>::execHlvx_hu(const DecodedInst* di)
 {
   virtMem_.useExecForRead(true);
+  pmaskManager_.useExecForRead(true);
+
   hyperLoad<uint16_t>(di);
+
   virtMem_.useExecForRead(false);
+  pmaskManager_.useExecForRead(false);
 }
 
 
@@ -271,8 +279,12 @@ void
 Hart<URV>::execHlvx_wu(const DecodedInst* di)
 {
   virtMem_.useExecForRead(true);
+  pmaskManager_.useExecForRead(true);
+
   hyperLoad<uint32_t>(di);
+
   virtMem_.useExecForRead(false);
+  pmaskManager_.useExecForRead(false);
 }
 
 
@@ -309,17 +321,16 @@ Hart<URV>::hyperStore(const DecodedInst* di)
 
   // Use VS mode big-endian for translation.
   bool prevTbe = virtMem_.bigEndian();  // Previous translation big endian.
-  bool prevMxr = virtMem_.stage1ExecReadable();  // Previous stage1 MXR.
   bool prevVsSum = virtMem_.vsSum();
 
-  VirtMem::Pmm prevPmm = virtMem_.pmMode(PrivilegeMode::User, true /* twoStage */);
+  auto prevPmm = pmaskManager_.getMode(PrivilegeMode::User, true /* twoStage */);
   virtMem_.setBigEndian(hstatus_.bits_.VSBE);
   virtMem_.setVsSum(vsstatus_.bits_.SUM);
 
   if constexpr (isRv64())
     if (privMode_ == PrivilegeMode::User and not virtMode_)
-      virtMem_.enablePointerMasking(VirtMem::Pmm(hstatus_.bits_.HUPMM),
-                                  PrivilegeMode::User, true);
+      pmaskManager_.enablePointerMasking(PmaskManager::Mode(hstatus_.bits_.HUPMM),
+                                         PrivilegeMode::User, true);
   hyperLs_ = true;
 
   uint32_t rs1 = di->op1();
@@ -331,12 +342,11 @@ Hart<URV>::hyperStore(const DecodedInst* di)
 
   hyperLs_ = false;
   virtMem_.setBigEndian(prevTbe);            // Restore big endian mod.
-  virtMem_.setStage1ExecReadable(prevMxr);   // Restore stage1 MXR.
   virtMem_.setVsSum(prevVsSum);
 
   if constexpr (isRv64())
     if (savedPrivMode == PrivilegeMode::User and not savedVirtMode)
-      virtMem_.enablePointerMasking(prevPmm, PrivilegeMode::User, true);
+      pmaskManager_.enablePointerMasking(prevPmm, PrivilegeMode::User, true);
 }
 
 

@@ -370,7 +370,7 @@ Server<URV>::peekCommand(const WhisperMessage& req, WhisperMessage& reply, Hart<
             auto pma = hart.getPma(pa);
             auto effpbmt = VirtMem::effectivePbmt(hart.lastVirtMode(), hart.lastVsPageMode(),
                                                   hart.virtMem().lastVsPbmt(), hart.virtMem().lastPbmt());
-            pma = VirtMem::overridePmaWithPbmt(pma, effpbmt);
+            pma = hart.overridePmaWithPbmt(pma, effpbmt);
             reply.value = pma.attributesToInt();
             return true;
           }
@@ -1444,6 +1444,17 @@ Server<URV>::interact(const WhisperMessage& msg, WhisperMessage& reply, FILE* tr
           if (commandLog)
             fprintf(commandLog, "hart=%" PRIu32 " pma 0x%" PRIx64 "\n",
                     hartId, msg.address);
+          break;
+        }
+
+      case InjectException:
+        {
+          // This won't work correctly for segmented vector loads with partial segment
+          // completion.
+          hart.injectException(WhisperFlags(msg.flags).bits.load, msg.address, msg.resource);
+          if (commandLog)
+            fprintf(commandLog, "hart=%" PRIu32 " inject_exception 0x%" PRIxMAX " 0x%" PRIxMAX " 0x%" PRIxMAX "\n", hartId,
+                                uintmax_t(WhisperFlags(msg.flags).bits.load), uintmax_t(msg.address), uintmax_t(msg.resource));
           break;
         }
 

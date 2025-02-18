@@ -1527,11 +1527,10 @@ CsRegs<URV>::writeSie(URV value, bool recordWr)
   if (mideleg and mvien and mvip)
     {
       URV smask = mvien->read() & ~mideleg->read();
+      sieMask &= ~ smask;  // Don't write SIE where SIE is indepedent of MIE
       // We always write the shadow SIE on SIE write to match RTL behavior. This is legal
       // because when the writable SIE portion is enabled, its value is undefined by the spec.
-      URV mask = smask | sieMask;
-      shadowSie_ = (shadowSie_ & ~mask) | (value & mask);
-      sieMask &= ~ smask;  // Don't write SIE where SIE is indepedent of MIE
+      shadowSie_ = value;
     }
 
   sie->setWriteMask(sieMask);
@@ -4527,47 +4526,24 @@ CsRegs<URV>::addMachineFields()
   setCsrFields(CsrNumber::MNSTATUS,
       {{"res0", 3}, {"NMIE",   1}, {"res1", 3}, {"MNPV", 1},
        {"res2", 1}, {"MNPELP", 2}, {"res3", 1}, {"MNPP", 2}, {"res4", xlen-14}});
-  //stateen
-  std::vector<typename Csr<URV>::Field> stateen_start = {{"C", 1}, {"FCSR", 1}, {"JVT", 1}}; // stateen common fields
-  std::vector<typename Csr<URV>::Field> stateen_end = {{"CNTXT", 1}, {"IMSIC", 1}, {"AIA", 1}, {"CSRIND", 1}, {"zero", 1}, {"ENVCFG", 1}, {"SEO", 1}};
-  for (auto &i : {CsrNumber::MSTATEEN0, CsrNumber::SSTATEEN0, CsrNumber::HSTATEEN0})
+
+  if (rv32_)
     {
-      std::vector<typename Csr<URV>::Field> stateen, stateenh;
-      stateen.insert(stateen.end(), stateen_start.begin(), stateen_start.end());
-      if (rv32_)
-        stateen.push_back({"zero",  xlen-3});
-      if (i == CsrNumber::MSTATEEN0)
-        {
-          if (rv32_)
-            {
-             stateenh.push_back({"zero", 24});
-             stateenh.push_back({"p1p13", 1});
-            }
-          else
-            {
-            stateen.push_back({"zero", 53});
-            stateen.push_back({"p1p13", 1});
-            }
-          stateenh.insert(stateenh.end(), stateen_end.begin(), stateen_end.end());
-          stateen.insert(stateen.end(), stateen_end.begin(), stateen_end.end());
-        }
-      else if (i == CsrNumber::HSTATEEN0)
-        {
-          if (rv32_)
-            stateenh.push_back({"zero", 25});
-          else
-            stateen.push_back({"zero", 54});
-          stateenh.insert(stateenh.end(), stateen_end.begin(), stateen_end.end());
-          stateen.insert(stateen.end(), stateen_end.begin(), stateen_end.end());
-        }
-      else
-        {
-          if (!rv32_)
-            stateen.push_back({"zero", 61});
-        }
-      setCsrFields(i, stateen);
-      if (rv32_ && i != CsrNumber::SSTATEEN0)
-        setCsrFields(advance(i, 0x10), stateenh);
+       setCsrFields(CsrNumber::MSTATEEN0, {{"C", 1}, {"FCSR", 1}, {"JVT", 1}, {"zero", 29}});
+       setCsrFields(CsrNumber::MSTATEEN0H, {{"zero", 24},{"P1P13", 1},{"CNTXT", 1}, {"IMSIC", 1}, {"AIA", 1},
+                                           {"CSRIND",1}, {"zero",  1},{"ENVCFG",1}, {"SEO", 1}});
+       // no fields defined yet for mstateen1,2,3
+       setCsrFields(CsrNumber::MSTATEEN1H, {{"zero", 31}, {"SEO", 1}});
+       setCsrFields(CsrNumber::MSTATEEN2H, {{"zero", 31}, {"SEO", 1}});
+       setCsrFields(CsrNumber::MSTATEEN3H, {{"zero", 31}, {"SEO", 1}});
+    }
+  else
+    {
+       setCsrFields(CsrNumber::MSTATEEN0, {{"C", 1},    {"FCSR", 1}, {"JVT", 1}, {"zero",  53}, {"P1P13", 1}, {"CNTXT",1},
+                                           {"IMSIC", 1},{"AIA",1}, {"CSRIND",1}, {"zero",1}, {"ENVCFG", 1}, {"SEO",  1}});
+       setCsrFields(CsrNumber::MSTATEEN1, {{"zero", 63}, {"SEO", 1}});
+       setCsrFields(CsrNumber::MSTATEEN2, {{"zero", 63}, {"SEO", 1}});
+       setCsrFields(CsrNumber::MSTATEEN3, {{"zero", 63}, {"SEO", 1}});
     }
 
   if (rv32_)
@@ -4750,6 +4726,11 @@ CsRegs<URV>::addSupervisorFields()
         {{"FIOM", 1}, {"res0",  3}, {"CBIE", 2}, {"CBCFE", 1},
          {"CBZE", 1}, {"res1", 24}, {"PMM",  2}, {"res2", xlen - 34}});
     }
+
+  if (rv32_)
+     setCsrFields(CsrNumber::SSTATEEN0, {{"C", 1}, {"FCSR", 1}, {"JVT", 1}, {"zero", 29}});
+  else
+     setCsrFields(CsrNumber::SSTATEEN0, {{"C", 1}, {"FCSR", 1}, {"JVT", 1}, {"zero",  61}});
 }
 
 
@@ -4926,6 +4907,24 @@ CsRegs<URV>::addHypervisorFields()
          {"res6", 29}, {"SD",   1}});
       setCsrFields(Csrn::VSATP,
         {{"PPN", 44}, {"ASID", 16}, {"MODE", 4}});
+    }
+  if (rv32_)
+    {
+       setCsrFields(CsrNumber::HSTATEEN0, {{"C", 1}, {"FCSR", 1}, {"JVT", 1}, {"zero", 29}});
+       setCsrFields(CsrNumber::HSTATEEN0H, {{"zero", 25}, {"CNTXT", 1}, {"IMSIC", 1}, {"AIA", 1},
+                                           {"CSRIND",1}, {"zero",  1},{"ENVCFG",1}, {"SEO", 1}});
+       // no fields defined yet for Hstateen1,2,3
+       setCsrFields(CsrNumber::HSTATEEN1H, {{"zero", 31}, {"SEO", 1}});
+       setCsrFields(CsrNumber::HSTATEEN2H, {{"zero", 31}, {"SEO", 1}});
+       setCsrFields(CsrNumber::HSTATEEN3H, {{"zero", 31}, {"SEO", 1}});
+    }
+  else
+    {
+       setCsrFields(CsrNumber::HSTATEEN0, {{"C", 1}, {"FCSR", 1}, {"JVT", 1}, {"zero",  54}, {"CNTXT",1},
+                                           {"IMSIC", 1},{"AIA",1}, {"CSRIND",1}, {"zero",1}, {"ENVCFG",1}, {"SEO",  1}});
+       setCsrFields(CsrNumber::HSTATEEN1, {{"zero", 63}, {"SEO", 1}});
+       setCsrFields(CsrNumber::HSTATEEN2, {{"zero", 63}, {"SEO", 1}});
+       setCsrFields(CsrNumber::HSTATEEN3, {{"zero", 63}, {"SEO", 1}});
     }
 }
 
@@ -5434,52 +5433,55 @@ CsRegs<URV>::isStateEnabled(CsrNumber num, PrivilegeMode pm, bool vm) const
   else if (vm)
     csrn = rv32_? CN::HSTATEEN0H : CN::HSTATEEN0;
 
-  int enableBit = -1;
+  uint64_t enableMask = 0;
   unsigned offset = 0;
   if (num == CN::SRMCFG)
-    enableBit = 55;
+    enableMask = (uint64_t(1) << 55);
   if (num == CN::HCONTEXT or num == CN::SCONTEXT)
-    enableBit = 57;
+    enableMask = (uint64_t(1) << 57);
   else if (num == CN::MISELECT or num == CN::MIREG or num == CN::MTOPEI or num == CN::MTOPI or
 	   num == CN::MVIEN or num == CN::MVIP or num == CN::MIDELEGH or num == CN::MIEH or
 	   num == CN::MVIENH or num == CN::MVIPH or num == CN::MIPH or num == CN::STOPEI or
 	   num == CN::VSTOPEI)
-    enableBit = 58;  // IMSIC state.
+    enableMask = (uint64_t(1) << 58);  // IMSIC state.
   if (num == CN::SIPH or num == CN::SIEH or num == CN::STOPI or num == CN::HIDELEGH or
       num == CN::HVIEN or num == CN::HVIENH or num == CN::HVIPH or num == CN::HVICTL or
       num == CN::HVIPRIO1 or num == CN::HVIPRIO1H or num == CN::HVIPRIO2 or
       num == CN::HVIPRIO2H or num == CN::VSIPH or num == CN::VSIEH or num == CN::VSTOPI)
-    enableBit = 59;  // AIA state not controlled by bits 58 and 60
+    enableMask = (uint64_t(1) << 59);  // AIA state not controlled by bits 58 and 60
   else if (num == CN::SISELECT or num == CN::SIREG or num == CN::VSISELECT or num == CN::VSIREG)
-    enableBit = 60;
-  else if (num == CN::SIREG)
     {
-      URV select = 0;
-      if (peek(CN::SISELECT, select))
-	{
-	  if (select >= 0x30 and select <= 0x3f)
-	    enableBit = 59;  // Sections 2.5 and 5.4.1 of AIA
-	}
+      enableMask = (uint64_t(1) << 60);
+
+      if (num == CN::SIREG and not vm)
+        {
+          URV select = 0;
+          if (peek(CN::SISELECT, select))
+            {
+              if (select >= 0x30 and select <= 0x3f)
+                enableMask |= (uint64_t(1) << 59);  // Sections 2.5 and 5.4.1 of AIA
+            }
+        }
     }
   else if (num == CN::HENVCFG or num == CN::HENVCFGH or num == CN::SENVCFG)
-    enableBit = 62;
+    enableMask = (uint64_t(1) << 62);
   else if (num >= CN::HSTATEEN0 and num <= CN::HSTATEEN3)
     {
-      enableBit = 63;
+      enableMask = (uint64_t(1) << 63);
       offset = unsigned(num) - unsigned(CN::HSTATEEN0);
     }
   else if (num >= CN::HSTATEEN0H and num <= CN::HSTATEEN3H)
     {
-      enableBit = 63;
+      enableMask = (uint64_t(1) << 63);
       offset = unsigned(num) - unsigned(CN::HSTATEEN0H);
     }
   else if (num >= CN::SSTATEEN0 and num <= CN::SSTATEEN3)
     {
-      enableBit = 63;
+      enableMask = (uint64_t(1) << 63);
       offset = unsigned(num) - unsigned(CN::SSTATEEN0);
     }
 
-  if (enableBit < 0)
+  if (not enableMask)
     return true;  // CSR not affected by STATEEN
 
   csrn = advance(csrn, offset);
@@ -5487,8 +5489,9 @@ CsRegs<URV>::isStateEnabled(CsrNumber num, PrivilegeMode pm, bool vm) const
   if (not csr)
     return true;
 
-  if (rv32_) enableBit -= 8*sizeof(URV);
-  URV value = csr->read();
+  if constexpr (sizeof(URV) == 4)
+    enableMask >>= 8*sizeof(URV);
+  uint64_t value = csr->read();
 
   if ((csrn >= CN::HSTATEEN0 and csrn <= CN::HSTATEEN3) or
       (csrn >= CN::HSTATEEN0H and csrn <= CN::HSTATEEN3H))
@@ -5496,7 +5499,7 @@ CsRegs<URV>::isStateEnabled(CsrNumber num, PrivilegeMode pm, bool vm) const
   else if (csrn >= CN::SSTATEEN0 and csrn <= CN::SSTATEEN3)
     value = adjustSstateenValue(csrn, value, vm);
 
-  return (value >> enableBit) & 1;
+  return (value & enableMask) == enableMask;
 }
 
 
