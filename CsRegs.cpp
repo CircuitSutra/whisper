@@ -176,21 +176,8 @@ CsRegs<URV>::readSip(URV& value) const
   auto sip = getImplementedCsr(CsrNumber::SIP);
   if (not sip)
     return false;
-  value = sip->read();
 
-  // Read value of MIP/SIP is masked by MIDELG.
-  auto deleg = getImplementedCsr(CsrNumber::MIDELEG);
-  if (deleg)
-    value &= deleg->read();
-
-  // Where mideleg is 0 and mvien is 1, sip becomes an alias to mvip.
-  auto mvien = getImplementedCsr(CsrNumber::MVIEN);
-  auto mvip = getImplementedCsr(CsrNumber::MVIP);
-  if (deleg and mvien and mvip)
-    {
-      URV mask = mvien->read() & ~deleg->read();
-      value = (value & ~mask) | (mvip->read() & mask);
-    }
+  value = effectiveSip();
 
   // Bits SGEIP, VSEIP, VSTIP, VSSIP are read-only zero in SIE/SIP.
   value &= ~ URV(0x1444);
@@ -330,6 +317,9 @@ CsRegs<URV>::writeMvien(URV value)
                            (mideleg->read() & value & ~mask));
       hideleg->write(hideleg->read());
     }
+
+  auto mvip = getImplementedCsr(CsrNumber::MVIP);
+
   return true;
 }
 
