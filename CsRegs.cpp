@@ -318,8 +318,6 @@ CsRegs<URV>::writeMvien(URV value)
       hideleg->write(hideleg->read());
     }
 
-  auto mvip = getImplementedCsr(CsrNumber::MVIP);
-
   return true;
 }
 
