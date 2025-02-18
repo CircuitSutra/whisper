@@ -313,8 +313,6 @@ namespace WdRiscv
     const std::function<bool(uint64_t, PrivilegeMode)>& getPmpWritableCallback() const {
         return pmpWritableCallback_;
     }
-
-
     // =======================
 
   protected:
