@@ -1,6 +1,6 @@
 CXX      = g++
 CXXFLAGS = -std=c++20 -Wall -I. 
-SRCS    = address_translation.cpp VirtMem.cpp
+SRCS    = VirtMem.cpp Tlb.cpp
 OBJS    = $(SRCS:.cpp=.o)
 TARGET  = libvirtual_memory.a
 .PHONY: all clean

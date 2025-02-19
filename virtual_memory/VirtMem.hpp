@@ -292,35 +292,68 @@ namespace WdRiscv
 
     // =======================
     // Callback setter APIs 
-    void setMemReadCallback(const std::function<bool(uint64_t, bool, uint64_t&)>& cb)
-    { memReadCallback_ = cb; }
-    void setMemWriteCallback(const std::function<bool(uint64_t, bool, uint64_t)>& cb)
-    { memWriteCallback_ = cb; }
-    void setPmpIsReadableCallback(const std::function<bool(uint64_t, PrivilegeMode)>& cb)
-    { pmpReadableCallback_ = cb; }
-    void setPmpIsWritableCallback(const std::function<bool(uint64_t, PrivilegeMode)>& cb)
-    { pmpWritableCallback_ = cb; }
+    void setMemReadCallback(const std::function<bool(uint64_t, bool, uint64_t)>& cb) {
+      memReadCallback64_ = cb;
+    }
+    void setMemReadCallback(const std::function<bool(uint64_t, bool, uint32_t)>& cb) {
+      memReadCallback32_ = cb;
+    }
+    void setMemWriteCallback(const std::function<bool(uint64_t, bool, uint64_t)>& cb) {
+      memWriteCallback_ = cb;
+    }
+    void setPmpIsReadableCallback(const std::function<bool(uint64_t, PrivilegeMode)>& cb) {
+      pmpReadableCallback_ = cb;
+    }
+    void setPmpIsWritableCallback(const std::function<bool(uint64_t, PrivilegeMode)>& cb) {
+      pmpWritableCallback_ = cb;
+    }
 
-    const std::function<bool(uint64_t, bool, uint64_t&)>& getMemReadCallback() const {
-        return memReadCallback_;
+    // Callback getter APIs
+    const std::function<bool(uint64_t, bool, uint64_t)>& getMemReadCallback64() const {
+      return memReadCallback64_;
+    }
+    const std::function<bool(uint64_t, bool, uint32_t)>& getMemReadCallback32() const {
+      return memReadCallback32_;
     }
     const std::function<bool(uint64_t, bool, uint64_t)>& getMemWriteCallback() const {
-        return memWriteCallback_;
+      return memWriteCallback_;
     }
     const std::function<bool(uint64_t, PrivilegeMode)>& getPmpReadableCallback() const {
-        return pmpReadableCallback_;
+      return pmpReadableCallback_;
     }
     const std::function<bool(uint64_t, PrivilegeMode)>& getPmpWritableCallback() const {
-        return pmpWritableCallback_;
+      return pmpWritableCallback_;
     }
+
+
     // =======================
 
   protected:
     // Callback member variables.
-    std::function<bool(uint64_t, bool, uint64_t&)> memReadCallback_ = nullptr;
+    std::function<bool(uint64_t, bool, uint64_t)> memReadCallback64_ = nullptr;
+    std::function<bool(uint64_t, bool, uint32_t)> memReadCallback32_ = nullptr;
     std::function<bool(uint64_t, bool, uint64_t)>  memWriteCallback_ = nullptr;
     std::function<bool(uint64_t, PrivilegeMode)>     pmpReadableCallback_ = nullptr;
     std::function<bool(uint64_t, PrivilegeMode)>     pmpWritableCallback_ = nullptr;
+    template<typename T>
+    bool memReadT(uint64_t addr, bool bigEndian, T &data) const {
+      if constexpr (sizeof(T) == 4) {
+        auto cb = getMemReadCallback32();
+        if (cb)
+          return cb(addr, bigEndian, data);
+        data = 0;
+        return false;
+      } else if constexpr (sizeof(T) == 8) {
+        auto cb = getMemReadCallback64();
+        if (cb)
+          return cb(addr, bigEndian, data);
+        data = 0;
+        return false;
+      } else {
+        static_assert(sizeof(T) == 4 || sizeof(T) == 8, "Unsupported type for memReadT");
+      }
+    }
+
 
 
     /// Return current big-endian mode of implicit memory read/write
