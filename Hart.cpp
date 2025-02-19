@@ -3307,14 +3307,14 @@ Hart<URV>::pokeIntReg(unsigned ix, URV val)
 
 template <typename URV>
 URV
-Hart<URV>::peekCsr(CsrNumber csrn) const
+Hart<URV>::peekCsr(CsrNumber csrn, bool quiet) const
 {
   URV value = 0;
+
   if (not peekCsr(csrn, value))
-    {
+    if (not quiet)
       std::cerr << "Invalid CSR number in peekCsr: 0x" << std::hex
 		<<  unsigned(csrn) << std::dec << '\n';
-    }
   return value;
 }
 

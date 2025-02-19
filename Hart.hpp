@@ -227,7 +227,9 @@ namespace WdRiscv
     { return csRegs_.peek(csr, val, virtMode); }
 
     /// Return value of the given csr. Throw exception if csr is out of bounds.
-    URV peekCsr(CsrNumber csr) const;
+    /// Return 0 if CSR is not implemented printing an error message unless
+    /// quiet is true.
+    URV peekCsr(CsrNumber csr, bool quiet = false) const;
 
     /// Set val, reset, writeMask, and pokeMask respectively to the
     /// value, reset-value, write-mask, poke-mask, and read-mask of
