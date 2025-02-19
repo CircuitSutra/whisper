@@ -33,7 +33,7 @@
 #include "InstProfile.hpp"
 #include "Syscall.hpp"
 #include "PmpManager.hpp"
-#include "VirtMem.hpp"
+#include "virtual_memory/VirtMem.hpp"
 #include "Isa.hpp"
 #include "Decoder.hpp"
 #include "Disassembler.hpp"
