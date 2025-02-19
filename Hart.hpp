@@ -770,6 +770,14 @@ namespace WdRiscv
       indexToHart_ = indexToHart;
     }
 
+    /// Define an offset to be artifically added to a time compare register of ACLINT
+    /// whenever such regiser is written by a store instruction. this is used to reduce
+    /// the frequency of timer interrupts and is relevant for booting a Linux image
+    /// (Whisper uses the instruction count to fake a timer value and that is too fast for
+    /// Linux which expect a much lower frequency for its timer).
+    void setAclintAdjustTimeCompare(uint64_t offset)
+    { aclintAdjustTimeCmp_ = offset; }
+
     /// Set the output file in which to dump the state of accessed
     /// memory lines. Return true on success and false if file cannot
     /// be opened.
@@ -5396,6 +5404,7 @@ namespace WdRiscv
     uint64_t aclintMtimeStart_ = 0;
     uint64_t aclintMtimeEnd_ = 0;
     uint64_t aclintAlarm_ = ~uint64_t(0); // Interrupt when timer >= this
+    uint64_t aclintAdjustTimeCmp_ = 10000;
     bool aclintSiOnReset_ = false;
     bool aclintDeliverInterrupts_ = true;
     std::function<Hart<URV>*(unsigned ix)> indexToHart_ = nullptr;
