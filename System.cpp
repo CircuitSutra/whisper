@@ -723,11 +723,10 @@ System<URV>::configAplic(unsigned interrupt_count, std::span<TT_APLIC::DomainPar
               << (is_machine ? "machine" : "supervisor")
               << " interrupt-state=" << (interState? "on" : "off") << '\n';
     // if an IMSIC is present, then interrupt should only be delivery if its eidelivery is 0x40000000
-    // TODO: need a different way to determine if IMSICs are present; they are
-    //       always instantiated, even if the config json doesn't contain imsic
-    auto imsic = imsicMgr_.ithImsic(hartIx);
-    if (imsic != nullptr) // TODO: and AIA is active
+    auto& hart = *ithHart(hartIx);
+    if (hart.csRegs().aiaEnabled())
       {
+        auto imsic = imsicMgr_.ithImsic(hartIx);
         unsigned eidelivery = is_machine ? imsic->machineDelivery() : imsic->supervisorDelivery();
         if (eidelivery != 0x40000000)
           {
@@ -735,7 +734,6 @@ System<URV>::configAplic(unsigned interrupt_count, std::span<TT_APLIC::DomainPar
             return false;
           }
       }
-    auto& hart = *ithHart(hartIx);
     auto mip = hart.peekCsr(CsrNumber::MIP);
     int xeip = is_machine ? 11 : 9;
     if (interState)
