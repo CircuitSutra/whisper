@@ -1951,7 +1951,7 @@ Hart<URV>::deviceWrite(uint64_t pa, STORE_TYPE storeVal)
   if (isAclintAddr(pa))
     {
       URV val = storeVal;
-      processClintWrite(pa, ldStSize_, val);
+      processClintWrite(pa, sizeof(storeVal), val);
       storeVal = val;
       memWrite(pa, pa, storeVal);
       return;
