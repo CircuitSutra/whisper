@@ -632,8 +632,11 @@ WdRiscv::ExceptionCause
 PerfApi::translateInstrAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa,
                             std::vector<std::vector<WalkEntry>>& walks)
 {
-  auto ec = translateInstrAddr(hartIx, iva, ipa);
   auto hart = checkHart("translate-instr-addr", hartIx);
+  auto virtmem = hart->virtMem();
+  auto prevTrace = virtmem.enableTrace(true);
+  auto ec = translateInstrAddr(hartIx, iva, ipa);
+  virtmem.enableTrace(prevTrace);
   walks = hart->virtMem().getFetchWalks();
   return ec;
 }
@@ -643,8 +646,11 @@ WdRiscv::ExceptionCause
 PerfApi::translateLoadAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa,
                            std::vector<std::vector<WalkEntry>>& walks)
 {
-  auto ec = translateLoadAddr(hartIx, iva, ipa);
   auto hart = checkHart("translate-load-addr", hartIx);
+  auto virtmem = hart->virtMem();
+  auto prevTrace = virtmem.enableTrace(true);
+  auto ec = translateLoadAddr(hartIx, iva, ipa);
+  virtmem.enableTrace(prevTrace);
   walks = hart->virtMem().getDataWalks();
   return ec;
 }
@@ -654,8 +660,11 @@ WdRiscv::ExceptionCause
 PerfApi::translateStoreAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa,
                             std::vector<std::vector<WalkEntry>>& walks)
 {
-  auto ec = translateStoreAddr(hartIx, iva, ipa);
   auto hart = checkHart("translate-store-addr", hartIx);
+  auto virtmem = hart->virtMem();
+  auto prevTrace = virtmem.enableTrace(true);
+  auto ec = translateStoreAddr(hartIx, iva, ipa);
+  virtmem.enableTrace(prevTrace);
   walks = hart->virtMem().getDataWalks();
   return ec;
 }
