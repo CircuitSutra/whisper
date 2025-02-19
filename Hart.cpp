@@ -93,12 +93,12 @@ Hart<URV>::Hart(unsigned hartIx, URV hartId, Memory& memory, Syscall<URV>& sysca
     virtMem_(hartIx, memory.pageSize(), 2048)
 {
   // Enable default extensions
-  virtMem_.setMemReadCallback([this](uint64_t addr, bool bigEndian, uint32_t &data) -> bool {
-      return;
+  virtMem_.setMemReadCallback([this](uint64_t addr, bool bigEndian, uint64_t &data) -> bool {
+      return false;
   });
 
-  virtMem_.setMemWriteCallback([this](uint64_t addr, bool bigEndian, uint32_t data) -> bool {
-      return;
+  virtMem_.setMemWriteCallback([this](uint64_t addr, bool bigEndian, uint64_t data) -> bool {
+      return false;
   });
 
   virtMem_.setPmpIsReadableCallback([this](uint64_t addr, PrivilegeMode pm) -> bool {
