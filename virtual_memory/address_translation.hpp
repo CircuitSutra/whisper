@@ -12,7 +12,7 @@ using MemWriteCallback = std::function<bool(uint64_t, bool, uint64_t)>;
 using PmpCheckCallback = std::function<bool(uint64_t, PrivilegeMode)>;
 
 
-bool callMemRead(const VirtMem* vm, uint64_t addr, bool bigEndian, uint64_t data);
+bool callMemRead(const VirtMem* vm, uint64_t addr, bool bigEndian, uint64_t& data);
 bool callMemWrite(const VirtMem* vm, uint64_t addr, bool bigEndian, uint64_t data);
 bool callPmpIsReadable(const VirtMem* vm, uint64_t addr, PrivilegeMode pm);
 bool callPmpIsWritable(const VirtMem* vm, uint64_t addr, PrivilegeMode pm);
