@@ -292,10 +292,10 @@ namespace WdRiscv
 
     // =======================
     // Callback setter APIs 
-    void setMemReadCallback(const std::function<bool(uint64_t, bool, uint64_t)>& cb) {
+    void setMemReadCallback(const std::function<bool(uint64_t, bool, uint64_t&)>& cb) {
       memReadCallback64_ = cb;
     }
-    void setMemReadCallback(const std::function<bool(uint64_t, bool, uint32_t)>& cb) {
+    void setMemReadCallback(const std::function<bool(uint64_t, bool, uint32_t&)>& cb) {
       memReadCallback32_ = cb;
     }
     void setMemWriteCallback(const std::function<bool(uint64_t, bool, uint64_t)>& cb) {
@@ -309,10 +309,10 @@ namespace WdRiscv
     }
 
     // Callback getter APIs
-    const std::function<bool(uint64_t, bool, uint64_t)>& getMemReadCallback64() const {
+    const std::function<bool(uint64_t, bool, uint64_t&)>& getMemReadCallback64() const {
       return memReadCallback64_;
     }
-    const std::function<bool(uint64_t, bool, uint32_t)>& getMemReadCallback32() const {
+    const std::function<bool(uint64_t, bool, uint32_t&)>& getMemReadCallback32() const {
       return memReadCallback32_;
     }
     const std::function<bool(uint64_t, bool, uint64_t)>& getMemWriteCallback() const {
@@ -330,8 +330,8 @@ namespace WdRiscv
 
   protected:
     // Callback member variables.
-    std::function<bool(uint64_t, bool, uint64_t)> memReadCallback64_ = nullptr;
-    std::function<bool(uint64_t, bool, uint32_t)> memReadCallback32_ = nullptr;
+    std::function<bool(uint64_t, bool, uint64_t&)> memReadCallback64_ = nullptr;
+    std::function<bool(uint64_t, bool, uint32_t&)> memReadCallback32_ = nullptr;
     std::function<bool(uint64_t, bool, uint64_t)>  memWriteCallback_ = nullptr;
     std::function<bool(uint64_t, PrivilegeMode)>     pmpReadableCallback_ = nullptr;
     std::function<bool(uint64_t, PrivilegeMode)>     pmpWritableCallback_ = nullptr;

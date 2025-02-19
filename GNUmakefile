@@ -29,7 +29,7 @@ VIRT_MEM := 1
 ifdef VIRT_MEM
   override CPPFLAGS += -Ivirtual_memory
   virtual_memory_build := $(wildcard $(PWD)/virtual_memory/)
-  virtual_memory_lib := $(virtual_memory_build)/libvirtual_memory.a)
+  virtual_memory_lib := $(virtual_memory_build)/libvirtual_memory.a
 endif
 
 ifdef SOFT_FLOAT
@@ -125,8 +125,6 @@ $(BUILD_DIR)/$(PROJECT): $(BUILD_DIR)/whisper.cpp.o \
 			 $(soft_float_lib) \
 			 $(pci_lib) \
 			 $(virtual_memory_lib)
-	echo vmb = $(virtual_memory_build)
-	echo vml = $(virtual_memory_lib)
 	$(CXX) -o $@ $(OFLAGS) $^ $(LINK_DIRS) $(LINK_LIBS)
 
 $(BUILD_DIR)/$(PY_PROJECT): $(BUILD_DIR)/py-bindings.cpp.o \
@@ -192,7 +190,6 @@ $(trace_reader_lib): .FORCE
 	$(MAKE) -C $(trace_reader_build)
 
 $(virtual_memory_lib): .FORCE
-	echo  vmb2=$(virtual_memory_build)
 	$(MAKE) -C $(virtual_memory_build) CXX=$(CXX)
 
 all: $(BUILD_DIR)/$(PROJECT) $(BUILD_DIR)/$(PY_PROJECT)
