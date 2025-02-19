@@ -233,10 +233,12 @@ public:
     void writeDomaincfg(uint32_t value) {
         domaincfg_.value = value;
         domaincfg_.legalize();
+        if (domaincfg_.fields.dm == Direct)
+          genmsi_.value = 0;
         runCallbacksAsRequired();
     }
 
-    uint32_t readSourcecfg(unsigned i) const { return sourcecfg_[i].value; }
+    uint32_t readSourcecfg(unsigned i) const { return sourcecfg_.at(i).value; }
 
     void writeSourcecfg(unsigned i, uint32_t value) {
         if (not sourceIsImplemented(i))
@@ -343,9 +345,10 @@ public:
         smsiaddrcfgh_.legalize();
     }
 
-    uint32_t readSetip(unsigned i) const { return setip_[i]; }
+    uint32_t readSetip(unsigned i) const { return setip_.at(i); }
 
     void writeSetip(unsigned i, uint32_t value) {
+        assert(i < 32);
         for (unsigned j = 0; j < 32; j++) {
             if ((value >> j) & 1)
                 trySetIp(i*32+j);
@@ -361,6 +364,7 @@ public:
     }
 
     uint32_t readInClrip(unsigned i) const {
+        assert(i < 32);
         uint32_t result = 0;
         for (unsigned j = 0; j < 32; j++) {
             uint32_t bit = uint32_t(rectifiedInputValue(i*32+j));
@@ -370,6 +374,7 @@ public:
     }
 
     void writeInClrip(unsigned i, uint32_t value) {
+        assert(i < 32);
         for (unsigned j = 0; j < 32; j++) {
             if ((value >> j) & 1)
                 tryClearIp(i*32+j);
@@ -384,9 +389,10 @@ public:
         runCallbacksAsRequired();
     }
 
-    uint32_t readSetie(unsigned i) const { return setie_[i]; }
+    uint32_t readSetie(unsigned i) const { return setie_.at(i); }
 
     void writeSetie(unsigned i, uint32_t value) {
+        assert(i < 32);
         for (unsigned j = 0; j < 32; j++) {
             if ((value >> j) & 1)
                 setIe(i*32+j);
@@ -404,6 +410,7 @@ public:
     uint32_t readClrie(unsigned /*i*/) const { return 0; }
 
     void writeClrie(unsigned i, uint32_t value) {
+        assert(i < 32);
         for (unsigned j = 0; j < 32; j++) {
             if ((value >> j) & 1)
                 clearIe(i*32+j);
@@ -418,21 +425,13 @@ public:
         runCallbacksAsRequired();
     }
 
-    uint32_t readSetipnumLe() const {
-        assert(0);
-    }
+    uint32_t readSetipnumLe() const { return 0; }
 
-    void writeSetipnumLe(uint32_t /*value*/) {
-        assert(0);
-    }
+    void writeSetipnumLe(uint32_t value) { writeSetipnum(value); }
 
-    uint32_t readSetipnumBe() const {
-        assert(0);
-    }
+    uint32_t readSetipnumBe() const { return 0; }
 
-    void writeSetipnumBe(uint32_t /*value*/) {
-        assert(0);
-    }
+    void writeSetipnumBe(uint32_t value) { writeSetipnum(value); }
 
     uint32_t readGenmsi() const { return genmsi_.value; }
 
@@ -446,7 +445,7 @@ public:
         genmsi_.fields.busy = 1;
     }
 
-    uint32_t readTarget(unsigned i) const { return target_[i].value; }
+    uint32_t readTarget(unsigned i) const { return target_.at(i).value; }
 
     void writeTarget(unsigned i, uint32_t value) {
         if (not sourceIsActive(i))
@@ -458,37 +457,37 @@ public:
         runCallbacksAsRequired();
     }
 
-    uint32_t readIdelivery(unsigned hart_index) const { return idcs_[hart_index].idelivery; }
+    uint32_t readIdelivery(unsigned hart_index) const { return idcs_.at(hart_index).idelivery; }
 
     void writeIdelivery(unsigned hart_index, uint32_t value) {
-        idcs_[hart_index].idelivery = value & 1;
+        idcs_.at(hart_index).idelivery = value & 1;
         runCallbacksAsRequired();
     }
 
-    uint32_t readIforce(unsigned hart_index) const { return idcs_[hart_index].iforce; }
+    uint32_t readIforce(unsigned hart_index) const { return idcs_.at(hart_index).iforce; }
 
     void writeIforce(unsigned hart_index, uint32_t value) {
-        idcs_[hart_index].iforce = value & 1;
+        idcs_.at(hart_index).iforce = value & 1;
         runCallbacksAsRequired();
     }
 
-    uint32_t readIthreshold(unsigned hart_index) const { return idcs_[hart_index].ithreshold; }
+    uint32_t readIthreshold(unsigned hart_index) const { return idcs_.at(hart_index).ithreshold; }
 
     void writeIthreshold(unsigned hart_index, uint32_t value) {
-        idcs_[hart_index].ithreshold = value; // TODO: must implement exactly IPRIOLEN bits
+        idcs_.at(hart_index).ithreshold = value; // TODO: must implement exactly IPRIOLEN bits
         updateTopi();
     }
 
-    uint32_t readTopi(unsigned hart_index) const { return idcs_[hart_index].topi.value; }
+    uint32_t readTopi(unsigned hart_index) const { return idcs_.at(hart_index).topi.value; }
 
     void writeTopi(unsigned /*hart_index*/, uint32_t /*value*/) {}
 
     uint32_t readClaimi(unsigned hart_index) {
-        auto topi = idcs_[hart_index].topi;
+        auto topi = idcs_.at(hart_index).topi;
         if (domaincfg_.fields.dm == Direct) {
             auto sm = sourcecfg_[topi.fields.iid].d0.sm;
             if (topi.value == 0)
-                idcs_[hart_index].iforce = 0;
+                idcs_.at(hart_index).iforce = 0;
             else if (sm == Detached or sm == Edge0 or sm == Edge1)
                 clearIp(topi.fields.iid);
             runCallbacksAsRequired();
@@ -500,8 +499,26 @@ public:
 
 private:
     Domain(const Aplic *aplic, std::string_view name, std::shared_ptr<Domain> parent, uint64_t base, uint64_t size, Privilege privilege, std::span<const unsigned> hart_indices);
+    Domain(const Domain&) = delete;
+    Domain& operator=(const Domain&) = delete;
+
+    bool use_be(uint64_t addr)
+    {
+        uint64_t offset = addr - base_;
+        bool is_setipnum_le = offset == 0x2000;
+        bool is_setipnum_be = offset == 0x2004;
+        return (domaincfg_.fields.be or is_setipnum_be) and not is_setipnum_le;
+    }
 
     uint32_t read(uint64_t addr)
+    {
+        uint32_t data = read_le(addr);
+        if (use_be(addr))
+            data = __builtin_bswap32(data);
+        return data;
+    }
+
+    uint32_t read_le(uint64_t addr)
     {
         assert(addr % 4 == 0);
         assert(addr >= base_ and addr < base_ + size_);
@@ -542,6 +559,8 @@ private:
         } else if (offset >= 0x4000) {
             unsigned hart_index = (offset - 0x4000)/32;
             unsigned idc_offset = (offset - 0x4000) - 32*hart_index;
+            if (hart_index >= idcs_.size())
+                return 0;
             switch (idc_offset) {
                 case 0x00: return readIdelivery(hart_index);
                 case 0x04: return readIforce(hart_index);
@@ -555,6 +574,13 @@ private:
     }
 
     void write(uint64_t addr, uint32_t data)
+    {
+        if (use_be(addr))
+            data = __builtin_bswap32(data);
+        write_le(addr, data);
+    }
+
+    void write_le(uint64_t addr, uint32_t data)
     {
         assert(addr % 4 == 0);
         assert(addr >= base_ and addr < base_ + size_);
@@ -594,6 +620,8 @@ private:
         } else if (offset >= 0x4000) {
             unsigned hart_index = (offset - 0x4000)/32;
             unsigned idc_offset = (offset - 0x4000) - 32*hart_index;
+            if (hart_index >= idcs_.size())
+                return;
             switch (idc_offset) {
                 case 0x00: writeIdelivery(hart_index, data); return;
                 case 0x04: writeIforce(hart_index, data); return;
@@ -622,6 +650,7 @@ private:
 
     void edge(unsigned i)
     {
+        assert(i > 0 && i < 1024);
         if (sourcecfg_[i].dx.d) {
             children_[sourcecfg_[i].d1.child_index]->edge(i);
             return;
@@ -682,7 +711,7 @@ private:
 
     bool sourceIsActive(unsigned i) const
     {
-        if (i == 0)
+        if (i == 0 or i >= 1024)
             return false;
         if (sourcecfg_.at(i).dx.d)
             return false;
@@ -691,6 +720,7 @@ private:
 
     void undelegate(unsigned i)
     {
+        assert(i > 0 && i < 1024);
         if (sourcecfg_[i].dx.d) {
             auto child = children_[sourcecfg_[i].d1.child_index];
             child->undelegate(i);
@@ -742,6 +772,8 @@ private:
 
     void setOrClearIeOrIpBit(bool ie, unsigned i, bool set)
     {
+        if (i == 0 or i >= 1024)
+            return;
         if (set and not sourceIsActive(i))
             return;
         auto& setix = ie ? setie_ : setip_;
@@ -760,8 +792,8 @@ private:
     void setIe(unsigned i)   { setOrClearIeOrIpBit(true, i, true); }
     void clearIe(unsigned i) { setOrClearIeOrIpBit(true, i, false); }
 
-    bool enabled(unsigned i) const { return bool((setie_[i/32] >> (i % 32)) & 1); }
-    bool pending(unsigned i) const { return bool((setip_[i/32] >> (i % 32)) & 1); }
+    bool enabled(unsigned i) const { return bool((setie_.at(i/32) >> (i % 32)) & 1); }
+    bool pending(unsigned i) const { return bool((setip_.at(i/32) >> (i % 32)) & 1); }
 
     const Aplic * aplic_;
     std::string name_;
