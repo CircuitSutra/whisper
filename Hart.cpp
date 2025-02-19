@@ -94,19 +94,36 @@ Hart<URV>::Hart(unsigned hartIx, URV hartId, Memory& memory, Syscall<URV>& sysca
 {
   // Enable default extensions
   virtMem_.setMemReadCallback([this](uint64_t addr, bool bigEndian, uint64_t &data) -> bool {
-      return false;
+      if (not memory_.read(addr, data))
+        return false;
+      if (bigEndian)
+        data = util::byteswap(data);
+      return true;
   });
 
   virtMem_.setMemWriteCallback([this](uint64_t addr, bool bigEndian, uint64_t data) -> bool {
-      return false;
+      if (bigEndian)
+	      data = util::byteswap(data);
+      if (not memory_.hasReserveAttribute(addr))
+	      return false;
+      return memory_.write(hartIx_, addr, data);
+
   });
 
   virtMem_.setPmpIsReadableCallback([this](uint64_t addr, PrivilegeMode pm) -> bool {
-      return true;
+      if (not pmpManager_.isEnabled())
+	      return true;
+      const Pmp& pmp = pmpManager_.accessPmp(addr);
+      return pmp.isRead(pm);
+
   });
 
   virtMem_.setPmpIsWritableCallback([this](uint64_t addr, PrivilegeMode pm) -> bool {
-      return true;
+      if (not pmpManager_.isEnabled())
+	      return true;
+      const Pmp& pmp = pmpManager_.accessPmp(addr);
+      return pmp.isWrite(pm);
+
   });
 
   for (RvExtension ext : { RvExtension::C,
