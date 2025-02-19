@@ -1419,9 +1419,11 @@ namespace WdRiscv
     URV effectiveSip() const
     {
       URV mip = effectiveMip();
+      // Read value of MIP/SIP is masked by MIDELG.
       URV sip = mip & peekMideleg();
       if (aiaEnabled_ and superEnabled_)
         {
+          // Where mideleg is 0 and mvien is 1, sip becomes an alias to mvip.
           URV mvip = peekMvip() & ~peekMideleg() & peekMvien();
           sip |= mvip;
         }

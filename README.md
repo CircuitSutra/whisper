@@ -764,7 +764,11 @@ The advanced core local interrupt controller (aclint) configuration is an object
 * deliver_interrupts: when set to true, deliver ACLNT interrupts. This supports the
   test-bench which may decode to deliver ACLINT interrupts by poking the MIP CSR, in which
   case deliver_interrupts should be set to false.
-
+* adjust_time: value to artifically add to a time_compare register of the ACLINT whenever
+  such register is written by a store instruction, this is used to reduce the frequency of
+  timer interrupts and is relevant for booting a Linux image (Whisper uses the instruction
+  count to fake a timer value and that is too fast for Linux which expect a much lower
+  frequency for its timer). Default value is 10000.
 
 ###  reset_vec
 Defines the program counter (PC) value after reset. The ELF file

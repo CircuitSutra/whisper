@@ -2294,8 +2294,17 @@ HartConfig::applyAclintConfig(System<URV>& system, Hart<URV>& hart) const
     if (not getJsonBoolean("aclint.deliver_interrupts", aclint.at(tag), deliverInterrupts))
       return false;
 
-  return configAclint(system, hart, base, size, swOffset, hasMswi, mtimeCmpOffset, timeOffset,
-		      hasMtimer, siOnReset, deliverInterrupts);
+  tag = "time_adjust";
+  if (aclint.contains(tag))
+    {
+      uint64_t offset = 0;
+      if (not getJsonUnsigned("aclint.time_adjust", aclint.at(tag), offset))
+        return false;
+      hart.setAclintAdjustTimeCompare(offset);
+    }
+
+  return configAclint(system, hart, base, size, swOffset, hasMswi, mtimeCmpOffset,
+                      timeOffset, hasMtimer, siOnReset, deliverInterrupts);
 }
 
 
