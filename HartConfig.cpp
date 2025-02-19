@@ -1485,7 +1485,7 @@ HartConfig::applyAplicConfig(System<URV>& system) const
 
   tag = "domains";
   const auto& domains = aplic_cfg.at(tag);
-  std::vector<DomainInfo> domain_infos;
+  std::vector<TT_APLIC::DomainParams> domain_params_list;
 
   // used for error checking:
   std::unordered_map<std::string, std::vector<int>> child_indices;
@@ -1494,50 +1494,50 @@ HartConfig::applyAplicConfig(System<URV>& system) const
 
   for (auto& el : domains.items())
     {
-      DomainInfo domain_info;
-      domain_info.name = el.key();
+      TT_APLIC::DomainParams domain_params;
+      domain_params.name = el.key();
       const auto& domain = el.value();
 
-      if (domain_info.name == "")
+      if (domain_params.name == "")
         {
           std::cerr << "Error: the empty string is not a valid domain name.\n";
           return false;
         }
-      if (domain_names.find(domain_info.name) != domain_names.end())
+      if (domain_names.find(domain_params.name) != domain_names.end())
         {
           std::cerr << "Error: domain names must be unique.\n";
           return false;
         }
-      domain_names.insert(domain_info.name);
+      domain_names.insert(domain_params.name);
 
       for (std::string_view tag : { "parent", "base", "size", "is_machine" } )
         {
           if (not domain.contains(tag))
             {
-              std::cerr << "Error: Missing " << tag << " field for domain '" << domain_info.name << "' in configuration file.\n";
+              std::cerr << "Error: Missing " << tag << " field for domain '" << domain_params.name << "' in configuration file.\n";
               return false;
             }
         }
 
-      if (not getJsonUnsigned("base", domain.at("base"), domain_info.base))
+      if (not getJsonUnsigned("base", domain.at("base"), domain_params.base))
         return false;
 
-      if (not getJsonUnsigned("size", domain.at("size"), domain_info.size))
+      if (not getJsonUnsigned("size", domain.at("size"), domain_params.size))
         return false;
 
       tag = "parent";
       const auto& parent = domain.at(tag);
       if (parent.is_null())
         {
-          domain_info.parent = "";
+          domain_params.parent = std::nullopt;
           num_roots++;
         }
       else
         {
-          domain_info.parent = parent.get<std::string>();
-          if (domain_info.parent == "")
+          domain_params.parent = parent.get<std::string>();
+          if (domain_params.parent == "")
             {
-              std::cerr << "Error: domain '" << domain_info.name << "' uses the empty string for parent domain name; use 'null' to make this the root domain.\n";
+              std::cerr << "Error: domain '" << domain_params.name << "' uses the empty string for parent domain name; use 'null' to make this the root domain.\n";
               return false;
             }
         }
@@ -1546,16 +1546,23 @@ HartConfig::applyAplicConfig(System<URV>& system) const
       URV child_index = 0; // default
       if (domain.contains(tag) and not getJsonUnsigned(tag, domain.at(tag), child_index))
         return false;
-      domain_info.child_index = child_index;
-      child_indices[domain_info.parent].push_back(child_index);
-      auto& indices = child_indices[domain_info.parent];
-      std::sort(indices.begin(), indices.end());
+      domain_params.child_index = child_index;
+      if (domain_params.parent.has_value())
+        {
+          auto& indices = child_indices[domain_params.parent.value()];
+          indices.push_back(child_index);
+          std::sort(indices.begin(), indices.end());
+        }
 
       tag = "is_machine";
-      if (not getJsonBoolean(tag, domain.at(tag), domain_info.is_machine))
+      bool is_machine;
+      if (not getJsonBoolean(tag, domain.at(tag), is_machine))
         return false;
+      domain_params.privilege = is_machine ? TT_APLIC::Machine : TT_APLIC::Supervisor;
 
-      domain_infos.push_back(domain_info);
+      domain_params.hart_indices = {}; // TODO(paul): get this from the config
+
+      domain_params_list.push_back(domain_params);
     }
 
   // error-checking on child indices
@@ -1580,11 +1587,11 @@ HartConfig::applyAplicConfig(System<URV>& system) const
         }
     }
 
-  for (const auto& di : domain_infos)
+  for (const auto& dp : domain_params_list)
     {
-      if (domain_names.find(di.parent) == domain_names.end() and di.parent != "")
+      if (dp.parent.has_value() and not domain_names.contains(dp.parent.value()))
         {
-          std::cerr << "Error: domain '" << di.name << "' refers to a non-existent parent, '" << di.parent << "'.\n";
+          std::cerr << "Error: domain '" << dp.name << "' refers to a non-existent parent, '" << dp.parent.value() << "'.\n";
           return false;
         }
     }
@@ -1595,7 +1602,7 @@ HartConfig::applyAplicConfig(System<URV>& system) const
       return false;
     }
 
-  return system.configAplic(interrupt_count, domain_infos);
+  return system.configAplic(interrupt_count, domain_params_list);
 }
 
 

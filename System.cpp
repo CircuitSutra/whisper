@@ -706,10 +706,16 @@ System<URV>::configImsic(uint64_t mbase, uint64_t mstride,
 
 template <typename URV>
 bool
-System<URV>::configAplic(unsigned interrupt_count, const std::vector<DomainInfo>& domain_infos)
+System<URV>::configAplic(unsigned interrupt_count, std::span<TT_APLIC::DomainParams> domain_params)
 {
-  // using namespace TT_APLIC;
-  aplic_ = std::make_shared<TT_APLIC::Aplic>(hartCount_, interrupt_count);
+  std::vector<unsigned> all_hart_indices; // TODO(paul): this should come from the config
+  for (unsigned i = 0; i < hartCount_; i++)
+    all_hart_indices.push_back(i);
+
+  for (auto& dp : domain_params)
+    dp.hart_indices = all_hart_indices;
+
+  aplic_ = std::make_shared<TT_APLIC::Aplic>(hartCount_, interrupt_count, domain_params);
 
   TT_APLIC::DirectDeliveryCallback aplicCallback = [this] (unsigned hartIx, TT_APLIC::Privilege privilege, bool interState) -> bool {
     bool is_machine = privilege == TT_APLIC::Machine;
@@ -746,60 +752,6 @@ System<URV>::configAplic(unsigned interrupt_count, const std::vector<DomainInfo>
     return imsicMgr_.write(addr, 4, data);
   };
   aplic_->setMsiCallback(imsicFunc);
-
-  std::vector<unsigned> all_hart_indices; // TODO(paul): this should come from the config
-  for (unsigned i = 0; i < hartCount_; i++) {
-    all_hart_indices.push_back(i);
-  }
-
-  std::unordered_map<std::string, std::shared_ptr<TT_APLIC::Domain>> domain_lut;
-  domain_lut[""] = nullptr; // root domain will have empty string for parent
-
-  // Domains must be created in the right order; specifically, a parent domain
-  // must be created before its children, and children must be created in order
-  // according to their child index.
-  //
-  // To ensure this, the inner loop below will create any domains whose parents
-  // have already been created (as well as the root domain, which has no
-  // parent) and whose siblings with lower indices have already been created.
-  // The outer loop terminates once all domains have been created.
-  while (1)
-    {
-      if (domain_lut.size()-1 == domain_infos.size())
-        break; // all the domains have been created
-      bool made_progress = false;
-      for (const auto& domain_info : domain_infos)
-        {
-          if (domain_lut.find(domain_info.name) != domain_lut.end())
-              continue; // already created this domain
-          auto iter = domain_lut.find(domain_info.parent);
-          if (iter == domain_lut.end())
-              continue; // parent has not been created yet
-          auto parent = iter->second;
-          if (parent and parent->numChildren() < domain_info.child_index)
-            continue; // haven't reached this child index yet
-          if (parent == nullptr and not domain_info.is_machine)
-            {
-              std::cerr << "Error: is_machine must be true for root APLIC domain.\n";
-              return false;
-            }
-          if (parent and not parent->privilege() == TT_APLIC::Machine)
-            {
-              std::cerr << "Error: domain '" << domain_info.name << "' has a parent domain without machine privilege.\n";
-              return false;
-            }
-          TT_APLIC::Privilege privilege = domain_info.is_machine ? TT_APLIC::Machine : TT_APLIC::Supervisor;
-          auto domain = aplic_->createDomain(domain_info.name, parent, domain_info.base, domain_info.size, privilege, all_hart_indices);
-          domain_lut[domain_info.name] = domain;
-          made_progress = true;
-          std::cerr << "Created domain '" << domain_info.name << "' with parent '" << domain_info.parent << "'\n";
-        }
-      if (not made_progress)
-        {
-          std::cerr << "Error: cycle detected in domain hierarchy.\n";
-          return false;
-        }
-    }
 
   for (auto& hart : sysHarts_)
     hart->attachAplic(aplic_);

@@ -50,14 +50,6 @@ namespace WdRiscv
   class IoDevice;
   class SparseMem;
 
-  struct DomainInfo {
-    std::string name;
-    std::string parent;
-    size_t child_index;
-    uint64_t base;
-    uint64_t size;
-    bool is_machine;
-  };
 
   /// Model a system consisting of n cores with m-harts per core and a
   /// memory. The harts in the system are indexed from 0 to n*m -
@@ -288,7 +280,7 @@ namespace WdRiscv
                      bool trace);
 
     // TODO(paul): document
-    bool configAplic(unsigned interrupt_count, const std::vector<DomainInfo>& domain_infos);
+    bool configAplic(unsigned interrupt_count, std::span<TT_APLIC::DomainParams> domain_params);
 
     /// Enable memory consistency model with given merge buffer size. This is relevant in
     /// server/interactive where RTL monitor or interactive command may initiate out of
