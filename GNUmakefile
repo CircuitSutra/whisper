@@ -29,7 +29,7 @@ VIRT_MEM := 1
 ifdef VIRT_MEM
   override CPPFLAGS += -Ivirtual_memory
   virtual_memory_build := $(wildcard $(PWD)/virtual_memory/)
-  virtual_memory_lib := $(wildcard $(PWD)/virtual_memory/libvirtual_memory.a)
+  virtual_memory_lib := $(virtual_memory_build)/libvirtual_memory.a)
 endif
 
 ifdef SOFT_FLOAT
@@ -182,17 +182,18 @@ OBJS := $(RVCORE_SRCS:%=$(BUILD_DIR)/%.o) $(SRCS_C:%=$(BUILD_DIR)/%.o)
 $(BUILD_DIR)/librvcore.a: $(OBJS)
 	$(AR) cr $@ $^
 
-$(soft_float_lib):
+$(soft_float_lib): .FORCE
 	$(MAKE) -C $(soft_float_build)
 
-$(pci_lib):
+$(pci_lib): .FORCE
 	$(MAKE) -C $(pci_build) CXX=$(CXX)
 
-$(trace_reader_lib):
+$(trace_reader_lib): .FORCE
 	$(MAKE) -C $(trace_reader_build)
 
-$(virtual_memory_lib):
-	$(MAKE) -C $(vritual_memory_build) CXX=$(CXX)
+$(virtual_memory_lib): .FORCE
+	echo  vmb2=$(virtual_memory_build)
+	$(MAKE) -C $(virtual_memory_build) CXX=$(CXX)
 
 all: $(BUILD_DIR)/$(PROJECT) $(BUILD_DIR)/$(PY_PROJECT)
 
