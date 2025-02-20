@@ -14,9 +14,6 @@ VirtMem::VirtMem(unsigned hartIx, Memory& memory, unsigned pageSize,
   supportedModes_.resize(unsigned(Mode::Limit_));
   setSupportedModes({Mode::Bare, Mode::Sv32, Mode::Sv39, Mode::Sv48, Mode::Sv57, Mode::Sv64});
 
-  supportedPmms_.resize(unsigned(Pmm::Limit_));
-  setSupportedPmms({Pmm::Off, Pmm::Pm57, Pmm::Pm48});
-
   pageBits_ = static_cast<unsigned>(std::log2(pageSize_));
   unsigned p2PageSize =  unsigned(1) << pageBits_;
   (void)p2PageSize;
@@ -780,12 +777,14 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 	if (pte.ppn(j) != 0)
           return stage2PageFaultType(read, write, exec);
 
+      bool failCheck = not pte.accessed() or (write and not pte.dirty());
+
       // 7.
-      if (accessDirtyCheck_ and (not pte.accessed() or (write and not pte.dirty())))
+      if (accessDirtyCheck_ and (failCheck or (dirtyGForVsNonleaf_ and not pte.dirty() and isPteAddr)))
 	{
 	  // We have a choice:
 	  // A. Page fault
-	  if (faultOnFirstAccess2_)
+	  if (faultOnFirstAccess2_ and failCheck)
 	    return stage2PageFaultType(read, write, exec);  // A
 
 	  // Or B
@@ -807,7 +806,8 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 	    if (pte.data_ != pte2.data_)
 	      continue;  // Comparison fails: return to step 2.
 	    pte.bits_.accessed_ = orig.bits_.accessed_ = 1;
-	    if (write)
+	    if (write or
+                (dirtyGForVsNonleaf_ and isPteAddr))
 	      pte.bits_.dirty_ = orig.bits_.dirty_ = 1;
 	    if (not memWrite(pteAddr, bigEnd_, orig.data_))
 	      return stage2PageFaultType(read, write, exec);

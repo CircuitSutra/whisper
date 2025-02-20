@@ -790,7 +790,7 @@ Interactive<URV>::peekCommand(Hart<URV>& hart, const std::string& line,
 	      auto pma = hart.getPma(pa);
 	      auto effpbmt = VirtMem::effectivePbmt(hart.lastVirtMode(), hart.lastVsPageMode(),
 						    hart.virtMem().lastVsPbmt(), hart.virtMem().lastPbmt());
-	      pma = VirtMem::overridePmaWithPbmt(pma, effpbmt);
+	      pma = hart.overridePmaWithPbmt(pma, effpbmt);
               out << (boost::format("0x%x") % pma.attributesToInt()) << std::endl;
 	    }
 	}
@@ -2633,10 +2633,13 @@ bool
 Interactive<URV>::checkInterruptCommand(Hart<URV>& hart, const std::string& line,
 					const std::vector<std::string>& tokens)
 {
-  // check_interrupt [<mip-value>] [<sip-value>] [<vsip-value>]
-  URV mip = 0, sip = 0, vsip = 0;
-  if (tokens.size() == 1)
-    mip = hart.peekCsr(CsrNumber::MIP);
+  // Command: check_interrupt [<mip-value>] [<sip-value>] [<vsip-value>]
+
+  bool quiet = true;
+  URV mip = hart.peekCsr(CsrNumber::MIP, quiet);
+  URV sip = hart.peekCsr(CsrNumber::SIP, quiet);
+  URV vsip = hart.peekCsr(CsrNumber::VSIP, quiet);
+
   if (tokens.size() >= 2)
     {
       if (not parseCmdLineNumber("MIP", tokens.at(1), mip))

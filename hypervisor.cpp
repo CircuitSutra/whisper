@@ -181,15 +181,16 @@ Hart<URV>::hyperLoad(const DecodedInst* di)
   bool prevMxr = virtMem_.stage1ExecReadable();  // Previous stage1 MXR.
   bool prevVsSum = virtMem_.vsSum();
 
-  VirtMem::Pmm prevPmm = virtMem_.pmMode(PrivilegeMode::User, true /* twoStage */);
+  PmaskManager::Mode prevPmm = pmaskManager_.getMode(PrivilegeMode::User, true /* twoStage */);
   virtMem_.setBigEndian(hstatus_.bits_.VSBE);
   virtMem_.setStage1ExecReadable(vsstatus_.bits_.MXR);
   virtMem_.setVsSum(vsstatus_.bits_.SUM);
+  pmaskManager_.setStage1ExecReadable(vsstatus_.bits_.MXR);
 
   if constexpr (isRv64())
     if (privMode_ == PrivilegeMode::User and not virtMode_)
-      virtMem_.enablePointerMasking(VirtMem::Pmm(hstatus_.bits_.HUPMM),
-                                        PrivilegeMode::User, true);
+      pmaskManager_.enablePointerMasking(PmaskManager::Mode(hstatus_.bits_.HUPMM),
+                                         PrivilegeMode::User, true);
   hyperLs_ = true;
 
   URV virtAddr = intRegs_.read(di->op1());
@@ -203,10 +204,11 @@ Hart<URV>::hyperLoad(const DecodedInst* di)
   virtMem_.setBigEndian(prevTbe);            // Restore big endian mod.
   virtMem_.setStage1ExecReadable(prevMxr);   // Restore stage1 MXR.
   virtMem_.setVsSum(prevVsSum);
+  pmaskManager_.setStage1ExecReadable(prevMxr);   // Restore stage1 MXR.
 
   if constexpr (isRv64())
     if (savedPrivMode == PrivilegeMode::User and not savedVirtMode)
-      virtMem_.enablePointerMasking(prevPmm, PrivilegeMode::User, true);
+      pmaskManager_.enablePointerMasking(prevPmm, PrivilegeMode::User, true);
 }
 
 
@@ -263,8 +265,12 @@ void
 Hart<URV>::execHlvx_hu(const DecodedInst* di)
 {
   virtMem_.useExecForRead(true);
+  pmaskManager_.useExecForRead(true);
+
   hyperLoad<uint16_t>(di);
+
   virtMem_.useExecForRead(false);
+  pmaskManager_.useExecForRead(false);
 }
 
 
@@ -273,8 +279,12 @@ void
 Hart<URV>::execHlvx_wu(const DecodedInst* di)
 {
   virtMem_.useExecForRead(true);
+  pmaskManager_.useExecForRead(true);
+
   hyperLoad<uint32_t>(di);
+
   virtMem_.useExecForRead(false);
+  pmaskManager_.useExecForRead(false);
 }
 
 
@@ -311,17 +321,16 @@ Hart<URV>::hyperStore(const DecodedInst* di)
 
   // Use VS mode big-endian for translation.
   bool prevTbe = virtMem_.bigEndian();  // Previous translation big endian.
-  bool prevMxr = virtMem_.stage1ExecReadable();  // Previous stage1 MXR.
   bool prevVsSum = virtMem_.vsSum();
 
-  VirtMem::Pmm prevPmm = virtMem_.pmMode(PrivilegeMode::User, true /* twoStage */);
+  auto prevPmm = pmaskManager_.getMode(PrivilegeMode::User, true /* twoStage */);
   virtMem_.setBigEndian(hstatus_.bits_.VSBE);
   virtMem_.setVsSum(vsstatus_.bits_.SUM);
 
   if constexpr (isRv64())
     if (privMode_ == PrivilegeMode::User and not virtMode_)
-      virtMem_.enablePointerMasking(VirtMem::Pmm(hstatus_.bits_.HUPMM),
-                                  PrivilegeMode::User, true);
+      pmaskManager_.enablePointerMasking(PmaskManager::Mode(hstatus_.bits_.HUPMM),
+                                         PrivilegeMode::User, true);
   hyperLs_ = true;
 
   uint32_t rs1 = di->op1();
@@ -333,12 +342,11 @@ Hart<URV>::hyperStore(const DecodedInst* di)
 
   hyperLs_ = false;
   virtMem_.setBigEndian(prevTbe);            // Restore big endian mod.
-  virtMem_.setStage1ExecReadable(prevMxr);   // Restore stage1 MXR.
   virtMem_.setVsSum(prevVsSum);
 
   if constexpr (isRv64())
     if (savedPrivMode == PrivilegeMode::User and not savedVirtMode)
-      virtMem_.enablePointerMasking(prevPmm, PrivilegeMode::User, true);
+      pmaskManager_.enablePointerMasking(prevPmm, PrivilegeMode::User, true);
 }
 
 

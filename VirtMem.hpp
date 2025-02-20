@@ -43,9 +43,6 @@ namespace WdRiscv
     /// Page based memory type.
     enum class Pbmt : uint32_t { None = 0, Nc = 1, Io = 2, Reserved = 3 };
 
-    /// Pointer masking modes.
-    enum class Pmm : uint32_t { Off = 0, Reserved = 1, Pm57 = 2, Pm48 = 3, Limit_ = 4 };
-
     VirtMem(unsigned hartIx, Memory& memory, unsigned pageSize,
             PmpManager& pmpMgr, unsigned tlbSize);
 
@@ -171,58 +168,6 @@ namespace WdRiscv
       return ix < supportedModes_.size() ? supportedModes_.at(ix) : false;
     }
 
-    /// Mark items in the pmms array as supported pointer masking (PMM) modes.
-    void setSupportedPmms(const std::vector<Pmm>& pmms)
-    {
-      std::fill(supportedPmms_.begin(), supportedPmms_.end(), false);
-      for (auto pmm : pmms)
-	{
-	  if (pmm != Pmm::Reserved)
-	    {
-	      unsigned ix = unsigned(pmm);
-	      if (ix < supportedPmms_.size())
-		supportedPmms_.at(ix) = true;
-	    }
-	}
-    }
-
-    /// Return true if given pointer masking mode (PMM) is supported.
-    bool isPmmSupported(Pmm pmm)
-    {
-      unsigned ix = unsigned(pmm);
-      return ix < supportedPmms_.size() ? supportedPmms_.at(ix) : false;
-    }
-
-    /// Apply pointer masking to the given address returning the result.
-    uint64_t applyPointerMask(uint64_t addr, PrivilegeMode priv, bool twoStage, bool load) const
-    {
-      if (execReadable_)
-        return addr;
-
-      if (priv == PrivilegeMode::Machine)
-        return applyPointerMaskPa(addr, priv, twoStage);
-
-      bool exec = load and xForR_;
-      if (not exec)
-        {
-          if (twoStage)
-            {
-              if (vsMode_ != Mode::Bare)
-                {
-                  if (s1ExecReadable_)
-                    return addr;
-                  return applyPointerMaskVa(addr, priv, twoStage);
-                }
-              return applyPointerMaskPa(addr, priv, twoStage);
-            }
-
-          if (mode_ != Mode::Bare)
-            return applyPointerMaskVa(addr, priv, twoStage);
-          return applyPointerMaskPa(addr, priv, twoStage);
-        }
-      return addr;
-    }
-
     struct WalkEntry
     {
       enum Type { GVA = 0, GPA = 1, PA = 2, RE = 3 };
@@ -332,57 +277,6 @@ namespace WdRiscv
       return false;
     }
 
-    /// Return string representing pointer masking mode. Example: Pm57 yields "pm57".
-    static constexpr std::string_view to_string(Pmm pmm)
-    {
-      using namespace std::string_view_literals;
-      constexpr auto vec =
-        std::array{"off"sv, "reserved"sv, "pm57"sv, "pm48"sv};
-      return size_t(pmm) < vec.size()? vec.at(size_t(pmm)) : "pm?";
-    }
-
-    /// Set pmm to the translation pointer masking mode corresponding to pmmStr returning
-    /// true if successful. Return false leaving pmm unmodified if pmmStr does not
-    /// correspond to a pmm.
-    static bool to_pmm(std::string_view pmmStr, Pmm& pmm)
-    {
-      static const std::unordered_map<std::string_view, Pmm> map(
-        { {"off", Pmm::Off }, {"pm57", Pmm::Pm57 }, {"pm48", Pmm::Pm48 } });
-      auto iter = map.find(pmmStr);
-      if (iter != map.end())
-	{
-	  pmm = iter->second;
-	  return true;
-	}
-      return false;
-    }
-
-    static Pma overridePmaWithPbmt(Pma pma, Pbmt pbmt)
-    {
-      if (not pma.attributesToInt())
-        return pma;
-      if (pbmt == Pbmt::None or pbmt == Pbmt::Reserved)
-        return pma;
-
-      pma.disable(Pma::Attrib::Cacheable);
-      pma.disable(Pma::Attrib::Amo);
-      pma.disable(Pma::Attrib::Rsrv);
-
-      if (pbmt == Pbmt::Nc)
-        {
-          pma.enable(Pma::Attrib::Idempotent);
-          pma.disable(Pma::Attrib::Io);
-        }
-      else
-        {
-          pma.disable(Pma::Attrib::Idempotent);
-          pma.enable(Pma::Attrib::Io);
-          pma.disable(Pma::Attrib::MisalOk);
-          pma.enable(Pma::Attrib::MisalAccFault);
-        }
-      return pma;
-    }
-
     /// Return true if given PTE is valid: Valid bit is one, reserved bits all zero, and
     /// combintation of read/write/execute bits is not reserved.
     template <typename PTE>
@@ -396,18 +290,6 @@ namespace WdRiscv
 
     Pbmt lastVsPbmt() const
     { return vsPbmt_; }
-
-    /// Pointer mask bits associated with each mode.
-    static constexpr unsigned pointerMaskBits(Pmm pmm)
-    {
-      switch(pmm)
-      {
-        case Pmm::Off: return 0;
-        case Pmm::Pm57: return 7;
-        case Pmm::Pm48: return 16;
-        default: assert(0); return 0;
-      }
-    }
 
   protected:
 
@@ -632,81 +514,6 @@ namespace WdRiscv
     void enableNapot(bool flag)
     { napotEnabled_ = flag; }
 
-    /// Enable/disable pointer masking for corresponding mode.
-    void enablePointerMasking(Pmm pmm, PrivilegeMode priv, bool twoStage)
-    {
-      if (priv == PrivilegeMode::Machine)
-        mPmBits_ = pointerMaskBits(pmm);
-      if (priv == PrivilegeMode::Supervisor and not twoStage)
-        sPmBits_ = pointerMaskBits(pmm);
-      if (priv == PrivilegeMode::Supervisor and twoStage)
-        vsPmBits_ = pointerMaskBits(pmm);
-      if (priv == PrivilegeMode::User)
-        uPmBits_ = pointerMaskBits(pmm);
-    }
-
-    Pmm pmMode(PrivilegeMode priv, bool twoStage) const
-    {
-      unsigned bits = 0;
-      if (priv == PrivilegeMode::Machine)
-        bits = mPmBits_;
-      if (priv == PrivilegeMode::Supervisor and not twoStage)
-        bits = sPmBits_;
-      if (priv == PrivilegeMode::Supervisor and twoStage)
-        bits = vsPmBits_;
-      if (priv == PrivilegeMode::User)
-        bits = uPmBits_;
-
-      switch(bits)
-      {
-        case 0: return Pmm::Off;
-        case 7: return Pmm::Pm57;
-        case 16: return Pmm::Pm48;
-        default: assert(0); return Pmm::Off;
-      }
-    }
-
-    /// Helper for below function
-    static uint64_t applyPointerMaskVa(uint64_t va, unsigned shift)
-    {
-      int64_t transformed = std::bit_cast<int64_t>(va);
-      transformed = (transformed << shift) >> shift;
-      return std::bit_cast<uint64_t>(transformed);
-    }
-
-    /// Transform virtual address by appropriate pointer masking mode. This is
-    /// only necessary for the effective address for load/stores.
-    uint64_t applyPointerMaskVa(uint64_t va, PrivilegeMode priv, bool twoStage) const
-    {
-      assert(priv != PrivilegeMode::Machine);
-      if (sPmBits_ and priv == PrivilegeMode::Supervisor and not twoStage)
-        return applyPointerMaskVa(va, sPmBits_);
-      if (vsPmBits_ and priv == PrivilegeMode::Supervisor and twoStage)
-        return applyPointerMaskVa(va, vsPmBits_);
-      if (uPmBits_ and priv == PrivilegeMode::User)
-        return applyPointerMaskVa(va, uPmBits_);
-      return va;
-    }
-
-    /// Helper for below function
-    static uint64_t applyPointerMaskPa(uint64_t pa, unsigned shift)
-    { return (pa << shift) >> shift; }
-
-    /// Transform physical address by appropriate pointer masking mode. This
-    /// also applies to GPAs (see section 3.5 of the spec).
-    uint64_t applyPointerMaskPa(uint64_t pa, PrivilegeMode priv, bool twoStage) const
-    {
-      if (mPmBits_ and priv == PrivilegeMode::Machine)
-        return applyPointerMaskPa(pa, mPmBits_);
-      if (sPmBits_ and priv == PrivilegeMode::Supervisor and not twoStage)
-        return applyPointerMaskPa(pa, sPmBits_);
-      if (vsPmBits_ and priv == PrivilegeMode::Supervisor and twoStage)
-        return applyPointerMaskPa(pa, vsPmBits_);
-      if (uPmBits_ and priv == PrivilegeMode::User)
-        return applyPointerMaskPa(pa, uPmBits_);
-      return pa;
-    }
-
     /// Return true if successful and false if page size is not supported.
     bool setPageSize(uint64_t size);
 
@@ -815,6 +622,11 @@ namespace WdRiscv
       return true;
     }
 
+    /// Enable speculatively marking G-stage page tables dirty for non-leaf
+    /// PTEs.
+    void enableDirtyGForVsNonleaf(bool flag)
+    { dirtyGForVsNonleaf_ = flag; }
+
   private:
 
     struct UpdatedPte
@@ -839,10 +651,6 @@ namespace WdRiscv
     uint32_t vsAsid_ = 0;           // Current virtual address space id.
     uint32_t vmid_ = 0;             // Current virtual machine id.
     uint32_t wid_ = 0;              // Current world id (for STEE).
-    unsigned mPmBits_ = 0;          // Pointer asking for M mode.
-    unsigned sPmBits_ = 0;          // Pointer masking for HS translation.
-    unsigned vsPmBits_ = 0;         // Pointer masking for VS translation.
-    unsigned uPmBits_ = 0;          // Pointer masking for U/VU translation.
     unsigned pageSize_ = 4096;
     unsigned pageBits_ = 12;
     uint64_t pageMask_ = 0xfff;
@@ -867,11 +675,11 @@ namespace WdRiscv
     bool faultOnFirstAccess1_ = true;    // For stage1
     bool faultOnFirstAccess2_ = true;    // For stage2
     bool accessDirtyCheck_ = true;  // To be able to suppress AD check
+    bool dirtyGForVsNonleaf_ = false;
 
     bool xForR_ = false;   // True for hlvx.hu and hlvx.wu instructions: use exec for read
 
     std::vector<bool> supportedModes_; // Indexed by Mode.
-    std::vector<bool> supportedPmms_;  // Indexed by Pmm.
 
     // Addresses of PTEs used in most recent instruction an data translations.
     using Walk = std::vector<WalkEntry>;

@@ -2020,7 +2020,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
   if (config_ -> contains(tag))
     {
       unsigned atpErrors = 0;
-      std::vector<VirtMem::Pmm> pmms;
+      std::vector<PmaskManager::Mode> pmms;
       const auto& items = config_ -> at(tag);
       for (const auto& item : items)
 	{
@@ -2032,8 +2032,8 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
 	      continue;
 	    }
 	  std::string_view pmmStr = item.get<std::string_view>();
-	  VirtMem::Pmm pmm;
-	  if (not VirtMem::to_pmm(pmmStr, pmm))
+	  PmaskManager::Mode pmm;
+	  if (not PmaskManager::to_pmm(pmmStr, pmm))
 	    {
 	      cerr << "Error no such address translation pmm: " << tag << '\n';
 	      atpErrors++;
@@ -2134,6 +2134,14 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
       bool flag = false;
       getJsonBoolean(tag, config_ ->at(tag), flag) or errors++;
       hart.enableSemihosting(flag);
+    }
+
+  tag = "mark_dirty_gstage_for_vs_nonleaf_pte";
+  if (config_->contains(tag))
+    {
+      bool flag = false;
+      getJsonBoolean(tag, config_->at(tag), flag) or errors++;
+      hart.enableDirtyGForVsNonleaf(flag);
     }
 
   return errors == 0;
@@ -2286,8 +2294,17 @@ HartConfig::applyAclintConfig(System<URV>& system, Hart<URV>& hart) const
     if (not getJsonBoolean("aclint.deliver_interrupts", aclint.at(tag), deliverInterrupts))
       return false;
 
-  return configAclint(system, hart, base, size, swOffset, hasMswi, mtimeCmpOffset, timeOffset,
-		      hasMtimer, siOnReset, deliverInterrupts);
+  tag = "time_adjust";
+  if (aclint.contains(tag))
+    {
+      uint64_t offset = 0;
+      if (not getJsonUnsigned("aclint.time_adjust", aclint.at(tag), offset))
+        return false;
+      hart.setAclintAdjustTimeCompare(offset);
+    }
+
+  return configAclint(system, hart, base, size, swOffset, hasMswi, mtimeCmpOffset,
+                      timeOffset, hasMtimer, siOnReset, deliverInterrupts);
 }
 
 

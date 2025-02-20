@@ -42,6 +42,7 @@
 #include "FetchCache.hpp"
 #include "pci/Pci.hpp"
 #include "Stee.hpp"
+#include "PmaskManager.hpp"
 
 
 namespace TT_PERF
@@ -226,7 +227,9 @@ namespace WdRiscv
     { return csRegs_.peek(csr, val, virtMode); }
 
     /// Return value of the given csr. Throw exception if csr is out of bounds.
-    URV peekCsr(CsrNumber csr) const;
+    /// Return 0 if CSR is not implemented printing an error message unless
+    /// quiet is true.
+    URV peekCsr(CsrNumber csr, bool quiet = false) const;
 
     /// Set val, reset, writeMask, and pokeMask respectively to the
     /// value, reset-value, write-mask, poke-mask, and read-mask of
@@ -396,8 +399,8 @@ namespace WdRiscv
     { virtMem_.setSupportedModes(modes); }
 
     /// Configure the address translation pointer masking modes supported by this hart.
-    void configAddressTranslationPmms(const std::vector<VirtMem::Pmm>& pmms)
-    { virtMem_.setSupportedPmms(pmms); }
+    void configAddressTranslationPmms(const std::vector<PmaskManager::Mode>& pmms)
+    { pmaskManager_.setSupportedModes(pmms); }
 
     /// Enable support for ebreak semi-hosting.  See ebreak documentation in the
     /// unprivileged spec.
@@ -407,6 +410,11 @@ namespace WdRiscv
     /// Enable whisper HINT ops for various functions.
     void enableHintOps(bool flag)
     { hintOps_ = flag; }
+
+    /// Enable speculatively marking G-stage page tables dirty for non-leaf
+    /// PTEs.
+    void enableDirtyGForVsNonleaf(bool flag)
+    { virtMem_.enableDirtyGForVsNonleaf(flag); }
 
     /// Enable page based memory types.
     void enableTranslationPbmt(bool flag)
@@ -480,27 +488,27 @@ namespace WdRiscv
       if (isRvSmmpm())
         {
           uint8_t pmm = csRegs_.mseccfgPmm();
-          virtMem_.enablePointerMasking(VirtMem::Pmm(pmm), PM::Machine, false);
+          pmaskManager_.enablePointerMasking(PmaskManager::Mode(pmm), PM::Machine, false);
         }
 
       if (isRvSsnpm())
         {
           uint8_t pmm = csRegs_.senvcfgPmm();
           if (isRvu())
-            virtMem_.enablePointerMasking(VirtMem::Pmm(pmm), PM::User, false);
+            pmaskManager_.enablePointerMasking(PmaskManager::Mode(pmm), PM::User, false);
 
           pmm = csRegs_.henvcfgPmm();
           if (isRvh())
-            virtMem_.enablePointerMasking(VirtMem::Pmm(pmm), PM::Supervisor, true);
+            pmaskManager_.enablePointerMasking(PmaskManager::Mode(pmm), PM::Supervisor, true);
         }
 
       if (isRvSmnpm())
         {
           uint8_t pmm = csRegs_.menvcfgPmm();
           if (isRvs())
-            virtMem_.enablePointerMasking(VirtMem::Pmm(pmm), PM::Supervisor, false);
+            pmaskManager_.enablePointerMasking(PmaskManager::Mode(pmm), PM::Supervisor, false);
           else if (isRvu())
-            virtMem_.enablePointerMasking(VirtMem::Pmm(pmm), PM::User, false);
+            pmaskManager_.enablePointerMasking(PmaskManager::Mode(pmm), PM::User, false);
         }
     }
 
@@ -542,7 +550,10 @@ namespace WdRiscv
                               bool hyper = false) const
     {
       auto [pm, virt] = effLdStMode(hyper);
-      return virtMem_.applyPointerMask(addr, pm, virt, isLoad);
+      bool bare = virtMem_.mode() == VirtMem::Mode::Bare;
+      if (virt)
+        bare = virtMem_.vsMode() == VirtMem::Mode::Bare;
+      return pmaskManager_.applyPointerMask(addr, pm, virt, isLoad, bare);
     }
 
     /// Determines the load/store instruction's effective privilege mode
@@ -760,6 +771,14 @@ namespace WdRiscv
       aclintDeliverInterrupts_ = deliverInterrupts;
       indexToHart_ = indexToHart;
     }
+
+    /// Define an offset to be artifically added to a time compare register of ACLINT
+    /// whenever such regiser is written by a store instruction. this is used to reduce
+    /// the frequency of timer interrupts and is relevant for booting a Linux image
+    /// (Whisper uses the instruction count to fake a timer value and that is too fast for
+    /// Linux which expect a much lower frequency for its timer).
+    void setAclintAdjustTimeCompare(uint64_t offset)
+    { aclintAdjustTimeCmp_ = offset; }
 
     /// Set the output file in which to dump the state of accessed
     /// memory lines. Return true on success and false if file cannot
@@ -2418,6 +2437,19 @@ namespace WdRiscv
       --timeSample_;
     }
 
+    // Adjust time base and timer value either forwards (positive diff) or
+    // backwards (negative diff).  This is used by PerfApi.
+    void adjustTime(int64_t diff) {
+      if (diff >= 0)
+        {
+          for (int64_t i = 0; i < diff; i++) tickTime();
+        }
+      else
+        {
+          for (int64_t i = 0; i < -diff; i++) untickTime();
+        }
+    }
+
     /// Return the data vector register number associated with the given ld/st element
     /// info.  We return the individual register and not the base register of a group.
     unsigned identifyDataRegister(const VecLdStInfo& info, const VecLdStElem& elem) const
@@ -2450,6 +2482,32 @@ namespace WdRiscv
     /// Return the element size in bytes of the index-vector of the given instruction
     /// which must be an indexed vector load/store.
     unsigned vecLdStIndexElemSize(const DecodedInst& di) const;
+
+    static Pma overridePmaWithPbmt(Pma pma, VirtMem::Pbmt pbmt)
+    {
+      if (not pma.attributesToInt())
+        return pma;
+      if (pbmt == VirtMem::Pbmt::None or pbmt == VirtMem::Pbmt::Reserved)
+        return pma;
+
+      pma.disable(Pma::Attrib::Cacheable);
+      pma.disable(Pma::Attrib::Amo);
+      pma.disable(Pma::Attrib::Rsrv);
+
+      if (pbmt == VirtMem::Pbmt::Nc)
+        {
+          pma.enable(Pma::Attrib::Idempotent);
+          pma.disable(Pma::Attrib::Io);
+        }
+      else
+        {
+          pma.disable(Pma::Attrib::Idempotent);
+          pma.enable(Pma::Attrib::Io);
+          pma.disable(Pma::Attrib::MisalOk);
+          pma.enable(Pma::Attrib::MisalAccFault);
+        }
+      return pma;
+    }
 
   protected:
 
@@ -5348,6 +5406,7 @@ namespace WdRiscv
     uint64_t aclintMtimeStart_ = 0;
     uint64_t aclintMtimeEnd_ = 0;
     uint64_t aclintAlarm_ = ~uint64_t(0); // Interrupt when timer >= this
+    uint64_t aclintAdjustTimeCmp_ = 10000;
     bool aclintSiOnReset_ = false;
     bool aclintDeliverInterrupts_ = true;
     std::function<Hart<URV>*(unsigned ix)> indexToHart_ = nullptr;
@@ -5521,6 +5580,9 @@ namespace WdRiscv
     // Physical memory protection.
     bool pmpEnabled_ = false; // True if one or more pmp register defined.
     PmpManager pmpManager_;
+
+    // Pointer masking modes.
+    PmaskManager pmaskManager_;
 
     // Static tee (truseted execution environment).
     bool steeEnabled_ = false;
