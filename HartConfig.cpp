@@ -1560,7 +1560,13 @@ HartConfig::applyAplicConfig(System<URV>& system) const
         return false;
       domain_params.privilege = is_machine ? TT_APLIC::Machine : TT_APLIC::Supervisor;
 
-      domain_params.hart_indices = {}; // TODO(paul): get this from the config
+      domain_params.hart_indices = {};
+      tag = "hart_indices";
+      if (domain.contains(tag))
+        {
+          for (auto index : domain.at(tag))
+            domain_params.hart_indices.push_back(index.get<unsigned>());
+        }
 
       domain_params_list.push_back(domain_params);
     }

@@ -280,7 +280,7 @@ namespace WdRiscv
                      bool trace);
 
     // TODO(paul): document
-    bool configAplic(unsigned interrupt_count, std::span<TT_APLIC::DomainParams> domain_params);
+    bool configAplic(unsigned interrupt_count, std::span<const TT_APLIC::DomainParams> domain_params);
 
     /// Enable memory consistency model with given merge buffer size. This is relevant in
     /// server/interactive where RTL monitor or interactive command may initiate out of
