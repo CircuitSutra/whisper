@@ -327,6 +327,10 @@ namespace WdRiscv
 
 
     // =======================
+    /// Enable/disable tracing of accessed page table entries.
+    /// Return prior trace setting.
+    bool enableTrace(bool flag)
+    { bool prev = trace_; trace_ = flag; return prev; }
 
   protected:
     // Callback member variables.
@@ -593,11 +597,6 @@ namespace WdRiscv
       if (trace_)
 	updatedPtes_.emplace(updatedPtes_.end(), addr, size, value);
     }
-
-    /// Enable/disable tracing of accessed page table entries.
-    /// Return prior trace setting.
-    bool enableTrace(bool flag)
-    { bool prev = trace_; trace_ = flag; return prev; }
 
     /// Process table walk trace as for fetch.
     void setAccReason(bool fetch)

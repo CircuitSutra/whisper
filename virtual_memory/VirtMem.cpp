@@ -125,12 +125,10 @@ ExceptionCause
 VirtMem::transAddrNoUpdate(uint64_t va, PrivilegeMode priv, bool twoStage,
 			   bool read, bool write, bool exec, uint64_t& pa)
 {
-  auto prevTrace = trace_; trace_ = false;
   accessDirtyCheck_ = false;
 
   auto cause = transNoUpdate(va, priv, twoStage, read, write, exec, pa);
 
-  trace_ = prevTrace;
   accessDirtyCheck_ = true;
 
   return cause;
