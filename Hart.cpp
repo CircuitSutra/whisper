@@ -92,45 +92,11 @@ Hart<URV>::Hart(unsigned hartIx, URV hartId, Memory& memory, Syscall<URV>& sysca
     pmpManager_(memory.size(), UINT64_C(1024)*1024),
     virtMem_(hartIx, memory.pageSize(), 2048)
 {
+  setupVirtMemCallbacks();
+
   // Enable default extensions
-  virtMem_.setMemReadCallback([this](uint64_t addr, bool bigEndian, URV &data) -> bool {
-      if (not memory_.read(addr, data))
-        return false;
-      if (bigEndian)
-        data = util::byteswap(data);
-      return true;
-  });
-
-  virtMem_.setMemWriteCallback([this](uint64_t addr, bool bigEndian, uint64_t data) -> bool {
-      if (bigEndian)
-	      data = util::byteswap(data);
-      if (not memory_.hasReserveAttribute(addr))
-	      return false;
-      return memory_.write(hartIx_, addr, data);
-
-  });
-
-  virtMem_.setPmpIsReadableCallback([this](uint64_t addr, PrivilegeMode pm) -> bool {
-      if (not pmpManager_.isEnabled())
-	      return true;
-      const Pmp& pmp = pmpManager_.accessPmp(addr);
-      return pmp.isRead(pm);
-
-  });
-
-  virtMem_.setPmpIsWritableCallback([this](uint64_t addr, PrivilegeMode pm) -> bool {
-      if (not pmpManager_.isEnabled())
-	      return true;
-      const Pmp& pmp = pmpManager_.accessPmp(addr);
-      return pmp.isWrite(pm);
-
-  });
-
-  for (RvExtension ext : { RvExtension::C,
-                           RvExtension::M })
-    {
-      enableExtension(ext, true);
-    }
+  for (RvExtension ext : { RvExtension::C, RvExtension::M })
+    enableExtension(ext, true);
 
   decodeCacheSize_ = 128*1024;  // Must be a power of 2.
   decodeCacheMask_ = decodeCacheSize_ - 1;
@@ -223,6 +189,48 @@ Hart<URV>::~Hart()
 {
   if (branchBuffer_.max_size() and not branchTraceFile_.empty())
     saveBranchTrace(branchTraceFile_);
+}
+
+
+template <typename URV>
+void
+Hart<URV>::setupVirtMemCallbacks()
+{
+  virtMem_.setMemReadCallback([this](uint64_t addr, bool bigEndian, URV &data) -> bool {
+      if (not memory_.read(addr, data))
+        return false;
+      if (bigEndian)
+        data = util::byteswap(data);
+      return true;
+  });
+
+  virtMem_.setMemWriteCallback([this](uint64_t addr, bool bigEndian, uint64_t data) -> bool {
+    URV value = static_cast<URV>(data);   // For RV32.
+      assert(value == data);
+
+      if (bigEndian)
+        value = util::byteswap(value);
+      if (not memory_.hasReserveAttribute(addr))
+        return false;
+      return memory_.write(hartIx_, addr, value);
+
+  });
+
+  virtMem_.setPmpIsReadableCallback([this](uint64_t addr, PrivilegeMode pm) -> bool {
+      if (not pmpManager_.isEnabled())
+        return true;
+      const Pmp& pmp = pmpManager_.accessPmp(addr);
+      return pmp.isRead(pm);
+
+  });
+
+  virtMem_.setPmpIsWritableCallback([this](uint64_t addr, PrivilegeMode pm) -> bool {
+      if (not pmpManager_.isEnabled())
+        return true;
+      const Pmp& pmp = pmpManager_.accessPmp(addr);
+      return pmp.isWrite(pm);
+
+  });
 }
 
 

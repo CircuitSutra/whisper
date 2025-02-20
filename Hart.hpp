@@ -2515,13 +2515,17 @@ namespace WdRiscv
 
   protected:
 
-    // Retun cached value of the mpp field of the mstatus CSR.
+    /// Retun cached value of the mpp field of the mstatus CSR.
     PrivilegeMode mstatusMpp() const
     { return PrivilegeMode{mstatus_.bits_.MPP}; }
 
-    // Retun cached value of the mprv field of the mstatus CSR.
+    /// Retun cached value of the mprv field of the mstatus CSR.
     bool mstatusMprv() const
     { return mstatus_.bits_.MPRV; }
+
+    /// Provide MMU (virtMem_) the call-backs necessary to read/write memory and to check
+    /// PMP.
+    void setupVirtMemCallbacks();
 
     /// Return true if the NMIE bit of NMSTATUS overrides the effect of
     /// MSTATUS.MPRV. See Smrnmi secton in RISCV privileged spec.
