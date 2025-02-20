@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <poll.h>
 #include <termios.h>
+#include <pty.h>
 #include "Uart8250.hpp"
 
 
@@ -13,9 +14,20 @@ FDChannel::FDChannel(int in_fd, int out_fd)
 {
   inPollfd.fd = in_fd_;
   inPollfd.events = POLLIN;
+
+  if (isTTY()) {
+    struct termios term;
+    tcgetattr(in_fd_, &term);
+    cfmakeraw(&term);
+    term.c_lflag &= ~ECHO;
+    tcsetattr(in_fd_, 0, &term);
+  }
 }
 
 bool FDChannel::read(uint8_t& byte) {
+  if (isTTY())
+    return ::read(in_fd_, &byte, 1) == 1;
+
   int code = poll(&inPollfd, 1, -1);
 
   if (code == 0)
@@ -28,15 +40,12 @@ bool FDChannel::read(uint8_t& byte) {
       uint8_t c;
       if (::read(in_fd_, &c, sizeof(c)) != 1)
 	std::cerr << "FDChannel: unexpected fail on read\n";
-      if (isatty(in_fd_))
-      {
-	static uint8_t prev = 0;
+      static uint8_t prev = 0;
 
-	// Force a stop if control-a x is seen.
-	if (prev == 1 and c == 'x')
-	  throw std::runtime_error("Keyboard stop");
-	prev = c;
-      }
+      // Force a stop if control-a x is seen.
+      if (prev == 1 and c == 'x')
+	throw std::runtime_error("Keyboard stop");
+      prev = c;
 
       byte = c;
       return true;
@@ -65,13 +74,27 @@ bool FDChannel::isTTY() {
 
 StdIOChannel::StdIOChannel()
   : FDChannel(fileno(stdin), fileno(stdout))
-{
-  struct termios term;
-  tcgetattr(fileno(stdin), &term);
-  cfmakeraw(&term);
-  term.c_lflag &= ~ECHO;
-  tcsetattr(fileno(stdin), 0, &term);
+{ }
+
+PTYChannelBase::PTYChannelBase() {
+  char name[256];
+  assert(openpty(&master_, &slave_, name, nullptr, nullptr) >= 0);
+
+  std::cerr << "Got PTY " << name << "\n";
 }
+
+PTYChannelBase::~PTYChannelBase()
+{
+  if (master_ != -1)
+    close(master_);
+
+  if (slave_ != -1)
+    close(slave_);
+}
+
+
+PTYChannel::PTYChannel() : PTYChannelBase(), FDChannel(master_, master_)
+{ }
 
 Uart8250::Uart8250(uint64_t addr, uint64_t size,
     std::shared_ptr<TT_APLIC::Aplic> aplic, uint32_t eiid,

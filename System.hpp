@@ -256,7 +256,8 @@ namespace WdRiscv
     /// Device a UART device at given address reserving given size (in bytes) of address
     /// space for it. Return true on success and false if type is not supported (supported
     /// types: uartsf, uart8250).
-    bool defineUart(const std::string& type, uint64_t addr, uint64_t size, uint32_t eiid);
+    bool defineUart(const std::string& type, uint64_t addr, uint64_t size,
+		    uint32_t eiid, const std::string& channel);
 
     /// Return the memory page size.
     size_t pageSize() const

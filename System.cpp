@@ -94,7 +94,8 @@ System<URV>::System(unsigned coreCount, unsigned hartsPerCore,
 
 template <typename URV>
 bool
-System<URV>::defineUart(const std::string& type, uint64_t addr, uint64_t size, uint32_t eiid)
+System<URV>::defineUart(const std::string& type, uint64_t addr, uint64_t size,
+    uint32_t eiid, const std::string& channel_type)
 {
   std::shared_ptr<IoDevice> dev;
 
@@ -102,7 +103,17 @@ System<URV>::defineUart(const std::string& type, uint64_t addr, uint64_t size, u
     dev = std::make_shared<Uartsf>(addr, size);
   else if (type == "uart8250")
     {
-      dev = std::make_shared<Uart8250>(addr, size, aplic_, eiid, std::make_unique<StdIOChannel>());
+      std::unique_ptr<UartChannel> channel;
+      if (channel_type == "stdio")
+        channel = std::make_unique<StdIOChannel>();
+      else if (channel_type == "pty")
+        channel = std::make_unique<PTYChannel>();
+      else
+        {
+          std::cerr << "System::defineUart: Invalid channel: " << channel_type << "\n";
+          return false;
+        }
+      dev = std::make_shared<Uart8250>(addr, size, aplic_, eiid, std::move(channel));
     }
   else
     {

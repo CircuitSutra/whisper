@@ -47,6 +47,28 @@ namespace WdRiscv
     StdIOChannel();
   };
 
+  // This base class is necessary so we can create the PTY before passing the
+  // fd to FDChannel's constructor
+  class PTYChannelBase {
+  public:
+    // Do not allow copying because that may cause the PTY fds to be used
+    // after close
+    PTYChannelBase(const PTYChannelBase&) = delete;
+    PTYChannelBase& operator=(const PTYChannelBase&) = delete;
+
+  protected:
+    PTYChannelBase();
+    virtual ~PTYChannelBase();
+
+    int master_ = -1;
+    int slave_ = -1;
+  };
+
+  class PTYChannel : private PTYChannelBase, public FDChannel {
+  public:
+    PTYChannel();
+  };
+
   class Uart8250 : public IoDevice
   {
   public:
