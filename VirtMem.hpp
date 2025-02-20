@@ -291,6 +291,11 @@ namespace WdRiscv
     Pbmt lastVsPbmt() const
     { return vsPbmt_; }
 
+    /// Enable/disable tracing of accessed page table entries.
+    /// Return prior trace setting.
+    bool enableTrace(bool flag)
+    { bool prev = trace_; trace_ = flag; return prev; }
+
   protected:
 
     /// Return current big-endian mode of implicit memory read/write
@@ -579,11 +584,6 @@ namespace WdRiscv
       if (trace_)
 	updatedPtes_.emplace(updatedPtes_.end(), addr, size, value);
     }
-
-    /// Enable/disable tracing of accessed page table entries.
-    /// Return prior trace setting.
-    bool enableTrace(bool flag)
-    { bool prev = trace_; trace_ = flag; return prev; }
 
     /// Process table walk trace as for fetch.
     void setAccReason(bool fetch)
