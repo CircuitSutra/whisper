@@ -25,7 +25,7 @@
 #include <mutex>
 #include <type_traits>
 #include <cassert>
-#include "trapEnums.hpp"
+#include "virtual_memory/trapEnums.hpp"
 #include "PmaManager.hpp"
 #include "IoDevice.hpp"
 #include "util.hpp"
