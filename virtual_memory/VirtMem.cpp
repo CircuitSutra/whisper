@@ -635,7 +635,7 @@ VirtMem::pageTableWalk(uint64_t address, PrivilegeMode privMode, bool read, bool
 	  {
 	    // B2. Compare pte to memory.
 	    PTE pte2(0);
-	    if (!memRead(pteAddr, false /*bigEndian*/, pte2.data_))
+	    if (!memRead(pteAddr, bigEnd_, pte2.data_))
               assert(0);
 
             // Preserve the original pte.ppn (no NAPOT fixup).
@@ -797,7 +797,7 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 	  {
 	    // B2. Compare pte to memory.
 	    PTE pte2(0);
-	    if (!memRead(pteAddr, false /*bigEndian*/, pte2.data_))
+	    if (!memRead(pteAddr, bigEnd_, pte2.data_))
               assert(0);
 
             // Preserve the original pte.ppn (no NAPOT fixup).
@@ -973,7 +973,7 @@ VirtMem::stage1PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 	  {
 	    // B2. Compare pte to memory.
 	    PTE pte2(0);
-	    if (!memRead(pteAddr, false /*bigEndian*/, pte2.data_))
+	    if (!memRead(pteAddr, bigEnd_, pte2.data_))
               assert(0);
 
             // Preserve the original pte.ppn (no NAPOT fixup).
@@ -993,7 +993,7 @@ VirtMem::stage1PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 	    if (ec != ExceptionCause::NONE)
 	      return stage2ExceptionToStage1(ec, read, write, exec);
 	    assert(pteAddr == pteAddr2);
-	    if (not memWrite(pteAddr, bigEnd_, orig.data_))
+	    if (not memWrite(pteAddr2, bigEnd_, orig.data_))
 	      return stage1PageFaultType(read, write, exec);
 	  }
 	}
