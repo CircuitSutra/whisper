@@ -196,13 +196,22 @@ template <typename URV>
 void
 Hart<URV>::setupVirtMemCallbacks()
 {
+
   virtMem_.setMemReadCallback([this](uint64_t addr, bool bigEndian, URV &data) -> bool {
-      if (not memory_.read(addr, data))
+      if (steeEnabled_) {
+        if (!stee_.isValidAddress(addr))
+          return false;  
+        addr = stee_.clearSecureBits(addr);
+      }
+      
+      // Proceed with normal memory read.
+      if (!memory_.read(addr, data))
         return false;
       if (bigEndian)
         data = util::byteswap(data);
       return true;
   });
+
 
   virtMem_.setMemWriteCallback([this](uint64_t addr, bool bigEndian, uint64_t data) -> bool {
     URV value = static_cast<URV>(data);   // For RV32.
