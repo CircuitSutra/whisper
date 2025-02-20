@@ -844,6 +844,10 @@ namespace WdRiscv
     const VirtMem& virtMem() const
     { return virtMem_; }
 
+    /// Clear page table walk trace information.
+    void clearPageTableWalk()
+    { return virtMem_.clearPageTableWalk(); }
+
     /// Return the IMSIC associated with this hart.
     const std::shared_ptr<TT_IMSIC::Imsic> imsic() const
     { return imsic_; }
