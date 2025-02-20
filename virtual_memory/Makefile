@@ -1,5 +1,6 @@
 CXX      = g++
-CXXFLAGS = -std=c++20 -Wall -I. 
+OFLAGS   = -O3
+CXXFLAGS = -std=c++20 -Wall -I. $(OFLAGS)
 SRCS    = VirtMem.cpp Tlb.cpp
 OBJS    = $(SRCS:.cpp=.o)
 TARGET  = libvirtual_memory.a
