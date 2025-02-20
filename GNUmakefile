@@ -190,7 +190,7 @@ $(trace_reader_lib): .FORCE
 	$(MAKE) -C $(trace_reader_build)
 
 $(virtual_memory_lib): .FORCE
-	$(MAKE) -C $(virtual_memory_build) CXX=$(CXX) OFLAGS=$(OFLAGS)
+	$(MAKE) -C $(virtual_memory_build) CXX=$(CXX) OFLAGS="$(OFLAGS)"
 
 all: $(BUILD_DIR)/$(PROJECT) $(BUILD_DIR)/$(PY_PROJECT)
 
