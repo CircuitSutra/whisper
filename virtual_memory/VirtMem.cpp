@@ -777,12 +777,14 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 	if (pte.ppn(j) != 0)
           return stage2PageFaultType(read, write, exec);
 
+      bool failCheck = not pte.accessed() or (write and not pte.dirty());
+
       // 7.
-      if (accessDirtyCheck_ and (not pte.accessed() or (write and not pte.dirty())))
+      if (accessDirtyCheck_ and (failCheck or (dirtyGForVsNonleaf_ and not pte.dirty() and isPteAddr)))
 	{
 	  // We have a choice:
 	  // A. Page fault
-	  if (faultOnFirstAccess2_)
+	  if (faultOnFirstAccess2_ and failCheck)
 	    return stage2PageFaultType(read, write, exec);  // A
 
 	  // Or B
@@ -806,7 +808,8 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 	    if (pte.data_ != pte2.data_)
 	      continue;  // Comparison fails: return to step 2.
 	    pte.bits_.accessed_ = orig.bits_.accessed_ = 1;
-	    if (write)
+	    if (write or
+                (dirtyGForVsNonleaf_ and isPteAddr))
 	      pte.bits_.dirty_ = orig.bits_.dirty_ = 1;
 	    if (not memWrite(pteAddr, bigEnd_, orig.data_))
 	      return stage2PageFaultType(read, write, exec);

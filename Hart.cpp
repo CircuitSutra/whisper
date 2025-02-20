@@ -1984,7 +1984,7 @@ Hart<URV>::deviceWrite(uint64_t pa, STORE_TYPE storeVal)
   if (isAclintAddr(pa))
     {
       URV val = storeVal;
-      processClintWrite(pa, ldStSize_, val);
+      processClintWrite(pa, sizeof(storeVal), val);
       storeVal = val;
       memWrite(pa, pa, storeVal);
       return;
@@ -2383,8 +2383,12 @@ Hart<URV>::processClintWrite(uint64_t addr, unsigned stSize, URV& storeVal)
 	    }
 	  else if (stSize == 8)
 	    {
+              // Whisper fake timer is based on instruction count which appears to be much
+              // faster than what Linux typically expects. We adjust the time compare (we
+              // add 10000 by default) so that Linux does not see too many timer
+              // interrupts.
 	      if ((addr & 7) == 0 and aclintDeliverInterrupts_)
-		hart->aclintAlarm_ = storeVal + 10000;
+		hart->aclintAlarm_ = storeVal + aclintAdjustTimeCmp_;
 
 	      // An htif_getc may be pending, send char back to target.
 	      auto inFd = syscall_.effectiveFd(STDIN_FILENO);
@@ -3336,14 +3340,14 @@ Hart<URV>::pokeIntReg(unsigned ix, URV val)
 
 template <typename URV>
 URV
-Hart<URV>::peekCsr(CsrNumber csrn) const
+Hart<URV>::peekCsr(CsrNumber csrn, bool quiet) const
 {
   URV value = 0;
+
   if (not peekCsr(csrn, value))
-    {
+    if (not quiet)
       std::cerr << "Invalid CSR number in peekCsr: 0x" << std::hex
 		<<  unsigned(csrn) << std::dec << '\n';
-    }
   return value;
 }
 

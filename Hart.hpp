@@ -227,7 +227,9 @@ namespace WdRiscv
     { return csRegs_.peek(csr, val, virtMode); }
 
     /// Return value of the given csr. Throw exception if csr is out of bounds.
-    URV peekCsr(CsrNumber csr) const;
+    /// Return 0 if CSR is not implemented printing an error message unless
+    /// quiet is true.
+    URV peekCsr(CsrNumber csr, bool quiet = false) const;
 
     /// Set val, reset, writeMask, and pokeMask respectively to the
     /// value, reset-value, write-mask, poke-mask, and read-mask of
@@ -408,6 +410,11 @@ namespace WdRiscv
     /// Enable whisper HINT ops for various functions.
     void enableHintOps(bool flag)
     { hintOps_ = flag; }
+
+    /// Enable speculatively marking G-stage page tables dirty for non-leaf
+    /// PTEs.
+    void enableDirtyGForVsNonleaf(bool flag)
+    { virtMem_.enableDirtyGForVsNonleaf(flag); }
 
     /// Enable page based memory types.
     void enableTranslationPbmt(bool flag)
@@ -764,6 +771,14 @@ namespace WdRiscv
       aclintDeliverInterrupts_ = deliverInterrupts;
       indexToHart_ = indexToHart;
     }
+
+    /// Define an offset to be artifically added to a time compare register of ACLINT
+    /// whenever such regiser is written by a store instruction. this is used to reduce
+    /// the frequency of timer interrupts and is relevant for booting a Linux image
+    /// (Whisper uses the instruction count to fake a timer value and that is too fast for
+    /// Linux which expect a much lower frequency for its timer).
+    void setAclintAdjustTimeCompare(uint64_t offset)
+    { aclintAdjustTimeCmp_ = offset; }
 
     /// Set the output file in which to dump the state of accessed
     /// memory lines. Return true on success and false if file cannot
@@ -5391,6 +5406,7 @@ namespace WdRiscv
     uint64_t aclintMtimeStart_ = 0;
     uint64_t aclintMtimeEnd_ = 0;
     uint64_t aclintAlarm_ = ~uint64_t(0); // Interrupt when timer >= this
+    uint64_t aclintAdjustTimeCmp_ = 10000;
     bool aclintSiOnReset_ = false;
     bool aclintDeliverInterrupts_ = true;
     std::function<Hart<URV>*(unsigned ix)> indexToHart_ = nullptr;
