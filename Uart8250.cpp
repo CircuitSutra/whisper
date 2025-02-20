@@ -8,8 +8,8 @@
 using namespace WdRiscv;
 
 
-Uart8250::Uart8250(uint64_t addr, uint64_t size)
-  : IoDevice(addr, size)
+Uart8250::Uart8250(uint64_t addr, uint64_t size, std::shared_ptr<TT_APLIC::Aplic> aplic, uint32_t eiid)
+  : IoDevice(addr, size, aplic, eiid)
 {
   auto func = [this]() { this->monitorStdin(); };
   stdinThread_ = std::thread(func);
@@ -190,7 +190,7 @@ Uart8250::monitorStdin()
                   rx_fifo.push(c);
                   lsr_ |= 1;  // Set least sig bit of line status.
                   iir_ &= ~1;  // Clear bit 0 indicating interrupt is pending.
-                  // setInterruptPending(true);
+                  setInterruptPending(true);
                 }
               else if (rc == 0)
                 continue;

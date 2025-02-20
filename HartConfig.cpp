@@ -2670,6 +2670,11 @@ HartConfig::configHarts(System<URV>& system, bool userMode, bool verbose) const
           not getJsonUnsigned(util::join("", tag, ".size"), uart.at("size"), size))
 	return false;
 
+      uint32_t eiid = 0;
+      if (uart.contains("eiid") &&
+          not getJsonUnsigned(util::join("", tag, ".eiid"), uart.at("eiid"), eiid))
+        return false;
+
       std::string type = "uart8250";
       if (not uart.contains("type"))
 	std::cerr << "Missing uart type. Using uart250. Valid types: uart8250, usartsf.\n";
@@ -2683,7 +2688,7 @@ HartConfig::configHarts(System<URV>& system, bool userMode, bool verbose) const
 	    }
 	}
 		
-      if (not system.defineUart(type, addr, size))
+      if (not system.defineUart(type, addr, size, eiid))
 	return false;
     }
 

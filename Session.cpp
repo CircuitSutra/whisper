@@ -119,6 +119,9 @@ Session<URV>::configureSystem(const Args& args, const HartConfig& config)
 
   auto& system = *system_;
 
+  if (not config.applyAplicConfig(system))
+    return false;
+
   // Configure harts. Define callbacks for non-standard CSRs.
   bool userMode = args.isa.find_first_of("uU") != std::string::npos;
   if (not config.configHarts(system, userMode, args.verbose))
@@ -165,9 +168,6 @@ Session<URV>::configureSystem(const Args& args, const HartConfig& config)
 
   // This needs Smaia extension to be enabled.
   if (not config.applyImsicConfig(system))
-    return false;
-
-  if (not config.applyAplicConfig(system))
     return false;
 
   for (unsigned i = 0; i < system.hartCount(); ++i)
