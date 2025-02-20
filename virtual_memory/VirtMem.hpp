@@ -335,8 +335,9 @@ namespace WdRiscv
     std::function<bool(uint64_t, bool, uint64_t)>  memWriteCallback_ = nullptr;
     std::function<bool(uint64_t, PrivilegeMode)>     pmpReadableCallback_ = nullptr;
     std::function<bool(uint64_t, PrivilegeMode)>     pmpWritableCallback_ = nullptr;
+
     template<typename T>
-    bool memReadT(uint64_t addr, bool bigEndian, T &data) const {
+    bool memRead(uint64_t addr, bool bigEndian, T &data) const {
       if constexpr (sizeof(T) == 4) {
         auto cb = getMemReadCallback32();
         if (cb)
@@ -352,6 +353,20 @@ namespace WdRiscv
       } else {
         static_assert(sizeof(T) == 4 || sizeof(T) == 8, "Unsupported type for memReadT");
       }
+    }
+
+    bool memWrite(uint64_t addr, bool bigEndian, uint64_t data) const {
+      auto cb = getMemWriteCallback();
+      return cb ? cb(addr, bigEndian, data) : false;
+    }
+
+    bool pmpIsReadable(uint64_t addr, PrivilegeMode pm) const {
+      auto cb = getPmpReadableCallback();
+      return cb ? cb(addr, pm) : true;
+    }
+    bool pmpIsWritable(uint64_t addr, PrivilegeMode pm) const {
+      auto cb = getPmpWritableCallback();
+      return cb ? cb(addr, pm) : true;
     }
 
 

@@ -566,10 +566,10 @@ VirtMem::pageTableWalk(uint64_t address, PrivilegeMode privMode, bool read, bool
         }
 
       // Check PMP. The privMode here is the effective one that already accounts for MPRV.
-      if (getPmpReadableCallback() && !getPmpReadableCallback()(pteAddr, privMode))
+      if (not pmpIsReadable(pteAddr, privMode))
 	return accessFaultType(read, write, exec);
 
-      if (!memReadT(pteAddr, bigEnd_, pte.data_))
+      if (!memRead(pteAddr, bigEnd_, pte.data_))
         return accessFaultType(read, write, exec);
       if (not napotCheck(pte, va))
         return stage1PageFaultType(read, write, exec);
@@ -629,13 +629,13 @@ VirtMem::pageTableWalk(uint64_t address, PrivilegeMode privMode, bool read, bool
 	  saveUpdatedPte(pteAddr, sizeof(pte.data_), pte.data_);  // For logging
 
 	  // B1. Check PMP.
-	  if (getPmpWritableCallback() && !getPmpWritableCallback()(pteAddr, privMode))
+	  if (not pmpIsWritable(pteAddr, privMode))
 	    return accessFaultType(read, write, exec);
 
 	  {
 	    // B2. Compare pte to memory.
 	    PTE pte2(0);
-	    if (!memReadT(pteAddr, false /*bigEndian*/, pte2.data_))
+	    if (!memRead(pteAddr, false /*bigEndian*/, pte2.data_))
               assert(0);
 
             // Preserve the original pte.ppn (no NAPOT fixup).
@@ -648,7 +648,7 @@ VirtMem::pageTableWalk(uint64_t address, PrivilegeMode privMode, bool read, bool
 	    pte.bits_.accessed_ = orig.bits_.accessed_ = 1;
 	    if (write)
 	      pte.bits_.dirty_ = orig.bits_.dirty_ = 1;
-	    if (!getMemWriteCallback() || !getMemWriteCallback()(pteAddr, bigEnd_, orig.data_))
+	    if (not memWrite(pteAddr, bigEnd_, orig.data_))
 	      return stage1PageFaultType(read, write, exec);
 	  }
 	}
@@ -727,10 +727,10 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
         }
 
       // Check PMP. The privMode here is the effective one that already accounts for MPRV.
-      if (getPmpReadableCallback() && !getPmpReadableCallback()(pteAddr, privMode))
+      if (not pmpIsReadable(pteAddr, privMode))
 	return accessFaultType(read, write, exec);
 
-      if (!memReadT(pteAddr, bigEnd_, pte.data_))
+      if (!memRead(pteAddr, bigEnd_, pte.data_))
         return accessFaultType(read, write, exec);
       if (not napotCheck(pte, va))
         return stage2PageFaultType(read, write, exec);
@@ -789,13 +789,13 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 	  saveUpdatedPte(pteAddr, sizeof(pte.data_), pte.data_);  // For logging
 
 	  // B1. Check PMP.
-	  if (getPmpWritableCallback() && !getPmpWritableCallback()(pteAddr, privMode))
+	  if (not pmpIsWritable(pteAddr, privMode))
 	    return accessFaultType(read, write, exec);
 
 	  {
 	    // B2. Compare pte to memory.
 	    PTE pte2(0);
-	    if (!memReadT(pteAddr, false /*bigEndian*/, pte2.data_))
+	    if (!memRead(pteAddr, false /*bigEndian*/, pte2.data_))
               assert(0);
 
             // Preserve the original pte.ppn (no NAPOT fixup).
@@ -808,7 +808,7 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 	    pte.bits_.accessed_ = orig.bits_.accessed_ = 1;
 	    if (write)
 	      pte.bits_.dirty_ = orig.bits_.dirty_ = 1;
-	    if (!getMemWriteCallback() || !getMemWriteCallback()(pteAddr, bigEnd_, orig.data_))
+	    if (not memWrite(pteAddr, bigEnd_, orig.data_))
 	      return stage2PageFaultType(read, write, exec);
 	  }
 	}
@@ -897,10 +897,10 @@ VirtMem::stage1PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
         }
 
       // Check PMP. The privMode here is the effective one that already accounts for MPRV.
-      if (getPmpReadableCallback() && !getPmpReadableCallback()(pteAddr, privMode))
+      if (not pmpIsReadable(pteAddr, privMode))
 	return accessFaultType(read, write, exec);
 
-      if (!memReadT(pteAddr, bigEnd_, pte.data_))
+      if (!memRead(pteAddr, bigEnd_, pte.data_))
         return accessFaultType(read, write, exec);
       if (not napotCheck(pte, va))
         return stage1PageFaultType(read, write, exec);
@@ -964,13 +964,13 @@ VirtMem::stage1PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 
           s1ADUpdate_ = true;
 	  // B1. Check PMP.
-	  if (getPmpWritableCallback() && !getPmpWritableCallback()(pteAddr, privMode))
+	  if (not pmpIsWritable(pteAddr, privMode))
 	    return accessFaultType(read, write, exec);
 
 	  {
 	    // B2. Compare pte to memory.
 	    PTE pte2(0);
-	    if (!memReadT(pteAddr, false /*bigEndian*/, pte2.data_))
+	    if (!memRead(pteAddr, false /*bigEndian*/, pte2.data_))
               assert(0);
 
             // Preserve the original pte.ppn (no NAPOT fixup).
@@ -990,7 +990,7 @@ VirtMem::stage1PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 	    if (ec != ExceptionCause::NONE)
 	      return stage2ExceptionToStage1(ec, read, write, exec);
 	    assert(pteAddr == pteAddr2);
-	    if (!getMemWriteCallback() || !getMemWriteCallback()(pteAddr, bigEnd_, orig.data_))
+	    if (not memWrite(pteAddr, bigEnd_, orig.data_))
 	      return stage1PageFaultType(read, write, exec);
 	  }
 	}
@@ -1106,7 +1106,7 @@ VirtMem::printEntries(std::ostream& os, uint64_t addr, const std::string& path) 
   for (unsigned ix = 0; ix < entryCount; ++ix, eaddr += entrySize)
     {
       PTE pte(0);
-      if (!memReadT(eaddr, false /*bigEndian*/, pte.data_))
+      if (!memRead(eaddr, false /*bigEndian*/, pte.data_))
         pte.data_ = 0;
 
       if (not pte.valid())
@@ -1123,7 +1123,7 @@ VirtMem::printEntries(std::ostream& os, uint64_t addr, const std::string& path) 
   for (unsigned ix = 0; ix < entryCount; ++ix, eaddr += entrySize)
     {
       PTE pte(0);
-      if (!memReadT(eaddr, false /*bigEndian*/, pte.data_))
+      if (!memRead(eaddr, false /*bigEndian*/, pte.data_))
         pte.data_ = 0;
 
       if (not pte.valid())
