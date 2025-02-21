@@ -5421,7 +5421,7 @@ isCustomCsr(CsrNumber num)
     return false;
   
   unsigned bits98 = (n >> 8) & 3;   // Bits 9:8
-  unsigned bits76 = (n >> 4) & 3;   // Bits 7:6
+  unsigned bits76 = (n >> 6) & 3;   // Bits 7:6
 
   if (bits98 == 0)
     {
