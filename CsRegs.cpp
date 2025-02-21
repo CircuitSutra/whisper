@@ -3314,70 +3314,106 @@ CsRegs<URV>::defineAiaRegs()
   // Advanced interrupt archtecture CSRs
   using CN = CsrNumber;
 
-  defineCsr("miselect",   CN::MISELECT,   !mand, !imp, 0, wam, wam);
-  defineCsr("mireg",      CN::MIREG,      !mand, !imp, 0, wam, wam);
-  defineCsr("mtopei",     CN::MTOPEI,     !mand, !imp, 0, wam, wam);
-  defineCsr("mtopi",      CN::MTOPI,      !mand, !imp, 0, wam, wam);
+  auto csr = defineCsr("miselect",   CN::MISELECT,   !mand, !imp, 0, wam, wam);
+  csr->markAia(true);
+
+  csr = defineCsr("mireg",      CN::MIREG,      !mand, !imp, 0, wam, wam);
+  csr->markAia(true);
+
+  csr = defineCsr("mtopei",     CN::MTOPEI,     !mand, !imp, 0, wam, wam);
+  csr->markAia(true);
+
+  csr = defineCsr("mtopi",      CN::MTOPI,      !mand, !imp, 0, wam, wam);
+  csr->markAia(true);
   
   URV mask = 0b10'0010'0000'0010;  // Bits 13, 9, and 1 (LCOFI, SEI, SSI).
-  defineCsr("mvien",      CN::MVIEN,      !mand, !imp, 0, mask, mask);
+  csr = defineCsr("mvien",      CN::MVIEN,      !mand, !imp, 0, mask, mask);
+  csr->markAia(true);
 
-  defineCsr("mvip",       CN::MVIP,       !mand, !imp, 0, mask, mask);
-  defineCsr("siselect",   CN::SISELECT,   !mand, !imp, 0, wam, wam);
-  defineCsr("sireg",      CN::SIREG,      !mand, !imp, 0, wam, wam);
-  defineCsr("stopei",     CN::STOPEI,     !mand, !imp, 0, wam, wam);
-  defineCsr("stopi",      CN::STOPI,      !mand, !imp, 0, wam, wam);
+  csr = defineCsr("mvip",       CN::MVIP,       !mand, !imp, 0, mask, mask);
+  csr->markAia(true);
+
+  csr = defineCsr("siselect",   CN::SISELECT,   !mand, !imp, 0, wam, wam);
+  csr->setMapsToVirtual(true); csr->markAia(true);
+
+  csr = defineCsr("sireg",      CN::SIREG,      !mand, !imp, 0, wam, wam);
+  csr->setMapsToVirtual(true); csr->markAia(true);
+
+  csr = defineCsr("stopei",     CN::STOPEI,     !mand, !imp, 0, wam, wam);
+  csr->setMapsToVirtual(true); csr->markAia(true);
+
+  csr = defineCsr("stopi",      CN::STOPI,      !mand, !imp, 0, wam, wam);
+  csr->setMapsToVirtual(true); csr->markAia(true);
 
   mask = 1 << 13; // Bits 0 to 12 are reserved. We only make bit 13 writable by default (13)
-  defineCsr("hvien",      CN::HVIEN,      !mand, !imp, 0, mask, mask)->setHypervisor(true);
+  csr = defineCsr("hvien",      CN::HVIEN,      !mand, !imp, 0, mask, mask);
+  csr->setHypervisor(true); csr->markAia(true);
 
   mask = 0x4fff'03ff; // Bits 0-9, 16-27, and 30.
-  defineCsr("hvictl",     CN::HVICTL,     !mand, !imp, 0, mask, mask)->setHypervisor(true);
+  csr = defineCsr("hvictl",     CN::HVICTL,     !mand, !imp, 0, mask, mask);
+  csr->setHypervisor(true); csr->markAia(true);
 
-  defineCsr("hviprio1",   CN::HVIPRIO1,   !mand, !imp, 0, wam, wam)->setHypervisor(true);
-  defineCsr("hviprio2",   CN::HVIPRIO2,   !mand, !imp, 0, wam, wam)->setHypervisor(true);
-  defineCsr("vsiselect",  CN::VSISELECT,  !mand, !imp, 0, wam, wam)->setHypervisor(true);
-  defineCsr("vsireg",     CN::VSIREG,     !mand, !imp, 0, wam, wam)->setHypervisor(true);
-  defineCsr("vstopei",    CN::VSTOPEI,    !mand, !imp, 0, wam, wam)->setHypervisor(true);
-  defineCsr("vstopi",     CN::VSTOPI,     !mand, !imp, 0, wam, wam)->setHypervisor(true);
+  csr = defineCsr("hviprio1",   CN::HVIPRIO1,   !mand, !imp, 0, wam, wam);
+  csr->setHypervisor(true); csr->markAia(true);
 
-  for (auto csrn : { CN::SISELECT, CN::SIREG, CN::STOPEI, CN::STOPI } )
-    {
-      auto csr = findCsr(csrn);
-      if (csr)
-	csr->setMapsToVirtual(true);
-    }
+  csr = defineCsr("hviprio2",   CN::HVIPRIO2,   !mand, !imp, 0, wam, wam);
+  csr->setHypervisor(true); csr->markAia(true);
+
+  csr = defineCsr("vsiselect",  CN::VSISELECT,  !mand, !imp, 0, wam, wam);
+  csr->setHypervisor(true); csr->markAia(true);
+
+  csr = defineCsr("vsireg",     CN::VSIREG,     !mand, !imp, 0, wam, wam);
+  csr->setHypervisor(true); csr->markAia(true);
+
+  csr = defineCsr("vstopei",    CN::VSTOPEI,    !mand, !imp, 0, wam, wam);
+  csr->setHypervisor(true); csr->markAia(true);
+
+  csr = defineCsr("vstopi",     CN::VSTOPI,     !mand, !imp, 0, wam, wam);
+  csr->setHypervisor(true); csr->markAia(true);
 
   if (sizeof(URV) == 4)
     {
-      defineCsr("midelegh", CN::MIDELEGH, !mand, !imp, 0, wam, wam)->markAsHighHalf(true);
-      defineCsr("mieh",     CN::MIEH,     !mand, !imp, 0, wam, wam)->markAsHighHalf(true);
-      defineCsr("mvienh",   CN::MVIENH,   !mand, !imp, 0, wam, wam)->markAsHighHalf(true);
-      defineCsr("mviph",    CN::MVIPH,    !mand, !imp, 0, wam, wam)->markAsHighHalf(true);
-      defineCsr("miph",     CN::MIPH,     !mand, !imp, 0, wam, wam)->markAsHighHalf(true);
-      defineCsr("sieh",     CN::SIEH,     !mand, !imp, 0, wam, wam)->markAsHighHalf(true);
-      defineCsr("siph",     CN::SIPH,     !mand, !imp, 0, wam, wam)->markAsHighHalf(true);
-      defineCsr("hidelegh", CN::HIDELEGH, !mand, !imp, 0, wam, wam)->markAsHighHalf(true);
-      defineCsr("hvienh",   CN::HVIENH,   !mand, !imp, 0, wam, wam)->markAsHighHalf(true);
-      defineCsr("hviph",    CN::HVIPH,    !mand, !imp, 0, wam, wam)->markAsHighHalf(true);
-      defineCsr("hviprio1h",CN::HVIPRIO1H,!mand, !imp, 0, wam, wam)->markAsHighHalf(true);
-      defineCsr("hviprio2h",CN::HVIPRIO2H,!mand, !imp, 0, wam, wam)->markAsHighHalf(true);
-      defineCsr("vsieh",    CN::VSIEH,    !mand, !imp, 0, wam, wam)->markAsHighHalf(true);
-      defineCsr("vsiph",    CN::VSIPH,    !mand, !imp, 0, wam, wam)->markAsHighHalf(true);
+      csr = defineCsr("midelegh", CN::MIDELEGH, !mand, !imp, 0, wam, wam);
+      csr->markAsHighHalf(true); csr->markAia(true);
 
-      for (auto csrn : { CN::SIEH, CN::SIPH } )
-	{
-	  auto csr = findCsr(csrn);
-	  if (csr)
-	    csr->setMapsToVirtual(true);
-	}
+      csr = defineCsr("mieh",     CN::MIEH,     !mand, !imp, 0, wam, wam);
+      csr->markAsHighHalf(true); csr->markAia(true);
 
-      for (auto csrn : { CN::HVIENH, CN::HVIPRIO1H, CN::HVIPRIO2H } )
-	{
-	  auto csr = findCsr(csrn);
-	  if (csr)
-	    csr->setHypervisor(true);
-	}
+      csr = defineCsr("mvienh",   CN::MVIENH,   !mand, !imp, 0, wam, wam);
+      csr->markAsHighHalf(true); csr->markAia(true);
+
+      csr = defineCsr("mviph",    CN::MVIPH,    !mand, !imp, 0, wam, wam);
+      csr->markAsHighHalf(true); csr->markAia(true);
+
+      csr = defineCsr("miph",     CN::MIPH,     !mand, !imp, 0, wam, wam);
+      csr->markAsHighHalf(true); csr->markAia(true);
+
+      csr = defineCsr("sieh",     CN::SIEH,     !mand, !imp, 0, wam, wam);
+      csr->markAsHighHalf(true); csr->markAia(true); csr->setMapsToVirtual(true);
+
+      csr = defineCsr("siph",     CN::SIPH,     !mand, !imp, 0, wam, wam);
+      csr->markAsHighHalf(true); csr->markAia(true); csr->setMapsToVirtual(true);
+
+      csr = defineCsr("hidelegh", CN::HIDELEGH, !mand, !imp, 0, wam, wam);
+      csr->markAsHighHalf(true); csr->markAia(true);
+
+      csr = defineCsr("hvienh",   CN::HVIENH,   !mand, !imp, 0, wam, wam);
+      csr->markAsHighHalf(true); csr->markAia(true); csr->setHypervisor(true);
+
+      csr = defineCsr("hviph",    CN::HVIPH,    !mand, !imp, 0, wam, wam);
+      csr->markAsHighHalf(true); csr->markAia(true);
+
+      csr = defineCsr("hviprio1h",CN::HVIPRIO1H,!mand, !imp, 0, wam, wam);
+      csr->markAsHighHalf(true); csr->markAia(true); csr->setHypervisor(true);
+
+      csr = defineCsr("hviprio2h",CN::HVIPRIO2H,!mand, !imp, 0, wam, wam);
+      csr->markAsHighHalf(true); csr->markAia(true); csr->setHypervisor(true);
+
+      csr = defineCsr("vsieh",    CN::VSIEH,    !mand, !imp, 0, wam, wam);
+      csr->markAsHighHalf(true); csr->markAia(true);
+
+      csr = defineCsr("vsiph",    CN::VSIPH,    !mand, !imp, 0, wam, wam);
+      csr->markAsHighHalf(true); csr->markAia(true);
     }
 
   addAiaFields();

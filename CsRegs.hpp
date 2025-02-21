@@ -545,6 +545,10 @@ namespace WdRiscv
     void markAsHighHalf(bool flag)
     { high_ = flag; }
 
+    /// Mark this CSR as belonhing to the AIA extension.
+    void markAia(bool flag)
+    { aia_ = flag; }
+
     /// Return true if this register has been marked as a debug-mode
     /// register.
     bool isDebug() const
@@ -811,6 +815,7 @@ namespace WdRiscv
     bool defined_ = false;
     bool debug_ = false;         // True if this is a debug-mode register.
     bool shared_ = false;        // True if this is shared among harts.
+    bool aia_ = false;           // True if this an AIA CSR.
     URV initialValue_ = 0;
     PrivilegeMode privMode_ = PrivilegeMode::Machine;
     URV value_ = 0;
