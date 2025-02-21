@@ -3613,6 +3613,12 @@ Hart<URV>::postCsrUpdate(CsrNumber csr, URV val, URV lastVal)
   if (csr == CN::HVICTL)
     updateCachedHvictl();
 
+  // FIXME: support mtimecmp
+  if (csr == CN::TIME or
+      csr == CN::STIMECMP or csr == CN::VSTIMECMP or
+      csr == CN::HTIMEDELTA)
+    processTimerInterrupt();
+
   effectiveMie_ = csRegs_.effectiveMie();
   effectiveSie_ = csRegs_.effectiveSie();
   effectiveVsie_ = csRegs_.effectiveVsie();
@@ -5687,78 +5693,9 @@ template <typename URV>
 bool
 Hart<URV>::processExternalInterrupt(FILE* traceFile, std::string& instStr)
 {
-  using IC = InterruptCause;
-
   // If mip poked exernally we avoid over-writing it for 1 instruction.
   if (not mipPoked_)
-    {
-      URV mipVal = csRegs_.peekMip();
-      URV prev = mipVal;
-
-      if (hasAclint() and aclintDeliverInterrupts_)
-	{
-	  // Deliver/clear machine timer interrupt from clint.
-	  if (time_ >= aclintAlarm_ + timeShift_)
-	    mipVal = mipVal | (URV(1) << URV(IC::M_TIMER));
-	  else
-	    mipVal = mipVal & ~(URV(1) << URV(IC::M_TIMER));
-	}
-      else
-	{
-	  // Deliver/clear machine timer interrupt from periodic alarm.
-	  bool hasAlarm = alarmLimit_ != ~uint64_t(0);
-	  if (hasAlarm)
-	    {
-	      if (time_ >= alarmLimit_)
-		{
-		  alarmLimit_ += alarmInterval_;
-		  mipVal = mipVal | (URV(1) << URV(IC::M_TIMER));
-		}
-	      else
-		mipVal = mipVal & ~(URV(1) << URV(IC::M_TIMER));
-	    }
-	}
-
-      if (swInterrupt_.bits_.alarm_ and aclintDeliverInterrupts_)
-        {
-	  if (swInterrupt_.bits_.flag_)
-	    {
-	      // Only deliver when 1 is written. Deliver and clear to
-	      // follow doorbell model.
-	      mipVal = mipVal | (URV(1) << URV(InterruptCause::M_SOFTWARE));
-	      setSwInterrupt(0);
-	    }
-	  else
-	    mipVal = mipVal & ~(URV(1) << URV(InterruptCause::M_SOFTWARE));
-        }
-
-      // Deliver/clear supervisor timer from stimecmp CSR.
-      if (stimecmpActive_)
-	{
-	  if (time_ >= stimecmp_ + timeShift_)
-	    mipVal = mipVal | (URV(1) << URV(IC::S_TIMER));
-	  else
-	    mipVal = mipVal & ~(URV(1) << URV(IC::S_TIMER));
-	}
-
-      // Deliver/clear virtual supervisor timer from vstimecmp CSR.
-      if (vstimecmpActive_)
-	{
-	  if ((time_ + htimedelta_) >= (vstimecmp_ + timeShift_))
-	    mipVal = mipVal | (URV(1) << URV(IC::VS_TIMER));
-	  else
-	    {
-	      mipVal = mipVal & ~(URV(1) << URV(IC::VS_TIMER));
-	      // Bits HIP.VSTIP (alias of MIP.VSTIP) is the logical-OR
-	      // of HVIP.VSTIP and the timer interrupt signal
-	      // resulting from vstimecmp. Section 9.2.3 of priv sepc.
-	      mipVal |= csRegs_.peekHvip() & (URV(1) << URV(IC::VS_TIMER));
-	    }
-	}
-
-      if (mipVal != prev)
-	csRegs_.poke(CsrNumber::MIP, mipVal);
-    }
+    processTimerInterrupt();
   mipPoked_ = false;
 
   if (debugMode_ and not dcsrStepIe_)
@@ -5803,6 +5740,81 @@ Hart<URV>::processExternalInterrupt(FILE* traceFile, std::string& instStr)
       return true;
     }
   return false;
+}
+
+
+template <typename URV>
+void
+Hart<URV>::processTimerInterrupt()
+{
+  using IC = InterruptCause;
+
+  URV mipVal = csRegs_.peekMip();
+  URV prev = mipVal;
+
+  if (hasAclint() and aclintDeliverInterrupts_)
+    {
+      // Deliver/clear machine timer interrupt from clint.
+      if (time_ >= aclintAlarm_ + timeShift_)
+        mipVal = mipVal | (URV(1) << URV(IC::M_TIMER));
+      else
+        mipVal = mipVal & ~(URV(1) << URV(IC::M_TIMER));
+    }
+  else
+    {
+      // Deliver/clear machine timer interrupt from periodic alarm.
+      bool hasAlarm = alarmLimit_ != ~uint64_t(0);
+      if (hasAlarm)
+        {
+          if (time_ >= alarmLimit_)
+            {
+              alarmLimit_ += alarmInterval_;
+              mipVal = mipVal | (URV(1) << URV(IC::M_TIMER));
+            }
+          else
+            mipVal = mipVal & ~(URV(1) << URV(IC::M_TIMER));
+        }
+    }
+
+  if (swInterrupt_.bits_.alarm_ and aclintDeliverInterrupts_)
+    {
+      if (swInterrupt_.bits_.flag_)
+        {
+          // Only deliver when 1 is written. Deliver and clear to
+          // follow doorbell model.
+          mipVal = mipVal | (URV(1) << URV(InterruptCause::M_SOFTWARE));
+          setSwInterrupt(0);
+        }
+      else
+        mipVal = mipVal & ~(URV(1) << URV(InterruptCause::M_SOFTWARE));
+    }
+
+  // Deliver/clear supervisor timer from stimecmp CSR.
+  if (stimecmpActive_)
+    {
+      if (time_ >= stimecmp_ + timeShift_)
+        mipVal = mipVal | (URV(1) << URV(IC::S_TIMER));
+      else
+        mipVal = mipVal & ~(URV(1) << URV(IC::S_TIMER));
+    }
+
+  // Deliver/clear virtual supervisor timer from vstimecmp CSR.
+  if (vstimecmpActive_)
+    {
+      if ((time_ + htimedelta_) >= (vstimecmp_ + timeShift_))
+        mipVal = mipVal | (URV(1) << URV(IC::VS_TIMER));
+      else
+        {
+          mipVal = mipVal & ~(URV(1) << URV(IC::VS_TIMER));
+          // Bits HIP.VSTIP (alias of MIP.VSTIP) is the logical-OR
+          // of HVIP.VSTIP and the timer interrupt signal
+          // resulting from vstimecmp. Section 9.2.3 of priv sepc.
+          mipVal |= csRegs_.peekHvip() & (URV(1) << URV(IC::VS_TIMER));
+        }
+    }
+
+  if (mipVal != prev)
+    csRegs_.poke(CsrNumber::MIP, mipVal);
 }
 
 
