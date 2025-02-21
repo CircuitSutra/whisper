@@ -5407,6 +5407,35 @@ CsRegs<URV>::hyperPoke(Csr<URV>* csr)
 }
 
 
+/// Return true if given number corresponds to a custom CSR. See table 3 of section 2.2
+/// of the privileged spec.
+static bool
+isCustomCsr(CsrNumber num)
+{
+  unsigned n = unsigned(num);      // CSR number is 12-bit.
+  assert((n >> 14) == 0);
+
+  unsigned top2 = (n >> 10) & 3;   // Bits 11:10
+
+  if (top2 == 0)   // Top 2 bits are 0. Not custom.
+    return false;
+  
+  unsigned bits98 = (n >> 8) & 3;   // Bits 9:8
+  unsigned bits76 = (n >> 4) & 3;   // Bits 7:6
+
+  if (bits98 == 0)
+    {
+      if (top2 == 2)
+        return true;
+      if (top2 == 3 and bits76 == 3)
+        return true;
+      return false;
+    }
+
+  return bits76 == 3;
+}
+
+
 template <typename URV>
 bool
 CsRegs<URV>::isStateEnabled(CsrNumber num, PrivilegeMode pm, bool vm) const
@@ -5414,32 +5443,32 @@ CsRegs<URV>::isStateEnabled(CsrNumber num, PrivilegeMode pm, bool vm) const
   if (not stateenOn_ or pm == PrivilegeMode::Machine)
     return true;
 
-  using CN = CsrNumber;
-  CN csrn = rv32_? CN::MSTATEEN0H : CN::MSTATEEN0;
-  if (pm == PrivilegeMode::User)
-    csrn = CN::SSTATEEN0;
-  else if (vm)
-    csrn = rv32_? CN::HSTATEEN0H : CN::HSTATEEN0;
+  unsigned offset = 0;      // Index of controlling *STATEEN* reg (0, 1, 2, or 3).
 
-  uint64_t enableMask = 0;
-  unsigned offset = 0;
-  if (num == CN::SRMCFG)
-    enableMask = (uint64_t(1) << 55);
+  // Determine which bits must be 1 in the controlling *STATEEN* register.
+  Mstateen0Fields rseb;  // Required state eneable bits, initially all zero.
+
+  using CN = CsrNumber;
+
+  if (isCustomCsr(num))
+    rseb.bits_.C = 1;
+  else if (num == CN::SRMCFG)
+    rseb.bits_.SRMCFG = 1;
   if (num == CN::HCONTEXT or num == CN::SCONTEXT)
-    enableMask = (uint64_t(1) << 57);
+    rseb.bits_.CONTEXT = 1;
   else if (num == CN::MISELECT or num == CN::MIREG or num == CN::MTOPEI or num == CN::MTOPI or
 	   num == CN::MVIEN or num == CN::MVIP or num == CN::MIDELEGH or num == CN::MIEH or
 	   num == CN::MVIENH or num == CN::MVIPH or num == CN::MIPH or num == CN::STOPEI or
 	   num == CN::VSTOPEI)
-    enableMask = (uint64_t(1) << 58);  // IMSIC state.
+    rseb.bits_.IMSIC = 1;
   if (num == CN::SIPH or num == CN::SIEH or num == CN::STOPI or num == CN::HIDELEGH or
       num == CN::HVIEN or num == CN::HVIENH or num == CN::HVIPH or num == CN::HVICTL or
       num == CN::HVIPRIO1 or num == CN::HVIPRIO1H or num == CN::HVIPRIO2 or
       num == CN::HVIPRIO2H or num == CN::VSIPH or num == CN::VSIEH or num == CN::VSTOPI)
-    enableMask = (uint64_t(1) << 59);  // AIA state not controlled by bits 58 and 60
+    rseb.bits_.AIA = 1;
   else if (num == CN::SISELECT or num == CN::SIREG or num == CN::VSISELECT or num == CN::VSIREG)
     {
-      enableMask = (uint64_t(1) << 60);
+      rseb.bits_.CSRIND = 1;
 
       if (num == CN::SIREG and not vm)
         {
@@ -5447,47 +5476,66 @@ CsRegs<URV>::isStateEnabled(CsrNumber num, PrivilegeMode pm, bool vm) const
           if (peek(CN::SISELECT, select))
             {
               if (select >= 0x30 and select <= 0x3f)
-                enableMask |= (uint64_t(1) << 59);  // Sections 2.5 and 5.4.1 of AIA
+                rseb.bits_.AIA = 1;  // Sections 2.5 and 5.4.1 of AIA
             }
         }
     }
   else if (num == CN::HENVCFG or num == CN::HENVCFGH or num == CN::SENVCFG)
-    enableMask = (uint64_t(1) << 62);
+    {
+      rseb.bits_.ENVCFG = 1;
+    }
   else if (num >= CN::HSTATEEN0 and num <= CN::HSTATEEN3)
     {
-      enableMask = (uint64_t(1) << 63);
+      rseb.bits_.SEO = 1;
       offset = unsigned(num) - unsigned(CN::HSTATEEN0);
     }
   else if (num >= CN::HSTATEEN0H and num <= CN::HSTATEEN3H)
     {
-      enableMask = (uint64_t(1) << 63);
+      rseb.bits_.SEO = 1;
       offset = unsigned(num) - unsigned(CN::HSTATEEN0H);
     }
   else if (num >= CN::SSTATEEN0 and num <= CN::SSTATEEN3)
     {
-      enableMask = (uint64_t(1) << 63);
+      rseb.bits_.SEO = 1;
       offset = unsigned(num) - unsigned(CN::SSTATEEN0);
     }
 
-  if (not enableMask)
+  uint64_t mask = rseb.value_;  // Bits that must be on in controlling *STATEEN* register.
+  if (mask == 0)
     return true;  // CSR not affected by STATEEN
 
-  csrn = advance(csrn, offset);
-  auto csr = getImplementedCsr(csrn);
-  if (not csr)
-    return true;
+  // Determine controlling *STATEEN* CSR number.
+  CN ccsrn = CN::MSTATEEN0, ccsrnh = CN::MSTATEEN0H;
+  if (pm == PrivilegeMode::User)
+    ccsrn = CN::SSTATEEN0;
+  else if (vm)
+    {
+      ccsrn = CN::HSTATEEN0;
+      ccsrnh = CN::HSTATEEN0H;
+    }
 
-  if constexpr (sizeof(URV) == 4)
-    enableMask >>= 8*sizeof(URV);
-  uint64_t value = csr->read();
+  ccsrn = advance(ccsrn, offset);
+  auto ccsr = getImplementedCsr(ccsrn);
+  if (not ccsr)
+    return true;  // Controlling register is not implemented.
 
-  if ((csrn >= CN::HSTATEEN0 and csrn <= CN::HSTATEEN3) or
-      (csrn >= CN::HSTATEEN0H and csrn <= CN::HSTATEEN3H))
-    value = adjustHstateenValue(csrn, value);
-  else if (csrn >= CN::SSTATEEN0 and csrn <= CN::SSTATEEN3)
-    value = adjustSstateenValue(csrn, value, vm);
+  // Obtain controlling CSR (or pair of CSRS for rv32) value.
+  uint64_t value = ccsr->read();
+  value = adjustHstateenValue(ccsrn, value);        // No-op unless HSTATEEN
+  value = adjustSstateenValue(ccsrn, value, vm);    // No-op unless SSTATEEN
 
-  return (value & enableMask) == enableMask;
+  if (rv32_ and pm != PrivilegeMode::User)   // SSTATEEN has no high CSR
+    {
+      ccsrnh = advance(ccsrnh, offset);
+      auto ccsrh = getImplementedCsr(ccsrnh);
+      assert(ccsrh);
+      uint64_t highVal = ccsrh->read();
+      highVal = adjustHstateenValue(ccsrnh, highVal);       // No-op unless HSTATEEN
+      highVal = adjustSstateenValue(ccsrnh, highVal, vm);   // No-op unless SSTATEEN
+      value |= highVal << 32;
+    }
+
+  return (value & mask) == mask;
 }
 
 
