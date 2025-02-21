@@ -549,6 +549,10 @@ namespace WdRiscv
     void markAia(bool flag)
     { aia_ = flag; }
 
+    /// Return true if this an AIA CSR.
+    bool isAia() const
+    { return aia_; }
+
     /// Return true if this register has been marked as a debug-mode
     /// register.
     bool isDebug() const
