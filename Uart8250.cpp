@@ -66,10 +66,8 @@ void FDChannel::write(uint8_t byte) {
     written = ::write(out_fd_, &byte, 1);
   } while (written != 1 && written != -1);
 
-  if (written == -1) {
-    std::cerr << "FDChannel error writing to output\n";
-    assert(0);
-  }
+  if (written == -1)
+    throw std::runtime_error("FDChannel error writing to output\n");
 }
 
 bool FDChannel::isTTY() {
@@ -78,7 +76,8 @@ bool FDChannel::isTTY() {
 
 PTYChannelBase::PTYChannelBase() {
   char name[256];
-  assert(openpty(&master_, &slave_, name, nullptr, nullptr) >= 0);
+  if (openpty(&master_, &slave_, name, nullptr, nullptr) < 0)
+    throw std::runtime_error("Failed to open a PTY\n");
 
   std::cerr << "Got PTY " << name << "\n";
 }
