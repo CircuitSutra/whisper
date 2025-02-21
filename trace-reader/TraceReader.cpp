@@ -935,7 +935,7 @@ TraceReader::parseLine(std::string& line, uint64_t lineNum, TraceRecord& record)
       record.assembly = fields_.at(ix);
     }
 
-  // I-page table walk.
+  // I-page table walks
   ix = indices_.at(size_t(HeaderTag::Iptw));
   if (ix >= 0)
     {
@@ -943,15 +943,20 @@ TraceReader::parseLine(std::string& line, uint64_t lineNum, TraceRecord& record)
       if (*ptw)
         {
           uint64_t va = 0;
+          bool newWalk = true;
           mySplit(subfields_, ptw, ';');
           for (const auto& addr : subfields_)
             {
 	      mySplit(keyvals_, addr, '=');
               if (keyvals_.size() == 1)
                 {
+                  // Start of one walk
                   va = hexStrToNum(keyvals_.at(0));
+                  newWalk = not record.ipteAddrs.contains(va);
                   continue;
                 }
+              if (not newWalk)
+                continue;
               if (strcmp(keyvals_.at(0), "ma") == 0)
                 continue;
               if (keyvals_.size() > 2)
@@ -965,7 +970,7 @@ TraceReader::parseLine(std::string& line, uint64_t lineNum, TraceRecord& record)
         }
     }
 
-  // D-page table walk
+  // D-page table walks
   ix = indices_.at(size_t(HeaderTag::Dptw));
   if (ix >= 0)
     {
@@ -973,15 +978,20 @@ TraceReader::parseLine(std::string& line, uint64_t lineNum, TraceRecord& record)
       if (*ptw)
         {
           uint64_t va = 0;
+          bool newWalk = true;
           mySplit(subfields_, ptw, ';');
           for (const auto& addr : subfields_)
             {
 	      mySplit(keyvals_, addr, '=');
               if (keyvals_.size() == 1)
                 {
+                  // Start of one walk
                   va = hexStrToNum(keyvals_.at(0));
+                  newWalk = not record.dpteAddrs.contains(va);
                   continue;
                 }
+              if (not newWalk)
+                continue;
               if (strcmp(keyvals_.at(0), "ma") == 0)
                 continue;
               if (keyvals_.size() > 2)
