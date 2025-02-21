@@ -3,7 +3,11 @@
 #include <unistd.h>
 #include <poll.h>
 #include <termios.h>
+#ifdef __APPLE__
+#include <util.h>
+#else
 #include <pty.h>
+#endif
 #include "Uart8250.hpp"
 
 
