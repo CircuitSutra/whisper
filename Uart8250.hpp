@@ -42,11 +42,6 @@ namespace WdRiscv
   };
 
 
-  class StdIOChannel : public FDChannel {
-  public:
-    StdIOChannel();
-  };
-
   // This base class is necessary so we can create the PTY before passing the
   // fd to FDChannel's constructor
   class PTYChannelBase {

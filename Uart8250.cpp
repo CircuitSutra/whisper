@@ -76,10 +76,6 @@ bool FDChannel::isTTY() {
   return isatty(in_fd_);
 }
 
-StdIOChannel::StdIOChannel()
-  : FDChannel(fileno(stdin), fileno(stdout))
-{ }
-
 PTYChannelBase::PTYChannelBase() {
   char name[256];
   assert(openpty(&master_, &slave_, name, nullptr, nullptr) >= 0);

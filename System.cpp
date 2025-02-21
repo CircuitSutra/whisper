@@ -105,7 +105,7 @@ System<URV>::defineUart(const std::string& type, uint64_t addr, uint64_t size,
     {
       std::unique_ptr<UartChannel> channel;
       if (channel_type == "stdio")
-        channel = std::make_unique<StdIOChannel>();
+        channel = std::make_unique<FDChannel>(fileno(stdin), fileno(stdout));
       else if (channel_type == "pty")
         channel = std::make_unique<PTYChannel>();
       else
