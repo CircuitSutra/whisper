@@ -1893,6 +1893,10 @@ namespace WdRiscv
     bool isHypervisor(CsrNumber csrn) const
     { auto csr = getImplementedCsr(csrn); return csr and csr->isHypervisor(); }
 
+    /// Return true if given CSR is an AIA CSR.
+    bool isAia(CsrNumber csrn) const
+    { auto csr = getImplementedCsr(csrn); return csr and csr->isAia(); }
+
     /// If flag is false, bit HENVCFG.STCE becomes read-only-zero;
     /// otherwise, bit is readable.
     void enableHenvcfgStce(bool flag);

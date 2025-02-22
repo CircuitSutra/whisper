@@ -10780,6 +10780,14 @@ Hart<URV>::checkCsrAccess(const DecodedInst* di, CsrNumber csr, bool isWrite)
   using PM = PrivilegeMode;
   using CN = CsrNumber;
 
+  // Section 2.5 of AIA
+  if (privMode_ != PrivilegeMode::Machine and csRegs_.isAia(csr)
+      and not csRegs_.isStateEnabled(csr, privMode_, virtMode_))
+    {
+      illegalInst(di);
+      return false;
+    }
+
   // Check if HS qualified (section 9.6.1 of privileged spec).
   bool hsq = isRvs() and csRegs_.isReadable(csr, PM::Supervisor, false /*virtMode*/);
   if (isWrite)

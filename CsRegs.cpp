@@ -5492,19 +5492,9 @@ CsRegs<URV>::isStateEnabled(CsrNumber num, PrivilegeMode pm, bool vm) const
     rseb.bits_.SRMCFG = 1;
   if (num == CN::HCONTEXT or num == CN::SCONTEXT)
     rseb.bits_.CONTEXT = 1;
-  else if (num == CN::MISELECT or num == CN::MIREG or num == CN::MTOPEI or num == CN::MTOPI or
-	   num == CN::MVIEN or num == CN::MVIP or num == CN::MIDELEGH or num == CN::MIEH or
-	   num == CN::MVIENH or num == CN::MVIPH or num == CN::MIPH or num == CN::STOPEI or
-	   num == CN::VSTOPEI)
-    rseb.bits_.IMSIC = 1;
-  if (num == CN::SIPH or num == CN::SIEH or num == CN::STOPI or num == CN::HIDELEGH or
-      num == CN::HVIEN or num == CN::HVIENH or num == CN::HVIPH or num == CN::HVICTL or
-      num == CN::HVIPRIO1 or num == CN::HVIPRIO1H or num == CN::HVIPRIO2 or
-      num == CN::HVIPRIO2H or num == CN::VSIPH or num == CN::VSIEH or num == CN::VSTOPI)
-    rseb.bits_.AIA = 1;
   else if (num == CN::SISELECT or num == CN::SIREG or num == CN::VSISELECT or num == CN::VSIREG)
     {
-      rseb.bits_.CSRIND = 1;
+      rseb.bits_.CSRIND = 1;    // Bit 60. Section 2.5 of AIA.
 
       if (num == CN::SIREG and not vm)
         {
@@ -5516,6 +5506,16 @@ CsRegs<URV>::isStateEnabled(CsrNumber num, PrivilegeMode pm, bool vm) const
             }
         }
     }
+  else if (num == CN::MISELECT or num == CN::MIREG or num == CN::MTOPEI or num == CN::MTOPI or
+	   num == CN::MVIEN or num == CN::MVIP or num == CN::MIDELEGH or num == CN::MIEH or
+	   num == CN::MVIENH or num == CN::MVIPH or num == CN::MIPH or num == CN::STOPEI or
+	   num == CN::VSTOPEI)
+    rseb.bits_.IMSIC = 1;
+  if (num == CN::SIPH or num == CN::SIEH or num == CN::STOPI or num == CN::HIDELEGH or
+      num == CN::HVIEN or num == CN::HVIENH or num == CN::HVIPH or num == CN::HVICTL or
+      num == CN::HVIPRIO1 or num == CN::HVIPRIO1H or num == CN::HVIPRIO2 or
+      num == CN::HVIPRIO2H or num == CN::VSIPH or num == CN::VSIEH or num == CN::VSTOPI)
+    rseb.bits_.AIA = 1;
   else if (num == CN::HENVCFG or num == CN::HENVCFGH or num == CN::SENVCFG)
     {
       rseb.bits_.ENVCFG = 1;
