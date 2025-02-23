@@ -762,9 +762,9 @@ The advanced core local interrupt controller (aclint) configuration is an object
 * time_offset: offset to time-compare region within the ACLINT area).
 * software_interrupt_on_reset: when set to true, write to software interrupt of core 0 on reset.
 * deliver_interrupts: when set to true, deliver ACLNT interrupts. This supports the
-  test-bench which may decode to deliver ACLINT interrupts by poking the MIP CSR, in which
+  test-bench which may decide to deliver ACLINT interrupts by poking the MIP CSR, in which
   case deliver_interrupts should be set to false.
-* adjust_time: value to artifically add to a time_compare register of the ACLINT whenever
+* adjust_time: value to artificially add to a time_compare register of the ACLINT whenever
   such register is written by a store instruction, this is used to reduce the frequency of
   timer interrupts and is relevant for booting a Linux image (Whisper uses the instruction
   count to fake a timer value and that is too fast for Linux which expect a much lower
