@@ -2636,7 +2636,7 @@ Interactive<URV>::checkInterruptCommand(Hart<URV>& hart, [[maybe_unused]] const 
   // check_interrupt
   if (tokens.size() > 1)
     return false;
-=
+
   // We want to check for interrupts regardless of deferral.
   URV deferred = hart.deferredInterrupts();
   hart.setDeferredInterrupts(0);
