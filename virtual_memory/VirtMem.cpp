@@ -6,10 +6,8 @@
 using namespace WdRiscv;
 
 
-VirtMem::VirtMem(unsigned hartIx, Memory& memory, unsigned pageSize,
-                 PmpManager& pmpMgr, unsigned tlbSize)
-  : memory_(memory), pageSize_(pageSize), hartIx_(hartIx),
-    pmpMgr_(pmpMgr), tlb_(tlbSize), vsTlb_(tlbSize), stage2Tlb_(tlbSize)
+VirtMem::VirtMem(unsigned hartIx, unsigned pageSize, unsigned tlbSize)
+  : pageSize_(pageSize), hartIx_(hartIx), tlb_(tlbSize), vsTlb_(tlbSize), stage2Tlb_(tlbSize)
 {
   supportedModes_.resize(unsigned(Mode::Limit_));
   setSupportedModes({Mode::Bare, Mode::Sv32, Mode::Sv39, Mode::Sv48, Mode::Sv57, Mode::Sv64});
@@ -127,12 +125,10 @@ ExceptionCause
 VirtMem::transAddrNoUpdate(uint64_t va, PrivilegeMode priv, bool twoStage,
 			   bool read, bool write, bool exec, uint64_t& pa)
 {
-  auto prevTrace = trace_; trace_ = false;
   accessDirtyCheck_ = false;
 
   auto cause = transNoUpdate(va, priv, twoStage, read, write, exec, pa);
 
-  trace_ = prevTrace;
   accessDirtyCheck_ = true;
 
   return cause;
@@ -571,7 +567,7 @@ VirtMem::pageTableWalk(uint64_t address, PrivilegeMode privMode, bool read, bool
       if (not pmpIsReadable(pteAddr, privMode))
 	return accessFaultType(read, write, exec);
 
-      if (! memRead(pteAddr, bigEnd_, pte.data_))
+      if (!memRead(pteAddr, bigEnd_, pte.data_))
         return accessFaultType(read, write, exec);
       if (not napotCheck(pte, va))
         return stage1PageFaultType(read, write, exec);
@@ -637,7 +633,9 @@ VirtMem::pageTableWalk(uint64_t address, PrivilegeMode privMode, bool read, bool
 	  {
 	    // B2. Compare pte to memory.
 	    PTE pte2(0);
-	    memRead(pteAddr, bigEnd_, pte2.data_);
+	    if (!memRead(pteAddr, bigEnd_, pte2.data_))
+              assert(0);
+
             // Preserve the original pte.ppn (no NAPOT fixup).
             PTE orig = pte2;
             if (not napotCheck(pte2, va))
@@ -730,7 +728,7 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
       if (not pmpIsReadable(pteAddr, privMode))
 	return accessFaultType(read, write, exec);
 
-      if (! memRead(pteAddr, bigEnd_, pte.data_))
+      if (!memRead(pteAddr, bigEnd_, pte.data_))
         return accessFaultType(read, write, exec);
       if (not napotCheck(pte, va))
         return stage2PageFaultType(read, write, exec);
@@ -797,7 +795,9 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 	  {
 	    // B2. Compare pte to memory.
 	    PTE pte2(0);
-	    memRead(pteAddr, bigEnd_, pte2.data_);
+	    if (!memRead(pteAddr, bigEnd_, pte2.data_))
+              assert(0);
+
             // Preserve the original pte.ppn (no NAPOT fixup).
             PTE orig = pte2;
             if (not napotCheck(pte2, va))
@@ -901,7 +901,7 @@ VirtMem::stage1PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
       if (not pmpIsReadable(pteAddr, privMode))
 	return accessFaultType(read, write, exec);
 
-      if (! memRead(pteAddr, bigEnd_, pte.data_))
+      if (!memRead(pteAddr, bigEnd_, pte.data_))
         return accessFaultType(read, write, exec);
       if (not napotCheck(pte, va))
         return stage1PageFaultType(read, write, exec);
@@ -971,7 +971,9 @@ VirtMem::stage1PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 	  {
 	    // B2. Compare pte to memory.
 	    PTE pte2(0);
-	    memRead(pteAddr, bigEnd_, pte2.data_);
+	    if (!memRead(pteAddr, bigEnd_, pte2.data_))
+              assert(0);
+
             // Preserve the original pte.ppn (no NAPOT fixup).
             PTE orig = pte2;
             if (not napotCheck(pte2, va))
@@ -1105,7 +1107,8 @@ VirtMem::printEntries(std::ostream& os, uint64_t addr, const std::string& path) 
   for (unsigned ix = 0; ix < entryCount; ++ix, eaddr += entrySize)
     {
       PTE pte(0);
-      memRead(eaddr, false /*bigEndian*/, pte.data_);
+      if (!memRead(eaddr, false /*bigEndian*/, pte.data_))
+        pte.data_ = 0;
 
       if (not pte.valid())
         continue;
@@ -1121,7 +1124,8 @@ VirtMem::printEntries(std::ostream& os, uint64_t addr, const std::string& path) 
   for (unsigned ix = 0; ix < entryCount; ++ix, eaddr += entrySize)
     {
       PTE pte(0);
-      memRead(eaddr, false /*bigEnding*/, pte.data_);
+      if (!memRead(eaddr, false /*bigEndian*/, pte.data_))
+        pte.data_ = 0;
 
       if (not pte.valid())
         continue;

@@ -18,6 +18,7 @@
 #include <ostream>
 #include <vector>
 #include <algorithm>
+#include <cassert>
 
 namespace WdRiscv
 {

@@ -19,7 +19,7 @@
 #include <array>
 #include <string>
 #include <bit>
-#include "trapEnums.hpp"
+#include "virtual_memory/trapEnums.hpp"
 
 namespace WdRiscv
 {

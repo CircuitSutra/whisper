@@ -874,4 +874,41 @@ namespace WdRiscv
     uint64_t value_;   // SRMCFG register value.
     Srmcfg64 bits_;    // Bit fields.
   };
+
+
+  /// Struct to pack/unpack MSTATEN0 for RV64 and MSTATEN0/MSTATEEN0H for RV32.
+  struct Mstaten0
+  {
+    unsigned C         : 1;     // Bit 0
+    unsigned FCSR      : 1;     // Bit 1
+    unsigned JVT       : 1;     // Bit 2
+    unsigned res0      : 13;    // Bits 15:3
+    unsigned res1      : 16;    // Bits 31:16
+    unsigned res2      : 16;    // Bits 47:32
+    unsigned res3      : 7;     // Bits 54:48
+    unsigned SRMCFG    : 1;     // Bit 55       See riscv-ssqosid (quality of service ext).
+    unsigned P1P13     : 1;     // Bit 56
+    unsigned CONTEXT   : 1;     // Bit 57
+    unsigned IMSIC     : 1;     // Bit 58
+    unsigned AIA       : 1;     // Bit 59
+    unsigned CSRIND    : 1;     // Bit 60
+    unsigned WPRI      : 1;     // Bit 61
+    unsigned ENVCFG    : 1;     // Bit 62
+    unsigned SEO       : 1;     // Bit 63
+  };
+
+  /// Struct to pack/unpack MSTATEN0 for RV64 and MSTATEN0/MSTATEEN0H for RV32.
+  union Mstateen0Fields
+  {
+    Mstateen0Fields(uint64_t value = 0)
+    : value_(value)
+    { }
+
+    Mstateen0Fields(uint32_t high, uint32_t low)
+      : value_(uint64_t(high) << 32 | uint64_t(low))
+    { }
+
+    uint64_t value_;
+    Mstaten0 bits_;
+  };
 }

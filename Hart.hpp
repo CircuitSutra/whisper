@@ -33,7 +33,7 @@
 #include "InstProfile.hpp"
 #include "Syscall.hpp"
 #include "PmpManager.hpp"
-#include "VirtMem.hpp"
+#include "virtual_memory/VirtMem.hpp"
 #include "Isa.hpp"
 #include "Decoder.hpp"
 #include "Disassembler.hpp"
@@ -227,7 +227,9 @@ namespace WdRiscv
     { return csRegs_.peek(csr, val, virtMode); }
 
     /// Return value of the given csr. Throw exception if csr is out of bounds.
-    URV peekCsr(CsrNumber csr) const;
+    /// Return 0 if CSR is not implemented printing an error message unless
+    /// quiet is true.
+    URV peekCsr(CsrNumber csr, bool quiet = false) const;
 
     /// Set val, reset, writeMask, and pokeMask respectively to the
     /// value, reset-value, write-mask, poke-mask, and read-mask of
@@ -841,6 +843,10 @@ namespace WdRiscv
     /// Return the virtmem associated with this hart.
     const VirtMem& virtMem() const
     { return virtMem_; }
+
+    /// Clear page table walk trace information.
+    void clearPageTableWalk()
+    { return virtMem_.clearPageTableWalk(); }
 
     /// Return the IMSIC associated with this hart.
     const std::shared_ptr<TT_IMSIC::Imsic> imsic() const
@@ -2509,13 +2515,17 @@ namespace WdRiscv
 
   protected:
 
-    // Retun cached value of the mpp field of the mstatus CSR.
+    /// Retun cached value of the mpp field of the mstatus CSR.
     PrivilegeMode mstatusMpp() const
     { return PrivilegeMode{mstatus_.bits_.MPP}; }
 
-    // Retun cached value of the mprv field of the mstatus CSR.
+    /// Retun cached value of the mprv field of the mstatus CSR.
     bool mstatusMprv() const
     { return mstatus_.bits_.MPRV; }
+
+    /// Provide MMU (virtMem_) the call-backs necessary to read/write memory and to check
+    /// PMP.
+    void setupVirtMemCallbacks();
 
     /// Return true if the NMIE bit of NMSTATUS overrides the effect of
     /// MSTATUS.MPRV. See Smrnmi secton in RISCV privileged spec.

@@ -25,9 +25,16 @@ BOOST_LIBS := boost_program_options
 # Add extra dependency libraries here
 EXTRA_LIBS := -lpthread -lm -lz -ldl -static-libstdc++ -lrt
 
+VIRT_MEM := 1
+ifdef VIRT_MEM
+  override CPPFLAGS += -Ivirtual_memory
+  virtual_memory_build := $(wildcard $(PWD)/virtual_memory/)
+  virtual_memory_lib := $(virtual_memory_build)/libvirtual_memory.a
+endif
+
 ifdef SOFT_FLOAT
   override CPPFLAGS += -I$(PWD)/third_party/softfloat/source/include
-  override CPPFLAGS += -DSOFT_FLOAT
+  override CPPFLAGS += -DSOFT_FLOAT -DTHREAD_LOCAL=__thread
   soft_float_build := $(wildcard $(PWD)/third_party/softfloat/build/RISCV-GCC)
   soft_float_lib := $(soft_float_build)/softfloat.a
 endif
@@ -116,13 +123,15 @@ $(BUILD_DIR)/%.cpp.o:  %.cpp
 $(BUILD_DIR)/$(PROJECT): $(BUILD_DIR)/whisper.cpp.o \
                          $(BUILD_DIR)/librvcore.a \
 			 $(soft_float_lib) \
-			 $(pci_lib)
+			 $(pci_lib) \
+			 $(virtual_memory_lib)
 	$(CXX) -o $@ $(OFLAGS) $^ $(LINK_DIRS) $(LINK_LIBS)
 
 $(BUILD_DIR)/$(PY_PROJECT): $(BUILD_DIR)/py-bindings.cpp.o \
 			    $(BUILD_DIR)/librvcore.a \
 			    $(soft_float_lib) \
-			    $(pci_lib)
+			    $(pci_lib) \
+			    $(virtual_memory_lib)
 	$(CXX) -shared -o $@ $(OFLAGS) $^ $(LINK_DIRS) $(LINK_LIBS)
 
 # Rule to make whisper.cpp.o. Always recompile to get latest GIT SHA into the help
@@ -142,8 +151,8 @@ RVCORE_SRCS := IntRegs.cpp CsRegs.cpp FpRegs.cpp instforms.cpp \
             PerfRegs.cpp gdb.cpp HartConfig.cpp \
             Server.cpp Interactive.cpp Disassembler.cpp printTrace.cpp \
             Syscall.cpp PmaManager.cpp DecodedInst.cpp snapshot.cpp \
-            PmpManager.cpp VirtMem.cpp Core.cpp System.cpp Cache.cpp \
-            Tlb.cpp VecRegs.cpp vector.cpp wideint.cpp float.cpp bitmanip.cpp \
+            PmpManager.cpp Core.cpp System.cpp Cache.cpp \
+            VecRegs.cpp vector.cpp wideint.cpp float.cpp bitmanip.cpp \
             amo.cpp SparseMem.cpp InstProfile.cpp Isa.cpp Mcm.cpp \
             crypto.cpp Decoder.cpp Trace.cpp cbo.cpp Uart8250.cpp \
             Uartsf.cpp hypervisor.cpp vector-crypto.cpp WhisperMessage.cpp \
@@ -171,14 +180,17 @@ OBJS := $(RVCORE_SRCS:%=$(BUILD_DIR)/%.o) $(SRCS_C:%=$(BUILD_DIR)/%.o)
 $(BUILD_DIR)/librvcore.a: $(OBJS)
 	$(AR) cr $@ $^
 
-$(soft_float_lib):
+$(soft_float_lib): .FORCE
 	$(MAKE) -C $(soft_float_build)
 
-$(pci_lib):
+$(pci_lib): .FORCE
 	$(MAKE) -C $(pci_build) CXX=$(CXX)
 
-$(trace_reader_lib):
+$(trace_reader_lib): .FORCE
 	$(MAKE) -C $(trace_reader_build)
+
+$(virtual_memory_lib): .FORCE
+	$(MAKE) -C $(virtual_memory_build) CXX=$(CXX) OFLAGS="$(OFLAGS)"
 
 all: $(BUILD_DIR)/$(PROJECT) $(BUILD_DIR)/$(PY_PROJECT)
 
@@ -198,7 +210,8 @@ clean:
 	$(RM) $(BUILD_DIR)/$(PROJECT) $(BUILD_DIR)/$(PY_PROJECT) $(OBJS_GEN) $(BUILD_DIR)/librvcore.a $(DEPS_FILES) ; \
 	$(if $(soft_float_build),$(MAKE) -C $(soft_float_build) clean ;,) \
 	$(if $(pci_build),$(MAKE) -C $(pci_build) clean;,) \
-	$(if $(trace_reader_build),$(MAKE) -C $(trace_reader_build) clean;,)
+	$(if $(trace_reader_build),$(MAKE) -C $(trace_reader_build) clean;,) \
+	$(if $(virtual_memory_build),$(MAKE) -C $(virtual_memory_build) clean;,)
 
 help:
 	@echo "Possible targets: $(BUILD_DIR)/$(PROJECT) $(BUILD_DIR)/$(PY_PROJECT) all install install-py clean"

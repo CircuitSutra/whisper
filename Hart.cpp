@@ -90,14 +90,13 @@ Hart<URV>::Hart(unsigned hartIx, URV hartId, Memory& memory, Syscall<URV>& sysca
     syscall_(syscall),
     time_(time),
     pmpManager_(memory.size(), UINT64_C(1024)*1024),
-    virtMem_(hartIx, memory, memory.pageSize(), pmpManager_, 2048)
+    virtMem_(hartIx, memory.pageSize(), 2048)
 {
+  setupVirtMemCallbacks();
+
   // Enable default extensions
-  for (RvExtension ext : { RvExtension::C,
-                           RvExtension::M })
-    {
-      enableExtension(ext, true);
-    }
+  for (RvExtension ext : { RvExtension::C, RvExtension::M })
+    enableExtension(ext, true);
 
   decodeCacheSize_ = 128*1024;  // Must be a power of 2.
   decodeCacheMask_ = decodeCacheSize_ - 1;
@@ -190,6 +189,57 @@ Hart<URV>::~Hart()
 {
   if (branchBuffer_.max_size() and not branchTraceFile_.empty())
     saveBranchTrace(branchTraceFile_);
+}
+
+
+template <typename URV>
+void
+Hart<URV>::setupVirtMemCallbacks()
+{
+
+  virtMem_.setMemReadCallback([this](uint64_t addr, bool bigEndian, URV &data) -> bool {
+      if (steeEnabled_) {
+        if (!stee_.isValidAddress(addr))
+          return false;  
+        addr = stee_.clearSecureBits(addr);
+      }
+      
+      // Proceed with normal memory read.
+      if (!memory_.read(addr, data))
+        return false;
+      if (bigEndian)
+        data = util::byteswap(data);
+      return true;
+  });
+
+
+  virtMem_.setMemWriteCallback([this](uint64_t addr, bool bigEndian, uint64_t data) -> bool {
+    URV value = static_cast<URV>(data);   // For RV32.
+      assert(value == data);
+
+      if (bigEndian)
+        value = util::byteswap(value);
+      if (not memory_.hasReserveAttribute(addr))
+        return false;
+      return memory_.write(hartIx_, addr, value);
+
+  });
+
+  virtMem_.setPmpIsReadableCallback([this](uint64_t addr, PrivilegeMode pm) -> bool {
+      if (not pmpManager_.isEnabled())
+        return true;
+      const Pmp& pmp = pmpManager_.accessPmp(addr);
+      return pmp.isRead(pm);
+
+  });
+
+  virtMem_.setPmpIsWritableCallback([this](uint64_t addr, PrivilegeMode pm) -> bool {
+      if (not pmpManager_.isEnabled())
+        return true;
+      const Pmp& pmp = pmpManager_.accessPmp(addr);
+      return pmp.isWrite(pm);
+
+  });
 }
 
 
@@ -3307,14 +3357,14 @@ Hart<URV>::pokeIntReg(unsigned ix, URV val)
 
 template <typename URV>
 URV
-Hart<URV>::peekCsr(CsrNumber csrn) const
+Hart<URV>::peekCsr(CsrNumber csrn, bool quiet) const
 {
   URV value = 0;
+
   if (not peekCsr(csrn, value))
-    {
+    if (not quiet)
       std::cerr << "Invalid CSR number in peekCsr: 0x" << std::hex
 		<<  unsigned(csrn) << std::dec << '\n';
-    }
   return value;
 }
 
@@ -10741,6 +10791,14 @@ Hart<URV>::checkCsrAccess(const DecodedInst* di, CsrNumber csr, bool isWrite)
 {
   using PM = PrivilegeMode;
   using CN = CsrNumber;
+
+  // Section 2.5 of AIA
+  if (privMode_ != PrivilegeMode::Machine and csRegs_.isAia(csr)
+      and not csRegs_.isStateEnabled(csr, privMode_, virtMode_))
+    {
+      illegalInst(di);
+      return false;
+    }
 
   // Check if HS qualified (section 9.6.1 of privileged spec).
   bool hsq = isRvs() and csRegs_.isReadable(csr, PM::Supervisor, false /*virtMode*/);
