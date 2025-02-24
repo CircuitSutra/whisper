@@ -10780,9 +10780,9 @@ Hart<URV>::checkCsrAccess(const DecodedInst* di, CsrNumber csr, bool isWrite)
   using PM = PrivilegeMode;
   using CN = CsrNumber;
 
-  // Section 2.5 of AIA
-  if (privMode_ != PrivilegeMode::Machine and csRegs_.isAia(csr)
-      and not csRegs_.isStateEnabled(csr, privMode_, virtMode_))
+  // Section 2.5 of AIA. Check if MSTATEN disallows access.
+  if (privMode_ != PM::Machine and csRegs_.isAia(csr)
+      and not csRegs_.isStateEnabled(csr, PM::Machine, false /*virtMode_*/))
     {
       illegalInst(di);
       return false;
