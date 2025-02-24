@@ -1000,7 +1000,7 @@ template <typename URV>
 bool
 Hart<URV>::pokeMemory(uint64_t addr, uint8_t val, bool usePma, bool skipFetch)
 {
-  std::lock_guard<std::mutex> lock(memory_.lrMutex_);
+  std::lock_guard<SpinLock> lock(memory_.lrMutex_);
 
   memory_.invalidateOtherHartLr(hartIx_, addr, sizeof(val));
   invalidateDecodeCache(addr, sizeof(val));
@@ -1016,7 +1016,7 @@ template <typename URV>
 bool
 Hart<URV>::pokeMemory(uint64_t addr, uint16_t val, bool usePma, bool skipFetch)
 {
-  std::lock_guard<std::mutex> lock(memory_.lrMutex_);
+  std::lock_guard<SpinLock> lock(memory_.lrMutex_);
 
   memory_.invalidateOtherHartLr(hartIx_, addr, sizeof(val));
   invalidateDecodeCache(addr, sizeof(val));
@@ -1045,7 +1045,7 @@ Hart<URV>::pokeMemory(uint64_t addr, uint32_t val, bool usePma, bool skipFetch)
   // otherwise, there is no way for external driver to clear bits that
   // are read-only to this hart.
 
-  std::lock_guard<std::mutex> lock(memory_.lrMutex_);
+  std::lock_guard<SpinLock> lock(memory_.lrMutex_);
 
   memory_.invalidateOtherHartLr(hartIx_, addr, sizeof(val));
   invalidateDecodeCache(addr, sizeof(val));
@@ -1069,7 +1069,7 @@ template <typename URV>
 bool
 Hart<URV>::pokeMemory(uint64_t addr, uint64_t val, bool usePma, bool skipFetch)
 {
-  std::lock_guard<std::mutex> lock(memory_.lrMutex_);
+  std::lock_guard<SpinLock> lock(memory_.lrMutex_);
 
   memory_.invalidateOtherHartLr(hartIx_, addr, sizeof(val));
   invalidateDecodeCache(addr, sizeof(val));
@@ -2221,7 +2221,7 @@ Hart<URV>::store(const DecodedInst* di, URV virtAddr, [[maybe_unused]] bool hype
 
   auto lock = (amoLock)? std::shared_lock<std::shared_mutex>(memory_.amoMutex_) :
                          std::shared_lock<std::shared_mutex>();
-  std::lock_guard<std::mutex> lock2(memory_.lrMutex_);
+  std::lock_guard<SpinLock> lock2(memory_.lrMutex_);
 
   // ld/st-address or instruction-address triggers have priority over
   // ld/st access or misaligned exceptions.

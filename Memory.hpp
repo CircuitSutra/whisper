@@ -29,6 +29,7 @@
 #include "PmaManager.hpp"
 #include "IoDevice.hpp"
 #include "util.hpp"
+#include "Lock.hpp"
 
 
 namespace ELFIO
@@ -765,7 +766,7 @@ namespace WdRiscv
     unsigned regionMask_  = 0xf;                // This should depend on mem size.
 
     std::shared_mutex amoMutex_;
-    std::mutex lrMutex_;
+    SpinLock lrMutex_;
 
     bool checkUnmappedElf_ = true;
 
