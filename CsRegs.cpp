@@ -500,16 +500,11 @@ CsRegs<URV>::read(CsrNumber num, PrivilegeMode mode, URV& value) const
 {
   using CN = CsrNumber;
 
+  if (not isReadable(num, mode, virtMode_))
+    return false;
+
   auto csr = getImplementedCsr(num, virtMode_);
-  if (not csr or mode < csr->privilegeMode())
-    return false;
-  if (mode != PrivilegeMode::Machine and not isStateEnabled(num, mode, virtMode_))
-    return false;
-
   num = csr->getNumber();  // CSR may have been remapped from S to VS
-
-  if (csr->isDebug() and not inDebugMode())
-    return false; // Debug-mode register.
 
   if (num >= CN::TDATA1 and num <= CN::TINFO)
     return readTrigger(num, mode, value);
@@ -1978,16 +1973,11 @@ CsRegs<URV>::write(CsrNumber csrn, PrivilegeMode mode, URV value)
 {
   using CN = CsrNumber;
 
-  Csr<URV>* csr = getImplementedCsr(csrn, virtMode_);
-  if (not csr or mode < csr->privilegeMode() or csr->isReadOnly())
-    return false;
-  if (mode != PrivilegeMode::Machine and not isStateEnabled(csrn, mode, virtMode_))
+  if (not isWriteable(csrn, mode, virtMode_))
     return false;
 
+  auto csr = getImplementedCsr(csrn, virtMode_);
   CN num = csr->getNumber();  // CSR may have been remapped from S to VS
-
-  if (csr->isDebug() and not inDebugMode())
-    return false; // Debug-mode register.
 
   if (isPmpaddrLocked(num))
     {
