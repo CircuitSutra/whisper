@@ -1468,9 +1468,9 @@ HartConfig::applyAplicConfig(System<URV>& system) const
 
   const auto& aplic_cfg = config_ -> at(tag);
 
-  URV interrupt_count;
+  URV num_sources;
 
-  for (std::string_view tag : { "interrupt_count", "domains" } )
+  for (std::string_view tag : { "num_sources", "domains" } )
     {
       if (not aplic_cfg.contains(tag))
         {
@@ -1479,8 +1479,8 @@ HartConfig::applyAplicConfig(System<URV>& system) const
         }
     }
 
-  tag = "interrupt_count";
-  if (not getJsonUnsigned("aplic.interrupt_count", aplic_cfg.at(tag), interrupt_count))
+  tag = "num_sources";
+  if (not getJsonUnsigned("aplic.num_sources", aplic_cfg.at(tag), num_sources))
     return false;
 
   tag = "domains";
@@ -1608,7 +1608,7 @@ HartConfig::applyAplicConfig(System<URV>& system) const
       return false;
     }
 
-  return system.configAplic(interrupt_count, domain_params_list);
+  return system.configAplic(num_sources, domain_params_list);
 }
 
 

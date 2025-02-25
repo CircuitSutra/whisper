@@ -719,9 +719,9 @@ System<URV>::configImsic(uint64_t mbase, uint64_t mstride,
 
 template <typename URV>
 bool
-System<URV>::configAplic(unsigned interrupt_count, std::span<const TT_APLIC::DomainParams> domain_params)
+System<URV>::configAplic(unsigned num_sources, std::span<const TT_APLIC::DomainParams> domain_params)
 {
-  aplic_ = std::make_shared<TT_APLIC::Aplic>(hartCount_, interrupt_count, domain_params);
+  aplic_ = std::make_shared<TT_APLIC::Aplic>(hartCount_, num_sources, domain_params);
 
   TT_APLIC::DirectDeliveryCallback aplicCallback = [this] (unsigned hartIx, TT_APLIC::Privilege privilege, bool interState) -> bool {
     bool is_machine = privilege == TT_APLIC::Machine;
