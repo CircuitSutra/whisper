@@ -796,6 +796,12 @@ handler, the PC will be the base value defined by nmi_exception_vec.
 When true, the PC will be the base plus 4 times the exception cause.
 
 
+### auto_increment_timer
+
+When false, Whisper will not increment the timer value after each executed
+instruction. This is useful to the test-bench which may want to explicitly set the timer
+values to control when a timer interrupt should be delivered. Default value is true.
+
 ###  enable_triggers
 Enable support for debug triggers when set to true.
 
