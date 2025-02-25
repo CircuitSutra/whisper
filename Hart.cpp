@@ -2523,6 +2523,7 @@ ExceptionCause
 Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr, [[maybe_unused]] uint64_t& physAddr2,
 			   uint64_t& gPhysAddr, uint32_t& inst)
 {
+  uint64_t steePhysAddr;
 #ifdef FAST_SLOPPY
 
   assert((virtAddr & 1) == 0);
@@ -2533,7 +2534,7 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr, [[maybe_unuse
 
 #else
 
-  physAddr = physAddr2 = virtAddr;
+  physAddr = physAddr2 = steePhysAddr = virtAddr;
 
   // Inst address translation and memory protection is not affected by MPRV.
 
@@ -2554,6 +2555,15 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr, [[maybe_unuse
       const Pmp& pmp = pmpManager_.accessPmp(physAddr);
       if (not pmp.isExec(privMode_))
 	return ExceptionCause::INST_ACC_FAULT;
+    }
+
+  if (steeEnabled_)
+    {
+      if (not stee_.isValidAddress(physAddr))
+        return ExceptionCause::INST_ACC_FAULT;
+
+      if (not stee_.isInsecureAccess(physAddr))
+        physAddr = stee_.clearSecureBits(physAddr);
     }
 
   if ((physAddr & 3) == 0 and not mcm_)   // Word aligned
@@ -2587,7 +2597,7 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr, [[maybe_unuse
     return ExceptionCause::NONE;
 
   // If we cross page boundary, translate address of other page.
-  physAddr2 = physAddr + 2;
+  physAddr2 = steePhysAddr + 2;
   gPhysAddr = physAddr2;
   if (memory_.getPageIx(physAddr) != memory_.getPageIx(physAddr2))
     if (isRvs() and privMode_ != PrivilegeMode::Machine)
@@ -2609,6 +2619,14 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr, [[maybe_unuse
 	  virtAddr += 2; // To report faulting portion of fetch.
 	  return ExceptionCause::INST_ACC_FAULT;
 	}
+    }
+  if (steeEnabled_)
+    {
+      if (not stee_.isValidAddress(physAddr2))
+        return ExceptionCause::INST_ACC_FAULT;
+
+      if (not stee_.isInsecureAccess(physAddr2))
+        physAddr2 = stee_.clearSecureBits(physAddr2);
     }
 
   uint16_t upperHalf = 0;
