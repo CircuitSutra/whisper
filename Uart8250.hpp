@@ -68,7 +68,7 @@ namespace WdRiscv
   {
   public:
 
-    Uart8250(uint64_t addr, uint64_t size, std::shared_ptr<TT_APLIC::Aplic> aplic, uint32_t eiid, std::unique_ptr<UartChannel> channel);
+    Uart8250(uint64_t addr, uint64_t size, std::shared_ptr<TT_APLIC::Aplic> aplic, uint32_t iid, std::unique_ptr<UartChannel> channel);
 
     ~Uart8250() override;
 

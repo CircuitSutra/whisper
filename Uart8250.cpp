@@ -96,9 +96,9 @@ PTYChannel::PTYChannel() : PTYChannelBase(), FDChannel(master_, master_)
 { }
 
 Uart8250::Uart8250(uint64_t addr, uint64_t size,
-    std::shared_ptr<TT_APLIC::Aplic> aplic, uint32_t eiid,
+    std::shared_ptr<TT_APLIC::Aplic> aplic, uint32_t iid,
     std::unique_ptr<UartChannel> channel)
-  : IoDevice(addr, size, aplic, eiid), channel_(std::move(channel))
+  : IoDevice(addr, size, aplic, iid), channel_(std::move(channel))
 {
   auto func = [this]() { this->monitorInput(); };
   stdinThread_ = std::thread(func);

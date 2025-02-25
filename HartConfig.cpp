@@ -2683,12 +2683,12 @@ HartConfig::configHarts(System<URV>& system, bool userMode, bool verbose) const
 	    }
 	}
 		
-      uint32_t eiid = 0;
+      uint32_t iid = 0;
       std::string channel = "stdio";
       if (type == "uart8250")
         {
-          if (uart.contains("eiid") &&
-              not getJsonUnsigned(util::join("", tag, ".eiid"), uart.at("eiid"), eiid))
+          if (uart.contains("iid") &&
+              not getJsonUnsigned(util::join("", tag, ".iid"), uart.at("iid"), iid))
             return false;
 
           if (not uart.contains("channel"))
@@ -2706,7 +2706,7 @@ HartConfig::configHarts(System<URV>& system, bool userMode, bool verbose) const
             }
         }
 
-      if (not system.defineUart(type, addr, size, eiid, channel))
+      if (not system.defineUart(type, addr, size, iid, channel))
 	return false;
     }
 
