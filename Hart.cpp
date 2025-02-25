@@ -1468,23 +1468,35 @@ Hart<URV>::reportTrapStat(FILE* file) const
         case InterruptCause::S_SOFTWARE:
           fprintf(file, "  + S_SOFTWARE  : %" PRIu64 "\n", count);
           break;
+        case InterruptCause::VS_SOFTWARE:
+          fprintf(file, "  + VS_SOFTWARE : %" PRIu64 "\n", count);
+          break;
         case InterruptCause::M_SOFTWARE:
           fprintf(file, "  + M_SOFTWARE  : %" PRIu64 "\n", count);
           break;
-        case InterruptCause::S_TIMER   :
+        case InterruptCause::S_TIMER:
           fprintf(file, "  + S_TIMER     : %" PRIu64 "\n", count);
           break;
-        case InterruptCause::M_TIMER   :
+        case InterruptCause::VS_TIMER:
+          fprintf(file, "  + VS_TIMER    : %" PRIu64 "\n", count);
+          break;
+        case InterruptCause::M_TIMER:
           fprintf(file, "  + M_TIMER     : %" PRIu64 "\n", count);
           break;
         case InterruptCause::S_EXTERNAL:
           fprintf(file, "  + S_EXTERNAL  : %" PRIu64 "\n", count);
           break;
+        case InterruptCause::VS_EXTERNAL:
+          fprintf(file, "  + VS_EXTERNAL : %" PRIu64 "\n", count);
+          break;
         case InterruptCause::M_EXTERNAL:
           fprintf(file, "  + M_EXTERNAL  : %" PRIu64 "\n", count);
           break;
+        case InterruptCause::G_EXTERNAL:
+          fprintf(file, "  + G_EXTERNAL  : %" PRIu64 "\n", count);
+          break;
         default:
-          fprintf(file, "  + ????        : %" PRIu64 "\n", count);
+          fprintf(file, "  + INTR-NO-%d  : %" PRIu64 "\n", unsigned(cause), count);
         }
     }
 
@@ -5593,7 +5605,9 @@ Hart<URV>::setPerfApi(std::shared_ptr<TT_PERF::PerfApi> perfApi)
 
 template <typename URV>
 bool
-Hart<URV>::isInterruptPossible(URV mip, URV sip, [[maybe_unused]] URV vsip, InterruptCause& cause, PrivilegeMode& nextMode, bool& nextVirt) const
+Hart<URV>::isInterruptPossible(URV mip, URV sip, [[maybe_unused]] URV vsip,
+                               InterruptCause& cause, PrivilegeMode& nextMode,
+                               bool& nextVirt) const
 {
   if (debugMode_)
     return false;
