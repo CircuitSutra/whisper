@@ -225,13 +225,14 @@ namespace WdRiscv
     }
 
     /// Return the effective page based memory type.
-    static constexpr Pbmt effectivePbmt(bool twoStage, Mode vsMode,
+    static constexpr Pbmt effectivePbmt(bool twoStage, Mode vsMode, Mode hMode,
                                         Pbmt vsPbmt, Pbmt pbmt)
     {
       if (twoStage)
         {
-          if (vsMode != Mode::Bare and
-              vsPbmt != Pbmt::None)
+          if (hMode != Mode::Bare and pbmt != Pbmt::None)
+            return pbmt;
+          if (vsMode != Mode::Bare and vsPbmt != Pbmt::None)
             return vsPbmt;
         }
       return pbmt;
@@ -239,7 +240,7 @@ namespace WdRiscv
 
     /// Return the effective page based memory type of last translation.
     Pbmt lastEffectivePbmt(bool twoStage) const
-    { return effectivePbmt(twoStage, vsMode_, vsPbmt_, pbmt_); }
+    { return effectivePbmt(twoStage, vsMode_, stage2Mode_, vsPbmt_, pbmt_); }
 
     /// Return a string representing the page/megapage size associated with the
     /// given translation mode and the given PTE level in a table walk. This
