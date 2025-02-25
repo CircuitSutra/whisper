@@ -280,7 +280,11 @@ namespace WdRiscv
                      const std::vector<unsigned>& thresholdMasks,
                      bool trace);
 
-    // TODO(paul): document
+    /// Configure the Advanced Platform-Level Interrupt Controller (APLIC).
+    /// interrupt_count specifies the number of interrupt sources up to a
+    /// maximum of 1023. For each item in the domain_params list, the APLIC
+    /// model will instantiate a domain with the given parameters. The domain
+    /// hierarchy, among other things, is configured by these parameters.
     bool configAplic(unsigned interrupt_count, std::span<const TT_APLIC::DomainParams> domain_params);
 
     /// Enable memory consistency model with given merge buffer size. This is relevant in
