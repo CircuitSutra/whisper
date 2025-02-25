@@ -207,7 +207,6 @@ Mcm<URV>::readOp_(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa, uns
       // Insert new op before the found op.
       assert(iter != sysMemOps_.end());
       size_t ix = iter - sysMemOps_.begin();
-      instr->addMemOp(ix);
       sysMemOps_.insert(iter, op);
 
       // Adjust indices of all the instructions referencing ops that are now after new op
@@ -232,6 +231,10 @@ Mcm<URV>::readOp_(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa, uns
             if (instrOpIx >= ix)
               instrOpIx++;
         }
+
+      // Associate new op with instruction. This has to be done after the indices are
+      // adjusted otherwise we may get an "op already added" error.
+      instr->addMemOp(ix);
     }
 
   if (instr->retired_)
