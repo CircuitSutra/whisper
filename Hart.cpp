@@ -2978,7 +2978,9 @@ Hart<URV>::createTrapInst(const DecodedInst* di, bool interrupt, unsigned causeC
     uncompressed &= 0x01fff07f;
   else if (di->isCmo())
     uncompressed &= 0xfffff07f;
-  else if (not di->isAtomic() and not di->isHypervisor())
+  else if (di->isAtomic() or di->isHypervisor())
+    uncompressed &= 0xfff07fff;
+  else
     assert(false);
 
   // Set address offset field for misaligned exceptions.
