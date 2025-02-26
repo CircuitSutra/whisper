@@ -1827,7 +1827,7 @@ readCharNonBlocking(int fd)
     return 0;
 
   char c = 0;
-  std::ptrdiff_t code = ::read(fd, &c, sizeof(c));
+  auto code = ::read(fd, &c, sizeof(c));
   if (code == 1)
     {
       if (isatty(fd))

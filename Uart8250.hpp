@@ -4,6 +4,7 @@
 #include <atomic>
 #include <mutex>
 #include <queue>
+#include <termios.h>
 #include "IoDevice.hpp"
 
 
@@ -45,5 +46,7 @@ namespace WdRiscv
     std::atomic<bool> terminate_ = false;
     std::mutex mutex_;   // Synchronize access to byte_ with stdinThread_.
     std::queue<uint8_t> rx_fifo;
+
+    struct termios termAttr_;   // Terminal state.
   };
 }

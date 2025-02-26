@@ -2,7 +2,6 @@
 #include <iostream>
 #include <unistd.h>
 #include <poll.h>
-#include <termios.h>
 #include "Uart8250.hpp"
 
 
@@ -15,11 +14,17 @@ Uart8250::Uart8250(uint64_t addr, uint64_t size)
   auto func = [this]() { this->monitorStdin(); };
   stdinThread_ = std::thread(func);
 
-  struct termios term;
-  tcgetattr(fileno(stdin), &term);
-  cfmakeraw(&term);
-  term.c_lflag &= ~ECHO;
-  tcsetattr(fileno(stdin), 0, &term);
+  int fd = fileno(stdin);        // stdin file descriptor
+  if (isatty(fd))
+    {
+      struct termios term;
+      tcgetattr(fd, &term);
+      termAttr_ = term;  // Save terminal state to restore in destructor.
+
+      cfmakeraw(&term);          // Make terminal raw.
+      term.c_lflag &= ~ECHO;     // Turn off echo.
+      tcsetattr(fd, 0, &term);
+    }
 }
 
 
@@ -27,6 +32,11 @@ Uart8250::~Uart8250()
 {
   terminate_ = true;
   stdinThread_.join();
+
+  int fd = fileno(stdin);        // stdin file descriptor
+
+  if (isatty(fd))
+    tcsetattr(fd, 0, &termAttr_);  // Restore terminal state.
 }
 
 
@@ -131,9 +141,22 @@ Uart8250::write(uint64_t addr, uint32_t value)
 void
 Uart8250::monitorStdin()
 {
+  int fd = fileno(stdin);        // stdin file descriptor
+  if (not isatty(fd))
+    {
+      char c = 0;
+      while (::read(fd, &c, sizeof(c) == 1))
+        {
+          rx_fifo.push(c);
+
+          while (rx_fifo.size() > 1024)
+            ;  // Avoid makeing queue too large.
+        }
+      return;
+    }
+
   struct pollfd inPollfd;
 
-  int fd = fileno(stdin);        // stdin file descriptor
   inPollfd.fd = fd;
   inPollfd.events = POLLIN;
 
@@ -152,21 +175,27 @@ Uart8250::monitorStdin()
 	    {
 	      std::lock_guard<std::mutex> lock(mutex_);
 	      char c;
-	      if (::read(fd, &c, sizeof(c)) != 1)
-		std::cerr << "Uart8250::monitorStdin: unexpected fail on read\n";
-	      if (isatty(fd))
-		{
-		  static char prev = 0;
+              auto rc = ::read(fd, &c, sizeof(c));
+              if (rc == 1)
+                {
+                  if (isatty(fd))
+                    {
+                      static char prev = 0;
 
-		  // Force a stop if control-a x is seen.
-		  if (prev == 1 and c == 'x')
-		    throw std::runtime_error("Keyboard stop");
-		  prev = c;
-		}
-	      rx_fifo.push(c);
-	      lsr_ |= 1;  // Set least sig bit of line status.
-	      iir_ &= ~1;  // Clear bit 0 indicating interrupt is pending.
-	      // setInterruptPending(true);
+                      // Force a stop if control-a x is seen.
+                      if (prev == 1 and c == 'x')
+                        throw std::runtime_error("Keyboard stop");
+                      prev = c;
+                    }
+                  rx_fifo.push(c);
+                  lsr_ |= 1;  // Set least sig bit of line status.
+                  iir_ &= ~1;  // Clear bit 0 indicating interrupt is pending.
+                  // setInterruptPending(true);
+                }
+              else if (rc == 0)
+                continue;
+              else
+		std::cerr << "Uart8250::monitorStdin: unexpected fail on read\n";
 	    }
 	}
 
