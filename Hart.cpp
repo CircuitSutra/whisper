@@ -1649,7 +1649,7 @@ Hart<URV>::determineLoadException(uint64_t& addr1, uint64_t& addr2, uint64_t& ga
       if (steeEnabled_)
 	a1 = stee_.clearSecureBits(addr1);
       Pma pma = accessPma(a1);
-      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt(virtMode_));
+      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt());
       if (not pma.isMisalignedOk())
 	return pma.misalOnMisal()? EC::LOAD_ADDR_MISAL : EC::LOAD_ACC_FAULT;
     }
@@ -1713,7 +1713,7 @@ Hart<URV>::determineLoadException(uint64_t& addr1, uint64_t& addr2, uint64_t& ga
       uint64_t next = addr1 == addr2? aligned + ldSize : addr2;
       ldStFaultAddr_ = va2;
       pma = accessPma(next);
-      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt(virtMode_));
+      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt());
       if (not pma.isRead()  or  (virtMem_.isExecForRead() and not pma.isExec()))
 	return EC::LOAD_ACC_FAULT;
       if (not pma.isMisalignedOk())
@@ -2535,6 +2535,7 @@ ExceptionCause
 Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr, [[maybe_unused]] uint64_t& physAddr2,
 			   uint64_t& gPhysAddr, uint32_t& inst)
 {
+  uint64_t steePhysAddr;
 #ifdef FAST_SLOPPY
 
   assert((virtAddr & 1) == 0);
@@ -2545,7 +2546,7 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr, [[maybe_unuse
 
 #else
 
-  physAddr = physAddr2 = virtAddr;
+  physAddr = physAddr2 = steePhysAddr = virtAddr;
 
   // Inst address translation and memory protection is not affected by MPRV.
 
@@ -2566,6 +2567,15 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr, [[maybe_unuse
       const Pmp& pmp = pmpManager_.accessPmp(physAddr);
       if (not pmp.isExec(privMode_))
 	return ExceptionCause::INST_ACC_FAULT;
+    }
+
+  if (steeEnabled_)
+    {
+      if (not stee_.isValidAddress(physAddr))
+        return ExceptionCause::INST_ACC_FAULT;
+
+      if (not stee_.isInsecureAccess(physAddr))
+        physAddr = stee_.clearSecureBits(physAddr);
     }
 
   if ((physAddr & 3) == 0 and not mcm_)   // Word aligned
@@ -2599,7 +2609,7 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr, [[maybe_unuse
     return ExceptionCause::NONE;
 
   // If we cross page boundary, translate address of other page.
-  physAddr2 = physAddr + 2;
+  physAddr2 = steePhysAddr + 2;
   gPhysAddr = physAddr2;
   if (memory_.getPageIx(physAddr) != memory_.getPageIx(physAddr2))
     if (isRvs() and privMode_ != PrivilegeMode::Machine)
@@ -2621,6 +2631,14 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr, [[maybe_unuse
 	  virtAddr += 2; // To report faulting portion of fetch.
 	  return ExceptionCause::INST_ACC_FAULT;
 	}
+    }
+  if (steeEnabled_)
+    {
+      if (not stee_.isValidAddress(physAddr2))
+        return ExceptionCause::INST_ACC_FAULT;
+
+      if (not stee_.isInsecureAccess(physAddr2))
+        physAddr2 = stee_.clearSecureBits(physAddr2);
     }
 
   uint16_t upperHalf = 0;
@@ -2972,7 +2990,9 @@ Hart<URV>::createTrapInst(const DecodedInst* di, bool interrupt, unsigned causeC
     uncompressed &= 0x01fff07f;
   else if (di->isCmo())
     uncompressed &= 0xfffff07f;
-  else if (not di->isAtomic() and not di->isHypervisor())
+  else if (di->isAtomic() or di->isHypervisor())
+    uncompressed &= 0xfff07fff;
+  else
     assert(false);
 
   // Set address offset field for misaligned exceptions.
@@ -11661,7 +11681,7 @@ Hart<URV>::determineStoreException(uint64_t& addr1, uint64_t& addr2,
       if (steeEnabled_)
 	a1 = stee_.clearSecureBits(addr1);
       Pma pma = accessPma(a1);
-      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt(virtMode_));
+      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt());
       if (not pma.isMisalignedOk())
 	return pma.misalOnMisal()? EC::STORE_ADDR_MISAL : EC::STORE_ACC_FAULT;
     }
@@ -11724,7 +11744,7 @@ Hart<URV>::determineStoreException(uint64_t& addr1, uint64_t& addr2,
       uint64_t aligned = addr1 & ~alignMask;
       uint64_t next = addr1 == addr2? aligned + stSize : addr2;
       pma = accessPma(next);
-      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt(virtMode_));
+      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt());
       if (not pma.isWrite())
 	{
 	  ldStFaultAddr_ = va2;

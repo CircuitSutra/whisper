@@ -90,6 +90,8 @@ VirtMem::translateForFetch2(uint64_t va, unsigned size, PrivilegeMode priv,
 			    bool twoStage, uint64_t& gpa1, uint64_t& pa1,
                             uint64_t& gpa2, uint64_t& pa2)
 {
+  twoStage_ = twoStage;
+
   gpa1 = pa1 = gpa2 = pa2 = va;
   auto cause = translateForFetch(va, priv, twoStage, gpa1, pa1);
   if (cause != ExceptionCause::NONE)
@@ -139,6 +141,8 @@ ExceptionCause
 VirtMem::transNoUpdate(uint64_t va, PrivilegeMode priv, bool twoStage,
 		       bool read, bool write, bool exec, uint64_t& pa)
 {
+  twoStage_ = twoStage;
+
   // Exactly one of read/write/exec must be true.
   assert((static_cast<int>(read) + static_cast<int>(write) + static_cast<int>(exec)) == 1);
 
@@ -183,6 +187,8 @@ VirtMem::translateForLdSt2(uint64_t va, unsigned size, PrivilegeMode priv,
                            bool twoStage, bool load, uint64_t& gpa1, uint64_t& pa1,
                            uint64_t& gpa2, uint64_t& pa2)
 {
+  twoStage_ = twoStage;
+
   gpa1 = pa1 = gpa2 = pa2 = va;
 
   bool read = load, write = not load, exec = false;
@@ -218,6 +224,8 @@ ExceptionCause
 VirtMem::translate(uint64_t va, PrivilegeMode priv, bool twoStage,
 		   bool read, bool write, bool exec, uint64_t& gpa, uint64_t& pa)
 {
+  twoStage_ = twoStage;
+
   if (twoStage)
     return twoStageTranslate(va, priv, read, write, exec, gpa, pa);
 
@@ -292,6 +300,8 @@ ExceptionCause
 VirtMem::translateNoTlb(uint64_t va, PrivilegeMode priv, bool twoStage, bool read,
 			bool write, bool exec, uint64_t& pa, TlbEntry& entry)
 {
+  twoStage_ = twoStage;
+
   if (twoStage)
     return twoStageTranslateNoTlb(va, priv, read, write, exec, pa, entry);
 
