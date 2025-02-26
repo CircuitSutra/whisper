@@ -101,7 +101,9 @@ System<URV>::defineUart(const std::string& type, uint64_t addr, uint64_t size, u
   if (type == "uartsf")
     dev = std::make_shared<Uartsf>(addr, size);
   else if (type == "uart8250")
-    dev = std::make_shared<Uart8250>(addr, size, aplic_, eiid);
+    {
+      dev = std::make_shared<Uart8250>(addr, size, aplic_, eiid, std::make_unique<StdIOChannel>());
+    }
   else
     {
       std::cerr << "System::defineUart: Invalid uadrt type: " << type << "\n";

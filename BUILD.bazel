@@ -13,6 +13,8 @@ hdrs = [
     "InstEntry.hpp",
     "InstId.hpp",
     "Isa.hpp",
+    "IoDevice.hpp",
+    "Uart8250.hpp"
 ]
 
 cc_library(
