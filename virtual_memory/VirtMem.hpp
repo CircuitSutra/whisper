@@ -222,16 +222,14 @@ namespace WdRiscv
       s1ADUpdate_ = false;
       pbmt_ = Pbmt::None;
       vsPbmt_ = Pbmt::None;
+      twoStage_ = false;
     }
 
     /// Return the effective page based memory type.
-    static constexpr Pbmt effectivePbmt(bool twoStage, Mode vsMode, Mode hMode,
-                                        Pbmt vsPbmt, Pbmt pbmt)
+    static constexpr Pbmt effectivePbmt(bool twoStage, Mode vsMode, Pbmt vsPbmt, Pbmt pbmt)
     {
       if (twoStage)
         {
-          if (hMode != Mode::Bare and pbmt != Pbmt::None)
-            return pbmt;
           if (vsMode != Mode::Bare and vsPbmt != Pbmt::None)
             return vsPbmt;
         }
@@ -239,8 +237,8 @@ namespace WdRiscv
     }
 
     /// Return the effective page based memory type of last translation.
-    Pbmt lastEffectivePbmt(bool twoStage) const
-    { return effectivePbmt(twoStage, vsMode_, stage2Mode_, vsPbmt_, pbmt_); }
+    Pbmt lastEffectivePbmt() const
+    { return effectivePbmt(twoStage_, vsMode_, vsPbmt_, pbmt_); }
 
     /// Return a string representing the page/megapage size associated with the
     /// given translation mode and the given PTE level in a table walk. This
@@ -288,8 +286,14 @@ namespace WdRiscv
     Pbmt lastPbmt() const
     { return pbmt_; }
 
+    /// Return the VS-stage page based memory type of last translation, only applicable if
+    /// translation was successful.
     Pbmt lastVsPbmt() const
     { return vsPbmt_; }
+
+    /// Return true if the last translation was a 2-stage translation.
+    bool lastTwoStage() const
+    { return twoStage_; }
 
     // =======================
     // Callback setter APIs 
@@ -712,6 +716,8 @@ namespace WdRiscv
 
     Pbmt pbmt_ = Pbmt::None;
     Pbmt vsPbmt_ = Pbmt::None;
+
+    bool twoStage_ = false;  // True if last translation was 2-stage.
 
     // PmpManager& pmpMgr_;
     Tlb tlb_;

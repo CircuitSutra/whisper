@@ -788,9 +788,8 @@ Interactive<URV>::peekCommand(Hart<URV>& hart, const std::string& line,
 	  if (hart.lastLdStAddress(va, pa))
 	    {
 	      auto pma = hart.getPma(pa);
-	      auto effpbmt = VirtMem::effectivePbmt(hart.lastVirtMode(), hart.lastVsPageMode(),
-                                                    hart.lastPageModeStage2(), hart.virtMem().lastVsPbmt(),
-                                                    hart.virtMem().lastPbmt());
+              auto& virtMem = hart.virtMem();
+	      auto effpbmt = virtMem.lastEffectivePbmt();
 	      pma = hart.overridePmaWithPbmt(pma, effpbmt);
               out << (boost::format("0x%x") % pma.attributesToInt()) << std::endl;
 	    }
