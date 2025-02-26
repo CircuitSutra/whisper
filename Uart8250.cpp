@@ -29,10 +29,10 @@ FDChannel::FDChannel(int in_fd, int out_fd)
 }
 
 bool FDChannel::read(uint8_t& byte) {
-  if (isTTY())
+  if (not isTTY())
     return ::read(in_fd_, &byte, 1) == 1;
 
-  int code = poll(&inPollfd, 1, -1);
+  int code = poll(&inPollfd, 1, 1);
 
   if (code == 0)
     return false;
