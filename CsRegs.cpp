@@ -500,13 +500,11 @@ CsRegs<URV>::read(CsrNumber num, PrivilegeMode mode, URV& value) const
 {
   using CN = CsrNumber;
 
-  auto csr = getImplementedCsr(num, virtMode_);
-  if (not csr or mode < csr->privilegeMode() or not isStateEnabled(num, mode, virtMode_))
+  if (not isReadable(num, mode, virtMode_))
     return false;
-  num = csr->getNumber();  // CSR may have been remapped from S to VS
 
-  if (csr->isDebug() and not inDebugMode())
-    return false; // Debug-mode register.
+  auto csr = getImplementedCsr(num, virtMode_);
+  num = csr->getNumber();  // CSR may have been remapped from S to VS
 
   if (num >= CN::TDATA1 and num <= CN::TINFO)
     return readTrigger(num, mode, value);
@@ -1975,14 +1973,11 @@ CsRegs<URV>::write(CsrNumber csrn, PrivilegeMode mode, URV value)
 {
   using CN = CsrNumber;
 
-  Csr<URV>* csr = getImplementedCsr(csrn, virtMode_);
-  if (not csr or mode < csr->privilegeMode() or not isStateEnabled(csrn, mode, virtMode_) or
-      csr->isReadOnly())
+  if (not isWriteable(csrn, mode, virtMode_))
     return false;
-  CN num = csr->getNumber();  // CSR may have been remapped from S to VS
 
-  if (csr->isDebug() and not inDebugMode())
-    return false; // Debug-mode register.
+  auto csr = getImplementedCsr(csrn, virtMode_);
+  CN num = csr->getNumber();  // CSR may have been remapped from S to VS
 
   if (isPmpaddrLocked(num))
     {
@@ -2133,9 +2128,12 @@ bool
 CsRegs<URV>::isWriteable(CsrNumber num, PrivilegeMode pm, bool vm) const
 {
   const Csr<URV>* csr = getImplementedCsr(num, vm);
-  if (not csr or pm < csr->privilegeMode() or not isStateEnabled(num, pm, vm) or
-      csr->isReadOnly())
+  if (not csr or pm < csr->privilegeMode() or csr->isReadOnly())
     return false;
+
+  if (pm != PrivilegeMode::Machine and not isStateEnabled(num, pm, vm))
+    return false;
+
 
   if (csr->isDebug() and not inDebugMode())
     return false;  // Debug-mode register.
@@ -2149,7 +2147,10 @@ bool
 CsRegs<URV>::isReadable(CsrNumber num, PrivilegeMode pm, bool vm) const
 {
   const Csr<URV>* csr = getImplementedCsr(num, vm);
-  if (not csr or pm < csr->privilegeMode() or not isStateEnabled(num, pm, vm))
+  if (not csr or pm < csr->privilegeMode())
+    return false;
+
+  if (pm != PrivilegeMode::Machine and not isStateEnabled(num, pm, vm))
     return false;
 
   if (csr->isDebug() and not inDebugMode())
@@ -5476,7 +5477,7 @@ template <typename URV>
 bool
 CsRegs<URV>::isStateEnabled(CsrNumber num, PrivilegeMode pm, bool vm) const
 {
-  if (not stateenOn_ or pm == PrivilegeMode::Machine)
+  if (not stateenOn_)
     return true;
 
   unsigned offset = 0;      // Index of controlling *STATEEN* reg (0, 1, 2, or 3).

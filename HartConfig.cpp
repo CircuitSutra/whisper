@@ -2144,6 +2144,16 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
       hart.enableDirtyGForVsNonleaf(flag);
     }
 
+  tag = "auto_increment_timer";
+  if (config_->contains(tag))
+    {
+      bool flag = false;
+      getJsonBoolean(tag, config_->at(tag), flag) or errors++;
+      hart.autoIncrementTimer(flag);
+    }
+
+  // Parse enable_ppo, it it is missing all PPO rules are enabled.
+
   return errors == 0;
 }
 

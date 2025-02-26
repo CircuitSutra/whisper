@@ -296,7 +296,7 @@ Hart<URV>::execLr_w(const DecodedInst* di)
       return;
     }
 
-  std::lock_guard<std::mutex> lock(memory_.lrMutex_);
+  std::lock_guard<SpinLock> lock(memory_.lrMutex_);
 
   lrCount_++;
   if (not loadReserve<int32_t>(di, di->op0(), di->op1()))
@@ -423,7 +423,7 @@ Hart<URV>::execSc_w(const DecodedInst* di)
       return;
     }
 
-  std::lock_guard<std::mutex> lock(memory_.lrMutex_);
+  std::lock_guard<SpinLock> lock(memory_.lrMutex_);
 
   uint32_t rd = di->op0(), rs1 = di->op1();
   URV value = intRegs_.read(di->op2());
@@ -600,7 +600,7 @@ Hart<URV>::execLr_d(const DecodedInst* di)
       return;
     }
 
-  std::lock_guard<std::mutex> lock(memory_.lrMutex_);
+  std::lock_guard<SpinLock> lock(memory_.lrMutex_);
 
   lrCount_++;
   if (not loadReserve<int64_t>(di, di->op0(), di->op1()))
@@ -631,7 +631,7 @@ Hart<URV>::execSc_d(const DecodedInst* di)
       return;
     }
 
-  std::lock_guard<std::mutex> lock(memory_.lrMutex_);
+  std::lock_guard<SpinLock> lock(memory_.lrMutex_);
 
   uint32_t rd = di->op0(), rs1 = di->op1();
   URV value = intRegs_.read(di->op2());

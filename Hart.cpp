@@ -1000,7 +1000,7 @@ template <typename URV>
 bool
 Hart<URV>::pokeMemory(uint64_t addr, uint8_t val, bool usePma, bool skipFetch)
 {
-  std::lock_guard<std::mutex> lock(memory_.lrMutex_);
+  std::lock_guard<SpinLock> lock(memory_.lrMutex_);
 
   memory_.invalidateOtherHartLr(hartIx_, addr, sizeof(val));
   invalidateDecodeCache(addr, sizeof(val));
@@ -1016,7 +1016,7 @@ template <typename URV>
 bool
 Hart<URV>::pokeMemory(uint64_t addr, uint16_t val, bool usePma, bool skipFetch)
 {
-  std::lock_guard<std::mutex> lock(memory_.lrMutex_);
+  std::lock_guard<SpinLock> lock(memory_.lrMutex_);
 
   memory_.invalidateOtherHartLr(hartIx_, addr, sizeof(val));
   invalidateDecodeCache(addr, sizeof(val));
@@ -1045,7 +1045,7 @@ Hart<URV>::pokeMemory(uint64_t addr, uint32_t val, bool usePma, bool skipFetch)
   // otherwise, there is no way for external driver to clear bits that
   // are read-only to this hart.
 
-  std::lock_guard<std::mutex> lock(memory_.lrMutex_);
+  std::lock_guard<SpinLock> lock(memory_.lrMutex_);
 
   memory_.invalidateOtherHartLr(hartIx_, addr, sizeof(val));
   invalidateDecodeCache(addr, sizeof(val));
@@ -1069,7 +1069,7 @@ template <typename URV>
 bool
 Hart<URV>::pokeMemory(uint64_t addr, uint64_t val, bool usePma, bool skipFetch)
 {
-  std::lock_guard<std::mutex> lock(memory_.lrMutex_);
+  std::lock_guard<SpinLock> lock(memory_.lrMutex_);
 
   memory_.invalidateOtherHartLr(hartIx_, addr, sizeof(val));
   invalidateDecodeCache(addr, sizeof(val));
@@ -2221,7 +2221,7 @@ Hart<URV>::store(const DecodedInst* di, URV virtAddr, [[maybe_unused]] bool hype
 
   auto lock = (amoLock)? std::shared_lock<std::shared_mutex>(memory_.amoMutex_) :
                          std::shared_lock<std::shared_mutex>();
-  std::lock_guard<std::mutex> lock2(memory_.lrMutex_);
+  std::lock_guard<SpinLock> lock2(memory_.lrMutex_);
 
   // ld/st-address or instruction-address triggers have priority over
   // ld/st access or misaligned exceptions.
@@ -2523,6 +2523,7 @@ ExceptionCause
 Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr, [[maybe_unused]] uint64_t& physAddr2,
 			   uint64_t& gPhysAddr, uint32_t& inst)
 {
+  uint64_t steePhysAddr;
 #ifdef FAST_SLOPPY
 
   assert((virtAddr & 1) == 0);
@@ -2533,7 +2534,7 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr, [[maybe_unuse
 
 #else
 
-  physAddr = physAddr2 = virtAddr;
+  physAddr = physAddr2 = steePhysAddr = virtAddr;
 
   // Inst address translation and memory protection is not affected by MPRV.
 
@@ -2554,6 +2555,15 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr, [[maybe_unuse
       const Pmp& pmp = pmpManager_.accessPmp(physAddr);
       if (not pmp.isExec(privMode_))
 	return ExceptionCause::INST_ACC_FAULT;
+    }
+
+  if (steeEnabled_)
+    {
+      if (not stee_.isValidAddress(physAddr))
+        return ExceptionCause::INST_ACC_FAULT;
+
+      if (not stee_.isInsecureAccess(physAddr))
+        physAddr = stee_.clearSecureBits(physAddr);
     }
 
   if ((physAddr & 3) == 0 and not mcm_)   // Word aligned
@@ -2587,7 +2597,7 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr, [[maybe_unuse
     return ExceptionCause::NONE;
 
   // If we cross page boundary, translate address of other page.
-  physAddr2 = physAddr + 2;
+  physAddr2 = steePhysAddr + 2;
   gPhysAddr = physAddr2;
   if (memory_.getPageIx(physAddr) != memory_.getPageIx(physAddr2))
     if (isRvs() and privMode_ != PrivilegeMode::Machine)
@@ -2609,6 +2619,14 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr, [[maybe_unuse
 	  virtAddr += 2; // To report faulting portion of fetch.
 	  return ExceptionCause::INST_ACC_FAULT;
 	}
+    }
+  if (steeEnabled_)
+    {
+      if (not stee_.isValidAddress(physAddr2))
+        return ExceptionCause::INST_ACC_FAULT;
+
+      if (not stee_.isInsecureAccess(physAddr2))
+        physAddr2 = stee_.clearSecureBits(physAddr2);
     }
 
   uint16_t upperHalf = 0;
@@ -2960,7 +2978,9 @@ Hart<URV>::createTrapInst(const DecodedInst* di, bool interrupt, unsigned causeC
     uncompressed &= 0x01fff07f;
   else if (di->isCmo())
     uncompressed &= 0xfffff07f;
-  else if (not di->isAtomic() and not di->isHypervisor())
+  else if (di->isAtomic() or di->isHypervisor())
+    uncompressed &= 0xfff07fff;
+  else
     assert(false);
 
   // Set address offset field for misaligned exceptions.
@@ -10792,9 +10812,9 @@ Hart<URV>::checkCsrAccess(const DecodedInst* di, CsrNumber csr, bool isWrite)
   using PM = PrivilegeMode;
   using CN = CsrNumber;
 
-  // Section 2.5 of AIA
-  if (privMode_ != PrivilegeMode::Machine and csRegs_.isAia(csr)
-      and not csRegs_.isStateEnabled(csr, privMode_, virtMode_))
+  // Section 2.5 of AIA. Check if MSTATEN disallows access.
+  if (privMode_ != PM::Machine and csRegs_.isAia(csr)
+      and not csRegs_.isStateEnabled(csr, PM::Machine, false /*virtMode_*/))
     {
       illegalInst(di);
       return false;

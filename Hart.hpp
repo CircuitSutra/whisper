@@ -2429,16 +2429,24 @@ namespace WdRiscv
     /// Increment time base and timer value.
     void tickTime()
     {
-      ++timeSample_;
-      time_ += not (timeSample_ & ((URV(1) << timeDownSample_) - 1));
+      // The test bench will sometime disable auto-incrementing the timer.
+      if (autoIncrementTimer_)
+        {
+          ++timeSample_;
+          time_ += not (timeSample_ & ((URV(1) << timeDownSample_) - 1));
+        }
     }
 
     /// Decrement time base and timer value. This is used by PerfApi to undo effects of
     /// execute.
     void untickTime()
     {
-      time_ -= not (timeSample_ & ((URV(1) << timeDownSample_) - 1));
-      --timeSample_;
+      // The test bench will sometime disable auto-incrementing the timer.
+      if (autoIncrementTimer_)
+        {
+          time_ -= not (timeSample_ & ((URV(1) << timeDownSample_) - 1));
+          --timeSample_;
+        }
     }
 
     // Adjust time base and timer value either forwards (positive diff) or
@@ -2512,6 +2520,11 @@ namespace WdRiscv
         }
       return pma;
     }
+
+    /// This is for the test-bench which in some run wants to take control over timer
+    /// values.
+    void autoIncrementTimer(bool flag)
+    { autoIncrementTimer_ = flag; }
 
   protected:
 
@@ -5458,6 +5471,7 @@ namespace WdRiscv
     uint64_t& time_;             // Only hart 0 increments this value.
     uint64_t timeDownSample_ = 0;
     uint64_t timeSample_ = 0;
+    bool autoIncrementTimer_ = true;
 
     uint64_t retiredInsts_ = 0;  // Proxy for minstret CSR.
     uint64_t cycleCount_ = 0;    // Proxy for mcycle CSR.
