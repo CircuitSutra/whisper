@@ -61,8 +61,7 @@ Mcm<URV>::referenceModelRead(Hart<URV>& hart, uint64_t pa, unsigned size, uint64
 {
   data = 0;
 
-  bool isDevice = hart.isAclintMtimeAddr(pa) or hart.isImsicAddr(pa) or hart.isPciAddr(pa);
-  if (isDevice)
+  if (hart.isDeviceAddr(pa))
     {
       hart.deviceRead(pa, size, data);
       return true;
@@ -1741,8 +1740,7 @@ Mcm<URV>::checkRtlRead(Hart<URV>& hart, const McmInstr& instr,
     }
 
   uint64_t addr = op.pa_;
-  bool skip = ( hart.isAclintAddr(addr) or hart.isImsicAddr(addr) or hart.isPciAddr(addr) or
-		hart.isMemMappedReg(addr) or hart.isHtifAddr(addr) );
+  bool skip = ( hart.isDeviceAddr(addr) or hart.isMemMappedReg(addr) or hart.isHtifAddr(addr) );
 
   // Major hack (temporary until RTL removes CLINT device).
   skip = skip or (addr >= 0x2000000 and addr < 0x200c000);

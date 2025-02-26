@@ -94,14 +94,27 @@ System<URV>::System(unsigned coreCount, unsigned hartsPerCore,
 
 template <typename URV>
 bool
-System<URV>::defineUart(const std::string& type, uint64_t addr, uint64_t size)
+System<URV>::defineUart(const std::string& type, uint64_t addr, uint64_t size,
+    uint32_t iid, const std::string& channel_type)
 {
   std::shared_ptr<IoDevice> dev;
 
   if (type == "uartsf")
     dev = std::make_shared<Uartsf>(addr, size);
   else if (type == "uart8250")
-    dev = std::make_shared<Uart8250>(addr, size);
+    {
+      std::unique_ptr<UartChannel> channel;
+      if (channel_type == "stdio")
+        channel = std::make_unique<FDChannel>(fileno(stdin), fileno(stdout));
+      else if (channel_type == "pty")
+        channel = std::make_unique<PTYChannel>();
+      else
+        {
+          std::cerr << "System::defineUart: Invalid channel: " << channel_type << "\n";
+          return false;
+        }
+      dev = std::make_shared<Uart8250>(addr, size, aplic_, iid, std::move(channel));
+    }
   else
     {
       std::cerr << "System::defineUart: Invalid uadrt type: " << type << "\n";
@@ -699,6 +712,53 @@ System<URV>::configImsic(uint64_t mbase, uint64_t mstride,
       auto imsic = imsicMgr_.ithImsic(i);
       hart->attachImsic(imsic, mbase, mend, sbase, send, readFunc, writeFunc, trace);
     }
+
+  return true;
+}
+
+
+template <typename URV>
+bool
+System<URV>::configAplic(unsigned num_sources, std::span<const TT_APLIC::DomainParams> domain_params)
+{
+  aplic_ = std::make_shared<TT_APLIC::Aplic>(hartCount_, num_sources, domain_params);
+
+  TT_APLIC::DirectDeliveryCallback aplicCallback = [this] (unsigned hartIx, TT_APLIC::Privilege privilege, bool interState) -> bool {
+    bool is_machine = privilege == TT_APLIC::Machine;
+    std::cerr << "Delivering interrupt hart=" << hartIx << " privilege="
+              << (is_machine ? "machine" : "supervisor")
+              << " interrupt-state=" << (interState? "on" : "off") << '\n';
+    // if an IMSIC is present, then interrupt should only be delivery if its eidelivery is 0x40000000
+    auto& hart = *ithHart(hartIx);
+    if (hart.csRegs().aiaEnabled())
+      {
+        auto imsic = imsicMgr_.ithImsic(hartIx);
+        unsigned eidelivery = is_machine ? imsic->machineDelivery() : imsic->supervisorDelivery();
+        if (eidelivery != 0x40000000)
+          {
+            std::cerr << "Cannot deliver interrupt; for direct delivery mode, IMSIC's eidelivery must be 0x40000000\n";
+            return false;
+          }
+      }
+    auto mip = hart.peekCsr(CsrNumber::MIP);
+    int xeip = is_machine ? 11 : 9;
+    if (interState)
+      mip |= 1 << xeip;
+    else
+      mip &= ~(1 << xeip);
+    return hart.pokeCsr(CsrNumber::MIP, mip);
+  };
+  aplic_->setDirectCallback(aplicCallback);
+
+  TT_APLIC::MsiDeliveryCallback imsicFunc = [this] (uint64_t addr, uint32_t data) -> bool {
+    std::cerr << "Imsic write addr=0x" << std::hex << addr << " value="
+              << data << std::dec << '\n';
+    return imsicMgr_.write(addr, 4, data);
+  };
+  aplic_->setMsiCallback(imsicFunc);
+
+  for (auto& hart : sysHarts_)
+    hart->attachAplic(aplic_);
 
   return true;
 }

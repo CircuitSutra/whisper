@@ -1050,8 +1050,7 @@ Hart<URV>::pokeMemory(uint64_t addr, uint32_t val, bool usePma, bool skipFetch)
   memory_.invalidateOtherHartLr(hartIx_, addr, sizeof(val));
   invalidateDecodeCache(addr, sizeof(val));
 
-  bool isDevice = isAclintAddr(addr) or isImsicAddr(addr) or isPciAddr(addr);
-  if (isDevice)
+  if (isDeviceAddr(addr))
     {
       deviceWrite(addr, val);
       return true;
@@ -1074,8 +1073,7 @@ Hart<URV>::pokeMemory(uint64_t addr, uint64_t val, bool usePma, bool skipFetch)
   memory_.invalidateOtherHartLr(hartIx_, addr, sizeof(val));
   invalidateDecodeCache(addr, sizeof(val));
 
-  bool isDevice = isAclintAddr(addr) or isImsicAddr(addr) or isPciAddr(addr);
-  if (isDevice)
+  if (isDeviceAddr(addr))
     {
       deviceWrite(addr, val);
       return true;
@@ -1955,7 +1953,7 @@ Hart<URV>::deviceRead(uint64_t pa, unsigned size, uint64_t& val)
   if (isImsicAddr(pa))
     {
       if (imsicRead_)
-        imsicRead_(pa, sizeof(val), val);
+        imsicRead_(pa, size, val);
       return;
     }
 
@@ -2001,6 +1999,14 @@ Hart<URV>::deviceRead(uint64_t pa, unsigned size, uint64_t& val)
       return;
     }
 
+  if (isAplicAddr(pa))
+    {
+      uint32_t val32;
+      aplic_->read(pa, size, val32);
+      val = val32;
+      return;
+    }
+
   assert(0);  // No device contains given address.
 }
 
@@ -2031,6 +2037,13 @@ Hart<URV>::deviceWrite(uint64_t pa, STORE_TYPE storeVal)
       return;
     }
 
+  if (isAplicAddr(pa))
+    {
+      uint32_t val32 = storeVal;
+      aplic_->write(pa, sizeof(storeVal), val32);
+      return;
+    }
+
   assert(0);
 }
 
@@ -2058,8 +2071,6 @@ Hart<URV>::readForLoad([[maybe_unused]] const DecodedInst* di, uint64_t virtAddr
 
   ULT uval = 0;   // Unsigned loaded value
 
-  bool isDevice = isAclintAddr(addr1) or isImsicAddr(addr1) or isPciAddr(addr1);
-
   bool hasOooVal = false;
   if (ooo_)
     {
@@ -2077,7 +2088,7 @@ Hart<URV>::readForLoad([[maybe_unused]] const DecodedInst* di, uint64_t virtAddr
 	  data = 0;
 	  return true;
 	}
-      if (isDevice)
+      if (isDeviceAddr(addr1))
 	{
 	  uint64_t dv = 0;
 	  deviceRead(addr1, sizeof(ULT), dv);
@@ -2317,8 +2328,6 @@ Hart<URV>::writeForStore(uint64_t virtAddr, uint64_t pa1, uint64_t pa2, STORE_TY
       return true;  // Memory updated & lr-canceled when merge buffer is written.
     }
 
-  bool isDevice = isAclintAddr(pa1) or isImsicAddr(pa1) or isPciAddr(pa1);
-
   // If we write to special location, end the simulation.
   if (isToHostAddr(pa1))
     {
@@ -2326,7 +2335,7 @@ Hart<URV>::writeForStore(uint64_t virtAddr, uint64_t pa1, uint64_t pa2, STORE_TY
       return true;
     }
 
-  if (isDevice)
+  if (isDeviceAddr(pa1))
     {
       assert(pa1 == pa2);
       deviceWrite(pa1, storeVal);
