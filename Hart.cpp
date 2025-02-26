@@ -5646,7 +5646,8 @@ Hart<URV>::isInterruptPossible(URV mip, URV sip, [[maybe_unused]] URV vsip,
     {
       // Check for interrupts destined for machine-mode (not-delegated).
       // VS interrupts (e.g. VSEIP) are always delegated.
-      for (InterruptCause ic : { IC::M_EXTERNAL, IC::M_SOFTWARE, IC::M_TIMER,
+      for (InterruptCause ic : { IC{24}, IC{23}, IC{43}, // Ascalon local interrupts. FIX : make configurable.
+                                 IC::M_EXTERNAL, IC::M_SOFTWARE, IC::M_TIMER,
                                  IC::S_EXTERNAL, IC::S_SOFTWARE, IC::S_TIMER,
                                  IC::G_EXTERNAL, IC::LCOF } )
         {
@@ -5668,7 +5669,8 @@ Hart<URV>::isInterruptPossible(URV mip, URV sip, [[maybe_unused]] URV vsip,
   URV sdest = sip & effectiveSie_;
   if ((mstatus_.bits_.SIE or virtMode_ or privMode_ == PM::User) and sdest != 0)
     {
-      for (InterruptCause ic : { IC::M_EXTERNAL, IC::M_SOFTWARE, IC::M_TIMER,
+      for (InterruptCause ic : { IC{24}, IC{23}, IC{43}, // Ascalon local interrupts. FIX : make configurable.
+                                 IC::M_EXTERNAL, IC::M_SOFTWARE, IC::M_TIMER,
                                  IC::S_EXTERNAL, IC::S_SOFTWARE, IC::S_TIMER,
                                  IC::G_EXTERNAL, IC::VS_EXTERNAL, IC::VS_SOFTWARE,
                                  IC::VS_TIMER, IC::LCOF } )
