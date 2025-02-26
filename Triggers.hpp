@@ -311,7 +311,7 @@ namespace WdRiscv
     /// Read the tdata1 register of the trigger. This is typically the control register of
     /// the trigger.
     URV readData1() const
-    { return modifiedT1_? prevData1_ : data1_.value_; }
+    { return data1_.value_; }
 
     /// Read the tdata2 register of the trigger. This is typically the
     /// target value of the trigger.
