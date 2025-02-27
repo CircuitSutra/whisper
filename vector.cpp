@@ -19140,7 +19140,7 @@ Hart<URV>::execVfncvt_rod_f_f_w(const DecodedInst* di)
   if (not checkVecFpInst(di))
     return;
 
-#ifdef SOFT_FLOAT
+#if SOFT_FLOAT
   softfloat_roundingMode = softfloat_round_odd;
   // TBD FIX: what if not using SOFT_FLOAT
 #endif

@@ -1181,7 +1181,7 @@ Interactive<URV>::hexCommand(Hart<URV>& , const std::string& line,
 }
 
 
-#ifdef LZ4_COMPRESS
+#if LZ4_COMPRESS
 template <typename URV>
 bool
 Interactive<URV>::lz4Command(Hart<URV>& , const std::string& line,
@@ -1738,7 +1738,7 @@ Interactive<URV>::executeLine(const std::string& inLine, FILE* traceFile,
       return true;
     }
 
-#ifdef LZ4_COMPRESS
+#if LZ4_COMPRESS
   if (command == "lz4")
     {
       if (not lz4Command(hart, line, tokens))

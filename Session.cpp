@@ -82,7 +82,7 @@ Session<URV>::defineSystem(const Args& args, const HartConfig& config)
   if (args.hexFiles.empty() and args.expandedTargets.empty()
       and args.binaryFiles.empty() and args.kernelFile.empty()
       and args.loadFrom.empty()
-#ifdef LZ4_COMPRESS
+#if LZ4_COMPRESS
       and args.lz4Files.empty()
 #endif
       and not args.interactive and not args.instList)
@@ -718,7 +718,7 @@ Session<URV>::applyCmdLineArgs(const Args& args, Hart<URV>& hart,
 
       uint64_t offset = 0;
 
-#ifdef LZ4_COMPRESS
+#if LZ4_COMPRESS
       if (not system.loadLz4Files(args.lz4Files, offset, args.verbose))
 	errors++;
 #endif

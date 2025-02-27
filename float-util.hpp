@@ -27,7 +27,7 @@
 
 #include "float16-compat.hpp"
 
-#ifdef SOFT_FLOAT
+#if SOFT_FLOAT
 #include "softfloat-util.hpp"
 #elif defined(__x86_64__)
 #include <emmintrin.h>
@@ -76,7 +76,7 @@ setSimulatorRoundingMode(RoundingMode mode)
   if (mode == RoundingMode::Dynamic or mode == RoundingMode::Invalid1 or mode == RoundingMode::Invalid2)
     mode = RoundingMode::NearestEven;
 
-#ifdef SOFT_FLOAT
+#if SOFT_FLOAT
   static constexpr auto riscvToSoftFloat = std::array
     {
       softfloat_round_near_even,    // NearsetEven
@@ -115,7 +115,7 @@ setSimulatorRoundingMode(RoundingMode mode)
 /// nothing in the simulated RISCV machine.
 inline void undoSetSimulatorRoundingMode(int orig)
 {
-#ifdef SOFT_FLOAT
+#if SOFT_FLOAT
   softfloat_roundingMode = orig;
 #else
   int previous = std::fegetround();
@@ -130,7 +130,7 @@ inline void undoSetSimulatorRoundingMode(int orig)
 inline void
 clearSimulatorFpFlags()
 {
-#ifdef SOFT_FLOAT
+#if SOFT_FLOAT
   softfloat_exceptionFlags = 0;
 #elif defined(__x86_64__)
   uint32_t val = _mm_getcsr();
@@ -149,7 +149,7 @@ inline uint32_t
 activeSimulatorFpFlags()
 {
   uint32_t incFlags = 0;
-#ifdef SOFT_FLOAT
+#if SOFT_FLOAT
   int flags = softfloat_exceptionFlags;
   if (flags)
     {
@@ -160,7 +160,7 @@ activeSimulatorFpFlags()
       if (flags & softfloat_flag_invalid)   incFlags |= uint32_t(FpFlags::Invalid);
     }
 #else
-#ifdef __x86_64__
+#if __x86_64__
   int flags = _mm_getcsr() & 0x3f;
 #else
   int flags = fetestexcept(FE_ALL_EXCEPT);
@@ -185,7 +185,7 @@ inline void
 raiseSimulatorFpFlags(FpFlags flags)
 {
   using underlying_t = typename std::underlying_type<FpFlags>::type;
-#ifdef SOFT_FLOAT
+#if SOFT_FLOAT
   if (static_cast<underlying_t>(flags) & static_cast<underlying_t>(FpFlags::Inexact))
     softfloat_exceptionFlags |= softfloat_flag_inexact;
   if (static_cast<underlying_t>(flags) & static_cast<underlying_t>(FpFlags::Underflow))
@@ -221,7 +221,7 @@ template <typename To, typename From>
 auto fpConvertTo(From x)
   -> typename std::enable_if<is_fp<To>::value && std::numeric_limits<From>::is_integer, To>::type
 {
-#ifdef SOFT_FLOAT
+#if SOFT_FLOAT
 
   using namespace WdRiscv;
 
@@ -293,7 +293,7 @@ template <typename To, typename From>
 auto fpConvertTo(From x)
   -> typename std::enable_if<std::numeric_limits<To>::is_integer && is_fp<From>::value, To>::type
 {
-#ifdef SOFT_FLOAT
+#if SOFT_FLOAT
 
   using namespace WdRiscv;
 
@@ -433,7 +433,7 @@ template <typename To, bool CANONICALIZE_NAN, typename From>
 auto fpConvertTo(From x)
   -> typename std::enable_if<is_fp<To>::value && is_fp<From>::value, To>::type
 {
-#ifdef SOFT_FLOAT
+#if SOFT_FLOAT
 
   using namespace WdRiscv;
 
@@ -659,7 +659,7 @@ template<typename FT>
 FT
 doNegate(FT f1)
 {
-#ifdef SOFT_FLOAT
+#if SOFT_FLOAT
   FT res = FT{0};
   if (res == f1)
     res = flipSign(f1);  // plus or minus 0
@@ -680,7 +680,7 @@ inline
 FT
 doFadd(FT f1, FT f2)
 {
-#ifdef SOFT_FLOAT
+#if SOFT_FLOAT
   FT res = softAdd(f1, f2);
 #else
   FT res = f1 + f2;
@@ -698,7 +698,7 @@ inline
 FT
 doFsub(FT f1, FT f2)
 {
-#ifdef SOFT_FLOAT
+#if SOFT_FLOAT
   FT res = softSub(f1, f2);
 #else
   FT res = f1 - f2;
@@ -716,7 +716,7 @@ inline
 FT
 doFmul(FT f1, FT f2)
 {
-#ifdef SOFT_FLOAT
+#if SOFT_FLOAT
   FT res = softMul(f1, f2);
 #else
   FT res = f1 * f2;
@@ -734,7 +734,7 @@ inline
 FT
 doFdiv(FT f1, FT f2)
 {
-#ifdef SOFT_FLOAT
+#if SOFT_FLOAT
   FT res = softDiv(f1, f2);
 #else
   FT res = f1 / f2;
@@ -818,7 +818,7 @@ inline
 FT
 doFsqrt(FT f1)
 {
-#ifdef SOFT_FLOAT
+#if SOFT_FLOAT
   FT res = softSqrt(f1);
 #else
   FT res = std::sqrt(f1);
@@ -834,7 +834,7 @@ inline
 FT
 doFround(FT f1)
 {
-#ifdef SOFT_FLOAT
+#if SOFT_FLOAT
   FT res = softRound(f1, EXACT);
 #else
   using int_fsize_t = typename getSameWidthIntType<FT>::type;
