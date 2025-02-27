@@ -3527,7 +3527,7 @@ CsRegs<URV>::peek(CsrNumber num, URV& value, bool virtMode) const
   num = csr->getNumber();  // CSR may have been remapped from S to VS
 
   if (num >= CN::TDATA1 and num <= CN::TINFO)
-    return readTrigger(num, PrivilegeMode::Machine, value);
+    return peekTrigger(num, PrivilegeMode::Machine, value);
 
   if (num == CN::FFLAGS or num == CN::FRM)
     {
@@ -3750,6 +3750,40 @@ CsRegs<URV>::readTrigger(CsrNumber number, PrivilegeMode mode, URV& value) const
   if (number == CsrNumber::TDATA1)
     {
       bool ok = triggers_.readData1(trigger, value);
+      if (ok and not hyperEnabled_)
+	{
+	  // Bits vs and vu are read-only zero if hypervisor is not enabled.
+	  if (triggers_.triggerType(trigger) == TriggerType::Mcontrol6)
+	    value &= ~(URV(3) << 23);  // Clear bits 23 and 24 (vs and vu).
+	}
+      return ok;
+    }
+
+  if (number == CsrNumber::TDATA2)
+    return triggers_.readData2(trigger, value);
+
+  if (number == CsrNumber::TDATA3)
+    return triggers_.readData3(trigger, value);
+
+  if (number == CsrNumber::TINFO)
+    return triggers_.readInfo(trigger, value);
+
+  return false;
+}
+
+
+template <typename URV>
+bool
+CsRegs<URV>::peekTrigger(CsrNumber number, PrivilegeMode mode, URV& value) const
+{
+  // Determine currently selected trigger.
+  URV trigger = 0;
+  if (not read(CsrNumber::TSELECT, mode, trigger))
+    return false;
+
+  if (number == CsrNumber::TDATA1)
+    {
+      bool ok = triggers_.peekData1(trigger, value);
       if (ok and not hyperEnabled_)
 	{
 	  // Bits vs and vu are read-only zero if hypervisor is not enabled.

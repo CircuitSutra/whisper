@@ -25,6 +25,7 @@
 #include "Syscall.hpp"
 #include "pci/Pci.hpp"
 #include "pci/virtio/Blk.hpp"
+#include "aplic/Aplic.hpp"
 
 
 namespace TT_PERF
@@ -48,6 +49,7 @@ namespace WdRiscv
   class DecodedInst;
   class IoDevice;
   class SparseMem;
+
 
   /// Model a system consisting of n cores with m-harts per core and a
   /// memory. The harts in the system are indexed from 0 to n*m -
@@ -254,7 +256,8 @@ namespace WdRiscv
     /// Device a UART device at given address reserving given size (in bytes) of address
     /// space for it. Return true on success and false if type is not supported (supported
     /// types: uartsf, uart8250).
-    bool defineUart(const std::string& type, uint64_t addr, uint64_t size);
+    bool defineUart(const std::string& type, uint64_t addr, uint64_t size,
+		    uint32_t iid, const std::string& channel);
 
     /// Return the memory page size.
     size_t pageSize() const
@@ -276,6 +279,13 @@ namespace WdRiscv
 		     unsigned guests, const std::vector<unsigned>& ids,
                      const std::vector<unsigned>& thresholdMasks,
                      bool trace);
+
+    /// Configure the Advanced Platform-Level Interrupt Controller (APLIC).
+    /// num_sources specifies the number of interrupt sources up to a maximum
+    /// of 1023. For each item in the domain_params list, the APLIC model will
+    /// instantiate a domain with the given parameters. The domain hierarchy,
+    /// among other things, is configured by these parameters.
+    bool configAplic(unsigned num_sources, std::span<const TT_APLIC::DomainParams> domain_params);
 
     /// Enable memory consistency model with given merge buffer size. This is relevant in
     /// server/interactive where RTL monitor or interactive command may initiate out of
@@ -435,6 +445,7 @@ namespace WdRiscv
     std::string consoleIoSym_ = "__whisper_console_io";  // ELF symbol to use as console-io addr.
     std::vector<std::shared_ptr<IoDevice>> ioDevs_;
     std::shared_ptr<Pci> pci_;
+    std::shared_ptr<TT_APLIC::Aplic> aplic_;
 
     // Name, size, and address in memory of a binary file.
     typedef std::tuple<std::string, uint64_t, uint64_t> BinaryFile;

@@ -309,9 +309,14 @@ namespace WdRiscv
     { return data1_.type(); }
 
     /// Read the tdata1 register of the trigger. This is typically the control register of
-    /// the trigger.
+    /// the trigger. A CSR instruction that reads TDATA1 may trip a trigger and that will
+    /// modify data1. If that happens, we return the valye of TDATA1 before the tripping.
     URV readData1() const
     { return modifiedT1_? prevData1_ : data1_.value_; }
+
+    /// Similar to readData1 except for always returning the final value of TDATA1.
+    URV peekData1() const
+    { return data1_.value_; }
 
     /// Read the tdata2 register of the trigger. This is typically the
     /// target value of the trigger.
@@ -783,6 +788,10 @@ namespace WdRiscv
     /// Set value to the tdata1 register of the given trigger. Return true on success and
     /// false (leaving value unmodified) if trigger is out of bounds.
     bool readData1(URV trigger, URV& value) const;
+
+    /// Similar to readData1 except for always returning the final value of TDATA1.
+    /// See Trigger::peekData1.
+    bool peekData1(URV trigger, URV& value) const;
 
     /// Set value to the tdata2 register of the given trigger. Return true on success and
     /// false (leaving value unmodified) if trigger is out of bounds or if data2 is not

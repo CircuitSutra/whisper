@@ -1,7 +1,8 @@
 #pragma once
 
 #include <cstdint>
-
+#include <iostream>
+#include "aplic/Aplic.hpp"
 
 namespace WdRiscv
 {
@@ -13,9 +14,12 @@ namespace WdRiscv
     /// Define a memory mapped io device at the given address using
     /// size bytes of the address space.
     IoDevice(uint64_t addr, uint64_t size)
-      : addr_(addr), size_(size)
-    {
-    }
+      : addr_(addr), size_(size), aplic_(nullptr), iid_(0)
+    { }
+
+    IoDevice(uint64_t addr, uint64_t size, std::shared_ptr<TT_APLIC::Aplic> aplic, uint32_t iid)
+      : addr_(addr), size_(size), aplic_(iid != 0 ? aplic : nullptr), iid_(iid)
+    { }
 
     virtual ~IoDevice() = default;
 
@@ -29,11 +33,19 @@ namespace WdRiscv
 
     /// Return true if this device has a pending interrupt.
     bool isInterruptPending() const
-    { return hasInterrupt_; }
+    { 
+      if (!aplic_)
+        return false;
+
+      return aplic_->getSourceState(iid_);
+    }
 
     /// Mark this device as having/not-having a pending interrupt.
     void setInterruptPending(bool flag)
-    { hasInterrupt_ = flag; }
+    { 
+      if (aplic_)
+        aplic_->setSourceState(iid_, flag);
+    }
 
     /// Return true if given address falls within the memory mapped
     /// address range of this device.
@@ -47,10 +59,11 @@ namespace WdRiscv
     { return size_; }
 
   private:
-
     uint64_t addr_ = 0;
     uint64_t size_ = 0;
-    bool hasInterrupt_ = false;
+
+    std::shared_ptr<TT_APLIC::Aplic> aplic_;
+    uint32_t iid_;
   };
 
 }

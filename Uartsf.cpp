@@ -11,7 +11,7 @@ using namespace WdRiscv;
 Uartsf::Uartsf(uint64_t addr, uint64_t size)
   : IoDevice(addr, size), regs_(RegId::N)
 {
-  auto func = [this]() { this->monitorStdin(); };
+  auto func = [this]() { this->monitorInput(); };
   stdinThread_ = std::thread(func);
 
   regs_.at(RX_FIFO) = RX_EMPTY;
@@ -71,7 +71,7 @@ Uartsf::write(uint64_t addr, uint32_t value)
 
 
 void
-Uartsf::monitorStdin()
+Uartsf::monitorInput()
 {
   struct pollfd inPollfd;
 
@@ -95,7 +95,7 @@ Uartsf::monitorStdin()
 	      std::lock_guard<std::mutex> lock(mutex_);
 	      char c;
 	      if (::read(fd, &c, sizeof(c)) != 1)
-		std::cerr << "Uartsf::monitorStdin: unexpected fail on read\n";
+		std::cerr << "Uartsf::monitorInput: unexpected fail on read\n";
 	      regs_.at(RX_FIFO) = c;
 	      // setInterruptPending(true);
 	    }

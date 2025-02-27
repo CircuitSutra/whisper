@@ -119,6 +119,12 @@ Session<URV>::configureSystem(const Args& args, const HartConfig& config)
 
   auto& system = *system_;
 
+  // We need to instantiate the APLIC before calling configHarts because the
+  // Uart8250 is constructed in configHarts and may store a pointer to the
+  // APLIC
+  if (not config.applyAplicConfig(system))
+    return false;
+
   // Configure harts. Define callbacks for non-standard CSRs.
   bool userMode = args.isa.find_first_of("uU") != std::string::npos;
   if (not config.configHarts(system, userMode, args.verbose))

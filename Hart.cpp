@@ -1050,8 +1050,7 @@ Hart<URV>::pokeMemory(uint64_t addr, uint32_t val, bool usePma, bool skipFetch)
   memory_.invalidateOtherHartLr(hartIx_, addr, sizeof(val));
   invalidateDecodeCache(addr, sizeof(val));
 
-  bool isDevice = isAclintAddr(addr) or isImsicAddr(addr) or isPciAddr(addr);
-  if (isDevice)
+  if (isDeviceAddr(addr))
     {
       deviceWrite(addr, val);
       return true;
@@ -1074,8 +1073,7 @@ Hart<URV>::pokeMemory(uint64_t addr, uint64_t val, bool usePma, bool skipFetch)
   memory_.invalidateOtherHartLr(hartIx_, addr, sizeof(val));
   invalidateDecodeCache(addr, sizeof(val));
 
-  bool isDevice = isAclintAddr(addr) or isImsicAddr(addr) or isPciAddr(addr);
-  if (isDevice)
+  if (isDeviceAddr(addr))
     {
       deviceWrite(addr, val);
       return true;
@@ -1468,23 +1466,35 @@ Hart<URV>::reportTrapStat(FILE* file) const
         case InterruptCause::S_SOFTWARE:
           fprintf(file, "  + S_SOFTWARE  : %" PRIu64 "\n", count);
           break;
+        case InterruptCause::VS_SOFTWARE:
+          fprintf(file, "  + VS_SOFTWARE : %" PRIu64 "\n", count);
+          break;
         case InterruptCause::M_SOFTWARE:
           fprintf(file, "  + M_SOFTWARE  : %" PRIu64 "\n", count);
           break;
-        case InterruptCause::S_TIMER   :
+        case InterruptCause::S_TIMER:
           fprintf(file, "  + S_TIMER     : %" PRIu64 "\n", count);
           break;
-        case InterruptCause::M_TIMER   :
+        case InterruptCause::VS_TIMER:
+          fprintf(file, "  + VS_TIMER    : %" PRIu64 "\n", count);
+          break;
+        case InterruptCause::M_TIMER:
           fprintf(file, "  + M_TIMER     : %" PRIu64 "\n", count);
           break;
         case InterruptCause::S_EXTERNAL:
           fprintf(file, "  + S_EXTERNAL  : %" PRIu64 "\n", count);
           break;
+        case InterruptCause::VS_EXTERNAL:
+          fprintf(file, "  + VS_EXTERNAL : %" PRIu64 "\n", count);
+          break;
         case InterruptCause::M_EXTERNAL:
           fprintf(file, "  + M_EXTERNAL  : %" PRIu64 "\n", count);
           break;
+        case InterruptCause::G_EXTERNAL:
+          fprintf(file, "  + G_EXTERNAL  : %" PRIu64 "\n", count);
+          break;
         default:
-          fprintf(file, "  + ????        : %" PRIu64 "\n", count);
+          fprintf(file, "  + INTR-NO-%d  : %" PRIu64 "\n", unsigned(cause), count);
         }
     }
 
@@ -1637,7 +1647,7 @@ Hart<URV>::determineLoadException(uint64_t& addr1, uint64_t& addr2, uint64_t& ga
       if (steeEnabled_)
 	a1 = stee_.clearSecureBits(addr1);
       Pma pma = accessPma(a1);
-      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt(virtMode_));
+      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt());
       if (not pma.isMisalignedOk())
 	return pma.misalOnMisal()? EC::LOAD_ADDR_MISAL : EC::LOAD_ACC_FAULT;
     }
@@ -1701,7 +1711,7 @@ Hart<URV>::determineLoadException(uint64_t& addr1, uint64_t& addr2, uint64_t& ga
       uint64_t next = addr1 == addr2? aligned + ldSize : addr2;
       ldStFaultAddr_ = va2;
       pma = accessPma(next);
-      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt(virtMode_));
+      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt());
       if (not pma.isRead()  or  (virtMem_.isExecForRead() and not pma.isExec()))
 	return EC::LOAD_ACC_FAULT;
       if (not pma.isMisalignedOk())
@@ -1815,7 +1825,7 @@ readCharNonBlocking(int fd)
     return 0;
 
   char c = 0;
-  std::ptrdiff_t code = ::read(fd, &c, sizeof(c));
+  auto code = ::read(fd, &c, sizeof(c));
   if (code == 1)
     {
       if (isatty(fd))
@@ -1943,7 +1953,7 @@ Hart<URV>::deviceRead(uint64_t pa, unsigned size, uint64_t& val)
   if (isImsicAddr(pa))
     {
       if (imsicRead_)
-        imsicRead_(pa, sizeof(val), val);
+        imsicRead_(pa, size, val);
       return;
     }
 
@@ -1989,6 +1999,14 @@ Hart<URV>::deviceRead(uint64_t pa, unsigned size, uint64_t& val)
       return;
     }
 
+  if (isAplicAddr(pa))
+    {
+      uint32_t val32;
+      aplic_->read(pa, size, val32);
+      val = val32;
+      return;
+    }
+
   assert(0);  // No device contains given address.
 }
 
@@ -2019,6 +2037,13 @@ Hart<URV>::deviceWrite(uint64_t pa, STORE_TYPE storeVal)
       return;
     }
 
+  if (isAplicAddr(pa))
+    {
+      uint32_t val32 = storeVal;
+      aplic_->write(pa, sizeof(storeVal), val32);
+      return;
+    }
+
   assert(0);
 }
 
@@ -2046,8 +2071,6 @@ Hart<URV>::readForLoad([[maybe_unused]] const DecodedInst* di, uint64_t virtAddr
 
   ULT uval = 0;   // Unsigned loaded value
 
-  bool isDevice = isAclintAddr(addr1) or isImsicAddr(addr1) or isPciAddr(addr1);
-
   bool hasOooVal = false;
   if (ooo_)
     {
@@ -2065,7 +2088,7 @@ Hart<URV>::readForLoad([[maybe_unused]] const DecodedInst* di, uint64_t virtAddr
 	  data = 0;
 	  return true;
 	}
-      if (isDevice)
+      if (isDeviceAddr(addr1))
 	{
 	  uint64_t dv = 0;
 	  deviceRead(addr1, sizeof(ULT), dv);
@@ -2305,8 +2328,6 @@ Hart<URV>::writeForStore(uint64_t virtAddr, uint64_t pa1, uint64_t pa2, STORE_TY
       return true;  // Memory updated & lr-canceled when merge buffer is written.
     }
 
-  bool isDevice = isAclintAddr(pa1) or isImsicAddr(pa1) or isPciAddr(pa1);
-
   // If we write to special location, end the simulation.
   if (isToHostAddr(pa1))
     {
@@ -2314,7 +2335,7 @@ Hart<URV>::writeForStore(uint64_t virtAddr, uint64_t pa1, uint64_t pa2, STORE_TY
       return true;
     }
 
-  if (isDevice)
+  if (isDeviceAddr(pa1))
     {
       assert(pa1 == pa2);
       deviceWrite(pa1, storeVal);
@@ -5619,7 +5640,9 @@ Hart<URV>::setPerfApi(std::shared_ptr<TT_PERF::PerfApi> perfApi)
 
 template <typename URV>
 bool
-Hart<URV>::isInterruptPossible(URV mip, URV sip, [[maybe_unused]] URV vsip, InterruptCause& cause, PrivilegeMode& nextMode, bool& nextVirt) const
+Hart<URV>::isInterruptPossible(URV mip, URV sip, [[maybe_unused]] URV vsip,
+                               InterruptCause& cause, PrivilegeMode& nextMode,
+                               bool& nextVirt) const
 {
   if (debugMode_)
     return false;
@@ -5638,7 +5661,8 @@ Hart<URV>::isInterruptPossible(URV mip, URV sip, [[maybe_unused]] URV vsip, Inte
     {
       // Check for interrupts destined for machine-mode (not-delegated).
       // VS interrupts (e.g. VSEIP) are always delegated.
-      for (InterruptCause ic : { IC::M_EXTERNAL, IC::M_SOFTWARE, IC::M_TIMER,
+      for (InterruptCause ic : { IC{24}, IC{23}, IC{43}, // Ascalon local interrupts. FIX : make configurable.
+                                 IC::M_EXTERNAL, IC::M_SOFTWARE, IC::M_TIMER,
                                  IC::S_EXTERNAL, IC::S_SOFTWARE, IC::S_TIMER,
                                  IC::G_EXTERNAL, IC::LCOF } )
         {
@@ -5660,7 +5684,8 @@ Hart<URV>::isInterruptPossible(URV mip, URV sip, [[maybe_unused]] URV vsip, Inte
   URV sdest = sip & effectiveSie_;
   if ((mstatus_.bits_.SIE or virtMode_ or privMode_ == PM::User) and sdest != 0)
     {
-      for (InterruptCause ic : { IC::M_EXTERNAL, IC::M_SOFTWARE, IC::M_TIMER,
+      for (InterruptCause ic : { IC{24}, IC{23}, IC{43}, // Ascalon local interrupts. FIX : make configurable.
+                                 IC::M_EXTERNAL, IC::M_SOFTWARE, IC::M_TIMER,
                                  IC::S_EXTERNAL, IC::S_SOFTWARE, IC::S_TIMER,
                                  IC::G_EXTERNAL, IC::VS_EXTERNAL, IC::VS_SOFTWARE,
                                  IC::VS_TIMER, IC::LCOF } )
@@ -11679,7 +11704,7 @@ Hart<URV>::determineStoreException(uint64_t& addr1, uint64_t& addr2,
       if (steeEnabled_)
 	a1 = stee_.clearSecureBits(addr1);
       Pma pma = accessPma(a1);
-      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt(virtMode_));
+      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt());
       if (not pma.isMisalignedOk())
 	return pma.misalOnMisal()? EC::STORE_ADDR_MISAL : EC::STORE_ACC_FAULT;
     }
@@ -11742,7 +11767,7 @@ Hart<URV>::determineStoreException(uint64_t& addr1, uint64_t& addr2,
       uint64_t aligned = addr1 & ~alignMask;
       uint64_t next = addr1 == addr2? aligned + stSize : addr2;
       pma = accessPma(next);
-      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt(virtMode_));
+      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt());
       if (not pma.isWrite())
 	{
 	  ldStFaultAddr_ = va2;

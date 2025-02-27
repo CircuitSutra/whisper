@@ -931,6 +931,8 @@ namespace WdRiscv
     void attachImsic(std::shared_ptr<TT_IMSIC::Imsic> imsic)
     { imsic_ = imsic; }
 
+    bool aiaEnabled() const { return aiaEnabled_; }
+
   protected:
 
     /// Advance a csr number by the given amount (add amount to number).
@@ -1308,6 +1310,8 @@ namespace WdRiscv
     void hyperPoke(Csr<URV>* csr);
 
     bool readTrigger(CsrNumber number, PrivilegeMode mode, URV& value) const;
+
+    bool peekTrigger(CsrNumber number, PrivilegeMode mode, URV& value) const;
 
     bool writeTrigger(CsrNumber number, PrivilegeMode mode, URV value);
 

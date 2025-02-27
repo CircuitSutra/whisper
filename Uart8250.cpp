@@ -3,32 +3,112 @@
 #include <unistd.h>
 #include <poll.h>
 #include <termios.h>
+#ifdef __APPLE__
+#include <util.h>
+#else
+#include <pty.h>
+#endif
 #include "Uart8250.hpp"
 
 
 using namespace WdRiscv;
 
-
-Uart8250::Uart8250(uint64_t addr, uint64_t size)
-  : IoDevice(addr, size)
+FDChannel::FDChannel(int in_fd, int out_fd)
+  : in_fd_(in_fd), out_fd_(out_fd)
 {
-  auto func = [this]() { this->monitorStdin(); };
-  stdinThread_ = std::thread(func);
+  inPollfd.fd = in_fd_;
+  inPollfd.events = POLLIN;
 
-  struct termios term;
-  tcgetattr(fileno(stdin), &term);
-  cfmakeraw(&term);
-  term.c_lflag &= ~ECHO;
-  tcsetattr(fileno(stdin), 0, &term);
+  if (isTTY()) {
+    struct termios term;
+    tcgetattr(in_fd_, &term);
+    cfmakeraw(&term);
+    term.c_lflag &= ~ECHO;
+    tcsetattr(in_fd_, 0, &term);
+  }
 }
 
+bool FDChannel::read(uint8_t& byte) {
+  if (not isTTY())
+    return ::read(in_fd_, &byte, 1) == 1;
+
+  int code = poll(&inPollfd, 1, 1);
+
+  if (code == 0)
+    return false;
+
+  if (code == 1)
+  {
+    if ((inPollfd.revents & POLLIN) != 0)
+    {
+      uint8_t c;
+      if (::read(in_fd_, &c, sizeof(c)) != 1)
+	std::cerr << "FDChannel: unexpected fail on read\n";
+      static uint8_t prev = 0;
+
+      // Force a stop if control-a x is seen.
+      if (prev == 1 and c == 'x')
+	throw std::runtime_error("Keyboard stop");
+      prev = c;
+
+      byte = c;
+      return true;
+    }
+  }
+
+  // TODO: handle error return codes from poll.
+  return false;
+}
+
+void FDChannel::write(uint8_t byte) {
+  int written;
+  do {
+    written = ::write(out_fd_, &byte, 1);
+  } while (written != 1 && written != -1);
+
+  if (written == -1)
+    throw std::runtime_error("FDChannel error writing to output\n");
+}
+
+bool FDChannel::isTTY() {
+  return isatty(in_fd_);
+}
+
+PTYChannelBase::PTYChannelBase() {
+  char name[256];
+  if (openpty(&master_, &slave_, name, nullptr, nullptr) < 0)
+    throw std::runtime_error("Failed to open a PTY\n");
+
+  std::cerr << "Got PTY " << name << "\n";
+}
+
+PTYChannelBase::~PTYChannelBase()
+{
+  if (master_ != -1)
+    close(master_);
+
+  if (slave_ != -1)
+    close(slave_);
+}
+
+
+PTYChannel::PTYChannel() : PTYChannelBase(), FDChannel(master_, master_)
+{ }
+
+Uart8250::Uart8250(uint64_t addr, uint64_t size,
+    std::shared_ptr<TT_APLIC::Aplic> aplic, uint32_t iid,
+    std::unique_ptr<UartChannel> channel)
+  : IoDevice(addr, size, aplic, iid), channel_(std::move(channel))
+{
+  auto func = [this]() { this->monitorInput(); };
+  stdinThread_ = std::thread(func);
+}
 
 Uart8250::~Uart8250()
 {
   terminate_ = true;
   stdinThread_.join();
 }
-
 
 uint32_t
 Uart8250::read(uint64_t addr)
@@ -91,11 +171,10 @@ Uart8250::write(uint64_t addr, uint32_t value)
 	{
 	case 0:
 	    {
-	      int c = static_cast<int>(value & 0xff);
-	      if (c)
+	      uint8_t byte = value;
+	      if (byte)
 		{
-		  putchar(c);
-		  fflush(stdout);
+		  channel_->write(byte);
 		}
 	    }
 	  break;
@@ -129,47 +208,37 @@ Uart8250::write(uint64_t addr, uint32_t value)
 
 
 void
-Uart8250::monitorStdin()
+Uart8250::monitorInput()
 {
-  struct pollfd inPollfd;
+  if (!channel_->isTTY())
+    {
+      uint8_t c = 0;
+      while (channel_->read(c))
+      {
+	rx_fifo.push(c);
 
-  int fd = fileno(stdin);        // stdin file descriptor
-  inPollfd.fd = fd;
-  inPollfd.events = POLLIN;
+	while (rx_fifo.size() > 1024)
+	  ;  // Avoid makeing queue too large.
+      }
+      return;
+    }
 
   while (true)
+  {
+    if (terminate_)
+      return;
+
+    uint8_t c;
+    if (!channel_->read(c))
+      continue;
+
     {
-      if (terminate_)
-	return;
+      std::lock_guard<std::mutex> lock(mutex_);
+      rx_fifo.push(c);
 
-      int code = poll(&inPollfd, 1, -1);
-      if (code == 0)
-	continue;   // Timed out.
-
-      if (code == 1)
-	{
-	  if ((inPollfd.revents & POLLIN) != 0)
-	    {
-	      std::lock_guard<std::mutex> lock(mutex_);
-	      char c;
-	      if (::read(fd, &c, sizeof(c)) != 1)
-		std::cerr << "Uart8250::monitorStdin: unexpected fail on read\n";
-	      if (isatty(fd))
-		{
-		  static char prev = 0;
-
-		  // Force a stop if control-a x is seen.
-		  if (prev == 1 and c == 'x')
-		    throw std::runtime_error("Keyboard stop");
-		  prev = c;
-		}
-	      rx_fifo.push(c);
-	      lsr_ |= 1;  // Set least sig bit of line status.
-	      iir_ &= ~1;  // Clear bit 0 indicating interrupt is pending.
-	      // setInterruptPending(true);
-	    }
-	}
-
-      // TODO: handle error return codes from poll.
+      lsr_ |= 1;  // Set least sig bit of line status.
+      iir_ &= ~1;  // Clear bit 0 indicating interrupt is pending.
+      setInterruptPending(true);
     }
+  }
 }
