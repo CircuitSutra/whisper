@@ -816,7 +816,7 @@ IFormInst::encodeCsrrw(uint32_t rd, uint32_t rs1, uint32_t csr)
   if (csr >= (1 << 12))
     return false;
 
-  fields.opcode = 0x7f;
+  fields.opcode = 0x73;
   fields.rd = rd & 0x1f;
   fields.funct3 = 1;
   fields.rs1 = rs1 & 0x1f;
