@@ -5373,5 +5373,17 @@ Mcm<URV>::getVecRegEarlyTime(Hart<URV>& hart, const McmInstr& instr, unsigned re
   return time;
 }
 
+
+template <typename URV>
+void
+Mcm<URV>::reportMissingFetch(const Hart<URV>& hart, uint64_t tag, uint64_t pa) const
+{
+  cerr << "Warning: Hart-id=" << hart.hartId() << " time=" << time_ << " tag=" << tag
+       << " pa=0x" << std::hex << pa << std::dec << " opcode missing in instruction cache"
+       << " (not brought in with mcm_ifetch)\n";
+}
+
+
+
 template class WdRiscv::Mcm<uint32_t>;
 template class WdRiscv::Mcm<uint64_t>;

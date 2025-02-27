@@ -436,6 +436,10 @@ namespace WdRiscv
     /// address dependency.
     McmInstrIx getMinReadTagWithLargerTime(unsigned hartIx, const McmInstr& instr) const;
 
+    /// Issue a warning about an instruction opcode missing in the fetch cache (not
+    /// brought in with an mcm-ifetch operation).
+    void reportMissingFetch(const Hart<URV>& hart, uint64_t tag, uint64_t pa) const;
+
   protected:
 
     /// Helper to public readOp which splits line crossing ops into two calling this

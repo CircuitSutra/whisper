@@ -2608,7 +2608,8 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr, [[maybe_unuse
     {
       // If line is io or non-cachable, we cache it anyway counting on the test-bench
       // evicting it as soon as the RTL gets out of that line.
-      readInstFromFetchCache(physAddr, half);
+      if (not readInstFromFetchCache(physAddr, half))
+        mcm_->reportMissingFetch(*this, instCounter_, physAddr);
     }
 
   if (initStateFile_)
@@ -2661,7 +2662,8 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr, [[maybe_unuse
     {
       // If line is io or non-cachable, we cache it anyway counting on the test-bench
       // evicting it as soon as the RTL gets out of that line.
-      readInstFromFetchCache(physAddr2, upperHalf);
+      if (not readInstFromFetchCache(physAddr2, upperHalf))
+        mcm_->reportMissingFetch(*this, instCounter_, physAddr2);
     }
 
   if (initStateFile_)
