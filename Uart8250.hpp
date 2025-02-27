@@ -3,6 +3,7 @@
 #include <thread>
 #include <atomic>
 #include <mutex>
+#include <condition_variable>
 #include <queue>
 #include <poll.h>
 #include "IoDevice.hpp"
@@ -19,22 +20,18 @@ namespace WdRiscv
     /// Block until a byte is available
     /// Return false on failure
     /// Return true on success and the read byte is placed in byte parameter
-    virtual bool read(uint8_t& byte) = 0;
+    virtual size_t read(uint8_t *buf, size_t size) = 0;
 
     /// Send the given byte
     virtual void write(uint8_t byte) = 0;
-
-    // Does this channel correspond to a TTY?
-    virtual bool isTTY() = 0;
   };
 
   class FDChannel : public UartChannel {
   public:
     FDChannel(int in_fd, int out_fd);
 
-    bool read(uint8_t& byte) override;
+    size_t read(uint8_t *buf, size_t size) override;
     void write(uint8_t byte) override;
-    bool isTTY() override;
 
   private:
     int in_fd_, out_fd_;
@@ -77,6 +74,8 @@ namespace WdRiscv
     void write(uint64_t addr, uint32_t value) override;
 
   private:
+    static const constexpr size_t FIFO_SIZE = 1024;
+
     std::unique_ptr<UartChannel> channel_;
 
     /// This runs in its own thread. It monitors the standard input and
@@ -96,9 +95,11 @@ namespace WdRiscv
     uint8_t dlm_ = 0x1;   // Divisor latch msb
     uint8_t psd_ = 0;     // Pre-scaler division
 
-    std::thread stdinThread_;
+    std::thread inThread_;
     std::atomic<bool> terminate_ = false;
-    std::mutex mutex_;   // Synchronize access to byte_ with stdinThread_.
+    std::mutex mutex_;   // Synchronize access to rx_fifo with inThread_.
+    std::condition_variable cv_; // Wake inThread_ when there is space in the rx_fifo
+
     std::queue<uint8_t> rx_fifo;
   };
 }
