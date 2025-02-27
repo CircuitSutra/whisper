@@ -16,8 +16,13 @@ using namespace WdRiscv;
 FDChannel::FDChannel(int in_fd, int out_fd)
   : in_fd_(in_fd), out_fd_(out_fd)
 {
-  inPollfd.fd = in_fd_;
-  inPollfd.events = POLLIN;
+  if (pipe(terminate_pipe_))
+    throw std::runtime_error("FDChannel: Failed to get termination pipe\n");
+
+  pollfds_[0].fd = in_fd_;
+  pollfds_[0].events = POLLIN;
+  pollfds_[1].fd = terminate_pipe_[0];
+  pollfds_[1].events = POLLIN;
 
   if (isatty(in_fd_)) {
     struct termios term;
@@ -29,14 +34,18 @@ FDChannel::FDChannel(int in_fd, int out_fd)
 }
 
 size_t FDChannel::read(uint8_t *arr, size_t n) {
-  int code = poll(&inPollfd, 1, -1);
+  int code = poll(pollfds_, 2, -1);
 
   if (code == 0)
     return 0;
 
-  if (code == 1)
+  if (code > 0)
   {
-    if ((inPollfd.revents & POLLIN) != 0)
+    // Terminated
+    if ((pollfds_[1].revents & POLLIN))
+      return 0;
+
+    if ((pollfds_[0].revents & POLLIN) != 0)
     {
       ssize_t count = ::read(in_fd_, arr, n);
       if (count < 0)
@@ -69,6 +78,19 @@ void FDChannel::write(uint8_t byte) {
 
   if (written == -1)
     throw std::runtime_error("FDChannel error writing to output\n");
+}
+
+
+void FDChannel::terminate() {
+  const uint8_t byte = 0;
+  ::write(terminate_pipe_[1], &byte, 1);
+}
+
+FDChannel::~FDChannel() {
+  for (uint8_t i = 0; i < 2; i++) {
+    if (terminate_pipe_[i] != -1)
+      close(terminate_pipe_[i]);
+  }
 }
 
 PTYChannelBase::PTYChannelBase() {
@@ -104,6 +126,7 @@ Uart8250::Uart8250(uint64_t addr, uint64_t size,
 Uart8250::~Uart8250()
 {
   terminate_ = true;
+  channel_->terminate();
   inThread_.join();
 }
 
@@ -224,6 +247,9 @@ Uart8250::monitorInput()
 
       size_t i = 0;
       do {
+	if (terminate_)
+	  return;
+
 	for (; i < count && rx_fifo.size() < FIFO_SIZE; i++)
 	{
 	  rx_fifo.push(arr[i]);
@@ -233,8 +259,9 @@ Uart8250::monitorInput()
 	iir_ &= ~1;  // Clear bit 0 indicating interrupt is pending.
 	setInterruptPending(true);
 
-	// Block until rx_fifo has space
-	cv_.wait(lock, [this] () {return rx_fifo.size() < FIFO_SIZE;});
+	if (rx_fifo.size() >= FIFO_SIZE)
+	  // Block until rx_fifo has space
+	  cv_.wait(lock);
       } while (i != count);
     }
   }

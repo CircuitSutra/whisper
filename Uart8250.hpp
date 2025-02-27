@@ -24,18 +24,25 @@ namespace WdRiscv
 
     /// Send the given byte
     virtual void write(uint8_t byte) = 0;
+
+    /// Signal to the channel we're terminating. Should unblock any blocked
+    /// reads.
+    virtual void terminate() {}
   };
 
   class FDChannel : public UartChannel {
   public:
     FDChannel(int in_fd, int out_fd);
+    ~FDChannel();
 
     size_t read(uint8_t *buf, size_t size) override;
     void write(uint8_t byte) override;
+    void terminate() override;
 
   private:
     int in_fd_, out_fd_;
-    struct pollfd inPollfd;
+    int terminate_pipe_[2] = {-1, -1};
+    struct pollfd pollfds_[2];
   };
 
 
@@ -50,7 +57,7 @@ namespace WdRiscv
 
   protected:
     PTYChannelBase();
-    virtual ~PTYChannelBase();
+    ~PTYChannelBase();
 
     int master_ = -1;
     int slave_ = -1;
