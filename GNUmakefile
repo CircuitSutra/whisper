@@ -32,10 +32,11 @@ ifdef VIRT_MEM
   virtual_memory_lib := $(virtual_memory_build)/libvirtual_memory.a
 endif
 
+soft_float_build := $(wildcard $(PWD)/third_party/softfloat/build/RISCV-GCC)
+
 ifdef SOFT_FLOAT
   override CPPFLAGS += -I$(PWD)/third_party/softfloat/source/include
   override CPPFLAGS += -DSOFT_FLOAT -DTHREAD_LOCAL=__thread
-  soft_float_build := $(wildcard $(PWD)/third_party/softfloat/build/RISCV-GCC)
   soft_float_lib := $(soft_float_build)/softfloat.a
 endif
 
