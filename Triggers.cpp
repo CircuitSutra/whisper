@@ -77,6 +77,23 @@ Triggers<URV>::readData1(URV trigIx, URV& value) const
 
 template <typename URV>
 bool
+Triggers<URV>::peekData1(URV trigIx, URV& value) const
+{
+  if (trigIx >= triggers_.size())
+    return false;
+
+  auto& trigger = triggers_.at(trigIx);
+  unsigned typeIx = unsigned(trigger.type());
+
+  URV readMask = typeIx < data1ReadMasks_.size() ? data1ReadMasks_.at(typeIx) : 0;
+
+  value = trigger.peekData1() & readMask;
+  return true;
+}
+
+
+template <typename URV>
+bool
 Triggers<URV>::readData2(URV trigger, URV& value) const
 {
   if (trigger >= triggers_.size())

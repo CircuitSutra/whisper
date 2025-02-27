@@ -1311,6 +1311,8 @@ namespace WdRiscv
 
     bool readTrigger(CsrNumber number, PrivilegeMode mode, URV& value) const;
 
+    bool peekTrigger(CsrNumber number, PrivilegeMode mode, URV& value) const;
+
     bool writeTrigger(CsrNumber number, PrivilegeMode mode, URV value);
 
     bool pokeTrigger(CsrNumber number, URV value);
