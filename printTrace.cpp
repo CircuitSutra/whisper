@@ -8,7 +8,7 @@
 #include "Stee.hpp"
 
 using namespace WdRiscv;
-using namespace TT_STEE::Stee;
+using TT_STEE::Stee;
 
 //NOLINTNEXTLINE(bugprone-reserved-identifier, cppcoreguidelines-avoid-non-const-global-variables)
 void (*__tracerExtension)(void*) = nullptr;
