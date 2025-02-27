@@ -983,6 +983,8 @@ Hart<URV>::vsetvl(unsigned rd, unsigned rs1, URV vtypeVal, bool vli /* vsetvli i
   // Update cached vtype fields in vecRegs_.
   vecRegs_.updateConfig(ew, gm, ma, ta, vill);
 
+  markVsDirty();
+
   return true;
 }
 
@@ -991,12 +993,16 @@ template <typename URV>
 void
 Hart<URV>::postVecSuccess()
 {
-  csRegs_.clearVstart();
+  bool dirty = vecRegs_.getLastWrittenReg() >= 0;  // Some vec register was written.
 
-  // Writing to vstart should mark VS as dirty, so do so
-  // regardless of whether any vector operand registers
-  // were written.
-  markVsDirty();
+  if (csRegs_.peekVstart() != 0)
+    {
+      csRegs_.clearVstart();
+      dirty = true;
+    }
+
+  if (dirty)
+    markVsDirty();
 }
 
 
@@ -1099,6 +1105,8 @@ Hart<URV>::execVsetivli(const DecodedInst* di)
   // Update cached vtype fields in vecRegs_.
   vecRegs_.updateConfig(ew, gm, ma, ta, vill);
   postVecSuccess();
+
+  markVsDirty();
 }
 
 
