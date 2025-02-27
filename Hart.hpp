@@ -1932,22 +1932,31 @@ namespace WdRiscv
     /// instruction/data page table walk of the last executed
     /// instruction or make it empty if no page table walk took place.
     void getPageTableWalkAddresses(bool isInstr, unsigned ix, std::vector<VirtMem::WalkEntry>& addrs) const
-    { addrs = isInstr? virtMem_.getFetchWalks(ix) : virtMem_.getDataWalks(ix); }
+    {
+      addrs = isInstr? virtMem_.getFetchWalks(ix) : virtMem_.getDataWalks(ix);
+      if (steeEnabled_)
+        for (auto& item : addrs)
+          if (item.type_ == VirtMem::WalkEntry::Type::PA)
+            item.addr_ = stee_.clearSecureBits(item.addr_);
+    }
 
     /// Get the page table entries of the page table walk of the last
     /// executed instruction (see getPageTableWAlkAddresses).
     void getPageTableWalkEntries(bool isInstr, unsigned ix, std::vector<uint64_t>& ptes) const
     {
-      const auto& addrs = isInstr? virtMem_.getFetchWalks(ix) : virtMem_.getDataWalks(ix);
+      const auto& walks = isInstr? virtMem_.getFetchWalks(ix) : virtMem_.getDataWalks(ix);
       ptes.clear();
-      for (const auto& addr : addrs)
+      for (const auto& item : walks)
 	{
-        if (addr.type_ == VirtMem::WalkEntry::Type::PA)
-          {
-            URV pte = 0;
-            peekMemory(addr.addr_, pte, true);
-            ptes.push_back(pte);
-          }
+          if (item.type_ == VirtMem::WalkEntry::Type::PA)
+            {
+              URV pte = 0;
+              uint64_t addr = item.addr_;
+              if (steeEnabled_)
+                addr = stee_.clearSecureBits(addr);
+              peekMemory(addr, pte, true);
+              ptes.push_back(pte);
+            }
 	}
     }
 

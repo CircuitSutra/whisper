@@ -5,8 +5,10 @@
 #include <sstream>
 #include "Hart.hpp"
 #include "Trace.hpp"
+#include "Stee.hpp"
 
 using namespace WdRiscv;
+using TT_STEE::Stee;
 
 //NOLINTNEXTLINE(bugprone-reserved-identifier, cppcoreguidelines-avoid-non-const-global-variables)
 void (*__tracerExtension)(void*) = nullptr;
@@ -223,7 +225,7 @@ template <typename URV>
 static
 void
 printPageTableWalk(FILE* out, const Hart<URV>& hart, const char* tag,
-		   const std::vector<VirtMem::WalkEntry>& entries)
+		   const std::vector<VirtMem::WalkEntry>& entries, bool steeEnabled, const Stee &stee)
 {
   fputs(tag, out);
   fputs(":", out);
@@ -233,23 +235,27 @@ printPageTableWalk(FILE* out, const Hart<URV>& hart, const char* tag,
   for (auto& entry : entries)
     {
       fputs("  +\n", out);
+      uint64_t displayAddr = entry.addr_;
+      if (steeEnabled and entry.type_ == VirtMem::WalkEntry::Type::PA)
+        displayAddr = stee.clearSecureBits(displayAddr);
+
       if (entry.type_ == VirtMem::WalkEntry::Type::RE)
         {
           fputs(pageTableWalkType(headType, head).data(), out);
           fputs("res:", out);
-          fprintf(out, "0x%" PRIx64, entry.addr_);
+          fprintf(out, "0x%" PRIx64, displayAddr);
           continue;
         }
 
       fputs(pageTableWalkType(entry.type_, head).data(), out);
-      fprintf(out, "0x%" PRIx64, entry.addr_);
+      fprintf(out, "0x%" PRIx64, displayAddr);
       if (entry.type_ == VirtMem::WalkEntry::Type::PA)
         {
           uint64_t pte = 0;
-          hart.peekMemory(entry.addr_, pte, true);
+          hart.peekMemory(displayAddr, pte, true);
           fprintf(out, "=0x%" PRIx64, pte);
 
-          Pma pma = hart.getPma(entry.addr_);
+          Pma pma = hart.getPma(displayAddr);
           pma = hart.overridePmaWithPbmt(pma, entry.pbmt_);
           fprintf(out, ", ma=%s", pma.attributesToString(pma.attributesToInt()).c_str());
         }
@@ -466,13 +472,13 @@ Hart<URV>::printDecodedInstTrace(const DecodedInst& di, uint64_t tag, std::strin
       for (const auto& walk : virtMem_.getFetchWalks())
         {
           fputs("  +\n", out);
-          printPageTableWalk(out, *this, "iptw", walk);
+          printPageTableWalk(out, *this, "iptw", walk, steeEnabled_, stee_);
         }
 
       for (const auto& walk : virtMem_.getDataWalks())
         {
           fputs("  +\n", out);
-          printPageTableWalk(out, *this, "dptw", walk);
+          printPageTableWalk(out, *this, "dptw", walk, steeEnabled_, stee_);
         }
     }
   fputs("\n", out);
