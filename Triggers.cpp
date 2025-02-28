@@ -169,11 +169,22 @@ Triggers<URV>::writeData1(URV trigIx, bool debugMode, URV value)
 
   // If new type is not supported, preserve old type.
   Data1Bits<URV> valBits{value};
-  if (not isSupportedType(valBits.type()))
+  bool preserve = not isSupportedType(valBits.type());
+
+  if (valBits.type() != TriggerType::None and not preserve)
     {
-      valBits.setType(trig.data1_.type());
-      value = valBits.value_;
+      // If new type is not supported by this trigger, preserve old type.
+      unsigned typeNumber = unsigned(valBits.type());
+      unsigned mask = 1 << typeNumber;
+      TinfoBits tinfo(trig.readInfo());
+      preserve = not (tinfo.info() & mask);
     }
+
+  if (preserve)
+     {
+       valBits.setType(trig.data1_.type());
+       value = valBits.value_;
+     }
 
   if (not trig.writeData1(debugMode, value))
     return false;

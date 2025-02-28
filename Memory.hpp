@@ -93,7 +93,7 @@ namespace WdRiscv
     {
       if (readIo(address, value))
 	return true;
-#ifdef FAST_SLOPPY
+#if FAST_SLOPPY
       if (address + sizeof(T) > size_)
         return false;
 #else
@@ -219,7 +219,7 @@ namespace WdRiscv
 	  return true;
 	}
 
-#ifdef FAST_SLOPPY
+#if FAST_SLOPPY
       if (address + sizeof(T) > size_)
         return false;
       *(reinterpret_cast<T*>(data_ + address)) = value;
@@ -308,7 +308,7 @@ namespace WdRiscv
       if (address + sizeof(T) > size_)
         return false;
 
-#ifdef FAST_SLOPPY
+#if FAST_SLOPPY
       value = *(reinterpret_cast<const T*>(data_ + address));
       return true;
 #endif

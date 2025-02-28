@@ -26,7 +26,7 @@
 #include <fcntl.h>
 #include <elfio/elfio.hpp>
 #include <zlib.h>
-#ifdef LZ4_COMPRESS
+#if LZ4_COMPRESS
 #include <lz4frame.h>
 #endif
 #include "Memory.hpp"
@@ -253,7 +253,7 @@ Memory::loadBinaryFile(const std::string& fileName, uint64_t addr)
 }
 
 
-#ifdef LZ4_COMPRESS
+#if LZ4_COMPRESS
 
 std::pair<std::unique_ptr<uint8_t[]>, size_t>
 Memory::loadFile(const std::string& filename)

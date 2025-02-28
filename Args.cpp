@@ -36,19 +36,19 @@ printVersion()
   #undef xstr
 #endif
   std::cout << "Compile options: \n";
-#ifdef SOFT_FLOAT
+#if SOFT_FLOAT
   std::cout << "SOFT_FLOAT\n";
 #endif
 #ifdef MEM_CALLBACKS
   std::cout << "MEM_CALLBACKS\n";
 #endif
-#ifdef PCI
+#if PCI
   std::cout << "PCI\n";
 #endif
-#ifdef FAST_SLOPPY
+#if FAST_SLOPPY
   std::cout << "FAST_SLOPPY\n";
 #endif
-#ifdef LZ4_COMPRESS
+#if LZ4_COMPRESS
   std::cout << "LZ4_COMPRESS\n";
 #endif
 }
@@ -350,7 +350,7 @@ Args::parseCmdLineArgs(std::span<char*> argv)
 	 "An additional suffix of :u may be added to write back the file with the contents of memory "
 	 "at the end of the run. "
 	 "Example: -b file1 -b file2:0x1040 -b file3:0x20000:u")
-#ifdef LZ4_COMPRESS
+#if LZ4_COMPRESS
 	("lz4", po::value(&this->lz4Files)->multitoken(),
 	 "LZ4 file to load into simulator memory.")
 #endif

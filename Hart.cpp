@@ -1878,7 +1878,7 @@ Hart<URV>::load(const DecodedInst* di, uint64_t virtAddr, [[maybe_unused]] bool 
   ldStPhysAddr1_ = ldStPhysAddr2_ = virtAddr;
   ldStSize_ = sizeof(LOAD_TYPE);
 
-#ifdef FAST_SLOPPY
+#if FAST_SLOPPY
   return fastLoad<LOAD_TYPE>(di, virtAddr, data);
 #else
 
@@ -2055,7 +2055,7 @@ Hart<URV>::readForLoad([[maybe_unused]] const DecodedInst* di, uint64_t virtAddr
 		       [[maybe_unused]] uint64_t addr1, [[maybe_unused]] uint64_t addr2,
 		       uint64_t& data, unsigned elemIx, unsigned field)
 {
-#ifdef FAST_SLOPPY
+#if FAST_SLOPPY
   return fastLoad<LOAD_TYPE>(di, virtAddr, data);
 #else
 
@@ -2238,7 +2238,7 @@ Hart<URV>::store(const DecodedInst* di, URV virtAddr, [[maybe_unused]] bool hype
   ldStPhysAddr1_ = ldStPhysAddr2_ = ldStAddr_;
   ldStSize_ = sizeof(STORE_TYPE);
 
-#ifdef FAST_SLOPPY
+#if FAST_SLOPPY
   return fastStore(di, virtAddr, storeVal);
 #else
 
@@ -2545,7 +2545,7 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr, [[maybe_unuse
 			   uint64_t& gPhysAddr, uint32_t& inst)
 {
   uint64_t steePhysAddr;
-#ifdef FAST_SLOPPY
+#if FAST_SLOPPY
 
   assert((virtAddr & 1) == 0);
   gPhysAddr = physAddr = virtAddr;
@@ -2608,7 +2608,8 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr, [[maybe_unuse
     {
       // If line is io or non-cachable, we cache it anyway counting on the test-bench
       // evicting it as soon as the RTL gets out of that line.
-      readInstFromFetchCache(physAddr, half);
+      if (not readInstFromFetchCache(physAddr, half))
+        mcm_->reportMissingFetch(*this, instCounter_, physAddr);
     }
 
   if (initStateFile_)
@@ -2661,7 +2662,8 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr, [[maybe_unuse
     {
       // If line is io or non-cachable, we cache it anyway counting on the test-bench
       // evicting it as soon as the RTL gets out of that line.
-      readInstFromFetchCache(physAddr2, upperHalf);
+      if (not readInstFromFetchCache(physAddr2, upperHalf))
+        mcm_->reportMissingFetch(*this, instCounter_, physAddr2);
     }
 
   if (initStateFile_)

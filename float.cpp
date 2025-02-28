@@ -107,7 +107,7 @@ Hart<URV>::effectiveRoundingMode(unsigned instMode)
 }
 
 
-#ifdef FAST_SLOPPY
+#if FAST_SLOPPY
 
 template <typename URV>
 inline

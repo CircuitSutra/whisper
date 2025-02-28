@@ -26,28 +26,29 @@ BOOST_LIBS := boost_program_options
 EXTRA_LIBS := -lpthread -lm -lz -ldl -static-libstdc++ -lrt -lutil
 
 VIRT_MEM := 1
-ifdef VIRT_MEM
+ifeq ($(VIRT_MEM), 1)
   override CPPFLAGS += -Ivirtual_memory
   virtual_memory_build := $(wildcard $(PWD)/virtual_memory/)
   virtual_memory_lib := $(virtual_memory_build)/libvirtual_memory.a
 endif
 
-ifdef SOFT_FLOAT
+soft_float_build := $(wildcard $(PWD)/third_party/softfloat/build/RISCV-GCC)
+
+ifeq ($(SOFT_FLOAT), 1)
   override CPPFLAGS += -I$(PWD)/third_party/softfloat/source/include
   override CPPFLAGS += -DSOFT_FLOAT -DTHREAD_LOCAL=__thread
-  soft_float_build := $(wildcard $(PWD)/third_party/softfloat/build/RISCV-GCC)
   soft_float_lib := $(soft_float_build)/softfloat.a
 endif
 
 PCI := 1
-ifdef PCI
+ifeq ($(PCI), 1)
   override CPPFLAGS += -I$(PWD)/pci
   pci_build := $(wildcard $(PWD)/pci/)
   pci_lib := $(PWD)/pci/libpci.a
 endif
 
 TRACE_READER := 1
-ifdef TRACE_READER
+ifeq ($(TRACE_READER), 1)
   override CPPFLAGS += -I$(PWD)/trace-reader
   trace_reader_build := $(wildcard $(PWD)/trace-reader/)
   trace_reader_lib := $(PWD)/trace-reader/TraceReader.a
@@ -55,7 +56,7 @@ endif
 
 MEM_CALLBACKS := 1
 ifeq ($(MEM_CALLBACKS), 1)
-  ifdef FAST_SLOPPY
+  ifeq ($(FAST_SLOPPY), 1)
     $(warning "FAST_SLOPPY not compatible with MEM_CALLBACKS, turning off MEM_CALLBACKS")
     MEM_CALLBACKS := 0
   else
@@ -63,11 +64,11 @@ ifeq ($(MEM_CALLBACKS), 1)
   endif
 endif
 
-ifdef FAST_SLOPPY
+ifeq ($(FAST_SLOPPY), 1)
   override CPPFLAGS += -DFAST_SLOPPY
 endif
 
-ifdef LZ4_COMPRESS
+ifeq ($(LZ4_COMPRESS), 1)
   override CPPFLAGS += -DLZ4_COMPRESS
   EXTRA_LIBS += -llz4
 endif

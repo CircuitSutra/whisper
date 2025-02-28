@@ -369,7 +369,7 @@ System<URV>::loadBinaryFiles(const std::vector<std::string>& fileSpecs,
 }
 
 
-#ifdef LZ4_COMPRESS
+#if LZ4_COMPRESS
 template <typename URV>
 bool
 System<URV>::loadLz4Files(const std::vector<std::string>& fileSpecs,
@@ -1294,7 +1294,7 @@ System<URV>::batchRun(std::vector<FILE*>& traceFiles, bool waitAll, uint64_t ste
           try
             {
               result = hart.run(traceFiles.at(0));
-#ifdef FAST_SLOPPY
+#if FAST_SLOPPY
               hart.reportOpenedFiles(std::cout);
 #endif
             }

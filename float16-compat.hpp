@@ -248,7 +248,7 @@ class Float16Template
 // Note that we still want literals/constants to be allowed, so
 // mark the functionality as consteval to only allow them to be
 // used at compile time.
-#ifdef SOFT_FLOAT
+#if SOFT_FLOAT
 #define CONSTEXPR_OR_CONSTEVAL consteval
 #define IS_CONSTANT_EVALUATED (MAX_EXPONENT_ > 0) // Avoids warning when using std::is_constant_evaluated in consteval context
 #else
