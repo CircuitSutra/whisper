@@ -538,16 +538,15 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
     }
 
   bool trap = hart.lastInstructionTrapped();
+  packet.trap_ = packet.trap_ or trap;
+
   if (di.isLr())
     {
-      packet.trap_ = packet.trap_ or trap;
-
       // Record PC of subsequent packet.
       packet.nextIva_ = hart.peekPc();
 
-      if (not trap)
+      if (not packet.trap_)
         recordExecutionResults(hart, packet);
-
       packet.executed_ = true;
     }
 
@@ -571,24 +570,9 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
   for (auto& producer : packet.opProducers_)
     producer.clear();
 
-  // If instruction trapped, remove it from packet map, unless it is a partially executed
-  // vector store since that needs to be drained.
+  // Erase packet from packet map. Stores erased at drain time.
   auto& packetMap = hartPacketMaps_.at(hartIx);
-  bool vecStore = packet.di_.isVectorStore();
-  if (trap)
-    {
-      bool erase = true;
-      if (vecStore)
-        {
-          uint64_t vstart = 0;
-          erase = hart.peekCsr(WdRiscv::CsrNumber::VSTART, vstart) and vstart == 0;
-        }
-      if (erase)
-        packetMap.erase(packet.tag());
-    }
-
-  // Stores erased at drain time.
-  if (not packet.isStore() and not vecStore)
+  if (not packet.isStore() and not di.isVectorStore())
     packetMap.erase(packet.tag());
 
   return true;
