@@ -1974,6 +1974,16 @@ WdRiscv::encodeCsrrci(uint32_t rd, uint32_t imm, uint32_t csr, uint32_t& inst)
   return true;
 }
 
+bool
+WdRiscv::encodeCsrrwi(uint32_t rd, uint32_t imm, uint32_t csr, uint32_t& inst)
+{
+  IFormInst ifs(0);
+  if (not ifs.encodeCsrrwi(rd, imm, csr))
+    return false;
+  inst = ifs.code;
+  return true;
+}
+
 
 bool
 WdRiscv::encodeLwu(uint32_t rd, uint32_t rs1, uint32_t offset, uint32_t& inst)
