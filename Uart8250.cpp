@@ -83,7 +83,8 @@ void FDChannel::write(uint8_t byte) {
 
 void FDChannel::terminate() {
   const uint8_t byte = 0;
-  ::write(terminate_pipe_[1], &byte, 1);
+  if (::write(terminate_pipe_[1], &byte, 1) != 1)
+    std::cerr << "Info: FDChannel::terminate: write failed\n";
 }
 
 FDChannel::~FDChannel() {
