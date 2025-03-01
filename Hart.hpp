@@ -2530,6 +2530,7 @@ namespace WdRiscv
         {
           pma.enable(Pma::Attrib::Idempotent);
           pma.disable(Pma::Attrib::Io);
+          pma.enable(Pma::Attrib::MisalOk);
         }
       else
         {
