@@ -377,12 +377,15 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
   uint64_t prevMstatus = 0;
   if (not hart.peekCsr(CSRN::MSTATUS, prevMstatus))
     assert(0);
-  uint64_t prevVtype = 0, prevVl = 0;
+  uint64_t prevVtype = 0, prevVl = 0, prevFcsr = 0;
   if (di.isVector())
     {
-      if (not hart.peekCsr(CSRN::VTYPE, prevVtype) or not hart.peekCsr(CSRN::VL, prevVl))
-        assert(0);
+      (void) hart.peekCsr(CSRN::VTYPE, prevVtype);
+      (void) hart.peekCsr(CSRN::VL, prevVl);
+      (void) hart.peekCsr(CSRN::FCSR, prevFcsr);
     }
+  else if (di.isFp())
+    (void) hart.peekCsr(CSRN::FCSR, prevFcsr);
 
   // Execute
   skipIoLoad_ = true;   // Load from IO space takes effect at retire.
@@ -438,7 +441,10 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
     {
       hart.pokeCsr(CSRN::VTYPE, prevVtype);
       hart.pokeCsr(CSRN::VL, prevVl);
+      hart.pokeCsr(CSRN::FCSR, prevFcsr);
     }
+  else if (di.isFp())
+    hart.pokeCsr(CSRN::FCSR, prevFcsr);
 
   uint64_t mstatus = 0;
   if (not hart.peekCsr(CSRN::MSTATUS, mstatus))
