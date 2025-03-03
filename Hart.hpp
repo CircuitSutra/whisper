@@ -2336,6 +2336,16 @@ namespace WdRiscv
     void enableStee(bool flag)
     { steeEnabled_ = flag; csRegs_.enableStee(flag); }
 
+    /// Clear STEE related bits from the given physical address if address is
+    /// secure. No-op if STEE is not enabled.
+    uint64_t clearSteeBits(uint64_t addr)
+    {
+      if (not steeEnabled_)
+        return addr;
+      bool secure = not stee_.isInsecureAddress(addr);
+      return secure ? stee_.clearSteeBits(addr) : addr;
+    }
+
     /// Return true if ACLINT is configured.
     bool hasAclint() const
     { return aclintSize_ > 0; }
@@ -5631,7 +5641,7 @@ namespace WdRiscv
     // Pointer masking modes.
     PmaskManager pmaskManager_;
 
-    // Static tee (truseted execution environment).
+    // Static tee (trusted execution environment).
     bool steeEnabled_ = false;
     TT_STEE::Stee stee_;
     bool steeInsec1_ = false;  // True if insecure access to a secure region.

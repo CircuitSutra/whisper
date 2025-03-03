@@ -163,6 +163,8 @@ Mcm<URV>::readOp_(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa, uns
     cerr << "Warning: hart-id=" << hart.hartId() << " time=" << time <<
          " tag=" << tag << " read-op seen after instruction retires\n";
 
+  pa = hart.clearSteeBits(pa);
+
   MemoryOp op = {};
   op.time_ = time;
   op.pa_ = pa;
@@ -902,6 +904,8 @@ Mcm<URV>::mergeBufferInsert(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64
 
   unsigned hartIx = hart.sysHartIndex();
 
+  pa = hart.clearSteeBits(pa);
+
   MemoryOp op = {};
   op.time_ = time;
   op.insertTime_ = time;
@@ -997,6 +1001,7 @@ Mcm<URV>::bypassOp(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa,
   bool result = true;
 
   assert(size <= 8);
+  pa = hart.clearSteeBits(pa);
 
   MemoryOp op = {};
   op.time_ = time;
