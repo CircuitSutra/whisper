@@ -67,7 +67,7 @@ InstTable::InstTable()
 	case RvExtension::Zvksh:
 	case RvExtension::Zvfbfmin:
 	case RvExtension::Zvfbfwma:
-	case RvExtension::Zvqdot:
+	case RvExtension::Zvqdotq:
 	  entry.setVector(true);
 	  break;
 	default:

@@ -65,7 +65,6 @@ static constexpr auto STRING_EXT_PAIRS = std::to_array<std::pair<std::string_vie
   { "zfbfmin", RvExtension::Zfbfmin },
   { "zvfbfmin", RvExtension::Zvfbfmin },
   { "zvfbfwma", RvExtension::Zvfbfwma },
-  { "zvqdot", RvExtension::Zvqdotq },   // Backward compatibility
   { "zvqdotq", RvExtension::Zvqdotq },
   { "sstc", RvExtension::Sstc },
   { "svpbmt", RvExtension::Svpbmt },
@@ -318,6 +317,9 @@ Isa::getVersion(RvExtension ext, unsigned& version, unsigned& subversion) const
 RvExtension
 Isa::stringToExtension(std::string_view str)
 {
+  if (str == "zvqdot")
+    return RvExtension::Zvqdotq;  // Backward compatibility
+
   const auto iter = stringToExt_.find(str);
   if (iter == stringToExt_.end())
     return RvExtension::None;
