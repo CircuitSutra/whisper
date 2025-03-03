@@ -27,7 +27,7 @@ Hart<URV>::execVqdot_vv(const DecodedInst* di)
   if (not checkVecIntInst(di))
     return;
 
-  if (not extensionIsEnabled(RvExtension::Zvqdotq))
+  if (not extensionIsEnabled(RvExtension::Zvqdot))
     {
       postVecFail(di);
       return;
@@ -83,7 +83,7 @@ Hart<URV>::execVqdot_vx(const DecodedInst* di)
   if (not checkVecIntInst(di))
     return;
 
-  if (not extensionIsEnabled(RvExtension::Zvqdotq))
+  if (not extensionIsEnabled(RvExtension::Zvqdot))
     {
       postVecFail(di);
       return;
@@ -140,7 +140,7 @@ Hart<URV>::execVqdotu_vv(const DecodedInst* di)
   if (not checkVecIntInst(di))
     return;
 
-  if (not extensionIsEnabled(RvExtension::Zvqdotq))
+  if (not extensionIsEnabled(RvExtension::Zvqdot))
     {
       postVecFail(di);
       return;
@@ -196,7 +196,7 @@ Hart<URV>::execVqdotu_vx(const DecodedInst* di)
   if (not checkVecIntInst(di))
     return;
 
-  if (not extensionIsEnabled(RvExtension::Zvqdotq))
+  if (not extensionIsEnabled(RvExtension::Zvqdot))
     {
       postVecFail(di);
       return;
@@ -253,7 +253,7 @@ Hart<URV>::execVqdotsu_vv(const DecodedInst* di)
   if (not checkVecIntInst(di))
     return;
 
-  if (not extensionIsEnabled(RvExtension::Zvqdotq))
+  if (not extensionIsEnabled(RvExtension::Zvqdot))
     {
       postVecFail(di);
       return;
@@ -310,7 +310,7 @@ Hart<URV>::execVqdotsu_vx(const DecodedInst* di)
   if (not checkVecIntInst(di))
     return;
 
-  if (not extensionIsEnabled(RvExtension::Zvqdotq))
+  if (not extensionIsEnabled(RvExtension::Zvqdot))
     {
       postVecFail(di);
       return;
@@ -367,7 +367,7 @@ Hart<URV>::execVqdotus_vx(const DecodedInst* di)
   if (not checkVecIntInst(di))
     return;
 
-  if (not extensionIsEnabled(RvExtension::Zvqdotq))
+  if (not extensionIsEnabled(RvExtension::Zvqdot))
     {
       postVecFail(di);
       return;
