@@ -65,7 +65,8 @@ static constexpr auto STRING_EXT_PAIRS = std::to_array<std::pair<std::string_vie
   { "zfbfmin", RvExtension::Zfbfmin },
   { "zvfbfmin", RvExtension::Zvfbfmin },
   { "zvfbfwma", RvExtension::Zvfbfwma },
-  { "zvqdot", RvExtension::Zvqdot },
+  { "zvqdot", RvExtension::Zvqdotq },   // Backward compatibility
+  { "zvqdotq", RvExtension::Zvqdotq },
   { "sstc", RvExtension::Sstc },
   { "svpbmt", RvExtension::Svpbmt },
   { "svadu", RvExtension::Svadu },
@@ -172,7 +173,7 @@ Isa::Isa()
   infoVec_.at(extIx(RvExtension::Zvfbfwma)) = Info{ {{1,0}}, {1,0} };
   infoVec_.at(extIx(RvExtension::Zvbb)) = Info{ {{1,0}}, {1,0} };
   infoVec_.at(extIx(RvExtension::Zvbc)) = Info{ {{1,0}}, {1,0} };
-  infoVec_.at(extIx(RvExtension::Zvqdot)) = Info{ {{0,1}}, {0,1} };
+  infoVec_.at(extIx(RvExtension::Zvqdotq)) = Info{ {{0,1}}, {0,1} };
   infoVec_.at(extIx(RvExtension::Sstc)) = Info{ {{0,5}}, {0,5} };
   infoVec_.at(extIx(RvExtension::Svpbmt)) = Info{ {{1,0}}, {1,0} };
   infoVec_.at(extIx(RvExtension::Svadu)) = Info{ {{1,0}}, {1,0} };
