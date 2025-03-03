@@ -42,8 +42,7 @@ namespace WdRiscv
     /// Page based memory type.
     enum class Pbmt : uint32_t { None = 0, Nc = 1, Io = 2, Reserved = 3 };
 
-    VirtMem(unsigned hartIx, /*Memory& memory, */ unsigned pageSize,
-            /*PmpManager& pmpMgr, */ unsigned tlbSize);
+    VirtMem(unsigned hartIx, unsigned pageSize, unsigned tlbSize);
 
     ~VirtMem() = default;
 
@@ -167,8 +166,10 @@ namespace WdRiscv
       return ix < supportedModes_.size() ? supportedModes_.at(ix) : false;
     }
 
+    /// Used to record the page table walk addresses for logging.
     struct WalkEntry
     {
+      /// Non-leaf PTE with guest-virt-addr, guest-phys-addr, phys-addr, or leaf PTE.
       enum Type { GVA = 0, GPA = 1, PA = 2, RE = 3 };
 
       WalkEntry(uint64_t addr, Type type)
@@ -181,9 +182,7 @@ namespace WdRiscv
 
       uint64_t addr_ = 0;
       Type type_ = Type::PA;
-
-      // Only applicable for leaf entries
-      Pbmt pbmt_ = Pbmt::None;
+      Pbmt pbmt_ = Pbmt::None; // Only applicable for leaf entries
     };
 
     /// Return the addresses of the instruction page table entries
@@ -330,7 +329,6 @@ namespace WdRiscv
       return pmpWritableCallback_;
     }
 
-
     // =======================
     /// Enable/disable tracing of accessed page table entries.
     /// Return prior trace setting.
@@ -373,12 +371,11 @@ namespace WdRiscv
       auto cb = getPmpReadableCallback();
       return cb ? cb(addr, pm) : true;
     }
+
     bool pmpIsWritable(uint64_t addr, PrivilegeMode pm) const {
       auto cb = getPmpWritableCallback();
       return cb ? cb(addr, pm) : true;
     }
-
-
 
     /// Return current big-endian mode of implicit memory read/write
     /// used by translation.
