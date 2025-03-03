@@ -2630,37 +2630,12 @@ Interactive<URV>::translateCommand(Hart<URV>& hart, const std::string& line,
 
 template <typename URV>
 bool
-Interactive<URV>::checkInterruptCommand(Hart<URV>& hart, const std::string& line,
+Interactive<URV>::checkInterruptCommand(Hart<URV>& hart, [[maybe_unused]] const std::string& line,
 					const std::vector<std::string>& tokens)
 {
-  // Command: check_interrupt [<mip-value>] [<sip-value>] [<vsip-value>]
-
-  bool quiet = true;
-  URV mip = hart.peekCsr(CsrNumber::MIP, quiet);
-  URV sip = hart.peekCsr(CsrNumber::SIP, quiet);
-  URV vsip = hart.peekCsr(CsrNumber::VSIP, quiet);
-
-  if (tokens.size() >= 2)
-    {
-      if (not parseCmdLineNumber("MIP", tokens.at(1), mip))
-	return false;
-    }
-  if (tokens.size() >= 3)
-    {
-      if (not parseCmdLineNumber("SIP", tokens.at(2), sip))
-	return false;
-    }
-  if (tokens.size() >= 4)
-    {
-      if (not parseCmdLineNumber("VSIP", tokens.at(3), vsip))
-	return false;
-    }
-  if (tokens.size() >= 5)
-    {
-      cerr << "Invalid check_interupt command: " << line << '\n';
-      cerr << "Expecting: check_interrupt [<mip-value>] [<sip-value>] [<vsip-value>]\n";
-      return false;
-    }
+  // check_interrupt
+  if (tokens.size() > 1)
+    return false;
 
   // We want to check for interrupts regardless of deferral.
   URV deferred = hart.deferredInterrupts();
@@ -2669,7 +2644,7 @@ Interactive<URV>::checkInterruptCommand(Hart<URV>& hart, const std::string& line
   InterruptCause cause;
   PrivilegeMode nextMode;
   bool nextVirt;
-  if (hart.isInterruptPossible(mip, sip, vsip, cause, nextMode, nextVirt))
+  if (hart.isInterruptPossible(cause, nextMode, nextVirt))
     std::cout << unsigned(cause) << '\n';
 
   hart.setDeferredInterrupts(deferred);

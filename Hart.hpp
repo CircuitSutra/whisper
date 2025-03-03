@@ -3238,6 +3238,10 @@ namespace WdRiscv
     bool hasHvi() const
     { return (hvictl_.bits_.IID != 9) or (hvictl_.bits_.IPRIO != 0); }
 
+    /// Pokes mip with appropriate timer interrupts depending on timecmp and
+    /// time values.
+    void processTimerInterrupt();
+
     /// Helper to FP execution: Or the given flags values to FCSR
     /// recording a write. No-op if a trigger has already tripped.
     void orFcsrFlags(FpFlags value);
