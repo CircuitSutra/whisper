@@ -24,6 +24,7 @@
 #include <functional>
 #include <boost/circular_buffer.hpp>
 #include <atomic>
+#include "aplic/Aplic.hpp"
 #include "IntRegs.hpp"
 #include "CsRegs.hpp"
 #include "float-util.hpp"
@@ -33,7 +34,7 @@
 #include "InstProfile.hpp"
 #include "Syscall.hpp"
 #include "PmpManager.hpp"
-#include "VirtMem.hpp"
+#include "virtual_memory/VirtMem.hpp"
 #include "Isa.hpp"
 #include "Decoder.hpp"
 #include "Disassembler.hpp"
@@ -227,7 +228,9 @@ namespace WdRiscv
     { return csRegs_.peek(csr, val, virtMode); }
 
     /// Return value of the given csr. Throw exception if csr is out of bounds.
-    URV peekCsr(CsrNumber csr) const;
+    /// Return 0 if CSR is not implemented printing an error message unless
+    /// quiet is true.
+    URV peekCsr(CsrNumber csr, bool quiet = false) const;
 
     /// Set val, reset, writeMask, and pokeMask respectively to the
     /// value, reset-value, write-mask, poke-mask, and read-mask of
@@ -779,6 +782,14 @@ namespace WdRiscv
       aclintDeliverInterrupts_ = deliverInterrupts;
       indexToHart_ = indexToHart;
     }
+
+    /// Define an offset to be artifically added to a time compare register of ACLINT
+    /// whenever such regiser is written by a store instruction. this is used to reduce
+    /// the frequency of timer interrupts and is relevant for booting a Linux image
+    /// (Whisper uses the instruction count to fake a timer value and that is too fast for
+    /// Linux which expect a much lower frequency for its timer).
+    void setAclintAdjustTimeCompare(uint64_t offset)
+    { aclintAdjustTimeCmp_ = offset; }
 
     /// Set the output file in which to dump the state of accessed
     /// memory lines. Return true on success and false if file cannot
@@ -1944,22 +1955,31 @@ namespace WdRiscv
     /// instruction/data page table walk of the last executed
     /// instruction or make it empty if no page table walk took place.
     void getPageTableWalkAddresses(bool isInstr, unsigned ix, std::vector<VirtMem::WalkEntry>& addrs) const
-    { addrs = isInstr? virtMem_.getFetchWalks(ix) : virtMem_.getDataWalks(ix); }
+    {
+      addrs = isInstr? virtMem_.getFetchWalks(ix) : virtMem_.getDataWalks(ix);
+      if (steeEnabled_)
+        for (auto& item : addrs)
+          if (item.type_ == VirtMem::WalkEntry::Type::PA)
+            item.addr_ = stee_.clearSecureBits(item.addr_);
+    }
 
     /// Get the page table entries of the page table walk of the last
     /// executed instruction (see getPageTableWAlkAddresses).
     void getPageTableWalkEntries(bool isInstr, unsigned ix, std::vector<uint64_t>& ptes) const
     {
-      const auto& addrs = isInstr? virtMem_.getFetchWalks(ix) : virtMem_.getDataWalks(ix);
+      const auto& walks = isInstr? virtMem_.getFetchWalks(ix) : virtMem_.getDataWalks(ix);
       ptes.clear();
-      for (const auto& addr : addrs)
+      for (const auto& item : walks)
 	{
-        if (addr.type_ == VirtMem::WalkEntry::Type::PA)
-          {
-            URV pte = 0;
-            peekMemory(addr.addr_, pte, true);
-            ptes.push_back(pte);
-          }
+          if (item.type_ == VirtMem::WalkEntry::Type::PA)
+            {
+              URV pte = 0;
+              uint64_t addr = item.addr_;
+              if (steeEnabled_)
+                addr = stee_.clearSecureBits(addr);
+              peekMemory(addr, pte, true);
+              ptes.push_back(pte);
+            }
 	}
     }
 
@@ -2233,6 +2253,9 @@ namespace WdRiscv
     void attachPci(std::shared_ptr<Pci> pci)
     { pci_ = pci; }
 
+    void attachAplic(std::shared_ptr<TT_APLIC::Aplic> aplic)
+    { aplic_ = aplic; }
+
     /// Return true if given extension is enabled.
     constexpr bool extensionIsEnabled(RvExtension ext) const
     {
@@ -2336,6 +2359,16 @@ namespace WdRiscv
     void enableStee(bool flag)
     { steeEnabled_ = flag; csRegs_.enableStee(flag); }
 
+    /// Clear STEE related bits from the given physical address if address is
+    /// secure. No-op if STEE is not enabled.
+    uint64_t clearSteeBits(uint64_t addr)
+    {
+      if (not steeEnabled_)
+        return addr;
+      bool secure = not stee_.isInsecureAddress(addr);
+      return secure ? stee_.clearSteeBits(addr) : addr;
+    }
+
     /// Return true if ACLINT is configured.
     bool hasAclint() const
     { return aclintSize_ > 0; }
@@ -2372,6 +2405,9 @@ namespace WdRiscv
     bool isToHostAddr(uint64_t addr) const
     { return toHostValid_ and addr == toHost_; }
 
+    bool isDeviceAddr(uint64_t addr) const
+    { return isAclintAddr(addr) or isImsicAddr(addr) or isPciAddr(addr) or isAplicAddr(addr); }
+
     /// Return true if the given address is in the range of the ACLINT device.
     bool isAclintAddr(uint64_t addr) const
     { return hasAclint() and addr >= aclintBase_ and addr < aclintBase_ + aclintSize_; }
@@ -2390,6 +2426,10 @@ namespace WdRiscv
     /// Return true if the given address is in the range of the PCI decice.
     bool isPciAddr(uint64_t addr) const
     { return pci_ and pci_->contains_addr(addr); }
+
+    /// Return true if the given address is in the range of the APLIC decice.
+    bool isAplicAddr(uint64_t addr) const
+    { return aplic_ and aplic_->containsAddr(addr); }
 
     /// Return true if there is one or more active performance counter (a counter that is
     /// assigned a valid event).
@@ -2442,16 +2482,24 @@ namespace WdRiscv
     /// Increment time base and timer value.
     void tickTime()
     {
-      ++timeSample_;
-      time_ += not (timeSample_ & ((URV(1) << timeDownSample_) - 1));
+      // The test bench will sometime disable auto-incrementing the timer.
+      if (autoIncrementTimer_)
+        {
+          ++timeSample_;
+          time_ += not (timeSample_ & ((URV(1) << timeDownSample_) - 1));
+        }
     }
 
     /// Decrement time base and timer value. This is used by PerfApi to undo effects of
     /// execute.
     void untickTime()
     {
-      time_ -= not (timeSample_ & ((URV(1) << timeDownSample_) - 1));
-      --timeSample_;
+      // The test bench will sometime disable auto-incrementing the timer.
+      if (autoIncrementTimer_)
+        {
+          time_ -= not (timeSample_ & ((URV(1) << timeDownSample_) - 1));
+          --timeSample_;
+        }
     }
 
     // Adjust time base and timer value either forwards (positive diff) or
@@ -2515,6 +2563,7 @@ namespace WdRiscv
         {
           pma.enable(Pma::Attrib::Idempotent);
           pma.disable(Pma::Attrib::Io);
+          pma.enable(Pma::Attrib::MisalOk);
         }
       else
         {
@@ -2526,15 +2575,24 @@ namespace WdRiscv
       return pma;
     }
 
+    /// This is for the test-bench which in some run wants to take control over timer
+    /// values.
+    void autoIncrementTimer(bool flag)
+    { autoIncrementTimer_ = flag; }
+
   protected:
 
-    // Retun cached value of the mpp field of the mstatus CSR.
+    /// Retun cached value of the mpp field of the mstatus CSR.
     PrivilegeMode mstatusMpp() const
     { return PrivilegeMode{mstatus_.bits_.MPP}; }
 
-    // Retun cached value of the mprv field of the mstatus CSR.
+    /// Retun cached value of the mprv field of the mstatus CSR.
     bool mstatusMprv() const
     { return mstatus_.bits_.MPRV; }
+
+    /// Provide MMU (virtMem_) the call-backs necessary to read/write memory and to check
+    /// PMP.
+    void setupVirtMemCallbacks();
 
     /// Return true if the NMIE bit of NMSTATUS overrides the effect of
     /// MSTATUS.MPRV. See Smrnmi secton in RISCV privileged spec.
@@ -3212,6 +3270,10 @@ namespace WdRiscv
     /// hvictl.
     bool hasHvi() const
     { return (hvictl_.bits_.IID != 9) or (hvictl_.bits_.IPRIO != 0); }
+
+    /// Pokes mip with appropriate timer interrupts depending on timecmp and
+    /// time values.
+    void processTimerInterrupt();
 
     /// Helper to FP execution: Or the given flags values to FCSR
     /// recording a write. No-op if a trigger has already tripped.
@@ -5423,6 +5485,7 @@ namespace WdRiscv
     uint64_t aclintMtimeStart_ = 0;
     uint64_t aclintMtimeEnd_ = 0;
     uint64_t aclintAlarm_ = ~uint64_t(0); // Interrupt when timer >= this
+    uint64_t aclintAdjustTimeCmp_ = 10000;
     bool aclintSiOnReset_ = false;
     bool aclintDeliverInterrupts_ = true;
     std::function<Hart<URV>*(unsigned ix)> indexToHart_ = nullptr;
@@ -5462,6 +5525,7 @@ namespace WdRiscv
     uint64_t& time_;             // Only hart 0 increments this value.
     uint64_t timeDownSample_ = 0;
     uint64_t timeSample_ = 0;
+    bool autoIncrementTimer_ = true;
 
     uint64_t retiredInsts_ = 0;  // Proxy for minstret CSR.
     uint64_t cycleCount_ = 0;    // Proxy for mcycle CSR.
@@ -5600,7 +5664,7 @@ namespace WdRiscv
     // Pointer masking modes.
     PmaskManager pmaskManager_;
 
-    // Static tee (truseted execution environment).
+    // Static tee (trusted execution environment).
     bool steeEnabled_ = false;
     TT_STEE::Stee stee_;
     bool steeInsec1_ = false;  // True if insecure access to a secure region.
@@ -5630,6 +5694,7 @@ namespace WdRiscv
     std::function<bool(uint64_t, unsigned, uint64_t&)> imsicRead_ = nullptr;
     std::function<bool(uint64_t, unsigned, uint64_t)> imsicWrite_ = nullptr;
     std::shared_ptr<Pci> pci_;
+    std::shared_ptr<TT_APLIC::Aplic> aplic_;
 
     // Callback invoked before a CSR instruction accesses a CSR.
     std::function<void(unsigned, CsrNumber)> preCsrInst_ = nullptr;

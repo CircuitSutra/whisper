@@ -77,6 +77,23 @@ Triggers<URV>::readData1(URV trigIx, URV& value) const
 
 template <typename URV>
 bool
+Triggers<URV>::peekData1(URV trigIx, URV& value) const
+{
+  if (trigIx >= triggers_.size())
+    return false;
+
+  auto& trigger = triggers_.at(trigIx);
+  unsigned typeIx = unsigned(trigger.type());
+
+  URV readMask = typeIx < data1ReadMasks_.size() ? data1ReadMasks_.at(typeIx) : 0;
+
+  value = trigger.peekData1() & readMask;
+  return true;
+}
+
+
+template <typename URV>
+bool
 Triggers<URV>::readData2(URV trigger, URV& value) const
 {
   if (trigger >= triggers_.size())
@@ -152,11 +169,22 @@ Triggers<URV>::writeData1(URV trigIx, bool debugMode, URV value)
 
   // If new type is not supported, preserve old type.
   Data1Bits<URV> valBits{value};
-  if (not isSupportedType(valBits.type()))
+  bool preserve = not isSupportedType(valBits.type());
+
+  if (valBits.type() != TriggerType::None and not preserve)
     {
-      valBits.setType(trig.data1_.type());
-      value = valBits.value_;
+      // If new type is not supported by this trigger, preserve old type.
+      unsigned typeNumber = unsigned(valBits.type());
+      unsigned mask = 1 << typeNumber;
+      TinfoBits tinfo(trig.readInfo());
+      preserve = not (tinfo.info() & mask);
     }
+
+  if (preserve)
+     {
+       valBits.setType(trig.data1_.type());
+       value = valBits.value_;
+     }
 
   if (not trig.writeData1(debugMode, value))
     return false;

@@ -18,6 +18,7 @@
 #include <string>
 #include <string_view>
 #include <nlohmann/json_fwd.hpp>
+#include "aplic/Aplic.hpp"
 
 
 namespace WdRiscv
@@ -83,6 +84,9 @@ namespace WdRiscv
 
     template<typename URV>
     bool applyImsicConfig(System<URV>&) const;
+
+    template <typename URV>
+    bool applyAplicConfig(System<URV>& system) const;
 
     template<typename URV>
     bool applyPciConfig(System<URV>&) const;

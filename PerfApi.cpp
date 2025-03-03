@@ -743,8 +743,7 @@ PerfApi::getLoadData(unsigned hartIx, uint64_t tag, uint64_t va, uint64_t pa1,
     }
 
   data = 0;
-  bool isDev = hart->isAclintMtimeAddr(pa1) or hart->isImsicAddr(pa1) or hart->isPciAddr(pa1);
-  if (isDev)
+  if (hart->isDeviceAddr(pa1))
     {      
       if (skipIoLoad_)
         return true;  // Load from IO space happens at execute.

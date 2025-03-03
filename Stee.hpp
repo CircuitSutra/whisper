@@ -39,6 +39,11 @@ namespace TT_STEE      // TensTorrent Static Trusted Execution Environment.
     uint64_t clearSecureBits(uint64_t addr) const
     { return addr & ~secMask_; }
 
+    /// Clear the STEE related bits in the given address (secure bits and bits that must
+    /// be zero).
+    uint64_t clearSteeBits(uint64_t addr) const
+    { return addr & ~secMask_ & ~zmask_; }
+
     /// Configure the zero mask mask: each one bit in the given mask corresponds to a bit
     /// that must be zero in the physical address for the access to be valid.
     void configZeroMask(uint64_t mask)

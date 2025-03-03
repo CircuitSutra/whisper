@@ -317,6 +317,9 @@ Isa::getVersion(RvExtension ext, unsigned& version, unsigned& subversion) const
 RvExtension
 Isa::stringToExtension(std::string_view str)
 {
+  if (str == "zvqdotq")
+    return RvExtension::Zvqdot;  // Forward compatibility
+
   const auto iter = stringToExt_.find(str);
   if (iter == stringToExt_.end())
     return RvExtension::None;

@@ -82,7 +82,7 @@ Session<URV>::defineSystem(const Args& args, const HartConfig& config)
   if (args.hexFiles.empty() and args.expandedTargets.empty()
       and args.binaryFiles.empty() and args.kernelFile.empty()
       and args.loadFrom.empty()
-#ifdef LZ4_COMPRESS
+#if LZ4_COMPRESS
       and args.lz4Files.empty()
 #endif
       and not args.interactive and not args.instList)
@@ -118,6 +118,12 @@ Session<URV>::configureSystem(const Args& args, const HartConfig& config)
     return false;
 
   auto& system = *system_;
+
+  // We need to instantiate the APLIC before calling configHarts because the
+  // Uart8250 is constructed in configHarts and may store a pointer to the
+  // APLIC
+  if (not config.applyAplicConfig(system))
+    return false;
 
   // Configure harts. Define callbacks for non-standard CSRs.
   bool userMode = args.isa.find_first_of("uU") != std::string::npos;
@@ -712,7 +718,7 @@ Session<URV>::applyCmdLineArgs(const Args& args, Hart<URV>& hart,
 
       uint64_t offset = 0;
 
-#ifdef LZ4_COMPRESS
+#if LZ4_COMPRESS
       if (not system.loadLz4Files(args.lz4Files, offset, args.verbose))
 	errors++;
 #endif

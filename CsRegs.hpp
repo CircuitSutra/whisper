@@ -545,6 +545,14 @@ namespace WdRiscv
     void markAsHighHalf(bool flag)
     { high_ = flag; }
 
+    /// Mark this CSR as belonhing to the AIA extension.
+    void markAia(bool flag)
+    { aia_ = flag; }
+
+    /// Return true if this an AIA CSR.
+    bool isAia() const
+    { return aia_; }
+
     /// Return true if this register has been marked as a debug-mode
     /// register.
     bool isDebug() const
@@ -811,6 +819,7 @@ namespace WdRiscv
     bool defined_ = false;
     bool debug_ = false;         // True if this is a debug-mode register.
     bool shared_ = false;        // True if this is shared among harts.
+    bool aia_ = false;           // True if this an AIA CSR.
     URV initialValue_ = 0;
     PrivilegeMode privMode_ = PrivilegeMode::Machine;
     URV value_ = 0;
@@ -921,6 +930,8 @@ namespace WdRiscv
     /// Associate an IMSIC with this register file.
     void attachImsic(std::shared_ptr<TT_IMSIC::Imsic> imsic)
     { imsic_ = imsic; }
+
+    bool aiaEnabled() const { return aiaEnabled_; }
 
   protected:
 
@@ -1300,6 +1311,8 @@ namespace WdRiscv
 
     bool readTrigger(CsrNumber number, PrivilegeMode mode, URV& value) const;
 
+    bool peekTrigger(CsrNumber number, PrivilegeMode mode, URV& value) const;
+
     bool writeTrigger(CsrNumber number, PrivilegeMode mode, URV value);
 
     bool pokeTrigger(CsrNumber number, URV value);
@@ -1419,9 +1432,11 @@ namespace WdRiscv
     URV effectiveSip() const
     {
       URV mip = effectiveMip();
+      // Read value of MIP/SIP is masked by MIDELG.
       URV sip = mip & peekMideleg();
       if (aiaEnabled_ and superEnabled_)
         {
+          // Where mideleg is 0 and mvien is 1, sip becomes an alias to mvip.
           URV mvip = peekMvip() & ~peekMideleg() & peekMvien();
           sip |= mvip;
         }
@@ -1881,6 +1896,10 @@ namespace WdRiscv
     /// Return true if given CSR is a hypervisor CSR.
     bool isHypervisor(CsrNumber csrn) const
     { auto csr = getImplementedCsr(csrn); return csr and csr->isHypervisor(); }
+
+    /// Return true if given CSR is an AIA CSR.
+    bool isAia(CsrNumber csrn) const
+    { auto csr = getImplementedCsr(csrn); return csr and csr->isAia(); }
 
     /// If flag is false, bit HENVCFG.STCE becomes read-only-zero;
     /// otherwise, bit is readable.

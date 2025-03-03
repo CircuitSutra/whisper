@@ -1123,6 +1123,7 @@ namespace WdRiscv
   bool encodeCsrrc(uint32_t rd, uint32_t rs1, uint32_t csr, uint32_t& inst);
   bool encodeCsrrsi(uint32_t rd, uint32_t imm, uint32_t csr, uint32_t& inst);
   bool encodeCsrrci(uint32_t rd, uint32_t imm, uint32_t csr, uint32_t& inst);
+  bool encodeCsrrwi(uint32_t rd, uint32_t imm, uint32_t csr, uint32_t& inst);
 
   /// Encode "lwu rd, offset(rs1)": encodeLwu(rd, rs1, offset, inst).
   /// The third argument (offset) is treaded as signed.

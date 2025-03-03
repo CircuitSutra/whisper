@@ -25,10 +25,11 @@
 #include <mutex>
 #include <type_traits>
 #include <cassert>
-#include "trapEnums.hpp"
+#include "virtual_memory/trapEnums.hpp"
 #include "PmaManager.hpp"
 #include "IoDevice.hpp"
 #include "util.hpp"
+#include "Lock.hpp"
 
 
 namespace ELFIO
@@ -92,7 +93,7 @@ namespace WdRiscv
     {
       if (readIo(address, value))
 	return true;
-#ifdef FAST_SLOPPY
+#if FAST_SLOPPY
       if (address + sizeof(T) > size_)
         return false;
 #else
@@ -218,7 +219,7 @@ namespace WdRiscv
 	  return true;
 	}
 
-#ifdef FAST_SLOPPY
+#if FAST_SLOPPY
       if (address + sizeof(T) > size_)
         return false;
       *(reinterpret_cast<T*>(data_ + address)) = value;
@@ -307,7 +308,7 @@ namespace WdRiscv
       if (address + sizeof(T) > size_)
         return false;
 
-#ifdef FAST_SLOPPY
+#if FAST_SLOPPY
       value = *(reinterpret_cast<const T*>(data_ + address));
       return true;
 #endif
@@ -765,7 +766,7 @@ namespace WdRiscv
     unsigned regionMask_  = 0xf;                // This should depend on mem size.
 
     std::shared_mutex amoMutex_;
-    std::mutex lrMutex_;
+    SpinLock lrMutex_;
 
     bool checkUnmappedElf_ = true;
 

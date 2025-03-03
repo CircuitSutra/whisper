@@ -61,8 +61,7 @@ Mcm<URV>::referenceModelRead(Hart<URV>& hart, uint64_t pa, unsigned size, uint64
 {
   data = 0;
 
-  bool isDevice = hart.isAclintMtimeAddr(pa) or hart.isImsicAddr(pa) or hart.isPciAddr(pa);
-  if (isDevice)
+  if (hart.isDeviceAddr(pa))
     {
       hart.deviceRead(pa, size, data);
       return true;
@@ -164,6 +163,8 @@ Mcm<URV>::readOp_(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa, uns
     cerr << "Warning: hart-id=" << hart.hartId() << " time=" << time <<
          " tag=" << tag << " read-op seen after instruction retires\n";
 
+  pa = hart.clearSteeBits(pa);
+
   MemoryOp op = {};
   op.time_ = time;
   op.pa_ = pa;
@@ -207,7 +208,6 @@ Mcm<URV>::readOp_(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa, uns
       // Insert new op before the found op.
       assert(iter != sysMemOps_.end());
       size_t ix = iter - sysMemOps_.begin();
-      instr->addMemOp(ix);
       sysMemOps_.insert(iter, op);
 
       // Adjust indices of all the instructions referencing ops that are now after new op
@@ -232,6 +232,10 @@ Mcm<URV>::readOp_(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa, uns
             if (instrOpIx >= ix)
               instrOpIx++;
         }
+
+      // Associate new op with instruction. This has to be done after the indices are
+      // adjusted otherwise we may get an "op already added" error.
+      instr->addMemOp(ix);
     }
 
   if (instr->retired_)
@@ -900,6 +904,8 @@ Mcm<URV>::mergeBufferInsert(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64
 
   unsigned hartIx = hart.sysHartIndex();
 
+  pa = hart.clearSteeBits(pa);
+
   MemoryOp op = {};
   op.time_ = time;
   op.insertTime_ = time;
@@ -995,6 +1001,7 @@ Mcm<URV>::bypassOp(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa,
   bool result = true;
 
   assert(size <= 8);
+  pa = hart.clearSteeBits(pa);
 
   MemoryOp op = {};
   op.time_ = time;
@@ -1738,8 +1745,7 @@ Mcm<URV>::checkRtlRead(Hart<URV>& hart, const McmInstr& instr,
     }
 
   uint64_t addr = op.pa_;
-  bool skip = ( hart.isAclintAddr(addr) or hart.isImsicAddr(addr) or hart.isPciAddr(addr) or
-		hart.isMemMappedReg(addr) or hart.isHtifAddr(addr) );
+  bool skip = ( hart.isDeviceAddr(addr) or hart.isMemMappedReg(addr) or hart.isHtifAddr(addr) );
 
   // Major hack (temporary until RTL removes CLINT device).
   skip = skip or (addr >= 0x2000000 and addr < 0x200c000);
@@ -5371,6 +5377,18 @@ Mcm<URV>::getVecRegEarlyTime(Hart<URV>& hart, const McmInstr& instr, unsigned re
 
   return time;
 }
+
+
+template <typename URV>
+void
+Mcm<URV>::reportMissingFetch(const Hart<URV>& hart, uint64_t tag, uint64_t pa) const
+{
+  cerr << "Warning: Hart-id=" << hart.hartId() << " time=" << time_ << " tag=" << tag
+       << " pa=0x" << std::hex << pa << std::dec << " opcode missing in instruction cache"
+       << " (not brought in with mcm_ifetch)\n";
+}
+
+
 
 template class WdRiscv::Mcm<uint32_t>;
 template class WdRiscv::Mcm<uint64_t>;
