@@ -16,10 +16,15 @@ using namespace WdRiscv;
 FDChannel::FDChannel(int in_fd, int out_fd)
   : in_fd_(in_fd), out_fd_(out_fd)
 {
-  inPollfd.fd = in_fd_;
-  inPollfd.events = POLLIN;
+  if (pipe(terminate_pipe_))
+    throw std::runtime_error("FDChannel: Failed to get termination pipe\n");
 
-  if (isTTY()) {
+  pollfds_[0].fd = in_fd_;
+  pollfds_[0].events = POLLIN;
+  pollfds_[1].fd = terminate_pipe_[0];
+  pollfds_[1].events = POLLIN;
+
+  if (isatty(in_fd_)) {
     struct termios term;
     tcgetattr(in_fd_, &term);
     cfmakeraw(&term);
@@ -28,36 +33,41 @@ FDChannel::FDChannel(int in_fd, int out_fd)
   }
 }
 
-bool FDChannel::read(uint8_t& byte) {
-  if (not isTTY())
-    return ::read(in_fd_, &byte, 1) == 1;
-
-  int code = poll(&inPollfd, 1, 1);
+size_t FDChannel::read(uint8_t *arr, size_t n) {
+  int code = poll(pollfds_, 2, -1);
 
   if (code == 0)
-    return false;
+    return 0;
 
-  if (code == 1)
+  if (code > 0)
   {
-    if ((inPollfd.revents & POLLIN) != 0)
+    // Terminated
+    if ((pollfds_[1].revents & POLLIN))
+      return 0;
+
+    if ((pollfds_[0].revents & POLLIN) != 0)
     {
-      uint8_t c;
-      if (::read(in_fd_, &c, sizeof(c)) != 1)
-	std::cerr << "FDChannel: unexpected fail on read\n";
-      static uint8_t prev = 0;
+      ssize_t count = ::read(in_fd_, arr, n);
+      if (count < 0)
+	throw std::runtime_error("FDChannel: Failed to read from in_fd_\n");
 
-      // Force a stop if control-a x is seen.
-      if (prev == 1 and c == 'x')
-	throw std::runtime_error("Keyboard stop");
-      prev = c;
+      if (isatty(in_fd_))
+	for (size_t i = 0; i < static_cast<size_t>(count); i++) {
+	  static uint8_t prev = 0;
+	  const uint8_t c = arr[i];
 
-      byte = c;
-      return true;
+	  // Force a stop if control-a x is seen.
+	  if (prev == 1 and c == 'x')
+	    throw std::runtime_error("Keyboard stop");
+	  prev = c;
+	}
+
+      return count;
     }
   }
 
   // TODO: handle error return codes from poll.
-  return false;
+  return 0;
 }
 
 void FDChannel::write(uint8_t byte) {
@@ -70,8 +80,18 @@ void FDChannel::write(uint8_t byte) {
     throw std::runtime_error("FDChannel error writing to output\n");
 }
 
-bool FDChannel::isTTY() {
-  return isatty(in_fd_);
+
+void FDChannel::terminate() {
+  const uint8_t byte = 0;
+  if (::write(terminate_pipe_[1], &byte, 1) != 1)
+    std::cerr << "Info: FDChannel::terminate: write failed\n";
+}
+
+FDChannel::~FDChannel() {
+  for (uint8_t i = 0; i < 2; i++) {
+    if (terminate_pipe_[i] != -1)
+      close(terminate_pipe_[i]);
+  }
 }
 
 PTYChannelBase::PTYChannelBase() {
@@ -101,13 +121,14 @@ Uart8250::Uart8250(uint64_t addr, uint64_t size,
   : IoDevice(addr, size, aplic, iid), channel_(std::move(channel))
 {
   auto func = [this]() { this->monitorInput(); };
-  stdinThread_ = std::thread(func);
+  inThread_ = std::thread(func);
 }
 
 Uart8250::~Uart8250()
 {
   terminate_ = true;
-  stdinThread_.join();
+  channel_->terminate();
+  inThread_.join();
 }
 
 uint32_t
@@ -122,7 +143,7 @@ Uart8250::read(uint64_t addr)
 	{
 	case 0:
 	  {
-	    std::lock_guard<std::mutex> lock(mutex_);
+	    std::unique_lock<std::mutex> lock(mutex_);
 	    uint32_t res = 0;
 	    if (!rx_fifo.empty()) {
 	      res = rx_fifo.front();
@@ -133,6 +154,8 @@ Uart8250::read(uint64_t addr)
 	      iir_ |= 1;   // Set least sig bit indicating no interrupt.
 	      setInterruptPending(false);
 	    }
+	    lock.unlock();
+	    cv_.notify_all();
 	    return res;
 	  }
 
@@ -207,38 +230,40 @@ Uart8250::write(uint64_t addr, uint32_t value)
 }
 
 
+
 void
 Uart8250::monitorInput()
 {
-  if (!channel_->isTTY())
-    {
-      uint8_t c = 0;
-      while (channel_->read(c))
-      {
-	rx_fifo.push(c);
-
-	while (rx_fifo.size() > 1024)
-	  ;  // Avoid makeing queue too large.
-      }
-      return;
-    }
-
   while (true)
   {
     if (terminate_)
       return;
 
-    uint8_t c;
-    if (!channel_->read(c))
-      continue;
+    std::array<uint8_t, FIFO_SIZE> arr;
+    size_t count = channel_->read(arr.data(), FIFO_SIZE);
 
-    {
-      std::lock_guard<std::mutex> lock(mutex_);
-      rx_fifo.push(c);
 
-      lsr_ |= 1;  // Set least sig bit of line status.
-      iir_ &= ~1;  // Clear bit 0 indicating interrupt is pending.
-      setInterruptPending(true);
+    if (count != 0) {
+      std::unique_lock<std::mutex> lock(mutex_);
+
+      size_t i = 0;
+      do {
+	if (terminate_)
+	  return;
+
+	for (; i < count && rx_fifo.size() < FIFO_SIZE; i++)
+	{
+	  rx_fifo.push(arr[i]);
+	}
+
+	lsr_ |= 1;  // Set least sig bit of line status.
+	iir_ &= ~1;  // Clear bit 0 indicating interrupt is pending.
+	setInterruptPending(true);
+
+	if (rx_fifo.size() >= FIFO_SIZE)
+	  // Block until rx_fifo has space
+	  cv_.wait(lock);
+      } while (i != count);
     }
   }
 }
