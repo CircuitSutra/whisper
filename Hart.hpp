@@ -576,7 +576,7 @@ namespace WdRiscv
       bool virt = virtMode_;
       if (isRvs())
         {
-          if (mstatusMprv() and not nmieOverridesMprv())
+          if (mstatusMprv() and not nmieOverridesMprv() and not debugModeOverridesMprv())
             {
               pm = mstatusMpp();
               virt = mstatus_.bits_.MPV;
@@ -2361,12 +2361,21 @@ namespace WdRiscv
 
     /// Clear STEE related bits from the given physical address if address is
     /// secure. No-op if STEE is not enabled.
-    uint64_t clearSteeBits(uint64_t addr)
+    uint64_t clearSecureAddressSteeBits(uint64_t addr)
     {
       if (not steeEnabled_)
         return addr;
       bool secure = not stee_.isInsecureAddress(addr);
       return secure ? stee_.clearSteeBits(addr) : addr;
+    }
+
+    /// Clear STEE related bits from the given physical address. No-op if STEE is not
+    /// enabled.
+    uint64_t clearSteeBits(uint64_t addr)
+    {
+      if (not steeEnabled_)
+        return addr;
+      return stee_.clearSteeBits(addr);
     }
 
     /// Return true if ACLINT is configured.
@@ -2600,6 +2609,13 @@ namespace WdRiscv
     {
       return (extensionIsEnabled(RvExtension::Smrnmi) and
 	      MnstatusFields{csRegs_.peekMnstatus()}.bits_.NMIE == 0);
+    }
+
+    /// Return true if effects of MPRV are disabled because we are in debug mode
+    /// and DCSR.MPRVEN is cleared.
+    bool debugModeOverridesMprv() const
+    {
+      return debugMode_ and DcsrFields<URV>{csRegs_.peekDcsr()}.bits_.MPRVEN == 0;
     }
 
     /// Return the effective privilege mode: if MSTATUS.MPRV is set then it is the

@@ -1559,6 +1559,12 @@ namespace WdRiscv
       return csr.read();
     }
 
+    URV peekDcsr() const
+    {
+      const auto& csr = regs_.at(size_t(CsrNumber::DCSR));
+      return csr.read();
+    }
+
     /// Set the current integer-register/CSR width.
     void turnOn32BitMode(bool flag)
     {

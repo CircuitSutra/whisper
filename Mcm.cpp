@@ -163,7 +163,7 @@ Mcm<URV>::readOp_(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa, uns
     cerr << "Warning: hart-id=" << hart.hartId() << " time=" << time <<
          " tag=" << tag << " read-op seen after instruction retires\n";
 
-  pa = hart.clearSteeBits(pa);
+  pa = hart.clearSecureAddressSteeBits(pa);
 
   MemoryOp op = {};
   op.time_ = time;
@@ -904,7 +904,7 @@ Mcm<URV>::mergeBufferInsert(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64
 
   unsigned hartIx = hart.sysHartIndex();
 
-  pa = hart.clearSteeBits(pa);
+  pa = hart.clearSecureAddressSteeBits(pa);
 
   MemoryOp op = {};
   op.time_ = time;
@@ -1001,7 +1001,7 @@ Mcm<URV>::bypassOp(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa,
   bool result = true;
 
   assert(size <= 8);
-  pa = hart.clearSteeBits(pa);
+  pa = hart.clearSecureAddressSteeBits(pa);
 
   MemoryOp op = {};
   op.time_ = time;
@@ -1492,7 +1492,13 @@ Mcm<URV>::mergeBufferWrite(Hart<URV>& hart, uint64_t time, uint64_t physAddr,
 {
   if (not updateTime("Mcm::mergeBufferWrite", time))
     return false;
+
   uint64_t rtlSize = rtlData.size();
+
+  // The secure world may have changed before the merge buffer is drained. Clear the STEE
+  // bits unconditionally.
+  physAddr = hart.clearSteeBits(physAddr);
+
   if (not checkBufferWriteParams(hart.hartId(), time, lineSize_, rtlSize, physAddr))
     return false;
 

@@ -6077,6 +6077,12 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
 	  return;
 	}
 
+      if (sdtrigOn_ and icountTriggerHit())
+        {
+          if (takeTriggerAction(traceFile, pc_, 0, instCounter_, false))
+            return;
+        }
+
       if (minstretEnabled() and not ebreakInstDebug_)
         ++retiredInsts_;
 
