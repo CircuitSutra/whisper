@@ -566,7 +566,7 @@ namespace WdRiscv
       bool virt = virtMode_;
       if (isRvs())
         {
-          if (mstatusMprv() and not nmieOverridesMprv())
+          if (mstatusMprv() and not nmieOverridesMprv() and not debugModeOverridesMprv())
             {
               pm = mstatusMpp();
               virt = mstatus_.bits_.MPV;
@@ -2577,6 +2577,13 @@ namespace WdRiscv
     {
       return (extensionIsEnabled(RvExtension::Smrnmi) and
 	      MnstatusFields{csRegs_.peekMnstatus()}.bits_.NMIE == 0);
+    }
+
+    /// Return true if effects of MPRV are disabled because we are in debug mode
+    /// and DCSR.MPRVEN is cleared.
+    bool debugModeOverridesMprv() const
+    {
+      return debugMode_ and DcsrFields<URV>{csRegs_.peekDcsr()}.bits_.MPRVEN == 0;
     }
 
     /// Return the effective privilege mode: if MSTATUS.MPRV is set then it is the
