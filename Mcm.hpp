@@ -471,12 +471,12 @@ namespace WdRiscv
     /// the range of addresses associated with a memory access for the given vector
     /// element. Size is the size of the memory access, and elemSize is the element size.
     bool vecReadOpOverlapsElem(const MemoryOp& op, uint64_t pa1, uint64_t pa2,
-			       unsigned size, unsigned elemIx, unsigned field,
+			       unsigned size, unsigned elemIx, bool unitStride,
 			       unsigned elemSize) const;
 
     /// Heler to vecReadOpOverlapsElem.
     bool vecReadOpOverlapsElemByte(const MemoryOp& op, uint64_t addr, unsigned elemIx,
-				   unsigned field, unsigned elemSize) const;
+				   bool unitStride, unsigned elemSize) const;
 
     /// Return true if given instruction is an indexed load/store and it has an index
     /// register with a value produced after the instruction has used that index

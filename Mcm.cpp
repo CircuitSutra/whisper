@@ -2418,7 +2418,7 @@ Mcm<URV>::commitVecReadOpsStride0(Hart<URV>& hart, McmInstr& instr)
                 continue;   // Byte covered by a another read op.
 
               uint64_t byteAddr = vecRef.pa_ + i;  // TODO handle page crosser
-              if (not vecReadOpOverlapsElemByte(op, byteAddr, elemIx, field, elemSize))
+              if (not vecReadOpOverlapsElemByte(op, byteAddr, elemIx, false /*unitStride*/, elemSize))
                 continue;
 
               mask &= ~byteMask;
@@ -2758,16 +2758,16 @@ Mcm<URV>::commitReadOps(Hart<URV>& hart, McmInstr& instr)
 template <typename URV>
 bool
 Mcm<URV>::vecReadOpOverlapsElemByte(const MemoryOp& op, uint64_t addr, unsigned elemIx,
-				    unsigned /*field*/, unsigned elemSize) const
+				    bool unitStride, unsigned elemSize) const
 {
   if (op.size_ <= elemSize and (elemIx != op.elemIx_))
     return false;  // Op is for a single element and ix does not match.
 
+  if (op.elemIx_ != elemIx and not unitStride)
+    return false;   // For non-unit stride element index must match.
+
   if (op.elemIx_ > elemIx)
     return false;
-
-  //  if (op.elemIx_ == elemIx and op.field_ > field)
-  //    return false;
 
   return op.overlaps(addr);
 }
@@ -2776,7 +2776,7 @@ Mcm<URV>::vecReadOpOverlapsElemByte(const MemoryOp& op, uint64_t addr, unsigned 
 template <typename URV>
 bool
 Mcm<URV>::vecReadOpOverlapsElem(const MemoryOp& op, uint64_t pa1, uint64_t pa2,
-				unsigned size, unsigned elemIx, unsigned field,
+				unsigned size, unsigned elemIx, bool unitStride,
 				unsigned elemSize) const
 {
   unsigned size1 = size;
@@ -2789,7 +2789,7 @@ Mcm<URV>::vecReadOpOverlapsElem(const MemoryOp& op, uint64_t pa1, uint64_t pa2,
   for (unsigned i = 0; i < size; ++i)
     {
       uint64_t addr = i < size1 ? pa1 + i : pa2 + i - size1;
-      if (vecReadOpOverlapsElemByte(op, addr, elemIx, field, elemSize))
+      if (vecReadOpOverlapsElemByte(op, addr, elemIx, unitStride, elemSize))
 	return true;
     }
 
@@ -2801,7 +2801,7 @@ template <typename URV>
 bool
 Mcm<URV>::getCurrentLoadValue(Hart<URV>& hart, uint64_t tag, uint64_t va, uint64_t pa1,
 			      uint64_t pa2, unsigned size, bool isVector, uint64_t& value,
-			      unsigned elemIx, unsigned field)
+			      unsigned elemIx, unsigned /*field*/)
 {
   value = 0;
   if (size == 0 or size > 8)
@@ -2864,7 +2864,7 @@ Mcm<URV>::getCurrentLoadValue(Hart<URV>& hart, uint64_t tag, uint64_t va, uint64
             {
               if (info.stride_ == 0 and elemIx != op.elemIx_)
                 continue;
-              if (vecReadOpOverlapsElem(op, pa1, pa2, size, elemIx, field, elemSize))
+              if (vecReadOpOverlapsElem(op, pa1, pa2, size, elemIx, unitStride, elemSize))
                 forwardToRead(hart, stores, op);   // Let forwarding override read-op ref data.
             }
         }
@@ -2899,7 +2899,7 @@ Mcm<URV>::getCurrentLoadValue(Hart<URV>& hart, uint64_t tag, uint64_t va, uint64
             {
               if (info.stride_ == 0 and elemIx != op.elemIx_)
                 continue;
-              if (not vecReadOpOverlapsElemByte(op, byteAddr, elemIx, field, elemSize))
+              if (not vecReadOpOverlapsElemByte(op, byteAddr, elemIx, unitStride, elemSize))
                 continue;  // Vector non-unit-stride ops must match element index.
             }
 
