@@ -5795,7 +5795,7 @@ Hart<URV>::processExternalInterrupt(FILE* traceFile, std::string& instStr)
     processTimerInterrupt();
   mipPoked_ = false;
 
-  if (debugMode_ and not dcsrStepIe_)
+  if (dcsrStep_ and not dcsrStepIe_)
     return false;
 
   // If a non-maskable interrupt was signaled by the test-bench, consider it.
