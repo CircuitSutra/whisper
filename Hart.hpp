@@ -2338,12 +2338,21 @@ namespace WdRiscv
 
     /// Clear STEE related bits from the given physical address if address is
     /// secure. No-op if STEE is not enabled.
-    uint64_t clearSteeBits(uint64_t addr)
+    uint64_t clearSecureAddressSteeBits(uint64_t addr)
     {
       if (not steeEnabled_)
         return addr;
       bool secure = not stee_.isInsecureAddress(addr);
       return secure ? stee_.clearSteeBits(addr) : addr;
+    }
+
+    /// Clear STEE related bits from the given physical address. No-op if STEE is not
+    /// enabled.
+    uint64_t clearSteeBits(uint64_t addr)
+    {
+      if (not steeEnabled_)
+        return addr;
+      return stee_.clearSteeBits(addr);
     }
 
     /// Return true if ACLINT is configured.
