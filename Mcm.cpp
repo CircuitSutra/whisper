@@ -2,7 +2,6 @@
 #include <string_view>
 #include "Mcm.hpp"
 #include "System.hpp"
-#include "Hart.hpp"
 
 using namespace WdRiscv;
 using std::cerr;
@@ -1209,7 +1208,6 @@ Mcm<URV>::retire(Hart<URV>& hart, uint64_t time, uint64_t tag,
 {
   unsigned hartIx = hart.sysHartIndex();
   cancelNonRetired(hart, tag);
-
   if (not updateTime("Mcm::retire", time))
     return false;
 
@@ -1226,6 +1224,8 @@ Mcm<URV>::retire(Hart<URV>& hart, uint64_t time, uint64_t tag,
       cancelInstr(hart, *instr);  // Instruction took a trap at fetch.
       return true;
     }
+  
+  instr->privilege = hart.lastPrivMode();
 
   // If a partially executed vec ld/st store is cancelled, we commit its results.
   if (cancelled and not isPartialVecLdSt(hart, di))
@@ -4016,9 +4016,8 @@ Mcm<URV>::ppoRule4(Hart<URV>& hart, const McmInstr& instrB) const
   // Determine if this fence should order I/O operations.
   bool fenceOrdersIo = false;
   // Use the privilege mode before the fence (stored in hart.lastPrivMode()).
-  PrivilegeMode fencePriv = hart.lastPrivMode();
+  PrivilegeMode fencePriv = instrB.privilege;
   if (fencePriv != PrivilegeMode::Machine) {
-    // Read MENVCFG CSR 
     uint64_t menvcfg = hart.peekCsr(CsrNumber::MENVCFG, true);
     if ((menvcfg & 0x1) != 0)
       fenceOrdersIo = true;
