@@ -4018,6 +4018,25 @@ Mcm<URV>::ppoRule4(Hart<URV>& hart, const McmInstr& instrB) const
   unsigned hartIx = hart.sysHartIndex();
   const auto& instrVec = hartData_.at(hartIx).instrVec_;
 
+  // --- FIOM modification start ---
+  // Determine if this fence should order I/O operations.
+  bool fenceOrdersIo = false;
+  // Use the privilege mode before the fence (stored in hart.lastPrivMode()).
+  PrivilegeMode fencePriv = hart.lastPrivMode();
+  if (fencePriv != PrivilegeMode::Machine) {
+    // Read MENVCFG CSR 
+    uint64_t menvcfg = hart.peekCsr(CsrNumber::MENVCFG, true);
+    if ((menvcfg & 0x1) != 0)
+      fenceOrdersIo = true;
+    if (fencePriv == PrivilegeMode::User) {
+      uint64_t senvcfg = hart.peekCsr(CsrNumber::SENVCFG, true);
+      if ((senvcfg & 0x1) != 0)
+        fenceOrdersIo = true;
+    }
+  }
+  // --- FIOM modification end ---
+
+
   // Collect all fence instructions that can affect B.
   std::vector<McmInstrIx> fences;
   for (McmInstrIx ix = instrB.tag_; ix > 0; --ix)
@@ -4059,10 +4078,18 @@ Mcm<URV>::ppoRule4(Hart<URV>& hart, const McmInstr& instrB) const
       bool predWrite = fence.di_.isFencePredWrite();
       bool succRead = fence.di_.isFenceSuccRead();
       bool succWrite = fence.di_.isFenceSuccWrite();
-      bool predIn = fence.di_.isFencePredInput();
-      bool predOut = fence.di_.isFencePredOutput();
-      bool succIn = fence.di_.isFencePredInput();
-      bool succOut = fence.di_.isFencePredOutput();
+      bool predIn    = fence.di_.isFencePredInput();
+      bool predOut   = fence.di_.isFencePredOutput();
+      bool succIn    = fence.di_.isFenceSuccInput();
+      bool succOut   = fence.di_.isFenceSuccOutput();
+
+      // If FIOM is set, merge the I/O ordering bits into the normal ordering bits.
+      if (fenceOrdersIo) {
+        predRead  = predRead  || predIn;
+        predWrite = predWrite || predOut;
+        succRead  = succRead  || succIn;
+        succWrite = succWrite || succOut;
+      }
 
       for (auto aOpPtr : reordered)
 	{
