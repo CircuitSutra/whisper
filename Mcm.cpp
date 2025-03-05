@@ -4072,10 +4072,18 @@ Mcm<URV>::ppoRule4(Hart<URV>& hart, const McmInstr& instrB) const
       bool predWrite = fence.di_.isFencePredWrite();
       bool succRead = fence.di_.isFenceSuccRead();
       bool succWrite = fence.di_.isFenceSuccWrite();
-      bool succIn = fenceOrdersIo ? false : fence.di_.isFencePredInput();
-      bool succOut = fenceOrdersIo ? false : fence.di_.isFencePredOutput();
-      bool predIn  = fence.di_.isFencePredInput();
-      bool predOut = fence.di_.isFencePredOutput();
+      bool predIn    = fence.di_.isFencePredInput();
+      bool predOut   = fence.di_.isFencePredOutput();
+      bool succIn    = fence.di_.isFenceSuccInput();
+      bool succOut   = fence.di_.isFenceSuccOutput();
+
+      // If FIOM is set, merge the I/O ordering bits into the normal ordering bits.
+      if (fenceOrdersIo) {
+        predRead  = predRead  || predIn;
+        predWrite = predWrite || predOut;
+        succRead  = succRead  || succIn;
+        succWrite = succWrite || succOut;
+      }
 
       for (auto aOpPtr : reordered)
 	{
