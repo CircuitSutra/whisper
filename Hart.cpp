@@ -4786,7 +4786,7 @@ Hart<URV>::takeTriggerAction(FILE* traceFile, URV pc, URV info,
 	}
     }
 
-  if (beforeTiming and traceFile)
+  if (traceFile)
     {
       uint32_t inst = 0;
       readInst(currPc_, inst);
@@ -5036,6 +5036,17 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
 
           if (processExternalInterrupt(traceFile, instStr))
 	    continue;  // Next instruction in trap handler.
+
+          if (sdtrigOn_ and icountTriggerFired())
+            {            
+              if (takeTriggerAction(traceFile, currPc_, 0, instCounter_, false))
+                return true;
+              continue;
+            }
+
+	  if (sdtrigOn_)
+            evaluateIcountTrigger();
+
 	  uint64_t physPc = 0;
           if (not fetchInstWithTrigger(pc_, physPc, inst, traceFile))
 	    continue;  // Next instruction in trap handler.
@@ -5077,12 +5088,6 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
 	      if (takeTriggerAction(traceFile, currPc_, tval, instCounter_, true))
 		return true;
 	      continue;
-	    }
-
-	  if (sdtrigOn_ and icountTriggerHit())
-	    {
-	      if (takeTriggerAction(traceFile, pc_, 0, instCounter_, false))
-		return true;
 	    }
 
           if (minstretEnabled())
@@ -5984,6 +5989,15 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
       if (processExternalInterrupt(traceFile, instStr))
 	return;  // Next instruction in interrupt handler.
 
+      if (sdtrigOn_ and icountTriggerFired())
+        {            
+          takeTriggerAction(traceFile, currPc_, 0, instCounter_, false);
+          return;
+        }
+
+      if (sdtrigOn_)
+        evaluateIcountTrigger();
+
       uint64_t physPc = 0;
       if (not fetchInstWithTrigger(pc_, physPc, inst, traceFile))
         return;
@@ -6010,12 +6024,6 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
 	  takeTriggerAction(traceFile, currPc_, tval, instCounter_, true);
 	  return;
 	}
-
-      if (sdtrigOn_ and icountTriggerHit())
-        {
-          if (takeTriggerAction(traceFile, pc_, 0, instCounter_, false))
-            return;
-        }
 
       if (minstretEnabled() and not ebreakInstDebug_)
         ++retiredInsts_;
