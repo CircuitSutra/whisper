@@ -9772,7 +9772,8 @@ Hart<URV>::exitDebugMode()
       return;
     }
 
-  cancelLr(CancelLrCause::EXIT_DEBUG);  // Exiting debug modes loses LR reservation.
+  if (cancelLrOnDebug_)
+    cancelLr(CancelLrCause::EXIT_DEBUG);  // Lose LR reservation.
 
   pc_ = peekCsr(CsrNumber::DPC);  // Restore PC
 

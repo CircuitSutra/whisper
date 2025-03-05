@@ -5584,7 +5584,7 @@ namespace WdRiscv
 
     bool clearMprvOnRet_ = true;
     bool cancelLrOnTrap_ = false;   // Cancel reservation on traps when true.
-    bool cancelLrOnDebug_ = false;  // Cancel
+    bool cancelLrOnDebug_ = false;  // Cancel reservation on enter/exit debug mode.
 
     // Make hfence.gvma ignore huest physical addresses when true.
     bool hfenceGvmaIgnoresGpa_ = false;
