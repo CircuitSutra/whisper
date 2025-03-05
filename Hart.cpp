@@ -4764,7 +4764,7 @@ handleExceptionForGdb(WdRiscv::Hart<URV>& hart, int fd);
 template <typename URV>
 bool
 Hart<URV>::takeTriggerAction(FILE* traceFile, URV pc, URV info,
-			     uint64_t instrTag, bool beforeTiming)
+			     uint64_t instrTag, bool /*beforeTiming*/)
 {
   // Check triggers configuration to determine action: take breakpoint
   // exception or enter debugger.
