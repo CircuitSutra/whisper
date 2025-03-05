@@ -5795,6 +5795,9 @@ Hart<URV>::processExternalInterrupt(FILE* traceFile, std::string& instStr)
     processTimerInterrupt();
   mipPoked_ = false;
 
+  if (inDebugParkLoop_)
+    return false;
+
   if (dcsrStep_ and not dcsrStepIe_)
     return false;
 
