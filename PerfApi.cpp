@@ -766,6 +766,10 @@ PerfApi::getLoadData(unsigned hartIx, uint64_t tag, uint64_t va, uint64_t pa1,
   unsigned mask = (1 << size) - 1;  // One bit ber byte of load data.
   unsigned forwarded = 0;            // One bit per forwarded byte.
 
+  unsigned size1 = size;
+  if (pa1 != pa2 and pageNum(pa1) != pageNum(pa2))
+    size1 = offsetToNextPage(pa1);
+
   for (auto& kv : storeMap)
     {
       auto stTag = kv.first;
@@ -779,14 +783,14 @@ PerfApi::getLoadData(unsigned hartIx, uint64_t tag, uint64_t va, uint64_t pa1,
       uint64_t stAddr = stPac->dataVa();
       unsigned stSize = stPac->dataSize();
       if (stAddr + stSize < va or va + size < stAddr)
-	continue;  // No overlap.
+	continue;  // No overlap.  FIX : handle vector store
 
       auto& stMap = stPac->stDataMap_;
 
       for (unsigned i = 0; i < size; ++i)
 	{
 	  unsigned byteMask = 1 << i;
-	  uint64_t byteAddr = va + i;
+	  uint64_t byteAddr = i < size1 ? pa1 + i : pa2 + (i - size1);
 
           auto iter = stMap.find(byteAddr);
           if (iter == stMap.end())
@@ -803,10 +807,6 @@ PerfApi::getLoadData(unsigned hartIx, uint64_t tag, uint64_t va, uint64_t pa1,
     return true;
 
   // Non-forward bytes are read from memory.
-  unsigned size1 = size;
-  if (pa1 != pa2 and pageNum(pa1) != pageNum(pa2))
-    size1 = offsetToNextPage(pa1);
-
   for (unsigned i = 0; i < size; ++i)
     if (not (forwarded & (1 << i)))
       {
