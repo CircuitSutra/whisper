@@ -12770,9 +12770,11 @@ Hart<URV>::vectorLoadSeg(const DecodedInst* di, ElementWidth eew,
 	    {
 	      ldStInfo.removeLastElem();
               markVsDirty();
-	      csRegs_.write(CsrNumber::VSTART, PrivilegeMode::Machine, ix);
 	      if (ix == 0 or not faultFirst)
-		initiateLoadException(di, cause, ldStFaultAddr_, gpa1);
+                {
+                  csRegs_.write(CsrNumber::VSTART, PrivilegeMode::Machine, ix);
+                  initiateLoadException(di, cause, ldStFaultAddr_, gpa1);
+                }
 	      else if (vecRegs_.isTailAgnostic() and vecRegs_.isTailAgnosticOnes())
 		{
 		  // We reduce VL before processing tail elements. This is allowed
