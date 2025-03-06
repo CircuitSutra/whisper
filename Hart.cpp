@@ -5671,7 +5671,7 @@ Hart<URV>::isInterruptPossible(URV mip, URV sip, [[maybe_unused]] URV vsip,
       for (InterruptCause ic : { IC{24}, IC{23}, IC{43}, // Ascalon local interrupts. FIX : make configurable.
                                  IC::M_EXTERNAL, IC::M_SOFTWARE, IC::M_TIMER,
                                  IC::S_EXTERNAL, IC::S_SOFTWARE, IC::S_TIMER,
-                                 IC::G_EXTERNAL, IC::LCOF } )
+                                 IC::G_EXTERNAL, IC::LCOF, IC{35} } )
         {
           URV mask = URV(1) << unsigned(ic);
           if ((mdest & mask) != 0)
@@ -5695,7 +5695,7 @@ Hart<URV>::isInterruptPossible(URV mip, URV sip, [[maybe_unused]] URV vsip,
                                  IC::M_EXTERNAL, IC::M_SOFTWARE, IC::M_TIMER,
                                  IC::S_EXTERNAL, IC::S_SOFTWARE, IC::S_TIMER,
                                  IC::G_EXTERNAL, IC::VS_EXTERNAL, IC::VS_SOFTWARE,
-                                 IC::VS_TIMER, IC::LCOF } )
+                                 IC::VS_TIMER, IC::LCOF, IC{35} } )
         {
           URV mask = URV(1) << unsigned(ic);
           if ((sdest & mask) != 0)
