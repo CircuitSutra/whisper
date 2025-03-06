@@ -9,6 +9,7 @@
 #include <map>
 #include <unordered_set>
 #include "DecodedInst.hpp"
+#include "Hart.hpp"
 
 
 namespace WdRiscv
@@ -95,6 +96,7 @@ namespace WdRiscv
     McmInstrIx tag_ = 0;
     uint8_t hartIx_ : 8 = 0;
     uint8_t size_   : 8 = 0;        // Data size for load/store instructions.
+    PrivilegeMode privilege = PrivilegeMode::Machine;
 
     bool retired_    : 1 = false;
     bool canceled_   : 1 = false;
