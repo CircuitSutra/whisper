@@ -77,6 +77,23 @@ Triggers<URV>::readData1(URV trigIx, URV& value) const
 
 template <typename URV>
 bool
+Triggers<URV>::peekData1(URV trigIx, URV& value) const
+{
+  if (trigIx >= triggers_.size())
+    return false;
+
+  auto& trigger = triggers_.at(trigIx);
+  unsigned typeIx = unsigned(trigger.type());
+
+  URV readMask = typeIx < data1ReadMasks_.size() ? data1ReadMasks_.at(typeIx) : 0;
+
+  value = trigger.peekData1() & readMask;
+  return true;
+}
+
+
+template <typename URV>
+bool
 Triggers<URV>::readData2(URV trigger, URV& value) const
 {
   if (trigger >= triggers_.size())
@@ -152,11 +169,22 @@ Triggers<URV>::writeData1(URV trigIx, bool debugMode, URV value)
 
   // If new type is not supported, preserve old type.
   Data1Bits<URV> valBits{value};
-  if (not isSupportedType(valBits.type()))
+  bool preserve = not isSupportedType(valBits.type());
+
+  if (valBits.type() != TriggerType::None and not preserve)
     {
-      valBits.setType(trig.data1_.type());
-      value = valBits.value_;
+      // If new type is not supported by this trigger, preserve old type.
+      unsigned typeNumber = unsigned(valBits.type());
+      unsigned mask = 1 << typeNumber;
+      TinfoBits tinfo(trig.readInfo());
+      preserve = not (tinfo.info() & mask);
     }
+
+  if (preserve)
+     {
+       valBits.setType(trig.data1_.type());
+       value = valBits.value_;
+     }
 
   if (not trig.writeData1(debugMode, value))
     return false;
@@ -356,8 +384,7 @@ Triggers<URV>::instOpcodeTriggerHit(URV opcode, TriggerTiming timing,
 
 template <typename URV>
 bool
-Triggers<URV>::icountTriggerHit(PrivilegeMode prevPrivMode, bool prevVirtMode, PrivilegeMode mode,
-				bool virtMode, bool interruptEnabled)
+Triggers<URV>::icountTriggerFired(PrivilegeMode mode, bool virtMode, bool interruptEnabled)
 {
   // Check if we should skip tripping because we are running in machine mode and
   // interrupts are enabled.
@@ -369,25 +396,49 @@ Triggers<URV>::icountTriggerHit(PrivilegeMode prevPrivMode, bool prevVirtMode, P
 
   for (auto& trig : triggers_)
     {
-      if (trig.isModified() and not icountOnModified_)
-	continue; // Trigger was written by current instruction.
-
-      if (not trig.instCountdown(prevPrivMode, prevVirtMode))
+      if (not trig.matchInstCount(mode, virtMode))
         continue;
 
       if (not trig.isEnterDebugOnHit() and skip)
 	continue;  // Cannot fire in machine mode.
 
-      if (not trig.matchInstCount(mode, virtMode) or
-          not trig.data1_.icount_.pending_)
-        continue; // Next mode is non-matching.
+      if (trig.data1_.icount_.pending_)
+        hit = true;
 
-      hit = true;
-      trig.setHit(true);
-      trig.setLocalHit(true);
       trig.data1_.icount_.pending_ = false;
     }
+
   return hit;
+}
+
+
+template <typename URV>
+void
+Triggers<URV>::evaluateIcount(PrivilegeMode mode, bool virtMode, bool interruptEnabled)
+{
+  // Check if we should skip tripping because we are running in machine mode and
+  // interrupts are enabled.
+  bool skip = mode == PrivilegeMode::Machine and not interruptEnabled;
+  if (tcontrolEnabled_)
+    skip = mode == PrivilegeMode::Machine and not mmodeEnabled_;
+
+  for (auto& trig : triggers_)
+    {
+      if (trig.isModified() and not icountOnModified_)
+	continue; // Trigger was written by current instruction.
+
+      if (not trig.instCountdown(mode, virtMode))
+        continue;
+
+      if (not trig.isEnterDebugOnHit() and skip)
+	continue;  // Cannot hit in machine mode.
+
+      if (not trig.data1_.icount_.pending_)
+        continue;
+
+      trig.setHit(true);
+      trig.setLocalHit(true);
+    }
 }
 
 

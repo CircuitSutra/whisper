@@ -9,6 +9,7 @@
 #include <map>
 #include <unordered_set>
 #include "DecodedInst.hpp"
+#include "Hart.hpp"
 
 
 namespace WdRiscv
@@ -95,6 +96,7 @@ namespace WdRiscv
     McmInstrIx tag_ = 0;
     uint8_t hartIx_ : 8 = 0;
     uint8_t size_   : 8 = 0;        // Data size for load/store instructions.
+    PrivilegeMode privilege = PrivilegeMode::Machine;
 
     bool retired_    : 1 = false;
     bool canceled_   : 1 = false;
@@ -436,6 +438,10 @@ namespace WdRiscv
     /// address dependency.
     McmInstrIx getMinReadTagWithLargerTime(unsigned hartIx, const McmInstr& instr) const;
 
+    /// Issue a warning about an instruction opcode missing in the fetch cache (not
+    /// brought in with an mcm-ifetch operation).
+    void reportMissingFetch(const Hart<URV>& hart, uint64_t tag, uint64_t pa) const;
+
   protected:
 
     /// Helper to public readOp which splits line crossing ops into two calling this
@@ -467,12 +473,12 @@ namespace WdRiscv
     /// the range of addresses associated with a memory access for the given vector
     /// element. Size is the size of the memory access, and elemSize is the element size.
     bool vecReadOpOverlapsElem(const MemoryOp& op, uint64_t pa1, uint64_t pa2,
-			       unsigned size, unsigned elemIx, unsigned field,
+			       unsigned size, unsigned elemIx, bool unitStride,
 			       unsigned elemSize) const;
 
     /// Heler to vecReadOpOverlapsElem.
     bool vecReadOpOverlapsElemByte(const MemoryOp& op, uint64_t addr, unsigned elemIx,
-				   unsigned field, unsigned elemSize) const;
+				   bool unitStride, unsigned elemSize) const;
 
     /// Return true if given instruction is an indexed load/store and it has an index
     /// register with a value produced after the instruction has used that index

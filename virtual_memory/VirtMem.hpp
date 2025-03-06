@@ -15,9 +15,8 @@
 #pragma once
 
 #include <iosfwd>
+#include <functional>
 #include "trapEnums.hpp"
-#include "Memory.hpp"
-#include "PmpManager.hpp"
 #include "Tlb.hpp"
 #include "Pte.hpp"
 
@@ -43,8 +42,7 @@ namespace WdRiscv
     /// Page based memory type.
     enum class Pbmt : uint32_t { None = 0, Nc = 1, Io = 2, Reserved = 3 };
 
-    VirtMem(unsigned hartIx, Memory& memory, unsigned pageSize,
-            PmpManager& pmpMgr, unsigned tlbSize);
+    VirtMem(unsigned hartIx, unsigned pageSize, unsigned tlbSize);
 
     ~VirtMem() = default;
 
@@ -153,11 +151,11 @@ namespace WdRiscv
     {
       std::fill(supportedModes_.begin(), supportedModes_.end(), false);
       for (auto mode : modes)
-	{
-	  unsigned ix = unsigned(mode);
-	  if (ix < supportedModes_.size())
-	    supportedModes_.at(ix) = true;
-	}
+      {
+        unsigned ix = unsigned(mode);
+        if (ix < supportedModes_.size())
+          supportedModes_.at(ix) = true;
+      }
     }
 
     /// Return true if given translation mode is supported. On construction all modes are
@@ -168,8 +166,10 @@ namespace WdRiscv
       return ix < supportedModes_.size() ? supportedModes_.at(ix) : false;
     }
 
+    /// Used to record the page table walk addresses for logging.
     struct WalkEntry
     {
+      /// Non-leaf PTE with guest-virt-addr, guest-phys-addr, phys-addr, or leaf PTE.
       enum Type { GVA = 0, GPA = 1, PA = 2, RE = 3 };
 
       WalkEntry(uint64_t addr, Type type)
@@ -182,9 +182,7 @@ namespace WdRiscv
 
       uint64_t addr_ = 0;
       Type type_ = Type::PA;
-
-      // Only applicable for leaf entries
-      Pbmt pbmt_ = Pbmt::None;
+      Pbmt pbmt_ = Pbmt::None; // Only applicable for leaf entries
     };
 
     /// Return the addresses of the instruction page table entries
@@ -223,24 +221,23 @@ namespace WdRiscv
       s1ADUpdate_ = false;
       pbmt_ = Pbmt::None;
       vsPbmt_ = Pbmt::None;
+      twoStage_ = false;
     }
 
     /// Return the effective page based memory type.
-    static constexpr Pbmt effectivePbmt(bool twoStage, Mode vsMode,
-                                        Pbmt vsPbmt, Pbmt pbmt)
+    static constexpr Pbmt effectivePbmt(bool twoStage, Mode vsMode, Pbmt vsPbmt, Pbmt pbmt)
     {
       if (twoStage)
         {
-          if (vsMode != Mode::Bare and
-              vsPbmt != Pbmt::None)
+          if (vsMode != Mode::Bare and vsPbmt != Pbmt::None)
             return vsPbmt;
         }
       return pbmt;
     }
 
     /// Return the effective page based memory type of last translation.
-    Pbmt lastEffectivePbmt(bool twoStage) const
-    { return effectivePbmt(twoStage, vsMode_, vsPbmt_, pbmt_); }
+    Pbmt lastEffectivePbmt() const
+    { return effectivePbmt(twoStage_, vsMode_, vsPbmt_, pbmt_); }
 
     /// Return a string representing the page/megapage size associated with the
     /// given translation mode and the given PTE level in a table walk. This
@@ -288,10 +285,97 @@ namespace WdRiscv
     Pbmt lastPbmt() const
     { return pbmt_; }
 
+    /// Return the VS-stage page based memory type of last translation, only applicable if
+    /// translation was successful.
     Pbmt lastVsPbmt() const
     { return vsPbmt_; }
 
+    /// Return true if the last translation was a 2-stage translation.
+    bool lastTwoStage() const
+    { return twoStage_; }
+
+    // =======================
+    // Callback setter APIs 
+    void setMemReadCallback(const std::function<bool(uint64_t, bool, uint64_t&)>& cb) {
+      memReadCallback64_ = cb;
+    }
+    void setMemReadCallback(const std::function<bool(uint64_t, bool, uint32_t&)>& cb) {
+      memReadCallback32_ = cb;
+    }
+    void setMemWriteCallback(const std::function<bool(uint64_t, bool, uint64_t)>& cb) {
+      memWriteCallback_ = cb;
+    }
+    void setPmpIsReadableCallback(const std::function<bool(uint64_t, PrivilegeMode)>& cb) {
+      pmpReadableCallback_ = cb;
+    }
+    void setPmpIsWritableCallback(const std::function<bool(uint64_t, PrivilegeMode)>& cb) {
+      pmpWritableCallback_ = cb;
+    }
+
+    // Callback getter APIs
+    const std::function<bool(uint64_t, bool, uint64_t&)>& getMemReadCallback64() const {
+      return memReadCallback64_;
+    }
+    const std::function<bool(uint64_t, bool, uint32_t&)>& getMemReadCallback32() const {
+      return memReadCallback32_;
+    }
+    const std::function<bool(uint64_t, bool, uint64_t)>& getMemWriteCallback() const {
+      return memWriteCallback_;
+    }
+    const std::function<bool(uint64_t, PrivilegeMode)>& getPmpReadableCallback() const {
+      return pmpReadableCallback_;
+    }
+    const std::function<bool(uint64_t, PrivilegeMode)>& getPmpWritableCallback() const {
+      return pmpWritableCallback_;
+    }
+
+    // =======================
+    /// Enable/disable tracing of accessed page table entries.
+    /// Return prior trace setting.
+    bool enableTrace(bool flag)
+    { bool prev = trace_; trace_ = flag; return prev; }
+
   protected:
+    // Callback member variables.
+    std::function<bool(uint64_t, bool, uint64_t&)> memReadCallback64_ = nullptr;
+    std::function<bool(uint64_t, bool, uint32_t&)> memReadCallback32_ = nullptr;
+    std::function<bool(uint64_t, bool, uint64_t)>  memWriteCallback_ = nullptr;
+    std::function<bool(uint64_t, PrivilegeMode)>     pmpReadableCallback_ = nullptr;
+    std::function<bool(uint64_t, PrivilegeMode)>     pmpWritableCallback_ = nullptr;
+
+    template<typename T>
+    bool memRead(uint64_t addr, bool bigEndian, T &data) const {
+      if constexpr (sizeof(T) == 4) {
+        auto cb = getMemReadCallback32();
+        if (cb)
+          return cb(addr, bigEndian, data);
+        data = 0;
+        return false;
+      } else if constexpr (sizeof(T) == 8) {
+        auto cb = getMemReadCallback64();
+        if (cb)
+          return cb(addr, bigEndian, data);
+        data = 0;
+        return false;
+      } else {
+        static_assert(sizeof(T) == 4 || sizeof(T) == 8, "Unsupported type for memReadT");
+      }
+    }
+
+    bool memWrite(uint64_t addr, bool bigEndian, uint64_t data) const {
+      auto cb = getMemWriteCallback();
+      return cb ? cb(addr, bigEndian, data) : false;
+    }
+
+    bool pmpIsReadable(uint64_t addr, PrivilegeMode pm) const {
+      auto cb = getPmpReadableCallback();
+      return cb ? cb(addr, pm) : true;
+    }
+
+    bool pmpIsWritable(uint64_t addr, PrivilegeMode pm) const {
+      auto cb = getPmpWritableCallback();
+      return cb ? cb(addr, pm) : true;
+    }
 
     /// Return current big-endian mode of implicit memory read/write
     /// used by translation.
@@ -302,70 +386,6 @@ namespace WdRiscv
     /// by translation.
     void setBigEndian(bool be)
     { bigEnd_ = be; }
-
-    /// Read a memory word honoring the big-endian flag. Return true
-    /// on success and false on failure.
-    bool memRead(uint64_t addr, bool bigEnd, uint32_t& data) const
-    {
-      if (not memory_.read(addr, data))
-	return false;
-      if (bigEnd)
-	data = util::byteswap(data);
-      return true;
-    }
-
-    /// Read a memory double-word honoring the big-endian flag. Return
-    /// true on success and false on failure.
-    bool memRead(uint64_t addr, bool bigEnd, uint64_t& data) const
-    {
-      if (not memory_.read(addr, data))
-	return false;
-      if (bigEnd)
-	data = util::byteswap(data);
-      return true;
-    }
-
-    /// Write a memory word honoring the big-endian flag. Return true on success and false
-    /// on failure. This is used to update A/D bits. Memory must have reserve-eventual
-    /// attribute.
-    bool memWrite(uint64_t addr, bool bigEnd, uint32_t data)
-    {
-      if (bigEnd)
-	data = util::byteswap(data);
-      if (not memory_.hasReserveAttribute(addr))
-	return false;
-      return memory_.write(hartIx_, addr, data);
-    }
-
-    /// Write a memory double-word honoring the big-endian flag. Return true on success
-    /// and false on failure. This is used to update A/D bits. Memory must have
-    /// reserve-eventual attribute.
-    bool memWrite(uint64_t addr, bool bigEnd, uint64_t data)
-    {
-      if (bigEnd)
-	data = util::byteswap(data);
-      if (not memory_.hasReserveAttribute(addr))
-	return false;
-      return memory_.write(hartIx_, addr, data);
-    }
-
-    /// Check physical memory protection returning true if given address is readable.
-    bool pmpIsReadable(uint64_t addr, PrivilegeMode pm) const
-    {
-      if (not pmpMgr_.isEnabled())
-	return true;
-      const Pmp& pmp = pmpMgr_.accessPmp(addr);
-      return pmp.isRead(pm);
-    }
-
-    /// Check physical memory protection returning true if given address is writable.
-    bool pmpIsWritable(uint64_t addr, PrivilegeMode pm) const
-    {
-      if (not pmpMgr_.isEnabled())
-	return true;
-      const Pmp& pmp = pmpMgr_.accessPmp(addr);
-      return pmp.isWrite(pm);
-    }
 
     /// Use exec access permission for read permission.
     void useExecForRead(bool flag)
@@ -580,11 +600,6 @@ namespace WdRiscv
 	updatedPtes_.emplace(updatedPtes_.end(), addr, size, value);
     }
 
-    /// Enable/disable tracing of accessed page table entries.
-    /// Return prior trace setting.
-    bool enableTrace(bool flag)
-    { bool prev = trace_; trace_ = flag; return prev; }
-
     /// Process table walk trace as for fetch.
     void setAccReason(bool fetch)
     { forFetch_ = fetch; }
@@ -640,7 +655,7 @@ namespace WdRiscv
       uint64_t value_ = 0;
     };
 
-    Memory& memory_;
+    // Memory& memory_;
     uint64_t rootPage_ = 0;         // Root page for S mode (V==0).
     uint64_t vsRootPage_ = 0;       // Root page of VS 1st stage translation (V == 1).
     uint64_t rootPageStage2_ = 0;   // Root page of VS 2nd stage translation (V == 1).
@@ -699,7 +714,9 @@ namespace WdRiscv
     Pbmt pbmt_ = Pbmt::None;
     Pbmt vsPbmt_ = Pbmt::None;
 
-    PmpManager& pmpMgr_;
+    bool twoStage_ = false;  // True if last translation was 2-stage.
+
+    // PmpManager& pmpMgr_;
     Tlb tlb_;
     Tlb vsTlb_;
     Tlb stage2Tlb_;

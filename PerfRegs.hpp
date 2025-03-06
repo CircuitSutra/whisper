@@ -22,7 +22,7 @@
 #include <type_traits>
 #include <cassert>
 #include <functional>
-#include "trapEnums.hpp"
+#include "virtual_memory/trapEnums.hpp"
 
 
 namespace WdRiscv

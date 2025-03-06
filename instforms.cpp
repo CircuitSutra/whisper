@@ -816,7 +816,7 @@ IFormInst::encodeCsrrw(uint32_t rd, uint32_t rs1, uint32_t csr)
   if (csr >= (1 << 12))
     return false;
 
-  fields.opcode = 0x7f;
+  fields.opcode = 0x73;
   fields.rd = rd & 0x1f;
   fields.funct3 = 1;
   fields.rs1 = rs1 & 0x1f;
@@ -1969,6 +1969,16 @@ WdRiscv::encodeCsrrci(uint32_t rd, uint32_t imm, uint32_t csr, uint32_t& inst)
 {
   IFormInst ifs(0);
   if (not ifs.encodeCsrrci(rd, imm, csr))
+    return false;
+  inst = ifs.code;
+  return true;
+}
+
+bool
+WdRiscv::encodeCsrrwi(uint32_t rd, uint32_t imm, uint32_t csr, uint32_t& inst)
+{
+  IFormInst ifs(0);
+  if (not ifs.encodeCsrrwi(rd, imm, csr))
     return false;
   inst = ifs.code;
   return true;

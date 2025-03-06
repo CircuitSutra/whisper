@@ -545,6 +545,14 @@ namespace WdRiscv
     void markAsHighHalf(bool flag)
     { high_ = flag; }
 
+    /// Mark this CSR as belonhing to the AIA extension.
+    void markAia(bool flag)
+    { aia_ = flag; }
+
+    /// Return true if this an AIA CSR.
+    bool isAia() const
+    { return aia_; }
+
     /// Return true if this register has been marked as a debug-mode
     /// register.
     bool isDebug() const
@@ -811,6 +819,7 @@ namespace WdRiscv
     bool defined_ = false;
     bool debug_ = false;         // True if this is a debug-mode register.
     bool shared_ = false;        // True if this is shared among harts.
+    bool aia_ = false;           // True if this an AIA CSR.
     URV initialValue_ = 0;
     PrivilegeMode privMode_ = PrivilegeMode::Machine;
     URV value_ = 0;
@@ -921,6 +930,8 @@ namespace WdRiscv
     /// Associate an IMSIC with this register file.
     void attachImsic(std::shared_ptr<TT_IMSIC::Imsic> imsic)
     { imsic_ = imsic; }
+
+    bool aiaEnabled() const { return aiaEnabled_; }
 
   protected:
 
@@ -1097,17 +1108,20 @@ namespace WdRiscv
 
     /// Make every active icount trigger count down unless it was written by the current
     /// instruction. Set the hit bit of a counted-down register if its value becomes
-    /// zero. Return true if any counted-down register reaches zero; otherwise, return
-    /// false.
-    bool icountTriggerHit(PrivilegeMode prevPrivMode, bool prevVirtMode,
-                          PrivilegeMode mode, bool virtMode, bool ie)
+    /// zero
+    void evaluateIcountTrigger(PrivilegeMode mode, bool virtMode, bool ie)
     {
-      bool hit = triggers_.icountTriggerHit(prevPrivMode, prevVirtMode, mode, virtMode, ie);
+      triggers_.evaluateIcount(mode, virtMode, ie);
       URV tselect = 0;
       peek(CsrNumber::TSELECT, tselect);
       if (triggers_.getLocalHit(tselect))
 	recordWrite(CsrNumber::TDATA1);  // Hit bit in TDATA1 changed.
-      return hit;
+    }
+
+    /// Return true if a pending icount triger can fire clearning its pending status.
+    bool icountTriggerFired(PrivilegeMode mode, bool virtMode, bool ie)
+    {
+      return triggers_.icountTriggerFired(mode, virtMode, ie);
     }
 
     /// Set pre and post to the count of "before"/"after" triggers
@@ -1299,6 +1313,8 @@ namespace WdRiscv
     void hyperPoke(Csr<URV>* csr);
 
     bool readTrigger(CsrNumber number, PrivilegeMode mode, URV& value) const;
+
+    bool peekTrigger(CsrNumber number, PrivilegeMode mode, URV& value) const;
 
     bool writeTrigger(CsrNumber number, PrivilegeMode mode, URV value);
 
@@ -1543,6 +1559,12 @@ namespace WdRiscv
     URV peekHideleg() const
     {
       const auto& csr = regs_.at(size_t(CsrNumber::HIDELEG));
+      return csr.read();
+    }
+
+    URV peekDcsr() const
+    {
+      const auto& csr = regs_.at(size_t(CsrNumber::DCSR));
       return csr.read();
     }
 
@@ -1883,6 +1905,10 @@ namespace WdRiscv
     /// Return true if given CSR is a hypervisor CSR.
     bool isHypervisor(CsrNumber csrn) const
     { auto csr = getImplementedCsr(csrn); return csr and csr->isHypervisor(); }
+
+    /// Return true if given CSR is an AIA CSR.
+    bool isAia(CsrNumber csrn) const
+    { auto csr = getImplementedCsr(csrn); return csr and csr->isAia(); }
 
     /// If flag is false, bit HENVCFG.STCE becomes read-only-zero;
     /// otherwise, bit is readable.

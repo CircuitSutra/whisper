@@ -90,14 +90,13 @@ Hart<URV>::Hart(unsigned hartIx, URV hartId, Memory& memory, Syscall<URV>& sysca
     syscall_(syscall),
     time_(time),
     pmpManager_(memory.size(), UINT64_C(1024)*1024),
-    virtMem_(hartIx, memory, memory.pageSize(), pmpManager_, 2048)
+    virtMem_(hartIx, memory.pageSize(), 2048)
 {
+  setupVirtMemCallbacks();
+
   // Enable default extensions
-  for (RvExtension ext : { RvExtension::C,
-                           RvExtension::M })
-    {
-      enableExtension(ext, true);
-    }
+  for (RvExtension ext : { RvExtension::C, RvExtension::M })
+    enableExtension(ext, true);
 
   decodeCacheSize_ = 128*1024;  // Must be a power of 2.
   decodeCacheMask_ = decodeCacheSize_ - 1;
@@ -190,6 +189,57 @@ Hart<URV>::~Hart()
 {
   if (branchBuffer_.max_size() and not branchTraceFile_.empty())
     saveBranchTrace(branchTraceFile_);
+}
+
+
+template <typename URV>
+void
+Hart<URV>::setupVirtMemCallbacks()
+{
+
+  virtMem_.setMemReadCallback([this](uint64_t addr, bool bigEndian, URV &data) -> bool {
+      if (steeEnabled_) {
+        if (!stee_.isValidAddress(addr))
+          return false;  
+        addr = stee_.clearSecureBits(addr);
+      }
+      
+      // Proceed with normal memory read.
+      if (!memory_.read(addr, data))
+        return false;
+      if (bigEndian)
+        data = util::byteswap(data);
+      return true;
+  });
+
+
+  virtMem_.setMemWriteCallback([this](uint64_t addr, bool bigEndian, uint64_t data) -> bool {
+    URV value = static_cast<URV>(data);   // For RV32.
+      assert(value == data);
+
+      if (bigEndian)
+        value = util::byteswap(value);
+      if (not memory_.hasReserveAttribute(addr))
+        return false;
+      return memory_.write(hartIx_, addr, value);
+
+  });
+
+  virtMem_.setPmpIsReadableCallback([this](uint64_t addr, PrivilegeMode pm) -> bool {
+      if (not pmpManager_.isEnabled())
+        return true;
+      const Pmp& pmp = pmpManager_.accessPmp(addr);
+      return pmp.isRead(pm);
+
+  });
+
+  virtMem_.setPmpIsWritableCallback([this](uint64_t addr, PrivilegeMode pm) -> bool {
+      if (not pmpManager_.isEnabled())
+        return true;
+      const Pmp& pmp = pmpManager_.accessPmp(addr);
+      return pmp.isWrite(pm);
+
+  });
 }
 
 
@@ -950,7 +1000,7 @@ template <typename URV>
 bool
 Hart<URV>::pokeMemory(uint64_t addr, uint8_t val, bool usePma, bool skipFetch)
 {
-  std::lock_guard<std::mutex> lock(memory_.lrMutex_);
+  std::lock_guard<SpinLock> lock(memory_.lrMutex_);
 
   memory_.invalidateOtherHartLr(hartIx_, addr, sizeof(val));
   invalidateDecodeCache(addr, sizeof(val));
@@ -966,7 +1016,7 @@ template <typename URV>
 bool
 Hart<URV>::pokeMemory(uint64_t addr, uint16_t val, bool usePma, bool skipFetch)
 {
-  std::lock_guard<std::mutex> lock(memory_.lrMutex_);
+  std::lock_guard<SpinLock> lock(memory_.lrMutex_);
 
   memory_.invalidateOtherHartLr(hartIx_, addr, sizeof(val));
   invalidateDecodeCache(addr, sizeof(val));
@@ -995,13 +1045,12 @@ Hart<URV>::pokeMemory(uint64_t addr, uint32_t val, bool usePma, bool skipFetch)
   // otherwise, there is no way for external driver to clear bits that
   // are read-only to this hart.
 
-  std::lock_guard<std::mutex> lock(memory_.lrMutex_);
+  std::lock_guard<SpinLock> lock(memory_.lrMutex_);
 
   memory_.invalidateOtherHartLr(hartIx_, addr, sizeof(val));
   invalidateDecodeCache(addr, sizeof(val));
 
-  bool isDevice = isAclintAddr(addr) or isImsicAddr(addr) or isPciAddr(addr);
-  if (isDevice)
+  if (isDeviceAddr(addr))
     {
       deviceWrite(addr, val);
       return true;
@@ -1019,13 +1068,12 @@ template <typename URV>
 bool
 Hart<URV>::pokeMemory(uint64_t addr, uint64_t val, bool usePma, bool skipFetch)
 {
-  std::lock_guard<std::mutex> lock(memory_.lrMutex_);
+  std::lock_guard<SpinLock> lock(memory_.lrMutex_);
 
   memory_.invalidateOtherHartLr(hartIx_, addr, sizeof(val));
   invalidateDecodeCache(addr, sizeof(val));
 
-  bool isDevice = isAclintAddr(addr) or isImsicAddr(addr) or isPciAddr(addr);
-  if (isDevice)
+  if (isDeviceAddr(addr))
     {
       deviceWrite(addr, val);
       return true;
@@ -1418,23 +1466,35 @@ Hart<URV>::reportTrapStat(FILE* file) const
         case InterruptCause::S_SOFTWARE:
           fprintf(file, "  + S_SOFTWARE  : %" PRIu64 "\n", count);
           break;
+        case InterruptCause::VS_SOFTWARE:
+          fprintf(file, "  + VS_SOFTWARE : %" PRIu64 "\n", count);
+          break;
         case InterruptCause::M_SOFTWARE:
           fprintf(file, "  + M_SOFTWARE  : %" PRIu64 "\n", count);
           break;
-        case InterruptCause::S_TIMER   :
+        case InterruptCause::S_TIMER:
           fprintf(file, "  + S_TIMER     : %" PRIu64 "\n", count);
           break;
-        case InterruptCause::M_TIMER   :
+        case InterruptCause::VS_TIMER:
+          fprintf(file, "  + VS_TIMER    : %" PRIu64 "\n", count);
+          break;
+        case InterruptCause::M_TIMER:
           fprintf(file, "  + M_TIMER     : %" PRIu64 "\n", count);
           break;
         case InterruptCause::S_EXTERNAL:
           fprintf(file, "  + S_EXTERNAL  : %" PRIu64 "\n", count);
           break;
+        case InterruptCause::VS_EXTERNAL:
+          fprintf(file, "  + VS_EXTERNAL : %" PRIu64 "\n", count);
+          break;
         case InterruptCause::M_EXTERNAL:
           fprintf(file, "  + M_EXTERNAL  : %" PRIu64 "\n", count);
           break;
+        case InterruptCause::G_EXTERNAL:
+          fprintf(file, "  + G_EXTERNAL  : %" PRIu64 "\n", count);
+          break;
         default:
-          fprintf(file, "  + ????        : %" PRIu64 "\n", count);
+          fprintf(file, "  + INTR-NO-%d  : %" PRIu64 "\n", unsigned(cause), count);
         }
     }
 
@@ -1587,7 +1647,7 @@ Hart<URV>::determineLoadException(uint64_t& addr1, uint64_t& addr2, uint64_t& ga
       if (steeEnabled_)
 	a1 = stee_.clearSecureBits(addr1);
       Pma pma = accessPma(a1);
-      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt(virtMode_));
+      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt());
       if (not pma.isMisalignedOk())
 	return pma.misalOnMisal()? EC::LOAD_ADDR_MISAL : EC::LOAD_ACC_FAULT;
     }
@@ -1651,7 +1711,7 @@ Hart<URV>::determineLoadException(uint64_t& addr1, uint64_t& addr2, uint64_t& ga
       uint64_t next = addr1 == addr2? aligned + ldSize : addr2;
       ldStFaultAddr_ = va2;
       pma = accessPma(next);
-      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt(virtMode_));
+      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt());
       if (not pma.isRead()  or  (virtMem_.isExecForRead() and not pma.isExec()))
 	return EC::LOAD_ACC_FAULT;
       if (not pma.isMisalignedOk())
@@ -1765,7 +1825,7 @@ readCharNonBlocking(int fd)
     return 0;
 
   char c = 0;
-  std::ptrdiff_t code = ::read(fd, &c, sizeof(c));
+  auto code = ::read(fd, &c, sizeof(c));
   if (code == 1)
     {
       if (isatty(fd))
@@ -1818,7 +1878,7 @@ Hart<URV>::load(const DecodedInst* di, uint64_t virtAddr, [[maybe_unused]] bool 
   ldStPhysAddr1_ = ldStPhysAddr2_ = virtAddr;
   ldStSize_ = sizeof(LOAD_TYPE);
 
-#ifdef FAST_SLOPPY
+#if FAST_SLOPPY
   return fastLoad<LOAD_TYPE>(di, virtAddr, data);
 #else
 
@@ -1893,7 +1953,7 @@ Hart<URV>::deviceRead(uint64_t pa, unsigned size, uint64_t& val)
   if (isImsicAddr(pa))
     {
       if (imsicRead_)
-        imsicRead_(pa, sizeof(val), val);
+        imsicRead_(pa, size, val);
       return;
     }
 
@@ -1939,6 +1999,14 @@ Hart<URV>::deviceRead(uint64_t pa, unsigned size, uint64_t& val)
       return;
     }
 
+  if (isAplicAddr(pa))
+    {
+      uint32_t val32;
+      aplic_->read(pa, size, val32);
+      val = val32;
+      return;
+    }
+
   assert(0);  // No device contains given address.
 }
 
@@ -1969,6 +2037,13 @@ Hart<URV>::deviceWrite(uint64_t pa, STORE_TYPE storeVal)
       return;
     }
 
+  if (isAplicAddr(pa))
+    {
+      uint32_t val32 = storeVal;
+      aplic_->write(pa, sizeof(storeVal), val32);
+      return;
+    }
+
   assert(0);
 }
 
@@ -1980,7 +2055,7 @@ Hart<URV>::readForLoad([[maybe_unused]] const DecodedInst* di, uint64_t virtAddr
 		       [[maybe_unused]] uint64_t addr1, [[maybe_unused]] uint64_t addr2,
 		       uint64_t& data, unsigned elemIx, unsigned field)
 {
-#ifdef FAST_SLOPPY
+#if FAST_SLOPPY
   return fastLoad<LOAD_TYPE>(di, virtAddr, data);
 #else
 
@@ -1995,8 +2070,6 @@ Hart<URV>::readForLoad([[maybe_unused]] const DecodedInst* di, uint64_t virtAddr
   using ULT = typename std::make_unsigned<LOAD_TYPE>::type;
 
   ULT uval = 0;   // Unsigned loaded value
-
-  bool isDevice = isAclintAddr(addr1) or isImsicAddr(addr1) or isPciAddr(addr1);
 
   bool hasOooVal = false;
   if (ooo_)
@@ -2015,7 +2088,7 @@ Hart<URV>::readForLoad([[maybe_unused]] const DecodedInst* di, uint64_t virtAddr
 	  data = 0;
 	  return true;
 	}
-      if (isDevice)
+      if (isDeviceAddr(addr1))
 	{
 	  uint64_t dv = 0;
 	  deviceRead(addr1, sizeof(ULT), dv);
@@ -2165,13 +2238,13 @@ Hart<URV>::store(const DecodedInst* di, URV virtAddr, [[maybe_unused]] bool hype
   ldStPhysAddr1_ = ldStPhysAddr2_ = ldStAddr_;
   ldStSize_ = sizeof(STORE_TYPE);
 
-#ifdef FAST_SLOPPY
+#if FAST_SLOPPY
   return fastStore(di, virtAddr, storeVal);
 #else
 
   auto lock = (amoLock)? std::shared_lock<std::shared_mutex>(memory_.amoMutex_) :
                          std::shared_lock<std::shared_mutex>();
-  std::lock_guard<std::mutex> lock2(memory_.lrMutex_);
+  std::lock_guard<SpinLock> lock2(memory_.lrMutex_);
 
   // ld/st-address or instruction-address triggers have priority over
   // ld/st access or misaligned exceptions.
@@ -2255,8 +2328,6 @@ Hart<URV>::writeForStore(uint64_t virtAddr, uint64_t pa1, uint64_t pa2, STORE_TY
       return true;  // Memory updated & lr-canceled when merge buffer is written.
     }
 
-  bool isDevice = isAclintAddr(pa1) or isImsicAddr(pa1) or isPciAddr(pa1);
-
   // If we write to special location, end the simulation.
   if (isToHostAddr(pa1))
     {
@@ -2264,7 +2335,7 @@ Hart<URV>::writeForStore(uint64_t virtAddr, uint64_t pa1, uint64_t pa2, STORE_TY
       return true;
     }
 
-  if (isDevice)
+  if (isDeviceAddr(pa1))
     {
       assert(pa1 == pa2);
       deviceWrite(pa1, storeVal);
@@ -2473,7 +2544,8 @@ ExceptionCause
 Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr, [[maybe_unused]] uint64_t& physAddr2,
 			   uint64_t& gPhysAddr, uint32_t& inst)
 {
-#ifdef FAST_SLOPPY
+  uint64_t steePhysAddr;
+#if FAST_SLOPPY
 
   assert((virtAddr & 1) == 0);
   gPhysAddr = physAddr = virtAddr;
@@ -2483,7 +2555,7 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr, [[maybe_unuse
 
 #else
 
-  physAddr = physAddr2 = virtAddr;
+  physAddr = physAddr2 = steePhysAddr = virtAddr;
 
   // Inst address translation and memory protection is not affected by MPRV.
 
@@ -2504,6 +2576,15 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr, [[maybe_unuse
       const Pmp& pmp = pmpManager_.accessPmp(physAddr);
       if (not pmp.isExec(privMode_))
 	return ExceptionCause::INST_ACC_FAULT;
+    }
+
+  if (steeEnabled_)
+    {
+      if (not stee_.isValidAddress(physAddr))
+        return ExceptionCause::INST_ACC_FAULT;
+
+      if (not stee_.isInsecureAccess(physAddr))
+        physAddr = stee_.clearSecureBits(physAddr);
     }
 
   if ((physAddr & 3) == 0 and not mcm_)   // Word aligned
@@ -2527,7 +2608,8 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr, [[maybe_unuse
     {
       // If line is io or non-cachable, we cache it anyway counting on the test-bench
       // evicting it as soon as the RTL gets out of that line.
-      readInstFromFetchCache(physAddr, half);
+      if (not readInstFromFetchCache(physAddr, half))
+        mcm_->reportMissingFetch(*this, instCounter_, physAddr);
     }
 
   if (initStateFile_)
@@ -2537,7 +2619,7 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr, [[maybe_unuse
     return ExceptionCause::NONE;
 
   // If we cross page boundary, translate address of other page.
-  physAddr2 = physAddr + 2;
+  physAddr2 = steePhysAddr + 2;
   gPhysAddr = physAddr2;
   if (memory_.getPageIx(physAddr) != memory_.getPageIx(physAddr2))
     if (isRvs() and privMode_ != PrivilegeMode::Machine)
@@ -2560,6 +2642,14 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr, [[maybe_unuse
 	  return ExceptionCause::INST_ACC_FAULT;
 	}
     }
+  if (steeEnabled_)
+    {
+      if (not stee_.isValidAddress(physAddr2))
+        return ExceptionCause::INST_ACC_FAULT;
+
+      if (not stee_.isInsecureAccess(physAddr2))
+        physAddr2 = stee_.clearSecureBits(physAddr2);
+    }
 
   uint16_t upperHalf = 0;
   if (not memory_.readInst(physAddr2, upperHalf))
@@ -2572,7 +2662,8 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr, [[maybe_unuse
     {
       // If line is io or non-cachable, we cache it anyway counting on the test-bench
       // evicting it as soon as the RTL gets out of that line.
-      readInstFromFetchCache(physAddr2, upperHalf);
+      if (not readInstFromFetchCache(physAddr2, upperHalf))
+        mcm_->reportMissingFetch(*this, instCounter_, physAddr2);
     }
 
   if (initStateFile_)
@@ -2910,7 +3001,9 @@ Hart<URV>::createTrapInst(const DecodedInst* di, bool interrupt, unsigned causeC
     uncompressed &= 0x01fff07f;
   else if (di->isCmo())
     uncompressed &= 0xfffff07f;
-  else if (not di->isAtomic() and not di->isHypervisor())
+  else if (di->isAtomic() or di->isHypervisor())
+    uncompressed &= 0xfff07fff;
+  else
     assert(false);
 
   // Set address offset field for misaligned exceptions.
@@ -3612,6 +3705,12 @@ Hart<URV>::postCsrUpdate(CsrNumber csr, URV val, URV lastVal)
 
   if (csr == CN::HVICTL)
     updateCachedHvictl();
+
+  // FIXME: support mtimecmp
+  if (csr == CN::TIME or
+      csr == CN::STIMECMP or csr == CN::VSTIMECMP or
+      csr == CN::HTIMEDELTA)
+    processTimerInterrupt();
 
   effectiveMie_ = csRegs_.effectiveMie();
   effectiveSie_ = csRegs_.effectiveSie();
@@ -4665,7 +4764,7 @@ handleExceptionForGdb(WdRiscv::Hart<URV>& hart, int fd);
 template <typename URV>
 bool
 Hart<URV>::takeTriggerAction(FILE* traceFile, URV pc, URV info,
-			     uint64_t instrTag, bool beforeTiming)
+			     uint64_t instrTag, bool /*beforeTiming*/)
 {
   // Check triggers configuration to determine action: take breakpoint
   // exception or enter debugger.
@@ -4687,7 +4786,7 @@ Hart<URV>::takeTriggerAction(FILE* traceFile, URV pc, URV info,
 	}
     }
 
-  if (beforeTiming and traceFile)
+  if (traceFile)
     {
       uint32_t inst = 0;
       readInst(currPc_, inst);
@@ -4937,6 +5036,17 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
 
           if (processExternalInterrupt(traceFile, instStr))
 	    continue;  // Next instruction in trap handler.
+
+          if (sdtrigOn_ and icountTriggerFired())
+            {            
+              if (takeTriggerAction(traceFile, currPc_, 0, instCounter_, false))
+                return true;
+              continue;
+            }
+
+	  if (sdtrigOn_)
+            evaluateIcountTrigger();
+
 	  uint64_t physPc = 0;
           if (not fetchInstWithTrigger(pc_, physPc, inst, traceFile))
 	    continue;  // Next instruction in trap handler.
@@ -4978,12 +5088,6 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
 	      if (takeTriggerAction(traceFile, currPc_, tval, instCounter_, true))
 		return true;
 	      continue;
-	    }
-
-	  if (sdtrigOn_ and icountTriggerHit())
-	    {
-	      if (takeTriggerAction(traceFile, pc_, 0, instCounter_, false))
-		return true;
 	    }
 
           if (minstretEnabled())
@@ -5543,7 +5647,9 @@ Hart<URV>::setPerfApi(std::shared_ptr<TT_PERF::PerfApi> perfApi)
 
 template <typename URV>
 bool
-Hart<URV>::isInterruptPossible(URV mip, URV sip, [[maybe_unused]] URV vsip, InterruptCause& cause, PrivilegeMode& nextMode, bool& nextVirt) const
+Hart<URV>::isInterruptPossible(URV mip, URV sip, [[maybe_unused]] URV vsip,
+                               InterruptCause& cause, PrivilegeMode& nextMode,
+                               bool& nextVirt) const
 {
   if (debugMode_)
     return false;
@@ -5562,9 +5668,10 @@ Hart<URV>::isInterruptPossible(URV mip, URV sip, [[maybe_unused]] URV vsip, Inte
     {
       // Check for interrupts destined for machine-mode (not-delegated).
       // VS interrupts (e.g. VSEIP) are always delegated.
-      for (InterruptCause ic : { IC::M_EXTERNAL, IC::M_SOFTWARE, IC::M_TIMER,
+      for (InterruptCause ic : { IC{24}, IC{23}, IC{43}, // Ascalon local interrupts. FIX : make configurable.
+                                 IC::M_EXTERNAL, IC::M_SOFTWARE, IC::M_TIMER,
                                  IC::S_EXTERNAL, IC::S_SOFTWARE, IC::S_TIMER,
-                                 IC::G_EXTERNAL, IC::LCOF } )
+                                 IC::G_EXTERNAL, IC::LCOF, IC{35} } )
         {
           URV mask = URV(1) << unsigned(ic);
           if ((mdest & mask) != 0)
@@ -5584,10 +5691,11 @@ Hart<URV>::isInterruptPossible(URV mip, URV sip, [[maybe_unused]] URV vsip, Inte
   URV sdest = sip & effectiveSie_;
   if ((mstatus_.bits_.SIE or virtMode_ or privMode_ == PM::User) and sdest != 0)
     {
-      for (InterruptCause ic : { IC::M_EXTERNAL, IC::M_SOFTWARE, IC::M_TIMER,
+      for (InterruptCause ic : { IC{24}, IC{23}, IC{43}, // Ascalon local interrupts. FIX : make configurable.
+                                 IC::M_EXTERNAL, IC::M_SOFTWARE, IC::M_TIMER,
                                  IC::S_EXTERNAL, IC::S_SOFTWARE, IC::S_TIMER,
                                  IC::G_EXTERNAL, IC::VS_EXTERNAL, IC::VS_SOFTWARE,
-                                 IC::VS_TIMER, IC::LCOF } )
+                                 IC::VS_TIMER, IC::LCOF, IC{35} } )
         {
           URV mask = URV(1) << unsigned(ic);
           if ((sdest & mask) != 0)
@@ -5687,81 +5795,15 @@ template <typename URV>
 bool
 Hart<URV>::processExternalInterrupt(FILE* traceFile, std::string& instStr)
 {
-  using IC = InterruptCause;
-
   // If mip poked exernally we avoid over-writing it for 1 instruction.
   if (not mipPoked_)
-    {
-      URV mipVal = csRegs_.peekMip();
-      URV prev = mipVal;
-
-      if (hasAclint() and aclintDeliverInterrupts_)
-	{
-	  // Deliver/clear machine timer interrupt from clint.
-	  if (time_ >= aclintAlarm_ + timeShift_)
-	    mipVal = mipVal | (URV(1) << URV(IC::M_TIMER));
-	  else
-	    mipVal = mipVal & ~(URV(1) << URV(IC::M_TIMER));
-	}
-      else
-	{
-	  // Deliver/clear machine timer interrupt from periodic alarm.
-	  bool hasAlarm = alarmLimit_ != ~uint64_t(0);
-	  if (hasAlarm)
-	    {
-	      if (time_ >= alarmLimit_)
-		{
-		  alarmLimit_ += alarmInterval_;
-		  mipVal = mipVal | (URV(1) << URV(IC::M_TIMER));
-		}
-	      else
-		mipVal = mipVal & ~(URV(1) << URV(IC::M_TIMER));
-	    }
-	}
-
-      if (swInterrupt_.bits_.alarm_ and aclintDeliverInterrupts_)
-        {
-	  if (swInterrupt_.bits_.flag_)
-	    {
-	      // Only deliver when 1 is written. Deliver and clear to
-	      // follow doorbell model.
-	      mipVal = mipVal | (URV(1) << URV(InterruptCause::M_SOFTWARE));
-	      setSwInterrupt(0);
-	    }
-	  else
-	    mipVal = mipVal & ~(URV(1) << URV(InterruptCause::M_SOFTWARE));
-        }
-
-      // Deliver/clear supervisor timer from stimecmp CSR.
-      if (stimecmpActive_)
-	{
-	  if (time_ >= stimecmp_ + timeShift_)
-	    mipVal = mipVal | (URV(1) << URV(IC::S_TIMER));
-	  else
-	    mipVal = mipVal & ~(URV(1) << URV(IC::S_TIMER));
-	}
-
-      // Deliver/clear virtual supervisor timer from vstimecmp CSR.
-      if (vstimecmpActive_)
-	{
-	  if ((time_ + htimedelta_) >= (vstimecmp_ + timeShift_))
-	    mipVal = mipVal | (URV(1) << URV(IC::VS_TIMER));
-	  else
-	    {
-	      mipVal = mipVal & ~(URV(1) << URV(IC::VS_TIMER));
-	      // Bits HIP.VSTIP (alias of MIP.VSTIP) is the logical-OR
-	      // of HVIP.VSTIP and the timer interrupt signal
-	      // resulting from vstimecmp. Section 9.2.3 of priv sepc.
-	      mipVal |= csRegs_.peekHvip() & (URV(1) << URV(IC::VS_TIMER));
-	    }
-	}
-
-      if (mipVal != prev)
-	csRegs_.poke(CsrNumber::MIP, mipVal);
-    }
+    processTimerInterrupt();
   mipPoked_ = false;
 
-  if (debugMode_ and not dcsrStepIe_)
+  if (inDebugParkLoop_)
+    return false;
+
+  if (dcsrStep_ and not dcsrStepIe_)
     return false;
 
   // If a non-maskable interrupt was signaled by the test-bench, consider it.
@@ -5803,6 +5845,81 @@ Hart<URV>::processExternalInterrupt(FILE* traceFile, std::string& instStr)
       return true;
     }
   return false;
+}
+
+
+template <typename URV>
+void
+Hart<URV>::processTimerInterrupt()
+{
+  using IC = InterruptCause;
+
+  URV mipVal = csRegs_.peekMip();
+  URV prev = mipVal;
+
+  if (hasAclint() and aclintDeliverInterrupts_)
+    {
+      // Deliver/clear machine timer interrupt from clint.
+      if (time_ >= aclintAlarm_ + timeShift_)
+        mipVal = mipVal | (URV(1) << URV(IC::M_TIMER));
+      else
+        mipVal = mipVal & ~(URV(1) << URV(IC::M_TIMER));
+    }
+  else
+    {
+      // Deliver/clear machine timer interrupt from periodic alarm.
+      bool hasAlarm = alarmLimit_ != ~uint64_t(0);
+      if (hasAlarm)
+        {
+          if (time_ >= alarmLimit_)
+            {
+              alarmLimit_ += alarmInterval_;
+              mipVal = mipVal | (URV(1) << URV(IC::M_TIMER));
+            }
+          else
+            mipVal = mipVal & ~(URV(1) << URV(IC::M_TIMER));
+        }
+    }
+
+  if (swInterrupt_.bits_.alarm_ and aclintDeliverInterrupts_)
+    {
+      if (swInterrupt_.bits_.flag_)
+        {
+          // Only deliver when 1 is written. Deliver and clear to
+          // follow doorbell model.
+          mipVal = mipVal | (URV(1) << URV(InterruptCause::M_SOFTWARE));
+          setSwInterrupt(0);
+        }
+      else
+        mipVal = mipVal & ~(URV(1) << URV(InterruptCause::M_SOFTWARE));
+    }
+
+  // Deliver/clear supervisor timer from stimecmp CSR.
+  if (stimecmpActive_)
+    {
+      if (time_ >= stimecmp_ + timeShift_)
+        mipVal = mipVal | (URV(1) << URV(IC::S_TIMER));
+      else
+        mipVal = mipVal & ~(URV(1) << URV(IC::S_TIMER));
+    }
+
+  // Deliver/clear virtual supervisor timer from vstimecmp CSR.
+  if (vstimecmpActive_)
+    {
+      if ((time_ + htimedelta_) >= (vstimecmp_ + timeShift_))
+        mipVal = mipVal | (URV(1) << URV(IC::VS_TIMER));
+      else
+        {
+          mipVal = mipVal & ~(URV(1) << URV(IC::VS_TIMER));
+          // Bits HIP.VSTIP (alias of MIP.VSTIP) is the logical-OR
+          // of HVIP.VSTIP and the timer interrupt signal
+          // resulting from vstimecmp. Section 9.2.3 of priv sepc.
+          mipVal |= csRegs_.peekHvip() & (URV(1) << URV(IC::VS_TIMER));
+        }
+    }
+
+  if (mipVal != prev)
+    csRegs_.poke(CsrNumber::MIP, mipVal);
 }
 
 
@@ -5874,6 +5991,15 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
 
       if (processExternalInterrupt(traceFile, instStr))
 	return;  // Next instruction in interrupt handler.
+
+      if (sdtrigOn_ and icountTriggerFired())
+        {            
+          takeTriggerAction(traceFile, currPc_, 0, instCounter_, false);
+          return;
+        }
+
+      if (sdtrigOn_)
+        evaluateIcountTrigger();
 
       uint64_t physPc = 0;
       if (not fetchInstWithTrigger(pc_, physPc, inst, traceFile))
@@ -9657,7 +9783,8 @@ Hart<URV>::exitDebugMode()
       return;
     }
 
-  cancelLr(CancelLrCause::EXIT_DEBUG);  // Exiting debug modes loses LR reservation.
+  if (cancelLrOnDebug_)
+    cancelLr(CancelLrCause::EXIT_DEBUG);  // Lose LR reservation.
 
   pc_ = peekCsr(CsrNumber::DPC);  // Restore PC
 
@@ -10730,6 +10857,14 @@ Hart<URV>::checkCsrAccess(const DecodedInst* di, CsrNumber csr, bool isWrite)
   using PM = PrivilegeMode;
   using CN = CsrNumber;
 
+  // Section 2.5 of AIA. Check if MSTATEN disallows access.
+  if (privMode_ != PM::Machine and csRegs_.isAia(csr)
+      and not csRegs_.isStateEnabled(csr, PM::Machine, false /*virtMode_*/))
+    {
+      illegalInst(di);
+      return false;
+    }
+
   // Check if HS qualified (section 9.6.1 of privileged spec).
   bool hsq = isRvs() and csRegs_.isReadable(csr, PM::Supervisor, false /*virtMode*/);
   if (isWrite)
@@ -11589,7 +11724,7 @@ Hart<URV>::determineStoreException(uint64_t& addr1, uint64_t& addr2,
       if (steeEnabled_)
 	a1 = stee_.clearSecureBits(addr1);
       Pma pma = accessPma(a1);
-      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt(virtMode_));
+      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt());
       if (not pma.isMisalignedOk())
 	return pma.misalOnMisal()? EC::STORE_ADDR_MISAL : EC::STORE_ACC_FAULT;
     }
@@ -11652,7 +11787,7 @@ Hart<URV>::determineStoreException(uint64_t& addr1, uint64_t& addr2,
       uint64_t aligned = addr1 & ~alignMask;
       uint64_t next = addr1 == addr2? aligned + stSize : addr2;
       pma = accessPma(next);
-      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt(virtMode_));
+      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt());
       if (not pma.isWrite())
 	{
 	  ldStFaultAddr_ = va2;

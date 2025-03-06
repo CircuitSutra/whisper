@@ -550,6 +550,7 @@ WdRiscv::ExceptionCause
 PerfApi::translateInstrAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa)
 {
   auto hart = checkHart("Translate-instr-addr", hartIx);
+  hart->clearPageTableWalk();
   bool r = false, w = false, x = true;
   auto pm = hart->privilegeMode();
   return  hart->transAddrNoUpdate(iva, pm, hart->virtMode(), r, w, x, ipa);
@@ -560,6 +561,7 @@ WdRiscv::ExceptionCause
 PerfApi::translateLoadAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa)
 {
   auto hart = checkHart("translate-load-addr", hartIx);
+  hart->clearPageTableWalk();
   bool r = true, w = false, x = false;
   auto pm = hart->privilegeMode();
   return  hart->transAddrNoUpdate(iva, pm, hart->virtMode(), r, w, x, ipa);
@@ -570,9 +572,52 @@ WdRiscv::ExceptionCause
 PerfApi::translateStoreAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa)
 {
   auto hart = checkHart("translate-store-addr", hartIx);
+  hart->clearPageTableWalk();
   bool r = false, w = true, x = false;
   auto pm = hart->privilegeMode();
   return  hart->transAddrNoUpdate(iva, pm, hart->virtMode(), r, w, x, ipa);
+}
+
+
+WdRiscv::ExceptionCause
+PerfApi::translateInstrAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa,
+                            std::vector<std::vector<WalkEntry>>& walks)
+{
+  auto hart = checkHart("translate-instr-addr", hartIx);
+  auto virtmem = hart->virtMem();
+  auto prevTrace = virtmem.enableTrace(true);
+  auto ec = translateInstrAddr(hartIx, iva, ipa);
+  virtmem.enableTrace(prevTrace);
+  walks = hart->virtMem().getFetchWalks();
+  return ec;
+}
+
+
+WdRiscv::ExceptionCause
+PerfApi::translateLoadAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa,
+                           std::vector<std::vector<WalkEntry>>& walks)
+{
+  auto hart = checkHart("translate-load-addr", hartIx);
+  auto virtmem = hart->virtMem();
+  auto prevTrace = virtmem.enableTrace(true);
+  auto ec = translateLoadAddr(hartIx, iva, ipa);
+  virtmem.enableTrace(prevTrace);
+  walks = hart->virtMem().getDataWalks();
+  return ec;
+}
+
+
+WdRiscv::ExceptionCause
+PerfApi::translateStoreAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa,
+                            std::vector<std::vector<WalkEntry>>& walks)
+{
+  auto hart = checkHart("translate-store-addr", hartIx);
+  auto virtmem = hart->virtMem();
+  auto prevTrace = virtmem.enableTrace(true);
+  auto ec = translateStoreAddr(hartIx, iva, ipa);
+  virtmem.enableTrace(prevTrace);
+  walks = hart->virtMem().getDataWalks();
+  return ec;
 }
 
 
@@ -664,8 +709,7 @@ PerfApi::getLoadData(unsigned hartIx, uint64_t tag, uint64_t va, uint64_t pa1,
     }
 
   data = 0;
-  bool isDev = hart->isAclintMtimeAddr(pa1) or hart->isImsicAddr(pa1) or hart->isPciAddr(pa1);
-  if (isDev)
+  if (hart->isDeviceAddr(pa1))
     {      
       if (skipIoLoad_)
         return true;  // Load from IO space happens at execute.

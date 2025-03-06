@@ -368,8 +368,8 @@ Server<URV>::peekCommand(const WhisperMessage& req, WhisperMessage& reply, Hart<
         if (hart.lastLdStAddress(va, pa))
           {
             auto pma = hart.getPma(pa);
-            auto effpbmt = VirtMem::effectivePbmt(hart.lastVirtMode(), hart.lastVsPageMode(),
-                                                  hart.virtMem().lastVsPbmt(), hart.virtMem().lastPbmt());
+            auto& virtMem = hart.virtMem();
+            auto effpbmt = virtMem.lastEffectivePbmt();
             pma = hart.overridePmaWithPbmt(pma, effpbmt);
             reply.value = pma.attributesToInt();
             return true;
@@ -1403,19 +1403,15 @@ Server<URV>::interact(const WhisperMessage& msg, WhisperMessage& reply, FILE* tr
 	  URV deferred = hart.deferredInterrupts();
 	  hart.setDeferredInterrupts(0);
 
-          URV mipVal = msg.address;
-          URV sipVal = msg.value;
-          URV vsipVal = msg.instrTag;
           InterruptCause cause = InterruptCause{0};
           PrivilegeMode nextMode; bool nextVirt;
-          reply.flags = hart.isInterruptPossible(mipVal, sipVal, vsipVal, cause, nextMode, nextVirt);
+          reply.flags = hart.isInterruptPossible(cause, nextMode, nextVirt);
           reply.value = static_cast<uint64_t>(cause);
 
 	  hart.setDeferredInterrupts(deferred);
 
           if (commandLog)
-            fprintf(commandLog, "hart=%" PRIu32 " check_interrupt 0x%" PRIxMAX " 0x%" PRIxMAX " 0x%" PRIxMAX "\n", hartId,
-                    uintmax_t(msg.address), uintmax_t(msg.value), uintmax_t(msg.instrTag));
+            fprintf(commandLog, "hart=%" PRIu32 " check_interrupt\n", hartId);
         }
         break;
 

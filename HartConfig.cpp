@@ -1458,6 +1458,160 @@ HartConfig::configAclint(System<URV>& system, Hart<URV>& hart, uint64_t clintSta
 }
 
 
+template <typename URV>
+bool
+HartConfig::applyAplicConfig(System<URV>& system) const
+{
+  std::string_view tag = "aplic";
+  if (not config_ -> contains(tag))
+    return true;  // Nothing to apply
+
+  const auto& aplic_cfg = config_ -> at(tag);
+
+  URV num_sources;
+
+  for (std::string_view tag : { "num_sources", "domains" } )
+    {
+      if (not aplic_cfg.contains(tag))
+        {
+          std::cerr << "Error: Missing " << tag << " field in aplic section of configuration file.\n";
+          return false;
+        }
+    }
+
+  tag = "num_sources";
+  if (not getJsonUnsigned("aplic.num_sources", aplic_cfg.at(tag), num_sources))
+    return false;
+
+  tag = "domains";
+  const auto& domains = aplic_cfg.at(tag);
+  std::vector<TT_APLIC::DomainParams> domain_params_list;
+
+  // used for error checking:
+  std::unordered_map<std::string, std::vector<int>> child_indices;
+  std::unordered_set<std::string> domain_names;
+  int num_roots = 0;
+
+  for (auto& el : domains.items())
+    {
+      TT_APLIC::DomainParams domain_params;
+      domain_params.name = el.key();
+      const auto& domain = el.value();
+
+      if (domain_params.name == "")
+        {
+          std::cerr << "Error: the empty string is not a valid domain name.\n";
+          return false;
+        }
+      if (domain_names.find(domain_params.name) != domain_names.end())
+        {
+          std::cerr << "Error: domain names must be unique.\n";
+          return false;
+        }
+      domain_names.insert(domain_params.name);
+
+      for (std::string_view tag : { "parent", "base", "size", "is_machine" } )
+        {
+          if (not domain.contains(tag))
+            {
+              std::cerr << "Error: Missing " << tag << " field for domain '" << domain_params.name << "' in configuration file.\n";
+              return false;
+            }
+        }
+
+      if (not getJsonUnsigned("base", domain.at("base"), domain_params.base))
+        return false;
+
+      if (not getJsonUnsigned("size", domain.at("size"), domain_params.size))
+        return false;
+
+      tag = "parent";
+      const auto& parent = domain.at(tag);
+      if (parent.is_null())
+        {
+          domain_params.parent = std::nullopt;
+          num_roots++;
+        }
+      else
+        {
+          domain_params.parent = parent.get<std::string>();
+          if (domain_params.parent == "")
+            {
+              std::cerr << "Error: domain '" << domain_params.name << "' uses the empty string for parent domain name; use 'null' to make this the root domain.\n";
+              return false;
+            }
+        }
+
+      tag = "child_index";
+      URV child_index = 0; // default
+      if (domain.contains(tag) and not getJsonUnsigned(tag, domain.at(tag), child_index))
+        return false;
+      domain_params.child_index = child_index;
+      if (domain_params.parent.has_value())
+        {
+          auto& indices = child_indices[domain_params.parent.value()];
+          indices.push_back(child_index);
+          std::sort(indices.begin(), indices.end());
+        }
+
+      tag = "is_machine";
+      bool is_machine;
+      if (not getJsonBoolean(tag, domain.at(tag), is_machine))
+        return false;
+      domain_params.privilege = is_machine ? TT_APLIC::Machine : TT_APLIC::Supervisor;
+
+      domain_params.hart_indices = {};
+      tag = "hart_indices";
+      if (domain.contains(tag))
+        {
+          for (auto index : domain.at(tag))
+            domain_params.hart_indices.push_back(index.get<unsigned>());
+        }
+
+      domain_params_list.push_back(domain_params);
+    }
+
+  // error-checking on child indices
+  for (const auto& ci : child_indices)
+    {
+      bool valid = true;
+      auto& indices = ci.second;
+      if (indices[0] != 0)
+        valid = false;
+      for (size_t i = 1; i < indices.size(); i++)
+        {
+          if (indices[i] != indices[i-1]+1)
+            valid = false;
+        }
+      if (not valid)
+        {
+          std::cerr << "Error: domain '" << ci.first << "' has invalid child indices: ";
+          for (auto i : indices)
+            std::cerr << i << " ";
+          std::cerr << "\n";
+          return false;
+        }
+    }
+
+  for (const auto& dp : domain_params_list)
+    {
+      if (dp.parent.has_value() and not domain_names.contains(dp.parent.value()))
+        {
+          std::cerr << "Error: domain '" << dp.name << "' refers to a non-existent parent, '" << dp.parent.value() << "'.\n";
+          return false;
+        }
+    }
+
+  if (num_roots != 1)
+    {
+      std::cerr << "Error: expected exactly 1 root domain; found " << num_roots << ".\n";
+      return false;
+    }
+
+  return system.configAplic(num_sources, domain_params_list);
+}
+
+
 template<typename URV>
 bool
 HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
@@ -2144,6 +2298,16 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
       hart.enableDirtyGForVsNonleaf(flag);
     }
 
+  tag = "auto_increment_timer";
+  if (config_->contains(tag))
+    {
+      bool flag = false;
+      getJsonBoolean(tag, config_->at(tag), flag) or errors++;
+      hart.autoIncrementTimer(flag);
+    }
+
+  // Parse enable_ppo, it it is missing all PPO rules are enabled.
+
   return errors == 0;
 }
 
@@ -2519,7 +2683,30 @@ HartConfig::configHarts(System<URV>& system, bool userMode, bool verbose) const
 	    }
 	}
 		
-      if (not system.defineUart(type, addr, size))
+      uint32_t iid = 0;
+      std::string channel = "stdio";
+      if (type == "uart8250")
+        {
+          if (uart.contains("iid") &&
+              not getJsonUnsigned(util::join("", tag, ".iid"), uart.at("iid"), iid))
+            return false;
+
+          if (not uart.contains("channel"))
+            {
+              std::cerr << "Missing uart channel. Using " << channel << ". Valid channels: stdio, pty.\n";
+            }
+          else
+            {
+              channel = uart.at("channel").get<std::string>();
+              if (channel != "stdio" && channel != "pty")
+                {
+                  std::cerr << "Invalid uart channel: " << channel << ". Valid channels: stdio, pty.\n";
+                  return false;
+                }
+            }
+        }
+
+      if (not system.defineUart(type, addr, size, iid, channel))
 	return false;
     }
 
@@ -2909,3 +3096,9 @@ HartConfig::applyImsicConfig(System<uint32_t>&) const;
 
 template bool
 HartConfig::applyImsicConfig(System<uint64_t>&) const;
+
+template bool
+HartConfig::applyAplicConfig(System<uint32_t>&) const;
+
+template bool
+HartConfig::applyAplicConfig(System<uint64_t>&) const;

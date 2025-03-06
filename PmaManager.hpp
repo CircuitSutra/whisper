@@ -444,15 +444,15 @@ namespace WdRiscv
     void printRegion(std::ostream& os, Region region) const;
 
     std::vector<Region> regions_;
+    uint64_t memSize_ = 0;
+    Pma defaultPma_{Pma::Attrib::Default};
+    Pma noAccessPma_{Pma::Attrib::None};
+
     std::unordered_map<uint64_t, MemMappedReg> memMappedRegs_;
     std::vector<std::pair<uint64_t, uint64_t>> memMappedRanges_;
 
     bool trace_ = false;  // Collect stats if true.
     mutable std::vector<PmaTrace> pmaTrace_;
     AccessReason reason_;
-
-    Pma defaultPma_{Pma::Attrib::Default};
-    Pma noAccessPma_{Pma::Attrib::None};
-    uint64_t memSize_ = 0;
   };
 }

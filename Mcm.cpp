@@ -2,7 +2,6 @@
 #include <string_view>
 #include "Mcm.hpp"
 #include "System.hpp"
-#include "Hart.hpp"
 
 using namespace WdRiscv;
 using std::cerr;
@@ -61,8 +60,7 @@ Mcm<URV>::referenceModelRead(Hart<URV>& hart, uint64_t pa, unsigned size, uint64
 {
   data = 0;
 
-  bool isDevice = hart.isAclintMtimeAddr(pa) or hart.isImsicAddr(pa) or hart.isPciAddr(pa);
-  if (isDevice)
+  if (hart.isDeviceAddr(pa))
     {
       hart.deviceRead(pa, size, data);
       return true;
@@ -164,6 +162,8 @@ Mcm<URV>::readOp_(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa, uns
     cerr << "Warning: hart-id=" << hart.hartId() << " time=" << time <<
          " tag=" << tag << " read-op seen after instruction retires\n";
 
+  pa = hart.clearSecureAddressSteeBits(pa);
+
   MemoryOp op = {};
   op.time_ = time;
   op.pa_ = pa;
@@ -207,7 +207,6 @@ Mcm<URV>::readOp_(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa, uns
       // Insert new op before the found op.
       assert(iter != sysMemOps_.end());
       size_t ix = iter - sysMemOps_.begin();
-      instr->addMemOp(ix);
       sysMemOps_.insert(iter, op);
 
       // Adjust indices of all the instructions referencing ops that are now after new op
@@ -232,6 +231,10 @@ Mcm<URV>::readOp_(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa, uns
             if (instrOpIx >= ix)
               instrOpIx++;
         }
+
+      // Associate new op with instruction. This has to be done after the indices are
+      // adjusted otherwise we may get an "op already added" error.
+      instr->addMemOp(ix);
     }
 
   if (instr->retired_)
@@ -900,6 +903,8 @@ Mcm<URV>::mergeBufferInsert(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64
 
   unsigned hartIx = hart.sysHartIndex();
 
+  pa = hart.clearSecureAddressSteeBits(pa);
+
   MemoryOp op = {};
   op.time_ = time;
   op.insertTime_ = time;
@@ -995,6 +1000,7 @@ Mcm<URV>::bypassOp(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa,
   bool result = true;
 
   assert(size <= 8);
+  pa = hart.clearSecureAddressSteeBits(pa);
 
   MemoryOp op = {};
   op.time_ = time;
@@ -1202,7 +1208,6 @@ Mcm<URV>::retire(Hart<URV>& hart, uint64_t time, uint64_t tag,
 {
   unsigned hartIx = hart.sysHartIndex();
   cancelNonRetired(hart, tag);
-
   if (not updateTime("Mcm::retire", time))
     return false;
 
@@ -1219,6 +1224,8 @@ Mcm<URV>::retire(Hart<URV>& hart, uint64_t time, uint64_t tag,
       cancelInstr(hart, *instr);  // Instruction took a trap at fetch.
       return true;
     }
+  
+  instr->privilege = hart.lastPrivMode();
 
   // If a partially executed vec ld/st store is cancelled, we commit its results.
   if (cancelled and not isPartialVecLdSt(hart, di))
@@ -1485,7 +1492,13 @@ Mcm<URV>::mergeBufferWrite(Hart<URV>& hart, uint64_t time, uint64_t physAddr,
 {
   if (not updateTime("Mcm::mergeBufferWrite", time))
     return false;
+
   uint64_t rtlSize = rtlData.size();
+
+  // The secure world may have changed before the merge buffer is drained. Clear the STEE
+  // bits unconditionally.
+  physAddr = hart.clearSteeBits(physAddr);
+
   if (not checkBufferWriteParams(hart.hartId(), time, lineSize_, rtlSize, physAddr))
     return false;
 
@@ -1738,8 +1751,7 @@ Mcm<URV>::checkRtlRead(Hart<URV>& hart, const McmInstr& instr,
     }
 
   uint64_t addr = op.pa_;
-  bool skip = ( hart.isAclintAddr(addr) or hart.isImsicAddr(addr) or hart.isPciAddr(addr) or
-		hart.isMemMappedReg(addr) or hart.isHtifAddr(addr) );
+  bool skip = ( hart.isDeviceAddr(addr) or hart.isMemMappedReg(addr) or hart.isHtifAddr(addr) );
 
   // Major hack (temporary until RTL removes CLINT device).
   skip = skip or (addr >= 0x2000000 and addr < 0x200c000);
@@ -2406,7 +2418,7 @@ Mcm<URV>::commitVecReadOpsStride0(Hart<URV>& hart, McmInstr& instr)
                 continue;   // Byte covered by a another read op.
 
               uint64_t byteAddr = vecRef.pa_ + i;  // TODO handle page crosser
-              if (not vecReadOpOverlapsElemByte(op, byteAddr, elemIx, field, elemSize))
+              if (not vecReadOpOverlapsElemByte(op, byteAddr, elemIx, false /*unitStride*/, elemSize))
                 continue;
 
               mask &= ~byteMask;
@@ -2746,16 +2758,16 @@ Mcm<URV>::commitReadOps(Hart<URV>& hart, McmInstr& instr)
 template <typename URV>
 bool
 Mcm<URV>::vecReadOpOverlapsElemByte(const MemoryOp& op, uint64_t addr, unsigned elemIx,
-				    unsigned /*field*/, unsigned elemSize) const
+				    bool unitStride, unsigned elemSize) const
 {
   if (op.size_ <= elemSize and (elemIx != op.elemIx_))
     return false;  // Op is for a single element and ix does not match.
 
+  if (op.elemIx_ != elemIx and not unitStride)
+    return false;   // For non-unit stride element index must match.
+
   if (op.elemIx_ > elemIx)
     return false;
-
-  //  if (op.elemIx_ == elemIx and op.field_ > field)
-  //    return false;
 
   return op.overlaps(addr);
 }
@@ -2764,7 +2776,7 @@ Mcm<URV>::vecReadOpOverlapsElemByte(const MemoryOp& op, uint64_t addr, unsigned 
 template <typename URV>
 bool
 Mcm<URV>::vecReadOpOverlapsElem(const MemoryOp& op, uint64_t pa1, uint64_t pa2,
-				unsigned size, unsigned elemIx, unsigned field,
+				unsigned size, unsigned elemIx, bool unitStride,
 				unsigned elemSize) const
 {
   unsigned size1 = size;
@@ -2777,7 +2789,7 @@ Mcm<URV>::vecReadOpOverlapsElem(const MemoryOp& op, uint64_t pa1, uint64_t pa2,
   for (unsigned i = 0; i < size; ++i)
     {
       uint64_t addr = i < size1 ? pa1 + i : pa2 + i - size1;
-      if (vecReadOpOverlapsElemByte(op, addr, elemIx, field, elemSize))
+      if (vecReadOpOverlapsElemByte(op, addr, elemIx, unitStride, elemSize))
 	return true;
     }
 
@@ -2789,7 +2801,7 @@ template <typename URV>
 bool
 Mcm<URV>::getCurrentLoadValue(Hart<URV>& hart, uint64_t tag, uint64_t va, uint64_t pa1,
 			      uint64_t pa2, unsigned size, bool isVector, uint64_t& value,
-			      unsigned elemIx, unsigned field)
+			      unsigned elemIx, unsigned /*field*/)
 {
   value = 0;
   if (size == 0 or size > 8)
@@ -2852,7 +2864,7 @@ Mcm<URV>::getCurrentLoadValue(Hart<URV>& hart, uint64_t tag, uint64_t va, uint64
             {
               if (info.stride_ == 0 and elemIx != op.elemIx_)
                 continue;
-              if (vecReadOpOverlapsElem(op, pa1, pa2, size, elemIx, field, elemSize))
+              if (vecReadOpOverlapsElem(op, pa1, pa2, size, elemIx, unitStride, elemSize))
                 forwardToRead(hart, stores, op);   // Let forwarding override read-op ref data.
             }
         }
@@ -2887,7 +2899,7 @@ Mcm<URV>::getCurrentLoadValue(Hart<URV>& hart, uint64_t tag, uint64_t va, uint64
             {
               if (info.stride_ == 0 and elemIx != op.elemIx_)
                 continue;
-              if (not vecReadOpOverlapsElemByte(op, byteAddr, elemIx, field, elemSize))
+              if (not vecReadOpOverlapsElemByte(op, byteAddr, elemIx, unitStride, elemSize))
                 continue;  // Vector non-unit-stride ops must match element index.
             }
 
@@ -4006,6 +4018,24 @@ Mcm<URV>::ppoRule4(Hart<URV>& hart, const McmInstr& instrB) const
   unsigned hartIx = hart.sysHartIndex();
   const auto& instrVec = hartData_.at(hartIx).instrVec_;
 
+  // --- FIOM modification start ---
+  // Determine if this fence should order I/O operations.
+  bool fenceOrdersIo = false;
+  // Use the privilege mode before the fence (stored in hart.lastPrivMode()).
+  PrivilegeMode fencePriv = instrB.privilege;
+  if (fencePriv != PrivilegeMode::Machine) {
+    uint64_t menvcfg = hart.peekCsr(CsrNumber::MENVCFG, true);
+    if ((menvcfg & 0x1) != 0)
+      fenceOrdersIo = true;
+    if (fencePriv == PrivilegeMode::User) {
+      uint64_t senvcfg = hart.peekCsr(CsrNumber::SENVCFG, true);
+      if ((senvcfg & 0x1) != 0)
+        fenceOrdersIo = true;
+    }
+  }
+  // --- FIOM modification end ---
+
+
   // Collect all fence instructions that can affect B.
   std::vector<McmInstrIx> fences;
   for (McmInstrIx ix = instrB.tag_; ix > 0; --ix)
@@ -4047,10 +4077,18 @@ Mcm<URV>::ppoRule4(Hart<URV>& hart, const McmInstr& instrB) const
       bool predWrite = fence.di_.isFencePredWrite();
       bool succRead = fence.di_.isFenceSuccRead();
       bool succWrite = fence.di_.isFenceSuccWrite();
-      bool predIn = fence.di_.isFencePredInput();
-      bool predOut = fence.di_.isFencePredOutput();
-      bool succIn = fence.di_.isFencePredInput();
-      bool succOut = fence.di_.isFencePredOutput();
+      bool predIn    = fence.di_.isFencePredInput();
+      bool predOut   = fence.di_.isFencePredOutput();
+      bool succIn    = fence.di_.isFenceSuccInput();
+      bool succOut   = fence.di_.isFenceSuccOutput();
+
+      // If FIOM is set, merge the I/O ordering bits into the normal ordering bits.
+      if (fenceOrdersIo) {
+        predRead  = predRead  || predIn;
+        predWrite = predWrite || predOut;
+        succRead  = succRead  || succIn;
+        succWrite = succWrite || succOut;
+      }
 
       for (auto aOpPtr : reordered)
 	{
@@ -5371,6 +5409,18 @@ Mcm<URV>::getVecRegEarlyTime(Hart<URV>& hart, const McmInstr& instr, unsigned re
 
   return time;
 }
+
+
+template <typename URV>
+void
+Mcm<URV>::reportMissingFetch(const Hart<URV>& hart, uint64_t tag, uint64_t pa) const
+{
+  cerr << "Warning: Hart-id=" << hart.hartId() << " time=" << time_ << " tag=" << tag
+       << " pa=0x" << std::hex << pa << std::dec << " opcode missing in instruction cache"
+       << " (not brought in with mcm_ifetch)\n";
+}
+
+
 
 template class WdRiscv::Mcm<uint32_t>;
 template class WdRiscv::Mcm<uint64_t>;
