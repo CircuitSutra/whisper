@@ -3160,12 +3160,17 @@ namespace WdRiscv
 					  isInterruptEnabled());
     }
 
-    /// Make all active icount triggers count down, return true if any of them counts down
-    /// to zero.
-    bool icountTriggerHit()
+    /// Make all active icount triggers count down if possible marking pending
+    /// the ones that reach zero.
+    void evaluateIcountTrigger()
     {
-      return csRegs_.icountTriggerHit(lastPrivMode(), lastVirtMode(), privilegeMode(),
-				      virtMode(), isInterruptEnabled());
+      return csRegs_.evaluateIcountTrigger(privilegeMode(), virtMode(), isInterruptEnabled());
+    }
+
+    /// Return true if a pending icount triger can fire clearning its pending status.
+    bool icountTriggerFired()
+    {
+      return csRegs_.icountTriggerFired(privilegeMode(), virtMode(), isInterruptEnabled());
     }
 
     /// Return true if this hart has one or more active debug triggers.
