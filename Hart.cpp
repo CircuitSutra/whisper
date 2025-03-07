@@ -105,8 +105,59 @@ Hart<URV>::Hart(unsigned hartIx, URV hartId, Memory& memory, Syscall<URV>& sysca
   interruptStat_.resize(size_t(InterruptCause::MAX_CAUSE) + 1);
   exceptionStat_.resize(size_t(ExceptionCause::MAX_CAUSE) + 1);
 
-  // Tie the retired instruction and cycle counter CSRs to variables
-  // held in the hart.
+  // Tie frequently updated CSR to variables held in the hart so that their values can be
+  // obtained directly by the hart and without having to use the read/write/peek/poke
+  // interfaces. This is done for speed.
+  tieCsrs();
+
+  // Configure MHARTID CSR.
+  bool implemented = true, shared = false;
+  URV mask = 0, pokeMask = 0;
+
+  csRegs_.configCsr(CsrNumber::MHARTID, implemented, hartId, mask, pokeMask, shared);
+
+  // Give disassembler a way to get abi-names of CSRs.
+  auto callback = [this](unsigned ix) {
+    auto csr = this->findCsr(CsrNumber(ix));
+    return csr? csr->getName() : std::string_view{};
+  };
+  disas_.setCsrNameCallback(callback);
+
+  using IC = InterruptCause;
+
+  // Define the default machine interrupts in high to low priority. VS interrupts
+  // VSTIP/VSEIP/VSSIP are always delegated to supervisor privilege (section 19.4.2 of
+  // privileged spec).
+  mInterrupts_ = { IC{24}, IC{23}, IC{43}, // Ascalon local interrupts. FIX : make configurable.
+                   IC::M_EXTERNAL, IC::M_SOFTWARE, IC::M_TIMER,
+                   IC::S_EXTERNAL, IC::S_SOFTWARE, IC::S_TIMER,
+                   IC::G_EXTERNAL, IC::LCOF, IC{35} };
+
+  // Define the default supervisor (S/HS) interrupts in high to low priority.
+  sInterrupts_ = { IC{24}, IC{23}, IC{43}, // Ascalon local interrupts. FIX : make configurable.
+                   IC::M_EXTERNAL, IC::M_SOFTWARE, IC::M_TIMER,
+                   IC::S_EXTERNAL, IC::S_SOFTWARE, IC::S_TIMER,
+                   IC::G_EXTERNAL, IC::VS_EXTERNAL, IC::VS_SOFTWARE,
+                   IC::VS_TIMER, IC::LCOF, IC{35} };
+
+  // Define the virtual supervisor (VS) interrupts in high to low priority.
+  vsInterrupts_ = { IC::VS_EXTERNAL, IC::VS_SOFTWARE, IC::VS_TIMER, IC::LCOF };
+}
+
+
+template <typename URV>
+Hart<URV>::~Hart()
+{
+  if (branchBuffer_.max_size() and not branchTraceFile_.empty())
+    saveBranchTrace(branchTraceFile_);
+}
+
+
+template <typename URV>
+void
+Hart<URV>::tieCsrs()
+{
+  // Tie the retired instruction and cycle counter CSRs to variables held in the hart.
   if constexpr (sizeof(URV) == 4)
     {
       virtMem_.setSupportedModes({VirtMem::Mode::Bare, VirtMem::Mode::Sv32});
@@ -168,27 +219,6 @@ Hart<URV>::Hart(unsigned hartIx, URV hartId, Memory& memory, Syscall<URV>& sysca
 
   // Tie the FCSR register to variable held in the hart.
   csRegs_.findCsr(CsrNumber::FCSR)->tie(&fcsrValue_);
-
-  // Configure MHARTID CSR.
-  bool implemented = true, shared = false;
-  URV mask = 0, pokeMask = 0;
-
-  csRegs_.configCsr(CsrNumber::MHARTID, implemented, hartId, mask, pokeMask, shared);
-
-  // Give disassembler a way to get abi-names of CSRs.
-  auto callback = [this](unsigned ix) {
-    auto csr = this->findCsr(CsrNumber(ix));
-    return csr? csr->getName() : std::string_view{};
-  };
-  disas_.setCsrNameCallback(callback);
-}
-
-
-template <typename URV>
-Hart<URV>::~Hart()
-{
-  if (branchBuffer_.max_size() and not branchTraceFile_.empty())
-    saveBranchTrace(branchTraceFile_);
 }
 
 
@@ -5659,26 +5689,22 @@ Hart<URV>::isInterruptPossible(URV mip, URV sip, [[maybe_unused]] URV vsip,
       (MnstatusFields{csRegs_.peekMnstatus()}.bits_.NMIE) == 0)
     return false;
 
-  using IC = InterruptCause;
   using PM = PrivilegeMode;
+
+  nextVirt = false;         // Next virtual mode if interrupt is possible.
+  nextMode = PM::Machine;   // Next privilege mode if interrupt is possible.
 
   // Non-delegated interrupts are destined for machine mode.
   URV mdest = mip & effectiveMie_;  // Interrupts destined for machine mode.
   if ((mstatus_.bits_.MIE or privMode_ != PM::Machine) and mdest != 0)
     {
       // Check for interrupts destined for machine-mode (not-delegated).
-      // VS interrupts (e.g. VSEIP) are always delegated.
-      for (InterruptCause ic : { IC{24}, IC{23}, IC{43}, // Ascalon local interrupts. FIX : make configurable.
-                                 IC::M_EXTERNAL, IC::M_SOFTWARE, IC::M_TIMER,
-                                 IC::S_EXTERNAL, IC::S_SOFTWARE, IC::S_TIMER,
-                                 IC::G_EXTERNAL, IC::LCOF, IC{35} } )
+      for (InterruptCause ic : mInterrupts_)
         {
           URV mask = URV(1) << unsigned(ic);
           if ((mdest & mask) != 0)
             {
               cause = ic;
-              nextMode = PM::Machine;
-              nextVirt = false;
               return true;
             }
         }
@@ -5686,23 +5712,18 @@ Hart<URV>::isInterruptPossible(URV mip, URV sip, [[maybe_unused]] URV vsip,
   if (privMode_ == PM::Machine)
     return false;   // Interrupts destined for lower privileges are disabled.
 
+  nextMode = PM::Supervisor;
 
   // Delegated but non-h-delegated interrupts are destined for supervisor mode (S/HS).
   URV sdest = sip & effectiveSie_;
   if ((mstatus_.bits_.SIE or virtMode_ or privMode_ == PM::User) and sdest != 0)
     {
-      for (InterruptCause ic : { IC{24}, IC{23}, IC{43}, // Ascalon local interrupts. FIX : make configurable.
-                                 IC::M_EXTERNAL, IC::M_SOFTWARE, IC::M_TIMER,
-                                 IC::S_EXTERNAL, IC::S_SOFTWARE, IC::S_TIMER,
-                                 IC::G_EXTERNAL, IC::VS_EXTERNAL, IC::VS_SOFTWARE,
-                                 IC::VS_TIMER, IC::LCOF, IC{35} } )
+      for (InterruptCause ic : sInterrupts_)
         {
           URV mask = URV(1) << unsigned(ic);
           if ((sdest & mask) != 0)
             {
               cause = ic;
-              nextMode = PM::Supervisor;
-              nextVirt = false;
               return true;
             }
         }
@@ -5715,11 +5736,13 @@ Hart<URV>::isInterruptPossible(URV mip, URV sip, [[maybe_unused]] URV vsip,
   if (not virtMode_)
     return false;
 
-  // Check for interrupts destined to VS privilege.
-  // Possible if pending (mie), enabled (mip), delegated, and h-delegated.
+  // Check for interrupts destined to VS privilege. Possible if pending (mip), enabled
+  // (mie), delegated, and h-delegated.
   bool vsEnabled = vsstatus_.bits_.SIE  or  (virtMode_ and privMode_ == PM::User);
   if (not vsEnabled)
     return false;
+
+  nextVirt = true;
 
   auto hvictl = csRegs_.getImplementedCsr(CsrNumber::HVICTL);
   if (not isRvaia() or not hvictl)
@@ -5728,14 +5751,12 @@ Hart<URV>::isInterruptPossible(URV mip, URV sip, [[maybe_unused]] URV vsip,
       if (vsdest)
         {
           // Only VS interrupts can be delegated in HIDELEG.
-          for (InterruptCause ic : { IC::VS_EXTERNAL, IC::VS_SOFTWARE, IC::VS_TIMER, IC::LCOF } )
+          for (InterruptCause ic : vsInterrupts_)
             {
               URV mask = URV(1) << unsigned(ic);
               if ((vsdest & mask) != 0)
                 {
                   cause = ic;
-                  nextMode = PM::Supervisor;
-                  nextVirt = true;
                   return true;
                 }
             }
@@ -5748,11 +5769,9 @@ Hart<URV>::isInterruptPossible(URV mip, URV sip, [[maybe_unused]] URV vsip,
         {
           if (vstopi)
             {
-              // FIXME: This might be buggy because IID does not have
-              // to be a standard interrupt.
+              // FIXME: This might be buggy because IID does not have to be a standard
+              // interrupt.
               cause = static_cast<InterruptCause>(vstopi >> 16);
-              nextMode = PM::Supervisor;
-              nextVirt = true;
               return true;
             }
         }
@@ -5820,8 +5839,8 @@ Hart<URV>::processExternalInterrupt(FILE* traceFile, std::string& instStr)
 
   // If interrupts enabled and one is pending, take it.
   InterruptCause cause;
-  PrivilegeMode nextMode;
-  bool nextVirt;
+  PrivilegeMode nextMode = PrivilegeMode::Machine;
+  bool nextVirt = false;
   if (isInterruptPossible(cause, nextMode, nextVirt))
     {
       // Attach changes to interrupted instruction.

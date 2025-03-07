@@ -2580,6 +2580,9 @@ namespace WdRiscv
     /// PMP.
     void setupVirtMemCallbacks();
 
+    /// Tie frequency updated CSRs to variables in this object for fast access.
+    void tieCsrs();
+
     /// Return true if the NMIE bit of NMSTATUS overrides the effect of
     /// MSTATUS.MPRV. See Smrnmi secton in RISCV privileged spec.
     bool nmieOverridesMprv() const
@@ -5627,10 +5630,12 @@ namespace WdRiscv
 
     InstProfiles instProfs_; // Instruction frequency manager
 
-    std::vector<uint64_t> interruptStat_;  // Count of different types of interrupts.
+    std::vector<uint64_t> interruptStat_;  // Count of encoutred interrupts (indexed by cause).
+    std::vector<uint64_t> exceptionStat_;  // Count of encoutered exceptions (indexed by cause).
 
-    // Indexed by exception cause.
-    std::vector<uint64_t> exceptionStat_;
+    std::vector<InterruptCause> mInterrupts_;  // Possible M interrupts in high to low priority.
+    std::vector<InterruptCause> sInterrupts_;  // Possible S interrupts in high to low priority.
+    std::vector<InterruptCause> vsInterrupts_; // Possible VS interrupts in high to low priority.
 
     // Decoded instruction cache.
     std::vector<DecodedInst> decodeCache_;
