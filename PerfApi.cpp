@@ -776,16 +776,16 @@ PerfApi::getLoadData(unsigned hartIx, uint64_t tag, uint64_t va, uint64_t pa1,
       if (stTag > tag)
 	break;
 
-      auto& stPac = kv.second;
-      if (not stPac->executed())
+      auto& stPac = *(kv.second);
+      if (not stPac.executed())
 	continue;
 
-      uint64_t stAddr = stPac->dataVa();
-      unsigned stSize = stPac->dataSize();
-      if (stAddr + stSize < va or va + size < stAddr)
-	continue;  // No overlap.  FIX : handle vector store
+      uint64_t stAddr = stPac.dataVa();
+      unsigned stSize = stPac.dataSize();
+      if ((stAddr + stSize < va or va + size < stAddr) and not stPac.isVectorStore())
+	continue;  // No overlap.
 
-      auto& stMap = stPac->stDataMap_;
+      auto& stMap = stPac.stDataMap_;
 
       for (unsigned i = 0; i < size; ++i)
 	{
