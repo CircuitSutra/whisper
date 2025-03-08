@@ -2628,7 +2628,7 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr,
         {
           if (steeTrapRead_)
             return ExceptionCause::INST_ACC_FAULT;
-          inst = 0;   // Secure device returns zero on insecure access. 
+          inst = 0;   // Secure device returns zero on insecure fetch. 
           return ExceptionCause::NONE;
         }
       physAddr = stee_.clearSecureBits(physAddr);
@@ -2694,8 +2694,18 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr,
       if (not stee_.isValidAddress(physAddr2))
         return ExceptionCause::INST_ACC_FAULT;
 
-      if (not stee_.isInsecureAccess(physAddr2))
-        physAddr2 = stee_.clearSecureBits(physAddr2);
+      bool insecure = stee_.isInsecureAccess(physAddr2);
+      physAddr2 = stee_.clearSecureBits(physAddr2);
+
+      if (insecure)
+        {
+          if (steeTrapRead_)
+            {
+              virtAddr += 2;
+              return ExceptionCause::INST_ACC_FAULT;
+            }
+          return ExceptionCause::NONE;   // Upper half of inst is zero.
+        }
     }
 
   uint16_t upperHalf = 0;

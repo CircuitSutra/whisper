@@ -877,8 +877,9 @@ following fields:
 * secure_region: insecure writes to this region will be ignored, insecure reads will
   either trap or will produce zero depending on trap_insecure_load.
 
-* trap_insecure_load: when set to true, an insecure read from a secure reagion will trap;
-  when set to false (default), such a read will yield zero.
+* trap_insecure_load: when set to true, an insecure read from a secure region will trap;
+  when set to false (default), such a read will yield zero. This applies to reads
+  resulting from data loads or from instruction fetches.
 
 
 Example:
