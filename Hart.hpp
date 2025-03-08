@@ -2332,6 +2332,12 @@ namespace WdRiscv
     void configSteeSecureRegion(uint64_t low, uint64_t high)
     { stee_.configSecureRegion(low, high); }
 
+    /// Trap read operations on insecure access to a secure region when flag is true;
+    /// otherwise, let the secure device decide what to do (in Whisper device returns
+    /// zero).
+    void configSteeTrapRead(bool flag)
+    { steeTrapRead_ = flag; }
+
     /// Enable STEE.
     void enableStee(bool flag)
     { steeEnabled_ = flag; csRegs_.enableStee(flag); }
@@ -5670,8 +5676,9 @@ namespace WdRiscv
     // Static tee (trusted execution environment).
     bool steeEnabled_ = false;
     TT_STEE::Stee stee_;
-    bool steeInsec1_ = false;  // True if insecure access to a secure region.
-    bool steeInsec2_ = false;  // True if insecure access to a secure region.
+    bool steeInsec1_ = false;    // True if insecure access to a secure region.
+    bool steeInsec2_ = false;    // True if insecure access to a secure region.
+    bool steeTrapRead_ = false;  // Trap insecure read to secure device when true.
 
     // Exceptions injected by user.
     ExceptionCause injectException_ = ExceptionCause::NONE;

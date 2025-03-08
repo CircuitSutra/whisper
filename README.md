@@ -866,12 +866,20 @@ as load/store by the performance counters.
 
 The static trusted execution environment (STEE) configuration is an object with the
 following fields:
+
 * zero_mask: if bit i is set in the zero_mask value, then bit i must be zero in every
-load/store address; otherwise, the address will be invalid and will result in an
-access-fault exception.
-* secure_mask: if bit i is set in the secure_mask value, then bit i must be one in
-a load/sore address in order for that address to be considered secure.
-* secure_region: insecure access to this region has no effect, loads will return zero, and stores are ignored. The region bounds should not have the secure bits set. The secure bits of an address are cleared before checking against the secure region.
+  load/store address; otherwise, the address will be invalid and will result in an
+  access-fault exception.
+
+* secure_mask: if bit i is set in the secure_mask value, then bit i must be one in a
+  load/sore address in order for that address to be considered secure.
+
+* secure_region: insecure writes to this region will be ignored, insecure reads will
+  either trap or will produce zero depending on trap_insecure_load.
+
+* trap_insecure_load: when set to true, an insecure read from a secure reagion will trap;
+  when set to false (default), such a read will yield zero.
+
 
 Example:
 ```

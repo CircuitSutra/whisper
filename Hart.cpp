@@ -1724,8 +1724,18 @@ Hart<URV>::determineLoadException(uint64_t& addr1, uint64_t& addr2, uint64_t& ga
 	  ldStFaultAddr_ = va2;
 	  return EC::LOAD_ACC_FAULT;
 	}
+
       steeInsec1_ = stee_.isInsecureAccess(addr1);
+      if (steeTrapRead_ and steeInsec1_)
+        return EC::LOAD_ACC_FAULT;
+
       steeInsec2_ = stee_.isInsecureAccess(addr2);
+      if (steeTrapRead_ and steeInsec2_)
+        {
+          ldStFaultAddr_ = va2;
+          return EC::LOAD_ACC_FAULT;
+        }
+
       addr1 = stee_.clearSecureBits(addr1);
       addr2 = stee_.clearSecureBits(addr2);
     }
@@ -2571,7 +2581,8 @@ Hart<URV>::readInst(uint64_t va, uint32_t& inst)
 template <typename URV>
 inline
 ExceptionCause
-Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr, [[maybe_unused]] uint64_t& physAddr2,
+Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr,
+                           [[maybe_unused]] uint64_t& physAddr2,
 			   uint64_t& gPhysAddr, uint32_t& inst)
 {
   uint64_t steePhysAddr;
@@ -2613,8 +2624,14 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr, [[maybe_unuse
       if (not stee_.isValidAddress(physAddr))
         return ExceptionCause::INST_ACC_FAULT;
 
-      if (not stee_.isInsecureAccess(physAddr))
-        physAddr = stee_.clearSecureBits(physAddr);
+      if (stee_.isInsecureAccess(physAddr))
+        {
+          if (steeTrapRead_)
+            return ExceptionCause::INST_ACC_FAULT;
+          inst = 0;   // Secure device returns zero on insecure access. 
+          return ExceptionCause::NONE;
+        }
+      physAddr = stee_.clearSecureBits(physAddr);
     }
 
   if ((physAddr & 3) == 0 and not mcm_)   // Word aligned

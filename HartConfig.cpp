@@ -1098,6 +1098,16 @@ applySteeConfig(Hart<URV>& hart, const nlohmann::json& config)
 	hart.configSteeSecureMask(secMask);
     }
 
+  tag = "trap_insecure_read";
+  if (sconf.contains(tag))
+    {
+      bool flag = false;
+      if (not getJsonBoolean(tag, sconf.at(tag), flag))
+        errors++;
+      else
+        hart.configSteeTrapRead(flag);
+    }
+
   tag = "secure_region";
   if (sconf.contains(tag))
     {
