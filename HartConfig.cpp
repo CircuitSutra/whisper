@@ -2318,6 +2318,142 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
 
   // Parse enable_ppo, it it is missing all PPO rules are enabled.
 
+  tag = "machine_interrupts";
+  if (config_->contains(tag))
+  {
+    std::vector<InterruptCause> machineIntr;
+    const auto& mi = config_->at(tag);
+    if (!mi.is_array())
+    {
+      std::cerr << "Invalid " << tag << " entry in config file (expecting an array)\n";
+      errors++;
+    }
+    else
+    {
+      for (const auto &item : mi)
+      {
+        InterruptCause ic;
+        if (item.is_number_integer())
+        {
+          unsigned num = item.get<unsigned>();
+          ic = InterruptCause(num);
+        }
+        else if (item.is_string())
+        {
+          std::string s = item.get<std::string>();
+          std::transform(s.begin(), s.end(), s.begin(),
+                       [](unsigned char c) { return std::tolower(c); });
+          if (s == "mti" || s == "mtime")
+            ic = InterruptCause::M_TIMER;
+          else if (s == "msi")
+            ic = InterruptCause::M_SOFTWARE;
+          else if (s == "mext" || s == "mexternal")
+            ic = InterruptCause::M_EXTERNAL;
+          else if (s == "ssi")
+            ic = InterruptCause::S_SOFTWARE;
+          else if (s == "sti")
+            ic = InterruptCause::S_TIMER;
+          else if (s == "sext" || s == "sexternal")
+            ic = InterruptCause::S_EXTERNAL;
+          else
+          {
+            unsigned num = 0;
+            auto res = std::from_chars(s.data(), s.data() + s.size(), num, 0);
+            if (res.ec == std::errc())
+              ic = InterruptCause(num);
+            else
+            {
+              std::cerr << "Unknown machine interrupt symbol: " << s << "\n";
+              errors++;
+              continue;
+            }
+          }
+        }
+        else
+        {
+          std::cerr << "Invalid element in " << tag << " (expecting number or string)\n";
+          errors++;
+          continue;
+        }
+        machineIntr.push_back(ic);
+      }
+      if (!machineIntr.empty())
+      {
+        hart.setMachineInterrupts(machineIntr);
+        if (verbose)
+          std::cerr << "Applied machine_interrupts configuration\n";
+      }
+    }
+  }
+
+  tag = "supervisor_interrupts";
+  if (config_->contains(tag))
+  {
+    std::vector<InterruptCause> supervisorIntr;
+    const auto& si = config_->at(tag);
+    if (!si.is_array())
+    {
+      std::cerr << "Invalid " << tag << " entry in config file (expecting an array)\n";
+      errors++;
+    }
+    else
+    {
+      for (const auto &item : si)
+      {
+        InterruptCause ic;
+        if (item.is_number_integer())
+        {
+          unsigned num = item.get<unsigned>();
+          ic = InterruptCause(num);
+        }
+        else if (item.is_string())
+        {
+          std::string s = item.get<std::string>();
+          std::transform(s.begin(), s.end(), s.begin(),
+                       [](unsigned char c) { return std::tolower(c); });
+          if (s == "mti" || s == "mtime")
+            ic = InterruptCause::M_TIMER;
+          else if (s == "msi")
+            ic = InterruptCause::M_SOFTWARE;
+          else if (s == "mext" || s == "mexternal")
+            ic = InterruptCause::M_EXTERNAL;
+          else if (s == "ssi")
+            ic = InterruptCause::S_SOFTWARE;
+          else if (s == "sti")
+            ic = InterruptCause::S_TIMER;
+          else if (s == "sext" || s == "sexternal")
+            ic = InterruptCause::S_EXTERNAL;
+          else
+          {
+            unsigned num = 0;
+            auto res = std::from_chars(s.data(), s.data() + s.size(), num, 0);
+            if (res.ec == std::errc())
+              ic = InterruptCause(num);
+            else
+            {
+              std::cerr << "Unknown supervisor interrupt symbol: " << s << "\n";
+              errors++;
+              continue;
+            }
+          }
+        }
+        else
+        {
+          std::cerr << "Invalid element in " << tag << " (expecting number or string)\n";
+          errors++;
+          continue;
+        }
+        supervisorIntr.push_back(ic);
+      }
+      if (!supervisorIntr.empty())
+      {
+        hart.setSupervisorInterrupts(supervisorIntr);
+        if (verbose)
+          std::cerr << "Applied supervisor_interrupts configuration\n";
+      }
+    }
+  }
+
   return errors == 0;
 }
 
