@@ -144,6 +144,7 @@ namespace WdRiscv
 
     /// Destructor.
     ~Hart();
+    void filterMachineInterrupts(std::vector<InterruptCause>& intr);
 
     void setMachineInterrupts(const std::vector<InterruptCause>& newInterrupts) {
       mInterrupts_ = newInterrupts;

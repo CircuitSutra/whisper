@@ -152,6 +152,29 @@ Hart<URV>::~Hart()
     saveBranchTrace(branchTraceFile_);
 }
 
+template <typename URV>
+void Hart<URV>::filterMachineInterrupts(std::vector<InterruptCause>& intr) {
+  const Csr<URV>* mipCsr = csRegs_.findCsr(CsrNumber::MIP);
+  const Csr<URV>* mieCsr = csRegs_.findCsr(CsrNumber::MIE);
+
+  URV maskMIP = mipCsr->getPokeMask();
+  URV maskMIE = mieCsr->getPokeMask();
+
+  URV combinedMask = maskMIP & maskMIE;
+
+  // Remove any interrupt cause for which the corresponding bit in the combined mask is 0.
+  intr.erase(
+    std::remove_if(
+      intr.begin(), intr.end(),
+      [combinedMask](InterruptCause ic) {
+        unsigned bitPos = static_cast<unsigned>(ic);
+        return ((combinedMask & (URV(1) << bitPos)) == 0);
+      }
+    ),
+    intr.end()
+  );
+}
+
 
 template <typename URV>
 void
