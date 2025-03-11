@@ -1225,7 +1225,8 @@ Mcm<URV>::retire(Hart<URV>& hart, uint64_t time, uint64_t tag,
       return true;
     }
   
-  instr->privilege = hart.lastPrivMode();
+  instr->priv_ = hart.lastPrivMode();
+  instr->virt_ = hart.lastVirtMode();
 
   // If a partially executed vec ld/st store is cancelled, we commit its results.
   if (cancelled and not isPartialVecLdSt(hart, di))
@@ -4022,12 +4023,18 @@ Mcm<URV>::ppoRule4(Hart<URV>& hart, const McmInstr& instrB) const
   // Determine if this fence should order I/O operations.
   bool fenceOrdersIo = false;
   // Use the privilege mode before the fence (stored in hart.lastPrivMode()).
-  PrivilegeMode fencePriv = instrB.privilege;
+  PrivilegeMode fencePriv = instrB.priv_;
   if (fencePriv != PrivilegeMode::Machine) {
     uint64_t menvcfg = hart.peekCsr(CsrNumber::MENVCFG, true);
     if ((menvcfg & 0x1) != 0)
       fenceOrdersIo = true;
-    if (fencePriv == PrivilegeMode::User) {
+    if (instrB.virt_)
+      {
+        uint64_t henvcfg = hart.peekCsr(CsrNumber::HENVCFG, true);
+        if ((henvcfg & 0x1) != 0)
+          fenceOrdersIo = true;
+      }
+    else if (fencePriv == PrivilegeMode::User) {
       uint64_t senvcfg = hart.peekCsr(CsrNumber::SENVCFG, true);
       if ((senvcfg & 0x1) != 0)
         fenceOrdersIo = true;
