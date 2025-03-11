@@ -28,30 +28,30 @@ EXTRA_LIBS := -lpthread -lm -lz -ldl -static-libstdc++ -lrt -lutil
 VIRT_MEM := 1
 ifeq ($(VIRT_MEM), 1)
   override CPPFLAGS += -Ivirtual_memory
-  virtual_memory_build := $(wildcard $(PWD)/virtual_memory/)
+  virtual_memory_build := $(wildcard $(shell pwd)/virtual_memory/)
   virtual_memory_lib := $(virtual_memory_build)/libvirtual_memory.a
 endif
 
-soft_float_build := $(wildcard $(PWD)/third_party/softfloat/build/RISCV-GCC)
+soft_float_build := $(wildcard $(shell pwd)/third_party/softfloat/build/RISCV-GCC)
 
 ifeq ($(SOFT_FLOAT), 1)
-  override CPPFLAGS += -I$(PWD)/third_party/softfloat/source/include
+  override CPPFLAGS += -I$(shell pwd)/third_party/softfloat/source/include
   override CPPFLAGS += -DSOFT_FLOAT -DTHREAD_LOCAL=__thread
   soft_float_lib := $(soft_float_build)/softfloat.a
 endif
 
 PCI := 1
 ifeq ($(PCI), 1)
-  override CPPFLAGS += -I$(PWD)/pci
-  pci_build := $(wildcard $(PWD)/pci/)
-  pci_lib := $(PWD)/pci/libpci.a
+  override CPPFLAGS += -I$(shell pwd)/pci
+  pci_build := $(wildcard $(shell pwd)/pci/)
+  pci_lib := $(shell pwd)/pci/libpci.a
 endif
 
 TRACE_READER := 1
 ifeq ($(TRACE_READER), 1)
-  override CPPFLAGS += -I$(PWD)/trace-reader
-  trace_reader_build := $(wildcard $(PWD)/trace-reader/)
-  trace_reader_lib := $(PWD)/trace-reader/TraceReader.a
+  override CPPFLAGS += -I$(shell pwd)/trace-reader
+  trace_reader_build := $(wildcard $(shell pwd)/trace-reader/)
+  trace_reader_lib := $(shell pwd)/trace-reader/TraceReader.a
 endif
 
 MEM_CALLBACKS := 1
