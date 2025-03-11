@@ -30,7 +30,7 @@ PerfApi::PerfApi(System64& system)
 
   hartPacketMaps_.resize(n);
   hartStoreMaps_.resize(n);
-  hartLastRetired_.resize(n);
+  hartLastRetired_.resize(n, initHartLastRetired);
   hartRegProducers_.resize(n);
 
   for (auto& producers : hartRegProducers_)
@@ -365,8 +365,11 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
   // into the hart registers.
   bool setOk = setHartValues(hart, packet);
 
-  assert(packet.tag_ > hartLastRetired_.at(hartIx));
-  hart.adjustTime(packet.tag_ - hartLastRetired_.at(hartIx) - 1);
+  assert(hartLastRetired_.at(hartIx) == initHartLastRetired ||  packet.tag_ > hartLastRetired_.at(hartIx));
+
+  // Only make the time adjustment when the hart has retired atleast one instruction. 
+  if (hartLastRetired_.at(hartIx) != initHartLastRetired)
+    hart.adjustTime(packet.tag_ - hartLastRetired_.at(hartIx) - 1);
 
   auto& di = packet.decodedInst();
 
@@ -407,7 +410,8 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
 
   // Undo changes to the hart.
 
-  hart.adjustTime(-(int64_t)(packet.tag_ - hartLastRetired_.at(hartIx)));  // Restore timer value.
+  if (hartLastRetired_.at(hartIx) != initHartLastRetired)
+    hart.adjustTime(-(int64_t)(packet.tag_ - hartLastRetired_.at(hartIx)));  // Restore timer value.
 
   // Restore CSRs modified by the instruction or trap. TODO: For vector ld/st we have to
   // restore partially modified vectors.
@@ -486,7 +490,7 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
   auto& packet = *pacPtr;
   auto& hart = *hartPtr;
 
-  if (tag <= hartLastRetired_.at(hartIx))
+  if (hartLastRetired_.at(hartIx) != initHartLastRetired && tag <= hartLastRetired_.at(hartIx))
     {
       std::cerr << "Hart=" << hartIx << " time=" << time << " tag=" << tag
 		<< " Out of order retire\n";

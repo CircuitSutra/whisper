@@ -608,6 +608,8 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     const unsigned totalRegCount_ = csRegOffset_  + 4096; // 4096: max CSR count.
 
     static constexpr uint64_t haltPc = ~uint64_t(1);  // value assigned to InstPac->nextIva_ when program termination is encountered
+
+    const uint64_t initHartLastRetired = -1;  // default value for the hartLastRetired_ map
   };
 
 }
