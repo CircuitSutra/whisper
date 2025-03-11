@@ -154,13 +154,30 @@ Hart<URV>::~Hart()
 
 template <typename URV>
 void Hart<URV>::filterMachineInterrupts(std::vector<InterruptCause>& intr) {
+  // Get the poke masks for the MIP and MIE CSRs.
   const Csr<URV>* mipCsr = csRegs_.findCsr(CsrNumber::MIP);
   const Csr<URV>* mieCsr = csRegs_.findCsr(CsrNumber::MIE);
 
   URV maskMIP = mipCsr->getPokeMask();
   URV maskMIE = mieCsr->getPokeMask();
 
+  // Combine the masks (only bits allowed in both are effective).
   URV combinedMask = maskMIP & maskMIE;
+
+  // Build a set of the interrupt causes provided by the user.
+  std::unordered_set<unsigned> userCauses;
+  for (const auto &ic : intr)
+    userCauses.insert(static_cast<unsigned>(ic));
+
+  // For each bit allowed by the hardware, warn if the user did not provide it.
+  for (unsigned bitPos = 0; bitPos < sizeof(URV) * 8; ++bitPos) {
+    if (combinedMask & (URV(1) << bitPos)) {
+      if (userCauses.find(bitPos) == userCauses.end()) {
+        std::cerr << "Warning: Interrupt cause " << bitPos
+                  << " is allowed by hardware mask but not provided in configuration.\n";
+      }
+    }
+  }
 
   // Remove any interrupt cause for which the corresponding bit in the combined mask is 0.
   intr.erase(
@@ -174,6 +191,7 @@ void Hart<URV>::filterMachineInterrupts(std::vector<InterruptCause>& intr) {
     intr.end()
   );
 }
+
 
 
 template <typename URV>
