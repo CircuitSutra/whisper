@@ -128,13 +128,13 @@ Hart<URV>::Hart(unsigned hartIx, URV hartId, Memory& memory, Syscall<URV>& sysca
   // Define the default machine interrupts in high to low priority. VS interrupts
   // VSTIP/VSEIP/VSSIP are always delegated to supervisor privilege (section 19.4.2 of
   // privileged spec).
-  mInterrupts_ = { IC{24}, IC{23}, IC{43}, // Ascalon local interrupts. FIX : make configurable.
+  mInterrupts_ = { IC{24}, IC{23}, IC{43}, // Ascalon local interrupts.
                    IC::M_EXTERNAL, IC::M_SOFTWARE, IC::M_TIMER,
                    IC::S_EXTERNAL, IC::S_SOFTWARE, IC::S_TIMER,
                    IC::G_EXTERNAL, IC::LCOF, IC{35} };
 
   // Define the default supervisor (S/HS) interrupts in high to low priority.
-  sInterrupts_ = { IC{24}, IC{23}, IC{43}, // Ascalon local interrupts. FIX : make configurable.
+  sInterrupts_ = { IC{24}, IC{23}, IC{43}, // Ascalon local interrupts.
                    IC::M_EXTERNAL, IC::M_SOFTWARE, IC::M_TIMER,
                    IC::S_EXTERNAL, IC::S_SOFTWARE, IC::S_TIMER,
                    IC::G_EXTERNAL, IC::VS_EXTERNAL, IC::VS_SOFTWARE,
@@ -153,7 +153,7 @@ Hart<URV>::~Hart()
 }
 
 template <typename URV>
-void Hart<URV>::filterMachineInterrupts(std::vector<InterruptCause>& intr) {
+void Hart<URV>::filterMachineInterrupts(bool verbose) {
   // Get the poke masks for the MIP and MIE CSRs.
   const Csr<URV>* mipCsr = csRegs_.findCsr(CsrNumber::MIP);
   const Csr<URV>* mieCsr = csRegs_.findCsr(CsrNumber::MIE);
@@ -164,31 +164,34 @@ void Hart<URV>::filterMachineInterrupts(std::vector<InterruptCause>& intr) {
   // Combine the masks (only bits allowed in both are effective).
   URV combinedMask = maskMIP & maskMIE;
 
-  // Build a set of the interrupt causes provided by the user.
-  std::unordered_set<unsigned> userCauses;
-  for (const auto &ic : intr)
-    userCauses.insert(static_cast<unsigned>(ic));
-
   // For each bit allowed by the hardware, warn if the user did not provide it.
-  for (unsigned bitPos = 0; bitPos < sizeof(URV) * 8; ++bitPos) {
-    if (combinedMask & (URV(1) << bitPos)) {
-      if (userCauses.find(bitPos) == userCauses.end()) {
-        std::cerr << "Warning: Interrupt cause " << bitPos
-                  << " is allowed by hardware mask but not provided in configuration.\n";
+  if (verbose) {
+
+    // Build a set of the interrupt causes provided by the user.
+    std::unordered_set<unsigned> userCauses;
+    for (const auto &ic : mInterrupts_)
+      userCauses.insert(static_cast<unsigned>(ic));
+
+    for (unsigned bitPos = 0; bitPos < sizeof(URV) * 8; ++bitPos) {
+      if (combinedMask & (URV(1) << bitPos)) {
+        if (userCauses.find(bitPos) == userCauses.end()) {
+          std::cerr << "Warning: Interrupt cause " << bitPos
+                    << " is allowed by hardware mask but not provided in configuration.\n";
+        }
       }
     }
   }
 
   // Remove any interrupt cause for which the corresponding bit in the combined mask is 0.
-  intr.erase(
+  mInterrupts_.erase(
     std::remove_if(
-      intr.begin(), intr.end(),
+      mInterrupts_.begin(), mInterrupts_.end(),
       [combinedMask](InterruptCause ic) {
         unsigned bitPos = static_cast<unsigned>(ic);
         return ((combinedMask & (URV(1) << bitPos)) == 0);
       }
     ),
-    intr.end()
+    mInterrupts_.end()
   );
 }
 

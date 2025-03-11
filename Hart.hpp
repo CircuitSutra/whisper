@@ -144,15 +144,20 @@ namespace WdRiscv
 
     /// Destructor.
     ~Hart();
-    void filterMachineInterrupts(std::vector<InterruptCause>& intr);
 
+    /// Define the set of possible machine interrupts in priority order (high to low).
     void setMachineInterrupts(const std::vector<InterruptCause>& newInterrupts) {
       mInterrupts_ = newInterrupts;
     }
 
+    /// Define the set of possible supervisor interrupts in priority order (high to low).
     void setSupervisorInterrupts(const std::vector<InterruptCause>& newInterrupts) {
       sInterrupts_ = newInterrupts;
     }
+
+    /// Filter out from possible machine interrupts those interrupt that cannot become
+    /// pending or enabled.
+    void filterMachineInterrupts(bool verbose);
 
     /// Return count of integer registers.
     unsigned intRegCount() const

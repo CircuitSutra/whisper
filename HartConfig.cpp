@@ -2387,7 +2387,6 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
       auto vec = parseInterruptArray(mi);
       if (!vec.empty())
       {
-        hart.filterMachineInterrupts(vec);
         hart.setMachineInterrupts(vec);
         if (verbose)
           std::cerr << "Applied machine_interrupts configuration\n";
