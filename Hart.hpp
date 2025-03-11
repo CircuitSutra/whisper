@@ -144,6 +144,15 @@ namespace WdRiscv
 
     /// Destructor.
     ~Hart();
+    void filterMachineInterrupts(std::vector<InterruptCause>& intr);
+
+    void setMachineInterrupts(const std::vector<InterruptCause>& newInterrupts) {
+      mInterrupts_ = newInterrupts;
+    }
+
+    void setSupervisorInterrupts(const std::vector<InterruptCause>& newInterrupts) {
+      sInterrupts_ = newInterrupts;
+    }
 
     /// Return count of integer registers.
     unsigned intRegCount() const
