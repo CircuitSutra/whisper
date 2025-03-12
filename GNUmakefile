@@ -111,6 +111,12 @@ IFLAGS := $(addprefix -isystem ,$(BOOST_INC)) -isystem third_party -I.
 
 CXX_STD ?= c++20
 
+GIT_SHA := $(shell git rev-parse --verify HEAD || echo unknown)
+override CPPFLAGS += -DGIT_SHA=$(GIT_SHA)
+
+# GIT_SHA is compiled into Args.cpp. If the SHA in the object file doesn't match, force a recompile.
+UNUSED := $(shell grep -q $(GIT_SHA) $(BUILD_DIR)/Args.cpp.o || touch Args.cpp)
+
 # Command to compile .cpp files.
 override CXXFLAGS += -MMD -MP $(ARCH_FLAGS) -std=$(CXX_STD) $(OFLAGS) $(IFLAGS)
 override CXXFLAGS += -fPIC -pedantic -Wall -Wextra -Wformat -Wwrite-strings
@@ -134,13 +140,6 @@ $(BUILD_DIR)/$(PY_PROJECT): $(BUILD_DIR)/py-bindings.cpp.o \
 			    $(pci_lib) \
 			    $(virtual_memory_lib)
 	$(CXX) -shared -o $@ $(OFLAGS) $^ $(LINK_DIRS) $(LINK_LIBS)
-
-# Rule to make whisper.cpp.o. Always recompile to get latest GIT SHA into the help
-# message.
-$(BUILD_DIR)/Args.cpp.o:  .FORCE
-	@if [ ! -d "$(dir $@)" ]; then $(MKDIR_P) $(dir $@); fi
-	sha=`git rev-parse --verify HEAD || echo unknown`; \
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -DGIT_SHA="$$sha" -c -o $@ Args.cpp
 
 # Rule to make PY_PROJECT .so
 $(BUILD_DIR)/py-bindings.cpp.o: .FORCE
