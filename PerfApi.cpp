@@ -412,6 +412,8 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
 
   if (hartLastRetired_.at(hartIx) != initHartLastRetired)
     hart.adjustTime(-(int64_t)(packet.tag_ - hartLastRetired_.at(hartIx)));  // Restore timer value.
+  else
+    hart.adjustTime(-1); // untick one cycle for the first instruction
 
   // Restore CSRs modified by the instruction or trap. TODO: For vector ld/st we have to
   // restore partially modified vectors.
