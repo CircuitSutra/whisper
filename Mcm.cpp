@@ -1724,6 +1724,8 @@ Mcm<URV>::printReadMismatch(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64
        << " whisper=0x" << refData << std::dec;
 
   auto pma = hart.getPma(addr);
+  pma = hart.overridePmaWithPbmt(pma, hart.virtMem().lastEffectivePbmt());
+
   const char* type = nullptr;
 
   if (pma.isIo())
