@@ -168,7 +168,7 @@ Session<URV>::configureSystem(const Args& args, const HartConfig& config)
 	  return false;
       hart.reset();
       hart.filterMachineInterrupts(args.verbose);
-      hart.filterSupervisorInterrupts(args.verbose);
+      // hart.filterSupervisorInterrupts(args.verbose);
     }
 
   // This needs Smaia extension to be enabled.
