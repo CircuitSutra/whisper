@@ -159,6 +159,10 @@ namespace WdRiscv
     /// pending or enabled.
     void filterMachineInterrupts(bool verbose);
 
+    /// Filter out from possible supervisor interrupts those interrupt that cannot become
+    /// pending or enabled, but always allow SEI
+    void filterSupervisorInterrupts(bool verbose);
+
     /// Return count of integer registers.
     unsigned intRegCount() const
     { return intRegs_.size(); }
