@@ -166,7 +166,6 @@ void Hart<URV>::filterMachineInterrupts(bool verbose) {
 
   // For each bit allowed by the hardware, warn if the user did not provide it.
   if (verbose) {
-
     // Build a set of the interrupt causes provided by the user.
     std::unordered_set<unsigned> userCauses;
     for (const auto &ic : mInterrupts_)
@@ -195,6 +194,48 @@ void Hart<URV>::filterMachineInterrupts(bool verbose) {
   );
 }
 
+template <typename URV>
+void Hart<URV>::filterSupervisorInterrupts(bool verbose) {
+  // Get the poke masks for SIP and SIE.
+  const Csr<URV>* sipCsr = csRegs_.findCsr(CsrNumber::SIP);
+  const Csr<URV>* sieCsr = csRegs_.findCsr(CsrNumber::SIE);
+
+  URV maskSIP = sipCsr->getPokeMask();
+  URV maskSIE = sieCsr->getPokeMask();
+
+  // Combined mask: only bits allowed by both.
+  URV combinedMask = maskSIP & maskSIE;
+  
+  // Always allow S_EXTERNAL regardless of the mask.
+  const unsigned s_external = static_cast<unsigned>(InterruptCause::S_EXTERNAL);
+  combinedMask |= (URV(1) << s_external);
+
+  // Warn if a bit is allowed by hardware but not configured.
+  if (verbose) {
+    std::unordered_set<unsigned> userCauses;
+    for (const auto &ic : sInterrupts_)
+      userCauses.insert(static_cast<unsigned>(ic));
+    for (unsigned bitPos = 0; bitPos < sizeof(URV) * 8; ++bitPos) {
+      if (combinedMask & (URV(1) << bitPos)) {
+        if (userCauses.find(bitPos) == userCauses.end())
+          std::cerr << "Warning: Supervisor interrupt cause " << bitPos
+                    << " allowed by hardware but missing in configuration.\n";
+      }
+    }
+  }
+
+  // Remove any supervisor interrupt cause whose bit is 0 in the mask.
+  sInterrupts_.erase(
+    std::remove_if(
+      sInterrupts_.begin(), sInterrupts_.end(),
+      [combinedMask](InterruptCause ic) {
+        unsigned bitPos = static_cast<unsigned>(ic);
+        return ((combinedMask & (URV(1) << bitPos)) == 0);
+      }
+    ),
+    sInterrupts_.end()
+  );
+}
 
 
 template <typename URV>
