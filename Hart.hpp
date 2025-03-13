@@ -145,6 +145,20 @@ namespace WdRiscv
     /// Destructor.
     ~Hart();
 
+    /// Define the set of possible machine interrupts in priority order (high to low).
+    void setMachineInterrupts(const std::vector<InterruptCause>& newInterrupts) {
+      mInterrupts_ = newInterrupts;
+    }
+
+    /// Define the set of possible supervisor interrupts in priority order (high to low).
+    void setSupervisorInterrupts(const std::vector<InterruptCause>& newInterrupts) {
+      sInterrupts_ = newInterrupts;
+    }
+
+    /// Filter out from possible machine interrupts those interrupt that cannot become
+    /// pending or enabled.
+    void filterMachineInterrupts(bool verbose);
+
     /// Return count of integer registers.
     unsigned intRegCount() const
     { return intRegs_.size(); }
@@ -2355,6 +2369,12 @@ namespace WdRiscv
     void configSteeSecureRegion(uint64_t low, uint64_t high)
     { stee_.configSecureRegion(low, high); }
 
+    /// Trap read operations on insecure access to a secure region when flag is true;
+    /// otherwise, let the secure device decide what to do (in Whisper device returns
+    /// zero).
+    void configSteeTrapRead(bool flag)
+    { steeTrapRead_ = flag; }
+
     /// Enable STEE.
     void enableStee(bool flag)
     { steeEnabled_ = flag; csRegs_.enableStee(flag); }
@@ -2602,6 +2622,9 @@ namespace WdRiscv
     /// Provide MMU (virtMem_) the call-backs necessary to read/write memory and to check
     /// PMP.
     void setupVirtMemCallbacks();
+
+    /// Tie frequency updated CSRs to variables in this object for fast access.
+    void tieCsrs();
 
     /// Return true if the NMIE bit of NMSTATUS overrides the effect of
     /// MSTATUS.MPRV. See Smrnmi secton in RISCV privileged spec.
@@ -3183,12 +3206,17 @@ namespace WdRiscv
 					  isInterruptEnabled());
     }
 
-    /// Make all active icount triggers count down, return true if any of them counts down
-    /// to zero.
-    bool icountTriggerHit()
+    /// Make all active icount triggers count down if possible marking pending
+    /// the ones that reach zero.
+    void evaluateIcountTrigger()
     {
-      return csRegs_.icountTriggerHit(lastPrivMode(), lastVirtMode(), privilegeMode(),
-				      virtMode(), isInterruptEnabled());
+      return csRegs_.evaluateIcountTrigger(privilegeMode(), virtMode(), isInterruptEnabled());
+    }
+
+    /// Return true if a pending icount triger can fire clearning its pending status.
+    bool icountTriggerFired()
+    {
+      return csRegs_.icountTriggerFired(privilegeMode(), virtMode(), isInterruptEnabled());
     }
 
     /// Return true if this hart has one or more active debug triggers.
@@ -5607,7 +5635,7 @@ namespace WdRiscv
 
     bool clearMprvOnRet_ = true;
     bool cancelLrOnTrap_ = false;   // Cancel reservation on traps when true.
-    bool cancelLrOnDebug_ = false;  // Cancel
+    bool cancelLrOnDebug_ = false;  // Cancel reservation on enter/exit debug mode.
 
     // Make hfence.gvma ignore huest physical addresses when true.
     bool hfenceGvmaIgnoresGpa_ = false;
@@ -5645,10 +5673,12 @@ namespace WdRiscv
 
     InstProfiles instProfs_; // Instruction frequency manager
 
-    std::vector<uint64_t> interruptStat_;  // Count of different types of interrupts.
+    std::vector<uint64_t> interruptStat_;  // Count of encoutred interrupts (indexed by cause).
+    std::vector<uint64_t> exceptionStat_;  // Count of encoutered exceptions (indexed by cause).
 
-    // Indexed by exception cause.
-    std::vector<uint64_t> exceptionStat_;
+    std::vector<InterruptCause> mInterrupts_;  // Possible M interrupts in high to low priority.
+    std::vector<InterruptCause> sInterrupts_;  // Possible S interrupts in high to low priority.
+    std::vector<InterruptCause> vsInterrupts_; // Possible VS interrupts in high to low priority.
 
     // Decoded instruction cache.
     std::vector<DecodedInst> decodeCache_;
@@ -5683,8 +5713,9 @@ namespace WdRiscv
     // Static tee (trusted execution environment).
     bool steeEnabled_ = false;
     TT_STEE::Stee stee_;
-    bool steeInsec1_ = false;  // True if insecure access to a secure region.
-    bool steeInsec2_ = false;  // True if insecure access to a secure region.
+    bool steeInsec1_ = false;    // True if insecure access to a secure region.
+    bool steeInsec2_ = false;    // True if insecure access to a secure region.
+    bool steeTrapRead_ = false;  // Trap insecure read to secure device when true.
 
     // Exceptions injected by user.
     ExceptionCause injectException_ = ExceptionCause::NONE;

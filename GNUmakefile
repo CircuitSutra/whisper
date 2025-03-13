@@ -28,30 +28,30 @@ EXTRA_LIBS := -lpthread -lm -lz -ldl -static-libstdc++ -lrt -lutil
 VIRT_MEM := 1
 ifeq ($(VIRT_MEM), 1)
   override CPPFLAGS += -Ivirtual_memory
-  virtual_memory_build := $(wildcard $(PWD)/virtual_memory/)
+  virtual_memory_build := $(wildcard $(shell pwd)/virtual_memory/)
   virtual_memory_lib := $(virtual_memory_build)/libvirtual_memory.a
 endif
 
-soft_float_build := $(wildcard $(PWD)/third_party/softfloat/build/RISCV-GCC)
+soft_float_build := $(wildcard $(shell pwd)/third_party/softfloat/build/RISCV-GCC)
 
 ifeq ($(SOFT_FLOAT), 1)
-  override CPPFLAGS += -I$(PWD)/third_party/softfloat/source/include
+  override CPPFLAGS += -I$(shell pwd)/third_party/softfloat/source/include
   override CPPFLAGS += -DSOFT_FLOAT -DTHREAD_LOCAL=__thread
   soft_float_lib := $(soft_float_build)/softfloat.a
 endif
 
 PCI := 1
 ifeq ($(PCI), 1)
-  override CPPFLAGS += -I$(PWD)/pci
-  pci_build := $(wildcard $(PWD)/pci/)
-  pci_lib := $(PWD)/pci/libpci.a
+  override CPPFLAGS += -I$(shell pwd)/pci
+  pci_build := $(wildcard $(shell pwd)/pci/)
+  pci_lib := $(shell pwd)/pci/libpci.a
 endif
 
 TRACE_READER := 1
 ifeq ($(TRACE_READER), 1)
-  override CPPFLAGS += -I$(PWD)/trace-reader
-  trace_reader_build := $(wildcard $(PWD)/trace-reader/)
-  trace_reader_lib := $(PWD)/trace-reader/TraceReader.a
+  override CPPFLAGS += -I$(shell pwd)/trace-reader
+  trace_reader_build := $(wildcard $(shell pwd)/trace-reader/)
+  trace_reader_lib := $(shell pwd)/trace-reader/TraceReader.a
 endif
 
 MEM_CALLBACKS := 1
@@ -111,6 +111,12 @@ IFLAGS := $(addprefix -isystem ,$(BOOST_INC)) -isystem third_party -I.
 
 CXX_STD ?= c++20
 
+GIT_SHA := $(shell git rev-parse --verify HEAD || echo unknown)
+override CPPFLAGS += -DGIT_SHA=$(GIT_SHA)
+
+# GIT_SHA is compiled into Args.cpp. If the SHA in the object file doesn't match, force a recompile.
+UNUSED := $(shell grep -q $(GIT_SHA) $(BUILD_DIR)/Args.cpp.o || touch Args.cpp)
+
 # Command to compile .cpp files.
 override CXXFLAGS += -MMD -MP $(ARCH_FLAGS) -std=$(CXX_STD) $(OFLAGS) $(IFLAGS)
 override CXXFLAGS += -fPIC -pedantic -Wall -Wextra -Wformat -Wwrite-strings
@@ -134,13 +140,6 @@ $(BUILD_DIR)/$(PY_PROJECT): $(BUILD_DIR)/py-bindings.cpp.o \
 			    $(pci_lib) \
 			    $(virtual_memory_lib)
 	$(CXX) -shared -o $@ $(OFLAGS) $^ $(LINK_DIRS) $(LINK_LIBS)
-
-# Rule to make whisper.cpp.o. Always recompile to get latest GIT SHA into the help
-# message.
-$(BUILD_DIR)/Args.cpp.o:  .FORCE
-	@if [ ! -d "$(dir $@)" ]; then $(MKDIR_P) $(dir $@); fi
-	sha=`git rev-parse --verify HEAD || echo unknown`; \
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -DGIT_SHA="$$sha" -c -o $@ Args.cpp
 
 # Rule to make PY_PROJECT .so
 $(BUILD_DIR)/py-bindings.cpp.o: .FORCE

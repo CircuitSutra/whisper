@@ -1098,6 +1098,16 @@ applySteeConfig(Hart<URV>& hart, const nlohmann::json& config)
 	hart.configSteeSecureMask(secMask);
     }
 
+  tag = "trap_insecure_read";
+  if (sconf.contains(tag))
+    {
+      bool flag = false;
+      if (not getJsonBoolean(tag, sconf.at(tag), flag))
+        errors++;
+      else
+        hart.configSteeTrapRead(flag);
+    }
+
   tag = "secure_region";
   if (sconf.contains(tag))
     {
@@ -2307,6 +2317,82 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
     }
 
   // Parse enable_ppo, it it is missing all PPO rules are enabled.
+
+  tag = "machine_interrupts";
+  if (config_->contains(tag))
+  {
+    const auto &mi = config_->at(tag);
+    auto parseInterruptArray = [&errors](const nlohmann::json &arr) -> std::vector<InterruptCause> {
+      std::vector<InterruptCause> vec;
+      for (const auto &item : arr)
+      {
+        InterruptCause ic;
+        if (item.is_number_integer())
+          ic = InterruptCause(item.get<unsigned>());
+        else if (item.is_string())
+        {
+          std::string s = item.get<std::string>();
+          std::transform(s.begin(), s.end(), s.begin(),
+                         [](unsigned char c){ return std::tolower(c); });
+          if (s == "mti" || s == "mtime")
+            ic = InterruptCause::M_TIMER;
+          else if (s == "msi")
+            ic = InterruptCause::M_SOFTWARE;
+          else if (s == "mext" || s == "mexternal")
+            ic = InterruptCause::M_EXTERNAL;
+          else if (s == "ssi")
+            ic = InterruptCause::S_SOFTWARE;
+          else if (s == "sti")
+            ic = InterruptCause::S_TIMER;
+          else if (s == "sext" || s == "sexternal")
+            ic = InterruptCause::S_EXTERNAL;
+          else
+          {
+            unsigned num = 0;
+            auto res = std::from_chars(s.data(), s.data() + s.size(), num, 0);
+            if (res.ec == std::errc())
+              ic = InterruptCause(num);
+            else
+            {
+              std::cerr << "Unknown interrupt symbol: " << s << "\n";
+              ++errors;
+              continue;
+            }
+          }
+        }
+        else
+        {
+          std::cerr << "Invalid element (expecting number or string) in interrupt array.\n";
+          ++errors;
+          continue;
+        }
+        if (std::find(vec.begin(), vec.end(), ic) != vec.end())
+        {
+          std::cerr << "Duplicate interrupt entry: " << static_cast<unsigned>(ic) << "\n";
+          ++errors;
+          continue;
+        }
+        vec.push_back(ic);
+      }
+      return vec;
+    };
+
+    if (!mi.is_array())
+    {
+      std::cerr << "Invalid " << tag << " entry in config file (expecting an array)\n";
+      ++errors;
+    }
+    else
+    {
+      auto vec = parseInterruptArray(mi);
+      if (!vec.empty())
+      {
+        hart.setMachineInterrupts(vec);
+        if (verbose)
+          std::cerr << "Applied machine_interrupts configuration\n";
+      }
+    }
+  }
 
   return errors == 0;
 }

@@ -2,7 +2,6 @@
 #include <string_view>
 #include "Mcm.hpp"
 #include "System.hpp"
-#include "Hart.hpp"
 
 using namespace WdRiscv;
 using std::cerr;
@@ -1209,7 +1208,6 @@ Mcm<URV>::retire(Hart<URV>& hart, uint64_t time, uint64_t tag,
 {
   unsigned hartIx = hart.sysHartIndex();
   cancelNonRetired(hart, tag);
-
   if (not updateTime("Mcm::retire", time))
     return false;
 
@@ -1226,6 +1224,9 @@ Mcm<URV>::retire(Hart<URV>& hart, uint64_t time, uint64_t tag,
       cancelInstr(hart, *instr);  // Instruction took a trap at fetch.
       return true;
     }
+  
+  instr->priv_ = hart.lastPrivMode();
+  instr->virt_ = hart.lastVirtMode();
 
   // If a partially executed vec ld/st store is cancelled, we commit its results.
   if (cancelled and not isPartialVecLdSt(hart, di))
@@ -1723,6 +1724,8 @@ Mcm<URV>::printReadMismatch(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64
        << " whisper=0x" << refData << std::dec;
 
   auto pma = hart.getPma(addr);
+  pma = hart.overridePmaWithPbmt(pma, hart.virtMem().lastEffectivePbmt());
+
   const char* type = nullptr;
 
   if (pma.isIo())
@@ -2418,7 +2421,7 @@ Mcm<URV>::commitVecReadOpsStride0(Hart<URV>& hart, McmInstr& instr)
                 continue;   // Byte covered by a another read op.
 
               uint64_t byteAddr = vecRef.pa_ + i;  // TODO handle page crosser
-              if (not vecReadOpOverlapsElemByte(op, byteAddr, elemIx, field, elemSize))
+              if (not vecReadOpOverlapsElemByte(op, byteAddr, elemIx, false /*unitStride*/, elemSize))
                 continue;
 
               mask &= ~byteMask;
@@ -2758,16 +2761,16 @@ Mcm<URV>::commitReadOps(Hart<URV>& hart, McmInstr& instr)
 template <typename URV>
 bool
 Mcm<URV>::vecReadOpOverlapsElemByte(const MemoryOp& op, uint64_t addr, unsigned elemIx,
-				    unsigned /*field*/, unsigned elemSize) const
+				    bool unitStride, unsigned elemSize) const
 {
   if (op.size_ <= elemSize and (elemIx != op.elemIx_))
     return false;  // Op is for a single element and ix does not match.
 
+  if (op.elemIx_ != elemIx and not unitStride)
+    return false;   // For non-unit stride element index must match.
+
   if (op.elemIx_ > elemIx)
     return false;
-
-  //  if (op.elemIx_ == elemIx and op.field_ > field)
-  //    return false;
 
   return op.overlaps(addr);
 }
@@ -2776,7 +2779,7 @@ Mcm<URV>::vecReadOpOverlapsElemByte(const MemoryOp& op, uint64_t addr, unsigned 
 template <typename URV>
 bool
 Mcm<URV>::vecReadOpOverlapsElem(const MemoryOp& op, uint64_t pa1, uint64_t pa2,
-				unsigned size, unsigned elemIx, unsigned field,
+				unsigned size, unsigned elemIx, bool unitStride,
 				unsigned elemSize) const
 {
   unsigned size1 = size;
@@ -2789,7 +2792,7 @@ Mcm<URV>::vecReadOpOverlapsElem(const MemoryOp& op, uint64_t pa1, uint64_t pa2,
   for (unsigned i = 0; i < size; ++i)
     {
       uint64_t addr = i < size1 ? pa1 + i : pa2 + i - size1;
-      if (vecReadOpOverlapsElemByte(op, addr, elemIx, field, elemSize))
+      if (vecReadOpOverlapsElemByte(op, addr, elemIx, unitStride, elemSize))
 	return true;
     }
 
@@ -2801,7 +2804,7 @@ template <typename URV>
 bool
 Mcm<URV>::getCurrentLoadValue(Hart<URV>& hart, uint64_t tag, uint64_t va, uint64_t pa1,
 			      uint64_t pa2, unsigned size, bool isVector, uint64_t& value,
-			      unsigned elemIx, unsigned field)
+			      unsigned elemIx, unsigned /*field*/)
 {
   value = 0;
   if (size == 0 or size > 8)
@@ -2864,7 +2867,7 @@ Mcm<URV>::getCurrentLoadValue(Hart<URV>& hart, uint64_t tag, uint64_t va, uint64
             {
               if (info.stride_ == 0 and elemIx != op.elemIx_)
                 continue;
-              if (vecReadOpOverlapsElem(op, pa1, pa2, size, elemIx, field, elemSize))
+              if (vecReadOpOverlapsElem(op, pa1, pa2, size, elemIx, unitStride, elemSize))
                 forwardToRead(hart, stores, op);   // Let forwarding override read-op ref data.
             }
         }
@@ -2899,7 +2902,7 @@ Mcm<URV>::getCurrentLoadValue(Hart<URV>& hart, uint64_t tag, uint64_t va, uint64
             {
               if (info.stride_ == 0 and elemIx != op.elemIx_)
                 continue;
-              if (not vecReadOpOverlapsElemByte(op, byteAddr, elemIx, field, elemSize))
+              if (not vecReadOpOverlapsElemByte(op, byteAddr, elemIx, unitStride, elemSize))
                 continue;  // Vector non-unit-stride ops must match element index.
             }
 
@@ -4018,6 +4021,30 @@ Mcm<URV>::ppoRule4(Hart<URV>& hart, const McmInstr& instrB) const
   unsigned hartIx = hart.sysHartIndex();
   const auto& instrVec = hartData_.at(hartIx).instrVec_;
 
+  // --- FIOM modification start ---
+  // Determine if this fence should order I/O operations.
+  bool fenceOrdersIo = false;
+  // Use the privilege mode before the fence (stored in hart.lastPrivMode()).
+  PrivilegeMode fencePriv = instrB.priv_;
+  if (fencePriv != PrivilegeMode::Machine) {
+    uint64_t menvcfg = hart.peekCsr(CsrNumber::MENVCFG, true);
+    if ((menvcfg & 0x1) != 0)
+      fenceOrdersIo = true;
+    if (instrB.virt_)
+      {
+        uint64_t henvcfg = hart.peekCsr(CsrNumber::HENVCFG, true);
+        if ((henvcfg & 0x1) != 0)
+          fenceOrdersIo = true;
+      }
+    else if (fencePriv == PrivilegeMode::User) {
+      uint64_t senvcfg = hart.peekCsr(CsrNumber::SENVCFG, true);
+      if ((senvcfg & 0x1) != 0)
+        fenceOrdersIo = true;
+    }
+  }
+  // --- FIOM modification end ---
+
+
   // Collect all fence instructions that can affect B.
   std::vector<McmInstrIx> fences;
   for (McmInstrIx ix = instrB.tag_; ix > 0; --ix)
@@ -4059,10 +4086,18 @@ Mcm<URV>::ppoRule4(Hart<URV>& hart, const McmInstr& instrB) const
       bool predWrite = fence.di_.isFencePredWrite();
       bool succRead = fence.di_.isFenceSuccRead();
       bool succWrite = fence.di_.isFenceSuccWrite();
-      bool predIn = fence.di_.isFencePredInput();
-      bool predOut = fence.di_.isFencePredOutput();
-      bool succIn = fence.di_.isFencePredInput();
-      bool succOut = fence.di_.isFencePredOutput();
+      bool predIn    = fence.di_.isFencePredInput();
+      bool predOut   = fence.di_.isFencePredOutput();
+      bool succIn    = fence.di_.isFenceSuccInput();
+      bool succOut   = fence.di_.isFenceSuccOutput();
+
+      // If FIOM is set, merge the I/O ordering bits into the normal ordering bits.
+      if (fenceOrdersIo) {
+        predRead  = predRead  || predIn;
+        predWrite = predWrite || predOut;
+        succRead  = succRead  || succIn;
+        succWrite = succWrite || succOut;
+      }
 
       for (auto aOpPtr : reordered)
 	{

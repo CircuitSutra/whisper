@@ -9,6 +9,7 @@
 #include <map>
 #include <unordered_set>
 #include "DecodedInst.hpp"
+#include "Hart.hpp"
 
 
 namespace WdRiscv
@@ -93,15 +94,17 @@ namespace WdRiscv
 
     DecodedInst di_;
     McmInstrIx tag_ = 0;
-    uint8_t hartIx_ : 8 = 0;
-    uint8_t size_   : 8 = 0;        // Data size for load/store instructions.
+    uint8_t hartIx_     : 8 = 0;
+    uint8_t size_       : 8 = 0;        // Data size for load/store instructions.
+    PrivilegeMode priv_ : 2 = PrivilegeMode::Machine;
+    bool virt_          : 1 = false;    // Virtual mode.
 
-    bool retired_    : 1 = false;
-    bool canceled_   : 1 = false;
-    bool isLoad_     : 1 = false;
-    bool isStore_    : 1 = false;
-    bool complete_   : 1 = false;
-    bool hasOverlap_ : 1 = false;   // For vector load and store instructions.
+    bool retired_       : 1 = false;
+    bool canceled_      : 1 = false;
+    bool isLoad_        : 1 = false;
+    bool isStore_       : 1 = false;
+    bool complete_      : 1 = false;
+    bool hasOverlap_    : 1 = false;   // For vector load and store instructions.
 
     /// Return true if this a load/store instruction.
     bool isMemory() const { return isLoad_ or isStore_; }
@@ -471,12 +474,12 @@ namespace WdRiscv
     /// the range of addresses associated with a memory access for the given vector
     /// element. Size is the size of the memory access, and elemSize is the element size.
     bool vecReadOpOverlapsElem(const MemoryOp& op, uint64_t pa1, uint64_t pa2,
-			       unsigned size, unsigned elemIx, unsigned field,
+			       unsigned size, unsigned elemIx, bool unitStride,
 			       unsigned elemSize) const;
 
     /// Heler to vecReadOpOverlapsElem.
     bool vecReadOpOverlapsElemByte(const MemoryOp& op, uint64_t addr, unsigned elemIx,
-				   unsigned field, unsigned elemSize) const;
+				   bool unitStride, unsigned elemSize) const;
 
     /// Return true if given instruction is an indexed load/store and it has an index
     /// register with a value produced after the instruction has used that index

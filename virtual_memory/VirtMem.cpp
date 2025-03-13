@@ -670,7 +670,16 @@ VirtMem::pageTableWalk(uint64_t address, PrivilegeMode privMode, bool read, bool
     pa = pa | (va.vpn(j) << pte.paPpnShift(j)); // Copy from va to pa
 
   for (unsigned j = ii; j < levels; ++j)
-    pa = pa | pte.ppn(j) << pte.paPpnShift(j);
+    {
+      uint64_t ppnVal = pte.ppn(j);
+      unsigned napotBits = pte.napotBits(j);
+      if (napotBits)
+        {
+          uint64_t mask = (uint64_t(1) << napotBits) - 1;
+          ppnVal = (ppnVal & ~mask) | (va.vpn(j) & mask);
+        }
+      pa = pa | ppnVal << pte.paPpnShift(j);
+    }
 
   if (trace_)
     walkVec.back().emplace_back(pa, WalkEntry::Type::RE);
@@ -833,7 +842,16 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
     pa = pa | (va.vpn(j) << pte.paPpnShift(j)); // Copy from va to pa
 
   for (unsigned j = ii; j < levels; ++j)
-    pa = pa | pte.ppn(j) << pte.paPpnShift(j);
+    {
+      uint64_t ppnVal = pte.ppn(j);
+      unsigned napotBits = pte.napotBits(j);
+      if (napotBits)
+        {
+          uint64_t mask = (uint64_t(1) << napotBits) - 1;
+          ppnVal = (ppnVal & ~mask) | (va.vpn(j) & mask);
+        }
+      pa = pa | ppnVal << pte.paPpnShift(j);
+    }
 
   if (trace_)
     walkVec.back().emplace_back(pa, WalkEntry::Type::RE);
@@ -1015,7 +1033,16 @@ VirtMem::stage1PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
     pa = pa | (va.vpn(j) << pte.paPpnShift(j)); // Copy from va to pa
 
   for (unsigned j = ii; j < levels; ++j)
-    pa = pa | pte.ppn(j) << pte.paPpnShift(j);
+    {
+      uint64_t ppnVal = pte.ppn(j);
+      unsigned napotBits = pte.napotBits(j);
+      if (napotBits)
+        {
+          uint64_t mask = (uint64_t(1) << napotBits) - 1;
+          ppnVal = (ppnVal & ~mask) | (va.vpn(j) & mask);
+        }
+      pa = pa | ppnVal << pte.paPpnShift(j);
+    }
 
   if (trace_)
     walkVec.back().emplace_back(pa, WalkEntry::Type::RE);

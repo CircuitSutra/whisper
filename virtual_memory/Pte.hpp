@@ -107,8 +107,15 @@ namespace WdRiscv
     /// Page based memory type. NA for Sv32.
     static constexpr uint32_t pbmt()  { return 0; }
 
-    /// Naturally aligned power of 2 translation. NA for Sv32.
+    /// Naturally aligned power of 2 translation (NAPOT). Does not apply to Sv32.
     static constexpr bool hasNapot()  { return false; }
+
+    /// Return the NAPOT bits for the ith physical page number (PPN). Return 0 if NAPOT is
+    /// off in this PTE or if it does not apply to the ith PPN. See the SVNAPOT extension
+    /// spec. Currently (version 1.0) this applies to PPN0 and the number of NAPOT bits is
+    /// 4.
+    unsigned napotBits(unsigned i) const
+    { return (i > 0 or not hasNapot()) ? 0 : 4; }
 
     /// Return the ith physical page number (PPN) field encoded in
     /// this PTE. The index i must be smaller than the number of
@@ -235,6 +242,13 @@ namespace WdRiscv
 
     /// Naturally aligned power of 2 translation.
     bool hasNapot() const  { return bits_.n_; }
+
+    /// Return the NAPOT bits for the ith physical page number (PPN). Return 0 if NAPOT is
+    /// off in this PTE or if it does not apply to the ith PPN. See the SVNAPOT extension
+    /// spec. Currently (version 1.0) this applies to PPN0 and the number of NAPOT bits is
+    /// 4.
+    unsigned napotBits(unsigned i) const
+    { return (i > 0 or not hasNapot()) ? 0 : 4; }
 
     /// Return the ith physical page number (PPN) field encoded in
     /// this PTE. The index i must be smaller than the number of
@@ -374,6 +388,13 @@ namespace WdRiscv
 
     /// Naturally aligned power of 2 translation.
     bool hasNapot() const  { return bits_.n_; }
+
+    /// Return the NAPOT bits for the ith physical page number (PPN). Return 0 if NAPOT is
+    /// off in this PTE or if it does not apply to the ith PPN. See the SVNAPOT extension
+    /// spec. Currently (version 1.0) this applies to PPN0 and the number of NAPOT bits is
+    /// 4.
+    unsigned napotBits(unsigned i) const
+    { return (i > 0 or not hasNapot()) ? 0 : 4; }
 
     /// Return the ith physical page number (PPN) field encoded in
     /// this PTE. The index i must be smaller than the number of
@@ -521,6 +542,13 @@ namespace WdRiscv
 
     /// Naturally aligned power of 2 translation.
     bool hasNapot() const  { return bits_.n_; }
+
+    /// Return the NAPOT bits for the ith physical page number (PPN). Return 0 if NAPOT is
+    /// off in this PTE or if it does not apply to the ith PPN. See the SVNAPOT extension
+    /// spec. Currently (version 1.0) this applies to PPN0 and the number of NAPOT bits is
+    /// 4.
+    unsigned napotBits(unsigned i) const
+    { return (i > 0 or not hasNapot()) ? 0 : 4; }
 
     /// Return the ith physical page number (PPN) field encoded in
     /// this PTE. The index i must be smaller than the number of

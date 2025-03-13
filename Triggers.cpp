@@ -384,8 +384,7 @@ Triggers<URV>::instOpcodeTriggerHit(URV opcode, TriggerTiming timing,
 
 template <typename URV>
 bool
-Triggers<URV>::icountTriggerHit(PrivilegeMode prevPrivMode, bool prevVirtMode, PrivilegeMode mode,
-				bool virtMode, bool interruptEnabled)
+Triggers<URV>::icountTriggerFired(PrivilegeMode mode, bool virtMode, bool interruptEnabled)
 {
   // Check if we should skip tripping because we are running in machine mode and
   // interrupts are enabled.
@@ -397,25 +396,49 @@ Triggers<URV>::icountTriggerHit(PrivilegeMode prevPrivMode, bool prevVirtMode, P
 
   for (auto& trig : triggers_)
     {
-      if (trig.isModified() and not icountOnModified_)
-	continue; // Trigger was written by current instruction.
-
-      if (not trig.instCountdown(prevPrivMode, prevVirtMode))
+      if (not trig.matchInstCount(mode, virtMode))
         continue;
 
       if (not trig.isEnterDebugOnHit() and skip)
 	continue;  // Cannot fire in machine mode.
 
-      if (not trig.matchInstCount(mode, virtMode) or
-          not trig.data1_.icount_.pending_)
-        continue; // Next mode is non-matching.
+      if (trig.data1_.icount_.pending_)
+        hit = true;
 
-      hit = true;
-      trig.setHit(true);
-      trig.setLocalHit(true);
       trig.data1_.icount_.pending_ = false;
     }
+
   return hit;
+}
+
+
+template <typename URV>
+void
+Triggers<URV>::evaluateIcount(PrivilegeMode mode, bool virtMode, bool interruptEnabled)
+{
+  // Check if we should skip tripping because we are running in machine mode and
+  // interrupts are enabled.
+  bool skip = mode == PrivilegeMode::Machine and not interruptEnabled;
+  if (tcontrolEnabled_)
+    skip = mode == PrivilegeMode::Machine and not mmodeEnabled_;
+
+  for (auto& trig : triggers_)
+    {
+      if (trig.isModified() and not icountOnModified_)
+	continue; // Trigger was written by current instruction.
+
+      if (not trig.instCountdown(mode, virtMode))
+        continue;
+
+      if (not trig.isEnterDebugOnHit() and skip)
+	continue;  // Cannot hit in machine mode.
+
+      if (not trig.data1_.icount_.pending_)
+        continue;
+
+      trig.setHit(true);
+      trig.setLocalHit(true);
+    }
 }
 
 

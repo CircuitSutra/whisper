@@ -1108,17 +1108,20 @@ namespace WdRiscv
 
     /// Make every active icount trigger count down unless it was written by the current
     /// instruction. Set the hit bit of a counted-down register if its value becomes
-    /// zero. Return true if any counted-down register reaches zero; otherwise, return
-    /// false.
-    bool icountTriggerHit(PrivilegeMode prevPrivMode, bool prevVirtMode,
-                          PrivilegeMode mode, bool virtMode, bool ie)
+    /// zero
+    void evaluateIcountTrigger(PrivilegeMode mode, bool virtMode, bool ie)
     {
-      bool hit = triggers_.icountTriggerHit(prevPrivMode, prevVirtMode, mode, virtMode, ie);
+      triggers_.evaluateIcount(mode, virtMode, ie);
       URV tselect = 0;
       peek(CsrNumber::TSELECT, tselect);
       if (triggers_.getLocalHit(tselect))
 	recordWrite(CsrNumber::TDATA1);  // Hit bit in TDATA1 changed.
-      return hit;
+    }
+
+    /// Return true if a pending icount triger can fire clearning its pending status.
+    bool icountTriggerFired(PrivilegeMode mode, bool virtMode, bool ie)
+    {
+      return triggers_.icountTriggerFired(mode, virtMode, ie);
     }
 
     /// Set pre and post to the count of "before"/"after" triggers
