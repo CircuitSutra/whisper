@@ -183,6 +183,8 @@ namespace WdRiscv
       uint64_t addr_ = 0;
       Type type_ = Type::PA;
       Pbmt pbmt_ = Pbmt::None; // Only applicable for leaf entries
+      bool accessed_ = false;  // True if A bit set by walk (for leaf entries)
+      bool dirty_ = false;     // True if D bit set by walk (for leaf entries)
     };
 
     /// Return the addresses of the instruction page table entries
