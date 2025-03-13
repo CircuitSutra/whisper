@@ -1261,6 +1261,10 @@ CsRegs<URV>::enableSmmpm(bool flag)
       MseccfgFields<URV> rm{regs_.at(size_t(CN::MSECCFG)).getReadMask()};
       rm.bits_.PMM = mask;
       regs_.at(size_t(CN::MSECCFG)).setReadMask(rm.value_);
+
+      setCsrFields(CN::MSECCFG,
+                   { {"MML", 1}, {"MMWP", 1}, {"RLB", 1}, {"zero", 5}, {"USEED", 1},
+                     {"SSEED", 1}, {"MLPE", 1}, {"ZERO", 21}, {"PMM", 2}, {"zero", 20} });
     }
 }
 
