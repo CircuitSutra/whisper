@@ -1638,17 +1638,17 @@ static std::vector<InterruptCause> parseInterruptArray(const nlohmann::json &arr
     {
       std::string s = item.get<std::string>();
       std::transform(s.begin(), s.end(), s.begin(), ::tolower);
-      else if (s == "ssi")       ic = InterruptCause::S_SOFTWARE;
-      else if (s == "vssi")      ic = InterruptCause::VS_SOFTWARE;
-      else if (s == "msi")       ic = InterruptCause::M_SOFTWARE;
-      else if (s == "sti")       ic = InterruptCause::S_TIMER;
-      else if (s == "vsti")      ic = InterruptCause::VS_TIMER;
-      else if (s == "mti")       ic = InterruptCause::M_TIMER;
-      else if (s == "sei")       ic = InterruptCause::S_EXTERNAL;
-      else if (s == "vsei")      ic = InterruptCause::VS_EXTERNAL;
-      else if (s == "mei")       ic = InterruptCause::M_EXTERNAL;
-      else if (s == "sgei")      ic = InterruptCause::G_EXTERNAL;
-      else if (s == "lcofi")     ic = InterruptCause::LCOF;
+      else if (s == "ssi")         ic = InterruptCause::S_SOFTWARE;
+      else if (s == "vssi")        ic = InterruptCause::VS_SOFTWARE;
+      else if (s == "msi")         ic = InterruptCause::M_SOFTWARE;
+      else if (s == "sti")         ic = InterruptCause::S_TIMER;
+      else if (s == "vsti")        ic = InterruptCause::VS_TIMER;
+      else if (s == "mti")         ic = InterruptCause::M_TIMER;
+      else if (s == "sei")         ic = InterruptCause::S_EXTERNAL;
+      else if (s == "vsei")        ic = InterruptCause::VS_EXTERNAL;
+      else if (s == "mei")         ic = InterruptCause::M_EXTERNAL;
+      else if (s == "sgei")        ic = InterruptCause::G_EXTERNAL;
+      else if (s == "lcofi")       ic = InterruptCause::LCOF;
       else
       {
         std::cerr << "Unknown interrupt symbol in " << context << ": " << s << "\n";
