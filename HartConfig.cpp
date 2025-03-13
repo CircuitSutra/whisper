@@ -1638,7 +1638,7 @@ static std::vector<InterruptCause> parseInterruptArray(const nlohmann::json &arr
     {
       std::string s = item.get<std::string>();
       std::transform(s.begin(), s.end(), s.begin(), ::tolower);
-      else if (s == "ssi")         ic = InterruptCause::S_SOFTWARE;
+      if (s == "ssi")              ic = InterruptCause::S_SOFTWARE;
       else if (s == "vssi")        ic = InterruptCause::VS_SOFTWARE;
       else if (s == "msi")         ic = InterruptCause::M_SOFTWARE;
       else if (s == "sti")         ic = InterruptCause::S_TIMER;
