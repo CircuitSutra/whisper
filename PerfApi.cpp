@@ -851,10 +851,12 @@ PerfApi::setStoreData(unsigned hartIx, uint64_t tag, uint64_t pa1, uint64_t pa2,
   if (pa1 != pa2)
     {
       bool isDev = hart.isAclintAddr(pa1) or hart.isImsicAddr(pa1) or hart.isPciAddr(pa1);
-      assert(not isDev);
+      if (isDev)
+        assert(0);
 
       isDev = hart.isAclintAddr(pa2) or hart.isImsicAddr(pa2) or hart.isPciAddr(pa2);
-      assert(not isDev);
+      if (isDev)
+        assert(0);
     }
 
   packet.dpa_ = pa1;
