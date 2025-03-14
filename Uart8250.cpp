@@ -34,7 +34,7 @@ FDChannel::FDChannel(int in_fd, int out_fd)
 }
 
 size_t FDChannel::read(uint8_t *arr, size_t n) {
-  int code = poll(pollfds_, 2, -1);
+  int code = poll(pollfds_, 2, 10);
 
   if (code == 0)
     return 0;
