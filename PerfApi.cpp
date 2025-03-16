@@ -1502,8 +1502,8 @@ PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
     {
       uint64_t sva = 0, spa1 = 0, spa2 = 0, sval = 0;
       unsigned ssize = hart.lastStore(sva, spa1, spa2, sval);
-      if (ssize == 0 and (di.isStore() or di.isAmo()))  // sc or vec-store may have size 0
-	{
+      if (ssize == 0 and (di.isStore() or di.isAmo()) and not di.isSc())
+	{    // sc or vec-store may have 0 size
 	  std::cerr << "Hart=" << hartIx << " tag=" << packet.tag_
 		    << " store/AMO with zero size\n";
 	  assert(0);
