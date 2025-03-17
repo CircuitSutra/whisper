@@ -85,6 +85,9 @@ namespace WdRiscv
 
     std::unique_ptr<UartChannel> channel_;
 
+    /// Update the interrupt status based on the current state of the Uart
+    void interruptUpdate();
+
     /// This runs in its own thread. It monitors the standard input and
     /// marks interrupt pending when input is possible placing the input
     /// character in the rx_fifo for the Uart to consme.
