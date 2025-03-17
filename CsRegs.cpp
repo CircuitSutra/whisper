@@ -4626,6 +4626,8 @@ CsRegs<URV>::addMachineFields()
          {"CBZE", 1}, {"res1", 24}});
       setCsrFields(CsrNumber::MENVCFGH,
         {{"PMM", 2}, {"res0", 28}, {"PBMTE", 1}, {"STCE", 1}});
+      setCsrFields(CsrNumber::MSECCFGH,
+        {{"PMM", 2}, {"Zero", 30}});
       setCsrFields(CsrNumber::MCYCLEH, {{"mcycleh", 32}});
       setCsrFields(CsrNumber::MINSTRETH, {{"minstreth", 32}});
     }
@@ -4643,6 +4645,9 @@ CsRegs<URV>::addMachineFields()
         {{"FIOM", 1}, {"res0",  3}, {"CBIE", 2}, {"CBCFE", 1},
          {"CBZE", 1}, {"res1", 24}, {"PMM",  2}, {"res2", 27},
          {"ADUE", 1}, {"PBMTE", 1}, {"STCE", 1}});
+      setCsrFields(CsrNumber::MSECCFG,
+        {{"MML", 1}, {"MMWP", 1}, {"RLB", 1}, {"Zero", 5}, {"USEED", 1}, {"SSEED", 1}, {"Zero", 22},
+        {"PMM",2}, {"Zero", 30}});
     }
 
   unsigned pmpIx = 0;
