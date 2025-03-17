@@ -162,5 +162,6 @@ namespace WdRiscv
     bool logPerHart = false; // Enable separate log files for each hart.
     bool loadFromTrace = false;    // Enable loading trace information from snapshot.
     bool hintOps = false;    // Enable HINT ops.
+    bool logLabel = false;
   };
 }

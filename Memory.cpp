@@ -1205,3 +1205,22 @@ Memory::resetMemoryMappedRegisters()
 {
   pmaMgr_.resetMemMapped();
 }
+
+
+// [symbol.addr_, symbol.addr_+symbol.size_), pick the one with the highest base address.
+std::string Memory::findSymbolName(uint64_t addr) const {
+  std::string best;
+  uint64_t bestAddr = 0;
+  for (const auto& entry : symbols_) {
+    const std::string& symName = entry.first;
+    const ElfSymbol& sym = entry.second;
+    if (addr >= sym.addr_ && addr < sym.addr_ + sym.size_) {
+      // In case of nested symbols, pick the one with the greatest base address.
+      if (sym.addr_ >= bestAddr) {
+        bestAddr = sym.addr_;
+        best = symName;
+      }
+    }
+  }
+  return best;
+}

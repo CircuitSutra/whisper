@@ -308,7 +308,15 @@ Hart<URV>::printDecodedInstTrace(const DecodedInst& di, uint64_t tag, std::strin
       printInstCsvTrace(di, out);
       return;
     }
-
+  if (logLabelEnabled_)
+  {
+    std::string label = memory_.findSymbolName(di.address());
+    if (!label.empty())
+    {
+      // Prepend the label (e.g. "[<label>] ") to the disassembled string.
+      tmp = "[" + label + "] " + tmp;
+    }
+  }
   // Serialize to avoid jumbled output.
   auto lock = (ownTrace_)? std::unique_lock<std::mutex>() : std::unique_lock<std::mutex>(printInstTraceMutex());
 

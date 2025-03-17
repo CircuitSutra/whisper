@@ -127,7 +127,7 @@ namespace WdRiscv
   class Hart
   {
   public:
-
+    void setLogLabelEnabled(bool enable) { logLabelEnabled_ = enable; }
     /// Alias the template parameter to allow it to be used outside this
     /// template.
     using URV = URV_;
@@ -5432,7 +5432,7 @@ namespace WdRiscv
     void execLpad(const DecodedInst*);
 
   private:
-
+    bool logLabelEnabled_ = false;
     // We model non-blocking load buffer in order to undo load
     // effects after an imprecise load exception.
     struct LoadInfo
