@@ -1500,12 +1500,12 @@ PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
       packet.dsize_ = di.loadSize();
       packet.deviceAccess_ = hart.isAclintMtimeAddr(packet.dpa_) or hart.isImsicAddr(packet.dpa_) or hart.isPciAddr(packet.dpa_) or hart.isHtifAddr(packet.dpa_);
     }
-  else if (di.isStore() or di.isAmo())
+  else if (di.isStore() or di.isAmo() or di.isVectorStore())
     {
       uint64_t sva = 0, spa1 = 0, spa2 = 0, sval = 0;
       unsigned ssize = hart.lastStore(sva, spa1, spa2, sval);
-      if (ssize == 0 and not di.isSc())
-	{
+      if (ssize == 0 and (di.isStore() or di.isAmo()) and not di.isSc())
+	{    // sc or vec-store may have 0 size
 	  std::cerr << "Hart=" << hartIx << " tag=" << packet.tag_
 		    << " store/AMO with zero size\n";
 	  assert(0);
@@ -1516,10 +1516,19 @@ PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
       packet.dpa2_ = spa2;
       packet.dsize_ = ssize;
       assert(ssize == packet.dsize_);
-      if (di.isStore() and not di.isSc())
+    
+      auto& storeMap =  hartStoreMaps_.at(hartIx);
+      auto tag = packet.tag();
+
+      if (di.isVectorStore())
+        {
+          storeMap[tag] = getInstructionPacket(hartIx, tag);
+          // FIX What to do about device access? Do we allow mixed device/non-device
+          // access?
+        }
+      else if (di.isStore() and not di.isSc())
 	{
-	  auto& storeMap =  hartStoreMaps_.at(hartIx);
-	  storeMap[packet.tag()] = getInstructionPacket(hartIx, packet.tag());
+	  storeMap[tag] = getInstructionPacket(hartIx, tag);
 	  packet.deviceAccess_ = hart.isAclintMtimeAddr(packet.dpa_) or hart.isImsicAddr(packet.dpa_) or hart.isPciAddr(packet.dpa_) or hart.isHtifAddr(packet.dpa_);
 	}
     }
