@@ -970,6 +970,9 @@ Session<URV>::applyCmdLineArgs(const Args& args, Hart<URV>& hart,
   if (args.hintOps)
     hart.enableHintOps(args.hintOps);
 
+  if (args.logLabel)
+    hart.setLogLabelEnabled(true);
+
   return errors == 0;
 }
 
