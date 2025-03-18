@@ -49,18 +49,18 @@ size_t FDChannel::read(uint8_t *arr, size_t n) {
     {
       ssize_t count = ::read(in_fd_, arr, n);
       if (count < 0)
-	throw std::runtime_error("FDChannel: Failed to read from in_fd_\n");
+        throw std::runtime_error("FDChannel: Failed to read from in_fd_\n");
 
       if (isatty(in_fd_))
-	for (size_t i = 0; i < static_cast<size_t>(count); i++) {
-	  static uint8_t prev = 0;
-	  const uint8_t c = arr[i];
+        for (size_t i = 0; i < static_cast<size_t>(count); i++) {
+          static uint8_t prev = 0;
+          const uint8_t c = arr[i];
 
-	  // Force a stop if control-a x is seen.
-	  if (prev == 1 and c == 'x')
-	    throw std::runtime_error("Keyboard stop");
-	  prev = c;
-	}
+          // Force a stop if control-a x is seen.
+          if (prev == 1 and c == 'x')
+            throw std::runtime_error("Keyboard stop");
+          prev = c;
+        }
 
       return count;
     }
@@ -131,138 +131,133 @@ Uart8250::~Uart8250()
   inThread_.join();
 }
 
-uint32_t
-Uart8250::read(uint64_t addr)
-{
+void Uart8250::interruptUpdate() {
+  uint32_t initialIir = iir_;
+  iir_ &= ~0xf;
+  if ((ier_ & 0x01) && (lsr_ & 0x01)) {
+    iir_ |= 0x04; // Receive interrupt pending
+  } else if ((ier_ & 0x02) && (lsr_ & 0x20)) {
+    iir_ |= 0x02; // Transmitter Holding Register Empty Interrupt
+  } else {
+    iir_ |= 0x01; // No interrupt pending
+  }
+
+  if ((initialIir & 1) != (iir_ & 1)) {
+    setInterruptPending(!(iir_ & 1));
+  }
+}
+
+uint32_t Uart8250::read(uint64_t addr) {
   uint64_t offset = (addr - address()) / 4;
   bool dlab = lcr_ & 0x80;
 
-  if (dlab == 0)
-    {
-      switch (offset)
-	{
-	case 0:
-	  {
-	    std::unique_lock<std::mutex> lock(mutex_);
-	    uint32_t res = 0;
-	    if (!rx_fifo.empty()) {
-	      res = rx_fifo.front();
-	      rx_fifo.pop();
-	    }
-	    if (rx_fifo.empty()) {
-	      lsr_ &= ~1;  // Clear least sig bit
-	      iir_ |= 1;   // Set least sig bit indicating no interrupt.
-	      setInterruptPending(false);
-	    }
-	    lock.unlock();
-	    cv_.notify_all();
-	    return res;
-	  }
-
-	case 1: return ier_;
-	case 2: return iir_;
-	case 3: return lcr_;
-	case 4: return mcr_;
-	case 5: return lsr_;
-	case 6: return msr_;
-	case 7: return scr_;
-	}
+  if (dlab == 0) {
+    switch (offset) {
+      case 0: {
+        std::unique_lock<std::mutex> lock(mutex_);
+        uint32_t res = 0;
+        if (!rx_fifo.empty()) {
+          res = rx_fifo.front();
+          rx_fifo.pop();
+        }
+        if (rx_fifo.empty())
+          lsr_ &= ~1; // Clear least sig bit of line status.
+        lock.unlock();
+        cv_.notify_all();
+        return res;
+      }
+      case 1: return ier_;
+      case 2: {
+	uint32_t iir = iir_;
+	interruptUpdate();
+	return iir;
+      } 
+      case 3: return lcr_;
+      case 4: return mcr_;
+      case 5: return lsr_;
+      case 6: return msr_;
+      case 7: return scr_;
     }
-  else
-    {
-      switch (offset)
-	{
-	case 0: return dll_;
-	case 1: return dlm_;
-	}
+  } else {
+    switch (offset) {
+      case 0: return dll_;
+      case 1: return dlm_;
     }
+  }
 
   assert(0);
   return 0;
 }
 
-
-void
-Uart8250::write(uint64_t addr, uint32_t value)
-{
+void Uart8250::write(uint64_t addr, uint32_t value) {
   uint64_t offset = (addr - address()) / 4;
   bool dlab = lcr_ & 0x80;
 
-  if (dlab == 0)
-    {
-      switch (offset)
-	{
-	case 0:
-	    {
-	      uint8_t byte = value;
-	      if (byte)
-		{
-		  channel_->write(byte);
-		}
-	    }
-	  break;
-
-	case 1: ier_ = value; break;
-	case 2: fcr_ = value; break;
-	case 3: lcr_ = value; break;
-	case 4: mcr_ = value; break;
-	case 5:
-	case 6: break;
-	case 7: scr_ = value; break;
-	default:
-	  std::cerr << "Uart writing addr 0x" << std::hex << addr << std::dec << '\n';
-	  assert(0);
-	}
+  if (dlab == 0) {
+    switch (offset) {
+      case 0: {
+        uint8_t byte = value;
+        if (byte) {
+          channel_->write(byte);
+        }
+        interruptUpdate();
+      }
+      break;
+      case 1: { 
+        ier_ = value;
+        interruptUpdate();
+      } break;
+      case 2: fcr_ = value; break;
+      case 3: lcr_ = value; break;
+      case 4: mcr_ = value; break;
+      case 5:
+      case 6: break;
+      case 7: scr_ = value; break;
+      default:
+        /* std::cerr << "Uart writing addr 0x" << std::hex << addr << std::dec << '\n'; */
+        assert(0);
     }
-  else
-    {
-      switch (offset)
-	{
-	case 0: dll_ = value; break;
-	case 1: dlm_ = value; break;
-	case 3: lcr_ = value; break;
-	case 5: psd_ = value; break;
-	default:
-	  std::cerr << "Uart writing addr 0x" << std::hex << addr << std::dec << '\n';
-	  assert(0);
-	}
+  } else {
+    switch (offset) {
+      case 0: dll_ = value; break;
+      case 1: dlm_ = value; break;
+      case 3: lcr_ = value; break;
+      case 5: psd_ = value; break;
+      default:
+        /* std::cerr << "Uart writing addr 0x" << std::hex << addr << std::dec << '\n'; */
+        assert(0);
     }
+  }
 }
 
 
 
-void
-Uart8250::monitorInput()
-{
-  while (true)
-  {
+void Uart8250::monitorInput() {
+  while (true) {
     if (terminate_)
       return;
 
     std::array<uint8_t, FIFO_SIZE> arr;
     size_t count = channel_->read(arr.data(), FIFO_SIZE);
 
-
     if (count != 0) {
       std::unique_lock<std::mutex> lock(mutex_);
 
       size_t i = 0;
       do {
-	if (terminate_)
-	  return;
+        if (terminate_)
+          return;
 
-	for (; i < count && rx_fifo.size() < FIFO_SIZE; i++)
-	{
-	  rx_fifo.push(arr[i]);
-	}
+        for (; i < count && rx_fifo.size() < FIFO_SIZE; i++) {
+          rx_fifo.push(arr[i]);
+        }
 
-	lsr_ |= 1;  // Set least sig bit of line status.
-	iir_ &= ~1;  // Clear bit 0 indicating interrupt is pending.
-	setInterruptPending(true);
+        lsr_ |= 1;  // Set receiver data ready
+        interruptUpdate();
 
-	if (rx_fifo.size() >= FIFO_SIZE)
-	  // Block until rx_fifo has space
-	  cv_.wait(lock);
+        if (rx_fifo.size() >= FIFO_SIZE)
+          // Block until rx_fifo has space
+          cv_.wait(lock);
       } while (i != count);
     }
   }
