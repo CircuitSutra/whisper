@@ -809,6 +809,10 @@ namespace WdRiscv
     void setAclintAdjustTimeCompare(uint64_t offset)
     { aclintAdjustTimeCmp_ = offset; }
 
+    /// Enable/disable interrupt delivery by the ACLINT device.
+    void setAclintDeliverInterrupts(bool flag)
+    { aclintDeliverInterrupts_ = flag; }
+
     /// Set the output file in which to dump the state of accessed
     /// memory lines. Return true on success and false if file cannot
     /// be opened.
