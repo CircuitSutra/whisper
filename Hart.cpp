@@ -5859,9 +5859,6 @@ Hart<URV>::isInterruptPossible(URV mip, URV sip, [[maybe_unused]] URV vsip,
                                InterruptCause& cause, PrivilegeMode& nextMode,
                                bool& nextVirt) const
 {
-  if (debugMode_)
-    return false;
-
   // If in a non-maskable interrupt handler, then all interrupts disabled.
   if (extensionIsEnabled(RvExtension::Smrnmi) and
       (MnstatusFields{csRegs_.peekMnstatus()}.bits_.NMIE) == 0)
@@ -6001,6 +5998,9 @@ Hart<URV>::processExternalInterrupt(FILE* traceFile, std::string& instStr)
     return false;
 
   if (dcsrStep_ and not dcsrStepIe_)
+    return false;
+
+  if (debugMode_ and not dcsrStep_)
     return false;
 
   // If a non-maskable interrupt was signaled by the test-bench, consider it.
@@ -6214,7 +6214,7 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
 	    accumulateInstructionStats(di);
 	  printDecodedInstTrace(di, instCounter_, instStr, traceFile);
 	  if (dcsrStep_ and not debugMode_ and not ebreakInstDebug_)
-	    enterDebugMode_(DebugModeCause::STEP, pc_);
+	    enterDebugMode_(DebugModeCause::STEP, pc_, dcsrStep_);
 	  return;
 	}
 
@@ -6234,7 +6234,7 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
 
       // If step bit set in dcsr then enter debug mode unless already there.
       if (dcsrStep_ and not debugMode_ and not ebreakInstDebug_)
-	enterDebugMode_(DebugModeCause::STEP, pc_);
+	enterDebugMode_(DebugModeCause::STEP, pc_, dcsrStep_);
 
       prevPerfControl_ = perfControl_;
     }
@@ -6243,7 +6243,7 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
       // If step bit set in dcsr then enter debug mode unless already there.
       // This is for the benefit of the test bench.
       if (dcsrStep_ and not debugMode_ and not ebreakInstDebug_)
-	enterDebugMode_(DebugModeCause::STEP, pc_);
+	enterDebugMode_(DebugModeCause::STEP, pc_, dcsrStep_);
 
       stepResult_ = logStop(ce, instCounter_, traceFile);
       if (ce.type() == CoreException::Type::Snapshot or
@@ -9912,7 +9912,7 @@ Hart<URV>::enableInstructionFrequency(bool b)
 
 template <typename URV>
 void
-Hart<URV>::enterDebugMode_(DebugModeCause cause, URV pc)
+Hart<URV>::enterDebugMode_(DebugModeCause cause, URV pc, bool fromDcsrStep)
 {
   if (cancelLrOnDebug_)
     cancelLr(CancelLrCause::ENTER_DEBUG);  // Lose LR reservation.
@@ -9947,12 +9947,15 @@ Hart<URV>::enterDebugMode_(DebugModeCause cause, URV pc)
   csRegs_.poke(CsrNumber::DPC, pc);
   setPrivilegeMode(PrivilegeMode::Machine);
 
-  // If hart is configured to jump to a special target on enetering debug mode, then set
-  // the pc to that target.
-  if (debugParkLoop_ != ~URV(0))
+  if (not fromDcsrStep)
     {
-      pc_ = debugParkLoop_;
-      inDebugParkLoop_ = true;
+      // If hart is configured to jump to a special target on enetering debug mode, then set
+      // the pc to that target.
+      if (debugParkLoop_ != ~URV(0))
+        {
+          pc_ = debugParkLoop_;
+          inDebugParkLoop_ = true;
+        }
     }
 }
 

@@ -1324,9 +1324,11 @@ namespace WdRiscv
     void enableZicfilp(bool flag)
     { enableExtension(RvExtension::Zicfilp, flag); csRegs_.enableZicfilp(flag); }
 
-    /// Put this hart in debug mode setting the DCSR cause field to
-    /// the given cause. Set the debug pc (DPC) to the given pc.
-    void enterDebugMode_(DebugModeCause cause, URV pc);
+    /// Put this hart in debug mode setting the DCSR cause field to the given cause. Set
+    /// the debug pc (DPC) to the given pc. If not re-entering debug mode after a DCSR step
+    /// (fromDcsrStep == false), and if the debug park loop is enabled, then set PC to the
+    /// debug-park-loop entry point.
+    void enterDebugMode_(DebugModeCause cause, URV pc, bool fromDcsrStep = false);
 
     /// Put this hart in debug mode setting the DCSR cause field to
     /// either DEBUGGER or SETP depending on the step bit of DCSR.
@@ -2618,6 +2620,11 @@ namespace WdRiscv
     { autoIncrementTimer_ = flag; }
 
   protected:
+
+    /// Helper to singleStep. When DCSR.step is set and the hart is in debug mode,
+    /// singleStep will turn off debug mode, call this, and turn debug mode back on.  When
+    /// DCSR.step is not set, singleStep will just call this.
+    void singleStep_(DecodedInst& di, FILE* file = nullptr);
 
     /// Retun cached value of the mpp field of the mstatus CSR.
     PrivilegeMode mstatusMpp() const
