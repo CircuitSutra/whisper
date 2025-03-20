@@ -1386,7 +1386,12 @@ namespace WdRiscv
     URV peekMvip() const
     {
       const auto& csr = regs_.at(size_t(CsrNumber::MVIP));
-      return csr.read();
+      /// Special hack for RTL which applies mip bit 1 aliasing on
+      /// reads.
+      URV mip = peekMip();
+      URV mvien = peekMvien();
+      URV mask = ~mvien & URV(0x2);
+      return (csr.read() & ~mask) | (mip & mask);
     }
 
     /// Fast peek method for MVIEN.
