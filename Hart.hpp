@@ -2614,10 +2614,6 @@ namespace WdRiscv
 
     void setLogLabelEnabled(bool enable) { logLabelEnabled_ = enable; }
 
-    // Accessors for the last printed label (only print a new one when it changes)
-    const std::string& getLastPrintedSymbolLabel() const { return lastPrintedSymbolLabel_; }
-    void setLastPrintedSymbolLabel(const std::string& label) { lastPrintedSymbolLabel_ = label; }
-
     Memory& getMemory() { return memory_; }
     const Memory& getMemory() const { return memory_; }
 
@@ -5441,7 +5437,6 @@ namespace WdRiscv
 
   private:
     bool logLabelEnabled_ = false;
-    std::string lastPrintedSymbolLabel_;
     // We model non-blocking load buffer in order to undo load
     // effects after an imprecise load exception.
     struct LoadInfo
