@@ -2614,11 +2614,10 @@ namespace WdRiscv
 
     void setLogLabelEnabled(bool enable) { logLabelEnabled_ = enable; }
 
-    // Accessors for the last printed label (so we only print a new one when it changes)
+    // Accessors for the last printed label (only print a new one when it changes)
     const std::string& getLastPrintedSymbolLabel() const { return lastPrintedSymbolLabel_; }
     void setLastPrintedSymbolLabel(const std::string& label) { lastPrintedSymbolLabel_ = label; }
 
-    // (Also, add a getter for the memory reference if needed)
     Memory& getMemory() { return memory_; }
     const Memory& getMemory() const { return memory_; }
 
