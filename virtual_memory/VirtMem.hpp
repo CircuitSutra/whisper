@@ -296,40 +296,47 @@ namespace WdRiscv
     bool lastTwoStage() const
     { return twoStage_; }
 
-    // =======================
-    // Callback setter APIs 
-    void setMemReadCallback(const std::function<bool(uint64_t, bool, uint64_t&)>& cb) {
-      memReadCallback64_ = cb;
-    }
-    void setMemReadCallback(const std::function<bool(uint64_t, bool, uint32_t&)>& cb) {
-      memReadCallback32_ = cb;
-    }
-    void setMemWriteCallback(const std::function<bool(uint64_t, bool, uint64_t)>& cb) {
-      memWriteCallback_ = cb;
-    }
-    void setPmpIsReadableCallback(const std::function<bool(uint64_t, PrivilegeMode)>& cb) {
-      pmpReadableCallback_ = cb;
-    }
-    void setPmpIsWritableCallback(const std::function<bool(uint64_t, PrivilegeMode)>& cb) {
-      pmpWritableCallback_ = cb;
-    }
 
-    // Callback getter APIs
-    const std::function<bool(uint64_t, bool, uint64_t&)>& getMemReadCallback64() const {
-      return memReadCallback64_;
-    }
-    const std::function<bool(uint64_t, bool, uint32_t&)>& getMemReadCallback32() const {
-      return memReadCallback32_;
-    }
-    const std::function<bool(uint64_t, bool, uint64_t)>& getMemWriteCallback() const {
-      return memWriteCallback_;
-    }
-    const std::function<bool(uint64_t, PrivilegeMode)>& getPmpReadableCallback() const {
-      return pmpReadableCallback_;
-    }
-    const std::function<bool(uint64_t, PrivilegeMode)>& getPmpWritableCallback() const {
-      return pmpWritableCallback_;
-    }
+    /// Define callback to be used by this class to read a memory word.
+    /// Callback args: (uint64_t addr, bool bigEndian, uin64_t& value)
+    void setMemReadCallback(const std::function<bool(uint64_t, bool, uint64_t&)>& cb)
+    { memReadCallback64_ = cb; }
+
+    /// Define callback to be used by this class to read a memory double-word.
+    /// Callback args: (uint64_t addr, bool bigEndian, uint32_t& value)
+    void setMemReadCallback(const std::function<bool(uint64_t, bool, uint32_t&)>& cb)
+    { memReadCallback32_ = cb; }
+
+    /// Define callback to be used by this class to read a memory double-word.
+    /// Callback args: (uint64_t addr, bool bigEndian, uint64_t value)
+    void setMemWriteCallback(const std::function<bool(uint64_t, bool, uint64_t)>& cb)
+    { memWriteCallback_ = cb; }
+
+    /// Define callback to be used by this class to determine whether or not
+    /// an address is readable. This includes PMP and PMA checks.
+    void setIsReadableCallback(const std::function<bool(uint64_t, PrivilegeMode)>& cb)
+    { isReadableCallback_ = cb; }
+
+    /// Define callback to be used by this class to determine whether or not
+    /// an address is readable. This includes PMP and PMA checks.
+    void setIsWritableCallback(const std::function<bool(uint64_t, PrivilegeMode)>& cb)
+    { isWritableCallback_ = cb; }
+
+    /// Callback getter APIs
+    const std::function<bool(uint64_t, bool, uint64_t&)>& getMemReadCallback64() const
+    { return memReadCallback64_; }
+
+    const std::function<bool(uint64_t, bool, uint32_t&)>& getMemReadCallback32() const
+    { return memReadCallback32_; }
+
+    const std::function<bool(uint64_t, bool, uint64_t)>& getMemWriteCallback() const
+    { return memWriteCallback_; }
+
+    const std::function<bool(uint64_t, PrivilegeMode)>& getIsReadableCallback() const
+    { return isReadableCallback_; }
+
+    const std::function<bool(uint64_t, PrivilegeMode)>& getIsWritableCallback() const
+    { return isWritableCallback_; }
 
     // =======================
     /// Enable/disable tracing of accessed page table entries.
@@ -342,8 +349,8 @@ namespace WdRiscv
     std::function<bool(uint64_t, bool, uint64_t&)> memReadCallback64_ = nullptr;
     std::function<bool(uint64_t, bool, uint32_t&)> memReadCallback32_ = nullptr;
     std::function<bool(uint64_t, bool, uint64_t)>  memWriteCallback_ = nullptr;
-    std::function<bool(uint64_t, PrivilegeMode)>     pmpReadableCallback_ = nullptr;
-    std::function<bool(uint64_t, PrivilegeMode)>     pmpWritableCallback_ = nullptr;
+    std::function<bool(uint64_t, PrivilegeMode)>   isReadableCallback_ = nullptr;
+    std::function<bool(uint64_t, PrivilegeMode)>   isWritableCallback_ = nullptr;
 
     template<typename T>
     bool memRead(uint64_t addr, bool bigEndian, T &data) const {
@@ -369,13 +376,14 @@ namespace WdRiscv
       return cb ? cb(addr, bigEndian, data) : false;
     }
 
-    bool pmpIsReadable(uint64_t addr, PrivilegeMode pm) const {
-      auto cb = getPmpReadableCallback();
+    bool isAddrReadable(uint64_t addr, PrivilegeMode pm) const {
+      auto cb = getIsReadableCallback();
       return cb ? cb(addr, pm) : true;
     }
 
-    bool pmpIsWritable(uint64_t addr, PrivilegeMode pm) const {
-      auto cb = getPmpWritableCallback();
+    /// Return true if address is writable. This includes PMP and PMA checks.
+    bool isAddrWritable(uint64_t addr, PrivilegeMode pm) const {
+      auto cb = getIsWritableCallback();
       return cb ? cb(addr, pm) : true;
     }
 

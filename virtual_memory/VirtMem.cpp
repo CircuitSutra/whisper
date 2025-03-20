@@ -575,10 +575,10 @@ VirtMem::pageTableWalk(uint64_t address, PrivilegeMode privMode, bool read, bool
         }
 
       // Check PMP. The privMode here is the effective one that already accounts for MPRV.
-      if (not pmpIsReadable(pteAddr, privMode))
+      if (not isAddrReadable(pteAddr, privMode))
 	return accessFaultType(read, write, exec);
 
-      if (!memRead(pteAddr, bigEnd_, pte.data_))
+      if (not memRead(pteAddr, bigEnd_, pte.data_))
         return accessFaultType(read, write, exec);
       if (not napotCheck(pte, va))
         return stage1PageFaultType(read, write, exec);
@@ -638,7 +638,7 @@ VirtMem::pageTableWalk(uint64_t address, PrivilegeMode privMode, bool read, bool
 	  saveUpdatedPte(pteAddr, sizeof(pte.data_), pte.data_);  // For logging
 
 	  // B1. Check PMP.
-	  if (not pmpIsWritable(pteAddr, privMode))
+	  if (not isAddrWritable(pteAddr, privMode))
 	    return accessFaultType(read, write, exec);
 
 	  {
@@ -755,10 +755,10 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
         }
 
       // Check PMP. The privMode here is the effective one that already accounts for MPRV.
-      if (not pmpIsReadable(pteAddr, privMode))
+      if (not isAddrReadable(pteAddr, privMode))
 	return accessFaultType(read, write, exec);
 
-      if (!memRead(pteAddr, bigEnd_, pte.data_))
+      if (not memRead(pteAddr, bigEnd_, pte.data_))
         return accessFaultType(read, write, exec);
       if (not napotCheck(pte, va))
         return stage2PageFaultType(read, write, exec);
@@ -819,7 +819,7 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 	  saveUpdatedPte(pteAddr, sizeof(pte.data_), pte.data_);  // For logging
 
 	  // B1. Check PMP.
-	  if (not pmpIsWritable(pteAddr, privMode))
+	  if (not isAddrWritable(pteAddr, privMode))
 	    return accessFaultType(read, write, exec);
 
 	  {
@@ -946,10 +946,10 @@ VirtMem::stage1PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
         }
 
       // Check PMP. The privMode here is the effective one that already accounts for MPRV.
-      if (not pmpIsReadable(pteAddr, privMode))
+      if (not isAddrReadable(pteAddr, privMode))
 	return accessFaultType(read, write, exec);
 
-      if (!memRead(pteAddr, bigEnd_, pte.data_))
+      if (not memRead(pteAddr, bigEnd_, pte.data_))
         return accessFaultType(read, write, exec);
       if (not napotCheck(pte, va))
         return stage1PageFaultType(read, write, exec);
@@ -1013,7 +1013,7 @@ VirtMem::stage1PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 
           s1ADUpdate_ = true;
 	  // B1. Check PMP.
-	  if (not pmpIsWritable(pteAddr, privMode))
+	  if (not isAddrWritable(pteAddr, privMode))
 	    return accessFaultType(read, write, exec);
 
 	  {

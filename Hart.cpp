@@ -313,47 +313,74 @@ Hart<URV>::setupVirtMemCallbacks()
 {
 
   virtMem_.setMemReadCallback([this](uint64_t addr, bool bigEndian, URV &data) -> bool {
-      if (steeEnabled_) {
+    if (steeEnabled_)
+      {
         if (!stee_.isValidAddress(addr))
           return false;  
         addr = stee_.clearSecureBits(addr);
       }
       
-      // Proceed with normal memory read.
-      if (!memory_.read(addr, data))
-        return false;
-      if (bigEndian)
-        data = util::byteswap(data);
-      return true;
+    // Proceed with normal memory read.
+    if (not memory_.read(addr, data))
+      return false;
+    if (bigEndian)
+      data = util::byteswap(data);
+    return true;
   });
 
 
   virtMem_.setMemWriteCallback([this](uint64_t addr, bool bigEndian, uint64_t data) -> bool {
     URV value = static_cast<URV>(data);   // For RV32.
-      assert(value == data);
+    assert(value == data);
 
-      if (bigEndian)
-        value = util::byteswap(value);
-      if (not memory_.hasReserveAttribute(addr))
-        return false;
-      return memory_.write(hartIx_, addr, value);
+    if (steeEnabled_)
+      {
+        if (!stee_.isValidAddress(addr))
+          return false;  
+        addr = stee_.clearSecureBits(addr);
+      }
 
+    if (bigEndian)
+      value = util::byteswap(value);
+    if (not memory_.hasReserveAttribute(addr))
+      return false;
+    return memory_.write(hartIx_, addr, value);
   });
 
-  virtMem_.setPmpIsReadableCallback([this](uint64_t addr, PrivilegeMode pm) -> bool {
-      if (not pmpManager_.isEnabled())
-        return true;
-      const Pmp& pmp = pmpManager_.accessPmp(addr);
-      return pmp.isRead(pm);
+  virtMem_.setIsReadableCallback([this](uint64_t addr, PrivilegeMode pm) -> bool {
+    if (steeEnabled_)
+      {
+        if (!stee_.isValidAddress(addr))
+          return false;  
+        addr = stee_.clearSecureBits(addr);
+      }
 
+    if (pmpManager_.isEnabled())
+      {
+        const Pmp& pmp = pmpManager_.accessPmp(addr);
+        if (not pmp.isRead(pm))
+          return false;
+      }
+    auto pma = memory_.pmaMgr_.getPma(addr);
+    return pma.isRead();
   });
 
-  virtMem_.setPmpIsWritableCallback([this](uint64_t addr, PrivilegeMode pm) -> bool {
-      if (not pmpManager_.isEnabled())
-        return true;
-      const Pmp& pmp = pmpManager_.accessPmp(addr);
-      return pmp.isWrite(pm);
+  virtMem_.setIsWritableCallback([this](uint64_t addr, PrivilegeMode pm) -> bool {
+    if (steeEnabled_)
+      {
+        if (!stee_.isValidAddress(addr))
+          return false;  
+        addr = stee_.clearSecureBits(addr);
+      }
 
+    if (pmpManager_.isEnabled())
+      {
+        const Pmp& pmp = pmpManager_.accessPmp(addr);
+        if (not pmp.isWrite(pm))
+          return false;
+      }
+    auto pma = memory_.pmaMgr_.getPma(addr);
+    return pma.isWrite() and pma.isRsrv();
   });
 }
 
