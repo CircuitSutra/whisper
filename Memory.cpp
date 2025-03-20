@@ -567,8 +567,6 @@ Memory::collectElfSymbols(ELFIO::elfio& reader)
 	      if (name.empty())
 		continue;
 
-	  //     if (type == STT_NOTYPE or type == STT_FUNC or type == STT_OBJECT)
-		// symbols_[name] = ElfSymbol(address, size);
     if (type == STT_NOTYPE || type == STT_FUNC || type == STT_OBJECT) {
       symbols_[name] = ElfSymbol(address, size);
       addrToSymName_[address] = name;
