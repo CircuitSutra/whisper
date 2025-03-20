@@ -75,20 +75,12 @@ Hart<URV>::amoLoad32([[maybe_unused]] const DecodedInst* di, uint64_t virtAddr,
   if (hasActiveTrigger())
     {
       uint64_t pmval = applyPointerMask(virtAddr, true /*isLoad*/);
-      if (ldStAddrTriggerHit(pmval, ldStSize_, TriggerTiming::Before, true /*isLoad*/))
-        {
-          ldStFaultAddr_ = pmval;
-	  dataAddrTrig_ = true;
-	  triggerTripped_ = true;
-        }
+      bool hit1 = ldStAddrTriggerHit(pmval, ldStSize_, TriggerTiming::Before, true /*isLoad*/);
 
       uint64_t pmvas = applyPointerMask(virtAddr, false /*isLoad*/);
       if (ldStAddrTriggerHit(pmvas, ldStSize_, TriggerTiming::Before, false /*isLoad*/))
-	{
-          ldStFaultAddr_ = pmval;
-	  dataAddrTrig_ = true;
-	  triggerTripped_ = true;
-	}
+        if (hit1)
+          ldStFaultAddr_ = pmval;  // Just in case the load side also hit.
     }
 
   if (triggerTripped_)
@@ -156,20 +148,12 @@ Hart<URV>::amoLoad64([[maybe_unused]] const DecodedInst* di, uint64_t virtAddr,
   if (hasActiveTrigger())
     {
       uint64_t pmval = applyPointerMask(virtAddr, true /*isLoad*/);
-      if (ldStAddrTriggerHit(pmval, ldStSize_, TriggerTiming::Before, true /*isLoad*/))
-        {
-          ldStFaultAddr_ = pmval;
-	  dataAddrTrig_ = true;
-	  triggerTripped_ = true;
-        }
+      bool hit1 = ldStAddrTriggerHit(pmval, ldStSize_, TriggerTiming::Before, true /*isLoad*/);
 
       uint64_t pmvas = applyPointerMask(virtAddr, false /*isLoad*/);
       if (ldStAddrTriggerHit(pmvas, ldStSize_, TriggerTiming::Before, false /*isLoad*/))
-	{
-          ldStFaultAddr_ = pmval;
-	  dataAddrTrig_ = true;
-	  triggerTripped_ = true;
-	}
+        if (hit1)
+          ldStFaultAddr_ = pmval;  // Just in case load side also hit.
     }
 
   if (triggerTripped_)
@@ -236,12 +220,7 @@ Hart<URV>::loadReserve(const DecodedInst* di, uint32_t rd, uint32_t rs1)
     {
       bool isLd = true;
       uint64_t pmva = applyPointerMask(virtAddr, isLd);
-      if (ldStAddrTriggerHit(pmva, ldStSize_, TriggerTiming::Before, isLd))
-	{
-          ldStFaultAddr_ = pmva;
-	  dataAddrTrig_ = true;
-	  triggerTripped_ = true;
-	}
+      ldStAddrTriggerHit(pmva, ldStSize_, TriggerTiming::Before, isLd);
     }
 
   if (triggerTripped_)
@@ -364,12 +343,8 @@ Hart<URV>::storeConditional(const DecodedInst* di, URV virtAddr, STORE_TYPE stor
   TriggerTiming timing = TriggerTiming::Before;
   if (hasTrig)
     {
-      if (ldStAddrTriggerHit(pmva, ldStSize_, timing, isLd) or
-          ldStDataTriggerHit(storeVal, timing, isLd))
-        {
-          dataAddrTrig_ = true;
-          triggerTripped_ = true;
-        }
+      ldStAddrTriggerHit(pmva, ldStSize_, timing, isLd);
+      ldStDataTriggerHit(storeVal, timing, isLd);
     }
 
   // Misaligned store causes an exception.

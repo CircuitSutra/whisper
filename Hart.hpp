@@ -3185,8 +3185,15 @@ namespace WdRiscv
     /// that trip.
     bool ldStAddrTriggerHit(URV addr, unsigned size, TriggerTiming t, bool isLoad)
     {
-      return csRegs_.ldStAddrTriggerHit(addr, size, t, isLoad, privilegeMode(), virtMode(),
-					isInterruptEnabled());
+      bool hit = csRegs_.ldStAddrTriggerHit(addr, size, t, isLoad, privilegeMode(), virtMode(),
+                                            isInterruptEnabled());
+      if (hit)
+        {
+          dataAddrTrig_ = true;
+          triggerTripped_ = true;
+          ldStFaultAddr_ = addr;   // For pointer masking, addr is masked.
+        }
+      return hit;
     }
 
     /// Return true if one or more load-address/store-address trigger has a hit on the
@@ -3194,8 +3201,14 @@ namespace WdRiscv
     /// triggers that trip.
     bool ldStDataTriggerHit(URV value, TriggerTiming t, bool isLoad)
     {
-      return csRegs_.ldStDataTriggerHit(value, t, isLoad, privilegeMode(), virtMode(),
-					isInterruptEnabled());
+      bool hit = csRegs_.ldStDataTriggerHit(value, t, isLoad, privilegeMode(), virtMode(),
+                                            isInterruptEnabled());
+      if (hit)
+        {
+          dataAddrTrig_ = true;
+          triggerTripped_ = true;
+        }
+      return hit;
     }
 
     /// Return true if one or more execution trigger has a hit on the given address and

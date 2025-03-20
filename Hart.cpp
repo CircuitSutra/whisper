@@ -2038,14 +2038,7 @@ Hart<URV>::load(const DecodedInst* di, uint64_t virtAddr, [[maybe_unused]] bool 
 #else
 
   if (hasActiveTrigger())
-    {
-      if (ldStAddrTriggerHit(ldStFaultAddr_, ldStSize_, TriggerTiming::Before, true /*isLoad*/))
-	{
-	  dataAddrTrig_ = true;
-	  triggerTripped_ = true;
-	}
-    }
-
+    ldStAddrTriggerHit(ldStFaultAddr_, ldStSize_, TriggerTiming::Before, true /*isLoad*/);
   if (triggerTripped_)
     return false;
 
@@ -2408,12 +2401,8 @@ Hart<URV>::store(const DecodedInst* di, URV virtAddr, [[maybe_unused]] bool hype
   bool isLd = false;  // Not a load.
   if (hasTrig)
     {
-      if (ldStAddrTriggerHit(ldStFaultAddr_, ldStSize_, timing, isLd) or
-          ldStDataTriggerHit(storeVal, timing, isLd))
-        {
-          dataAddrTrig_ = true;
-          triggerTripped_ = true;
-        }
+      ldStAddrTriggerHit(ldStFaultAddr_, ldStSize_, timing, isLd);
+      ldStDataTriggerHit(storeVal, timing, isLd);
     }
 
   if (triggerTripped_)
