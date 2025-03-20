@@ -74,13 +74,25 @@ Hart<URV>::amoLoad32([[maybe_unused]] const DecodedInst* di, uint64_t virtAddr,
 
   if (hasActiveTrigger())
     {
-      if (ldStAddrTriggerHit(virtAddr, ldStSize_, TriggerTiming::Before, true /*isLoad*/) or
-          ldStAddrTriggerHit(virtAddr, ldStSize_, TriggerTiming::Before, false /*isLoad*/))
+      uint64_t pmval = applyPointerMask(virtAddr, true /*isLoad*/);
+      if (ldStAddrTriggerHit(pmval, ldStSize_, TriggerTiming::Before, true /*isLoad*/))
+        {
+          ldStFaultAddr_ = pmval;
+	  dataAddrTrig_ = true;
+	  triggerTripped_ = true;
+        }
+
+      uint64_t pmvas = applyPointerMask(virtAddr, false /*isLoad*/);
+      if (ldStAddrTriggerHit(pmvas, ldStSize_, TriggerTiming::Before, false /*isLoad*/))
 	{
+          ldStFaultAddr_ = pmval;
 	  dataAddrTrig_ = true;
 	  triggerTripped_ = true;
 	}
     }
+
+  if (triggerTripped_)
+    return false;
 
   uint64_t gaddr = virtAddr;
   auto cause = validateAmoAddr(addr, gaddr, ldStSize_);
@@ -99,8 +111,7 @@ Hart<URV>::amoLoad32([[maybe_unused]] const DecodedInst* di, uint64_t virtAddr,
   if (cause != ExceptionCause::NONE)
     {
       virtAddr = applyPointerMask(virtAddr, false);
-      if (not triggerTripped_)
-        initiateLoadException(di, cause, virtAddr, gaddr);
+      initiateLoadException(di, cause, virtAddr, gaddr);
       return false;
     }
 
@@ -144,13 +155,25 @@ Hart<URV>::amoLoad64([[maybe_unused]] const DecodedInst* di, uint64_t virtAddr,
 
   if (hasActiveTrigger())
     {
-      if (ldStAddrTriggerHit(virtAddr, ldStSize_, TriggerTiming::Before, true /*isLoad*/) or
-          ldStAddrTriggerHit(virtAddr, ldStSize_, TriggerTiming::Before, false /*isLoad*/))
+      uint64_t pmval = applyPointerMask(virtAddr, true /*isLoad*/);
+      if (ldStAddrTriggerHit(pmval, ldStSize_, TriggerTiming::Before, true /*isLoad*/))
+        {
+          ldStFaultAddr_ = pmval;
+	  dataAddrTrig_ = true;
+	  triggerTripped_ = true;
+        }
+
+      uint64_t pmvas = applyPointerMask(virtAddr, false /*isLoad*/);
+      if (ldStAddrTriggerHit(pmvas, ldStSize_, TriggerTiming::Before, false /*isLoad*/))
 	{
+          ldStFaultAddr_ = pmval;
 	  dataAddrTrig_ = true;
 	  triggerTripped_ = true;
 	}
     }
+
+  if (triggerTripped_)
+    return false;
 
   uint64_t gaddr = virtAddr;
   auto cause = validateAmoAddr(addr, gaddr, ldStSize_);
@@ -169,8 +192,7 @@ Hart<URV>::amoLoad64([[maybe_unused]] const DecodedInst* di, uint64_t virtAddr,
   if (cause != ExceptionCause::NONE)
     {
       virtAddr = applyPointerMask(virtAddr, false);
-      if (not triggerTripped_)
-        initiateLoadException(di, cause, virtAddr, gaddr);
+      initiateLoadException(di, cause, virtAddr, gaddr);
       return false;
     }
 
@@ -213,14 +235,17 @@ Hart<URV>::loadReserve(const DecodedInst* di, uint32_t rd, uint32_t rs1)
   if (hasActiveTrigger())
     {
       bool isLd = true;
-      if (ldStAddrTriggerHit(virtAddr, ldStSize_, TriggerTiming::Before, isLd))
+      uint64_t pmva = applyPointerMask(virtAddr, isLd);
+      if (ldStAddrTriggerHit(pmva, ldStSize_, TriggerTiming::Before, isLd))
 	{
+          ldStFaultAddr_ = pmva;
 	  dataAddrTrig_ = true;
 	  triggerTripped_ = true;
 	}
-      if (triggerTripped_)
-	return false;
     }
+
+  if (triggerTripped_)
+    return false;
 
   // Unsigned version of LOAD_TYPE
   using ULT = typename std::make_unsigned<LOAD_TYPE>::type;
@@ -330,16 +355,21 @@ Hart<URV>::storeConditional(const DecodedInst* di, URV virtAddr, STORE_TYPE stor
   ldStPhysAddr1_ = ldStPhysAddr2_ = ldStAddr_;
   ldStSize_ = sizeof(STORE_TYPE);
 
+  bool isLd = false;  // Not a load.
+  uint64_t pmva = applyPointerMask(virtAddr, isLd);
+
   // ld/st-address or instruction-address triggers have priority over
   // ld/st access or misaligned exceptions.
   bool hasTrig = hasActiveTrigger();
   TriggerTiming timing = TriggerTiming::Before;
-  bool isLd = false;  // Not a load.
-  if (hasTrig and (ldStAddrTriggerHit(virtAddr, ldStSize_, timing, isLd) or
-                   ldStDataTriggerHit(storeVal, timing, isLd)))
+  if (hasTrig)
     {
-      dataAddrTrig_ = true;
-      triggerTripped_ = true;
+      if (ldStAddrTriggerHit(pmva, ldStSize_, timing, isLd) or
+          ldStDataTriggerHit(storeVal, timing, isLd))
+        {
+          dataAddrTrig_ = true;
+          triggerTripped_ = true;
+        }
     }
 
   // Misaligned store causes an exception.
@@ -351,8 +381,7 @@ Hart<URV>::storeConditional(const DecodedInst* di, URV virtAddr, STORE_TYPE stor
   if (misal and misalHasPriority_)
     {
       auto cause = misalAtomicCauseAccessFault_ ? EC::STORE_ACC_FAULT : EC::STORE_ADDR_MISAL;
-      virtAddr = applyPointerMask(virtAddr, false);
-      initiateStoreException(di, cause, virtAddr, virtAddr);
+      initiateStoreException(di, cause, pmva, virtAddr);
       return false;
     }
 
@@ -384,8 +413,7 @@ Hart<URV>::storeConditional(const DecodedInst* di, URV virtAddr, STORE_TYPE stor
 
   if (cause != EC::NONE)
     {
-      virtAddr = applyPointerMask(virtAddr, false);
-      initiateStoreException(di, cause, virtAddr, gaddr1);
+      initiateStoreException(di, cause, pmva, gaddr1);
       return false;
     }
 
@@ -964,10 +992,10 @@ Hart<uint64_t>::execAmocas_q(const DecodedInst* di)
   bool misal = (addr & mask) != 0;
   if (misal and misalHasPriority_)
     {
-      addr = applyPointerMask(addr, false);
+      uint64_t pmva = applyPointerMask(addr, false);
       if (misalAtomicCauseAccessFault_)
-	initiateStoreException(di, ExceptionCause::STORE_ACC_FAULT, addr, addr);
-      initiateStoreException(di, ExceptionCause::STORE_ADDR_MISAL, addr, addr);
+	initiateStoreException(di, ExceptionCause::STORE_ACC_FAULT, pmva, pmva);
+      initiateStoreException(di, ExceptionCause::STORE_ADDR_MISAL, pmva, pmva);
       return;
     }
 

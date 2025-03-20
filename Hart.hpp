@@ -3054,7 +3054,7 @@ namespace WdRiscv
     /// parameter is used to annotate the instruction rectord in the log file (if logging
     /// is enabeld).
     bool takeTriggerAction(FILE* traceFile, URV epc, URV info,
-			   uint64_t instrTag, bool beforeTiming);
+			   uint64_t instrTag, const DecodedInst* di);
 
     /// Helper to load methods: Initiate an exception with the given
     /// cause and data address.
