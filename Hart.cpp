@@ -2010,7 +2010,8 @@ Hart<URV>::load(const DecodedInst* di, uint64_t virtAddr, [[maybe_unused]] bool 
 
   if (hasActiveTrigger())
     {
-      if (ldStAddrTriggerHit(virtAddr, ldStSize_, TriggerTiming::Before, true /*isLoad*/))
+      uint64_t pmva = applyPointerMask(virtAddr, true /*isLoad*/);
+      if (ldStAddrTriggerHit(pmva, ldStSize_, TriggerTiming::Before, true /*isLoad*/))
 	{
 	  dataAddrTrig_ = true;
 	  triggerTripped_ = true;
@@ -2377,11 +2378,15 @@ Hart<URV>::store(const DecodedInst* di, URV virtAddr, [[maybe_unused]] bool hype
   bool hasTrig = hasActiveTrigger();
   TriggerTiming timing = TriggerTiming::Before;
   bool isLd = false;  // Not a load.
-  if (hasTrig and (ldStAddrTriggerHit(virtAddr, ldStSize_, timing, isLd) or
-                   ldStDataTriggerHit(storeVal, timing, isLd)))
+  if (hasTrig)
     {
-      dataAddrTrig_ = true;
-      triggerTripped_ = true;
+      uint64_t pmva = applyPointerMask(virtAddr, isLd);
+      if (ldStAddrTriggerHit(pmva, ldStSize_, timing, isLd) or
+          ldStDataTriggerHit(storeVal, timing, isLd))
+        {
+          dataAddrTrig_ = true;
+          triggerTripped_ = true;
+        }
     }
 
   if (triggerTripped_)

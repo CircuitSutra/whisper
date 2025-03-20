@@ -74,8 +74,10 @@ Hart<URV>::amoLoad32([[maybe_unused]] const DecodedInst* di, uint64_t virtAddr,
 
   if (hasActiveTrigger())
     {
-      if (ldStAddrTriggerHit(virtAddr, ldStSize_, TriggerTiming::Before, true /*isLoad*/) or
-          ldStAddrTriggerHit(virtAddr, ldStSize_, TriggerTiming::Before, false /*isLoad*/))
+      uint64_t pmval = applyPointerMask(virtAddr, true /*isLoad*/);
+      uint64_t pmvas = applyPointerMask(virtAddr, false /*isLoad*/);
+      if (ldStAddrTriggerHit(pmval, ldStSize_, TriggerTiming::Before, true /*isLoad*/) or
+          ldStAddrTriggerHit(pmvas, ldStSize_, TriggerTiming::Before, false /*isLoad*/))
 	{
 	  dataAddrTrig_ = true;
 	  triggerTripped_ = true;
@@ -144,8 +146,10 @@ Hart<URV>::amoLoad64([[maybe_unused]] const DecodedInst* di, uint64_t virtAddr,
 
   if (hasActiveTrigger())
     {
-      if (ldStAddrTriggerHit(virtAddr, ldStSize_, TriggerTiming::Before, true /*isLoad*/) or
-          ldStAddrTriggerHit(virtAddr, ldStSize_, TriggerTiming::Before, false /*isLoad*/))
+      uint64_t pmval = applyPointerMask(virtAddr, true /*isLoad*/);
+      uint64_t pmvas = applyPointerMask(virtAddr, false /*isLoad*/);
+      if (ldStAddrTriggerHit(pmval, ldStSize_, TriggerTiming::Before, true /*isLoad*/) or
+          ldStAddrTriggerHit(pmvas, ldStSize_, TriggerTiming::Before, false /*isLoad*/))
 	{
 	  dataAddrTrig_ = true;
 	  triggerTripped_ = true;
@@ -213,7 +217,8 @@ Hart<URV>::loadReserve(const DecodedInst* di, uint32_t rd, uint32_t rs1)
   if (hasActiveTrigger())
     {
       bool isLd = true;
-      if (ldStAddrTriggerHit(virtAddr, ldStSize_, TriggerTiming::Before, isLd))
+      uint64_t pmva = applyPointerMask(virtAddr, isLd);
+      if (ldStAddrTriggerHit(pmva, ldStSize_, TriggerTiming::Before, isLd))
 	{
 	  dataAddrTrig_ = true;
 	  triggerTripped_ = true;
@@ -335,11 +340,15 @@ Hart<URV>::storeConditional(const DecodedInst* di, URV virtAddr, STORE_TYPE stor
   bool hasTrig = hasActiveTrigger();
   TriggerTiming timing = TriggerTiming::Before;
   bool isLd = false;  // Not a load.
-  if (hasTrig and (ldStAddrTriggerHit(virtAddr, ldStSize_, timing, isLd) or
-                   ldStDataTriggerHit(storeVal, timing, isLd)))
+  if (hasTrig)
     {
-      dataAddrTrig_ = true;
-      triggerTripped_ = true;
+      uint64_t pmva = applyPointerMask(virtAddr, isLd);
+      if (ldStAddrTriggerHit(pmva, ldStSize_, timing, isLd) or
+          ldStDataTriggerHit(storeVal, timing, isLd))
+        {
+          dataAddrTrig_ = true;
+          triggerTripped_ = true;
+        }
     }
 
   // Misaligned store causes an exception.

@@ -153,7 +153,8 @@ Hart<URV>::execCbo_clean(const DecodedInst* di)
 #ifndef FAST_SLOPPY
   if (hasActiveTrigger())
     {
-      if (ldStAddrTriggerHit(virtAddr, cacheLineSize_, TriggerTiming::Before, false /* isLoad */))
+      uint64_t pmva = applyPointerMask(virtAddr, false /*isLoad*/);
+      if (ldStAddrTriggerHit(pmva, cacheLineSize_, TriggerTiming::Before, false /* isLoad */))
 	{
 	  dataAddrTrig_ = true;
 	  triggerTripped_ = true;
@@ -221,7 +222,8 @@ Hart<URV>::execCbo_flush(const DecodedInst* di)
 #ifndef FAST_SLOPPY
   if (hasActiveTrigger())
     {
-      if (ldStAddrTriggerHit(virtAddr, cacheLineSize_, TriggerTiming::Before, false /* isLoad */))
+      uint64_t pmva = applyPointerMask(virtAddr, false /*isLoad*/);
+      if (ldStAddrTriggerHit(pmva, cacheLineSize_, TriggerTiming::Before, false /* isLoad */))
 	{
 	  dataAddrTrig_ = true;
 	  triggerTripped_ = true;
@@ -291,7 +293,8 @@ Hart<URV>::execCbo_inval(const DecodedInst* di)
 #ifndef FAST_SLOPPY
   if (hasActiveTrigger())
     {
-      if (ldStAddrTriggerHit(virtAddr, cacheLineSize_, TriggerTiming::Before, false /* isLoad */))
+      uint64_t pmva = applyPointerMask(virtAddr, false /*isLoad*/);
+      if (ldStAddrTriggerHit(pmva, cacheLineSize_, TriggerTiming::Before, false /* isLoad */))
 	{
 	  dataAddrTrig_ = true;
 	  triggerTripped_ = true;
@@ -359,7 +362,8 @@ Hart<URV>::execCbo_zero(const DecodedInst* di)
 #ifndef FAST_SLOPPY
   if (hasActiveTrigger())
     {
-      if (ldStAddrTriggerHit(virtAddr, cacheLineSize_, TriggerTiming::Before, false /* isLoad */))
+      uint64_t pmva = applyPointerMask(virtAddr, false /*isLoad*/);
+      if (ldStAddrTriggerHit(pmva, cacheLineSize_, TriggerTiming::Before, false /* isLoad */))
 	{
 	  dataAddrTrig_ = true;
 	  triggerTripped_ = true;
