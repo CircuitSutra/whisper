@@ -1207,20 +1207,34 @@ Memory::resetMemoryMappedRegisters()
 }
 
 
-// [symbol.addr_, symbol.addr_+symbol.size_), pick the one with the highest base address.
-std::string Memory::findSymbolName(uint64_t addr) const {
-  std::string best;
-  uint64_t bestAddr = 0;
-  for (const auto& entry : symbols_) {
-    const std::string& symName = entry.first;
-    const ElfSymbol& sym = entry.second;
-    if (addr >= sym.addr_ && addr < sym.addr_ + sym.size_) {
-      // In case of nested symbols, pick the one with the greatest base address.
-      if (sym.addr_ >= bestAddr) {
-        bestAddr = sym.addr_;
-        best = symName;
-      }
+std::string Memory::findSymbolByAddress(uint64_t address) const {
+    // Build the reverse mapping only once.
+    std::call_once(addrToSymbolInit_, [this]() {
+        for (const auto& kv : symbols_) {
+            const std::string& symName = kv.first;
+            const ElfSymbol& sym = kv.second;
+            // We add every symbol (if size is 0 we treat it as a “point label”)
+            addrToSymbol_.push_back({sym.addr_, sym.size_, symName});
+        }
+        std::sort(addrToSymbol_.begin(), addrToSymbol_.end(),
+            [](const ReverseSymbol& a, const ReverseSymbol& b) {
+                return a.addr < b.addr;
+            });
+    });
+
+    // Binary search: find the greatest symbol with starting address <= address.
+    auto it = std::upper_bound(addrToSymbol_.begin(), addrToSymbol_.end(), address,
+        [](uint64_t val, const ReverseSymbol& rs) { return val < rs.addr; });
+    if (it != addrToSymbol_.begin()) {
+        --it;
+        // If the symbol has size 0 then only print it if the address exactly equals the symbol’s address.
+        if (it->size == 0) {
+            if (address == it->addr)
+                return it->name;
+        } else {
+            if (address < it->addr + it->size)
+                return it->name;
+        }
     }
-  }
-  return best;
+    return "";
 }

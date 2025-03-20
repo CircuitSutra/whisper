@@ -127,7 +127,6 @@ namespace WdRiscv
   class Hart
   {
   public:
-    void setLogLabelEnabled(bool enable) { logLabelEnabled_ = enable; }
     /// Alias the template parameter to allow it to be used outside this
     /// template.
     using URV = URV_;
@@ -2612,6 +2611,16 @@ namespace WdRiscv
     /// values.
     void autoIncrementTimer(bool flag)
     { autoIncrementTimer_ = flag; }
+
+    void setLogLabelEnabled(bool enable) { logLabelEnabled_ = enable; }
+
+    // Accessors for the last printed label (so we only print a new one when it changes)
+    const std::string& getLastPrintedSymbolLabel() const { return lastPrintedSymbolLabel_; }
+    void setLastPrintedSymbolLabel(const std::string& label) { lastPrintedSymbolLabel_ = label; }
+
+    // (Also, add a getter for the memory reference if needed)
+    Memory& getMemory() { return memory_; }
+    const Memory& getMemory() const { return memory_; }
 
   protected:
 
@@ -5433,6 +5442,7 @@ namespace WdRiscv
 
   private:
     bool logLabelEnabled_ = false;
+    std::string lastPrintedSymbolLabel_;
     // We model non-blocking load buffer in order to undo load
     // effects after an imprecise load exception.
     struct LoadInfo
