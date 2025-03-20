@@ -567,8 +567,12 @@ Memory::collectElfSymbols(ELFIO::elfio& reader)
 	      if (name.empty())
 		continue;
 
-	      if (type == STT_NOTYPE or type == STT_FUNC or type == STT_OBJECT)
-		symbols_[name] = ElfSymbol(address, size);
+	  //     if (type == STT_NOTYPE or type == STT_FUNC or type == STT_OBJECT)
+		// symbols_[name] = ElfSymbol(address, size);
+    if (type == STT_NOTYPE || type == STT_FUNC || type == STT_OBJECT) {
+      symbols_[name] = ElfSymbol(address, size);
+      addrToSymName_[address] = name;
+    }
 	    }
 	}
     }
@@ -1207,34 +1211,11 @@ Memory::resetMemoryMappedRegisters()
 }
 
 
-std::string Memory::findSymbolByAddress(uint64_t address) const {
-    // Build the reverse mapping only once.
-    std::call_once(addrToSymbolInit_, [this]() {
-        for (const auto& kv : symbols_) {
-            const std::string& symName = kv.first;
-            const ElfSymbol& sym = kv.second;
-            // We add every symbol (if size is 0 we treat it as a “point label”)
-            addrToSymbol_.push_back({sym.addr_, sym.size_, symName});
-        }
-        std::sort(addrToSymbol_.begin(), addrToSymbol_.end(),
-            [](const ReverseSymbol& a, const ReverseSymbol& b) {
-                return a.addr < b.addr;
-            });
-    });
-
-    // Binary search: find the greatest symbol with starting address <= address.
-    auto it = std::upper_bound(addrToSymbol_.begin(), addrToSymbol_.end(), address,
-        [](uint64_t val, const ReverseSymbol& rs) { return val < rs.addr; });
-    if (it != addrToSymbol_.begin()) {
-        --it;
-        // If the symbol has size 0 then only print it if the address exactly equals the symbol’s address.
-        if (it->size == 0) {
-            if (address == it->addr)
-                return it->name;
-        } else {
-            if (address < it->addr + it->size)
-                return it->name;
-        }
-    }
-    return "";
+bool Memory::findSymbolByAddress(uint64_t address, std::string &symbol) const {
+  auto it = addrToSymName_.find(address);
+  if (it != addrToSymName_.end()) {
+    symbol = it->second;
+    return true;
+  }
+  return false;
 }

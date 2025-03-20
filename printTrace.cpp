@@ -310,13 +310,15 @@ Hart<URV>::printDecodedInstTrace(const DecodedInst& di, uint64_t tag, std::strin
     }
   if (!csvTrace_ && logLabelEnabled_) {
     // Get the symbol label corresponding to the instruction’s PC:
-    std::string label = getMemory().findSymbolByAddress(di.address());
-    // Only print the label if it is non-empty and different from the last one printed.
+    std::string label;
+    if (getMemory().findSymbolByAddress(di.address(), label)) {
+      // Only print the label if it is non-empty and different from the last printed label.
       if (!label.empty() && label != getLastPrintedSymbolLabel()) {
         fprintf(out, "%s:\n", label.c_str());
         setLastPrintedSymbolLabel(label);
       }
     }
+  }
   // Serialize to avoid jumbled output.
   auto lock = (ownTrace_)? std::unique_lock<std::mutex>() : std::unique_lock<std::mutex>(printInstTraceMutex());
 
