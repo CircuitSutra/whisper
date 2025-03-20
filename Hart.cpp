@@ -380,7 +380,9 @@ Hart<URV>::setupVirtMemCallbacks()
           return false;
       }
     auto pma = memory_.pmaMgr_.getPma(addr);
-    return pma.isWrite() and pma.isRsrv();
+
+    // return pma.isWrite() and pma.isRsrv();  // FIX: RTL does not do this. It should.
+    return pma.isWrite();
   });
 }
 
