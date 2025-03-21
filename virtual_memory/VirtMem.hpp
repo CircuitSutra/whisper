@@ -106,6 +106,36 @@ namespace WdRiscv
                                       uint64_t& gpa2, uint64_t& pa2)
     { return translateForLdSt2(va, size, pm, twoStage, false, gpa1, pa1, gpa2, pa2); }
 
+    /// Configure regular translation (not 2-stage). This is typically called
+    /// at reset and as a result of changes to the SATP CSR. The page table
+    /// will be at address rootPageNum * pageSize.
+    void configTranslation(Mode mode, uint32_t asid, uint64_t rootPageNum)
+    {
+      setMode(mode);
+      setAsid(asid);
+      setRootPage(rootPageNum);
+    }
+
+    /// Configure the first stage of 2-stage translation. This is typically called at
+    /// reset and as a result of changes to the VSATP CSR. The page table will be at
+    /// address rootPageNum * pageSize.
+    void configStage1(Mode mode, uint32_t asid, uint64_t rootPageNum)
+    {
+      setVsMode(mode);
+      setVsAsid(asid);
+      setVsRootPage(rootPageNum);
+    }
+
+    /// Configure the second stage of 2-stage translation. This is typically called at
+    /// reset and as a result of changes to the HGATP CSR. The page table will be at
+    /// address rootPageNum * pageSize.
+    void configStage2(Mode mode, uint32_t vmid, uint64_t rootPageNum)
+    {
+      setStage2Mode(mode);
+      setVmid(vmid);
+      setStage2RootPage(rootPageNum);
+    }
+
     /// Set number of TLB entries.
     void setTlbSize(unsigned size)
     {

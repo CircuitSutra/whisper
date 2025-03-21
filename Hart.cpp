@@ -778,17 +778,9 @@ Hart<URV>::updateAddressTranslation()
 	  satp.bits_.MODE = 0;
 
       if (virtMode_)
-	{
-	  virtMem_.setVsMode(VirtMem::Mode(satp.bits_.MODE));
-	  virtMem_.setVsAsid(satp.bits_.ASID);
-	  virtMem_.setVsRootPage(satp.bits_.PPN);
-	}
+        virtMem_.configStage1(VirtMem::Mode(satp.bits_.MODE), satp.bits_.ASID, satp.bits_.PPN);
       else
-	{
-	  virtMem_.setMode(VirtMem::Mode(satp.bits_.MODE));
-	  virtMem_.setAsid(satp.bits_.ASID);
-	  virtMem_.setRootPage(satp.bits_.PPN);
-	}
+        virtMem_.configTranslation(VirtMem::Mode(satp.bits_.MODE), satp.bits_.ASID, satp.bits_.PPN);
     }
 
   if (peekCsr(CsrNumber::VSATP, value))
@@ -798,17 +790,13 @@ Hart<URV>::updateAddressTranslation()
 	if ((satp.bits_.MODE >= 1 and satp.bits_.MODE <= 7) or satp.bits_.MODE >= 12)
 	  satp.bits_.MODE = 0;
 
-      virtMem_.setVsMode(VirtMem::Mode(satp.bits_.MODE));
-      virtMem_.setVsAsid(satp.bits_.ASID);
-      virtMem_.setVsRootPage(satp.bits_.PPN);
+      virtMem_.configStage1(VirtMem::Mode(satp.bits_.MODE), satp.bits_.ASID, satp.bits_.PPN);
     }
 
   if (peekCsr(CsrNumber::HGATP, value))
     {
       HgatpFields<URV> hgatp(value);
-      virtMem_.setStage2Mode(VirtMem::Mode(hgatp.bits_.MODE));
-      virtMem_.setVmid(hgatp.bits_.VMID);
-      virtMem_.setStage2RootPage(hgatp.bits_.PPN);
+      virtMem_.configStage2(VirtMem::Mode(hgatp.bits_.MODE), hgatp.bits_.VMID, hgatp.bits_.PPN);
     }
 }
 
