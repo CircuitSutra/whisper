@@ -2618,9 +2618,6 @@ namespace WdRiscv
 
     void setLogLabelEnabled(bool enable) { logLabelEnabled_ = enable; }
 
-    Memory& getMemory() { return memory_; }
-    const Memory& getMemory() const { return memory_; }
-
   protected:
 
     /// Retun cached value of the mpp field of the mstatus CSR.
