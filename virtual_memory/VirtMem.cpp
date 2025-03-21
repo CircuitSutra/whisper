@@ -446,46 +446,57 @@ VirtMem::twoStageTranslate(uint64_t va, PrivilegeMode priv, bool read, bool writ
 
   if (vsMode_ != Mode::Bare)
     {
-      // Lookup virtual page number in TLB.
-      uint64_t virPageNum = va >> pageBits_;
-      TlbEntry* entry = vsTlb_.findEntryUpdateTime(virPageNum, vsAsid_, vmid_);
-      if (entry)
-	{
-	  if (priv == PrivilegeMode::User and not entry->user_)
-            return stage1PageFaultType(read, write, exec);
-	  if (priv == PrivilegeMode::Supervisor)
-	    if (entry->user_ and (exec or not vsSum_))
-              return stage1PageFaultType(read, write, exec);
-	  bool ra = entry->read_ or ((execReadable_ or s1ExecReadable_) and entry->exec_);
-	  if (xForR_)
-	    ra = entry->exec_;
-	  bool wa = entry->write_, xa = entry->exec_;
-	  if ((read and not ra) or (write and not wa) or (exec and not xa))
-            return stage1PageFaultType(read, write, exec);
-	  if (not entry->accessed_ or (write and not entry->dirty_))
-	    entry->valid_ = false;
-	  if (entry->valid_)
-	    {
-	      // Use TLB entry.
-	      vsPbmt_ = Pbmt(entry->pbmt_);
-	      gpa = (entry->physPageNum_ << pageBits_) | (va & pageMask_);
-	    }
-	}
-
-      if (not entry or not entry->valid_)
-	{
-	  TlbEntry tlbEntry;
-	  auto cause = stage1TranslateNoTlb(va, priv, read, write, exec, gpa, tlbEntry);
-
-	  // If successful, put stage1 translation results in TLB.
-	  if (cause == ExceptionCause::NONE)
-	    vsTlb_.insertEntry(tlbEntry);
-	  else
-	    return cause;
-	}
+      auto cause = stage1Translate(va, priv, read, write, exec, gpa);
+      if (cause != ExceptionCause::NONE)
+        return cause;
     }
 
   return stage2Translate(gpa, priv, read, write, exec, /* isPteAddr */ false, pa);
+}
+
+
+ExceptionCause
+VirtMem::stage1Translate(uint64_t va, PrivilegeMode priv, bool read, bool write,
+                         bool exec, uint64_t& gpa)
+{
+  // Lookup virtual page number in TLB.
+  uint64_t virPageNum = va >> pageBits_;
+  TlbEntry* entry = vsTlb_.findEntryUpdateTime(virPageNum, vsAsid_, vmid_);
+  if (entry)
+    {
+      if (priv == PrivilegeMode::User and not entry->user_)
+        return stage1PageFaultType(read, write, exec);
+      if (priv == PrivilegeMode::Supervisor)
+        if (entry->user_ and (exec or not vsSum_))
+          return stage1PageFaultType(read, write, exec);
+      bool ra = entry->read_ or ((execReadable_ or s1ExecReadable_) and entry->exec_);
+      if (xForR_)
+        ra = entry->exec_;
+      bool wa = entry->write_, xa = entry->exec_;
+      if ((read and not ra) or (write and not wa) or (exec and not xa))
+        return stage1PageFaultType(read, write, exec);
+      if (not entry->accessed_ or (write and not entry->dirty_))
+        entry->valid_ = false;
+      if (entry->valid_)
+        {
+          // Use TLB entry.
+          vsPbmt_ = Pbmt(entry->pbmt_);
+          gpa = (entry->physPageNum_ << pageBits_) | (va & pageMask_);
+        }
+    }
+
+  ExceptionCause cause = ExceptionCause::NONE;
+  if (not entry or not entry->valid_)
+    {
+      TlbEntry tlbEntry;
+      cause = stage1TranslateNoTlb(va, priv, read, write, exec, gpa, tlbEntry);
+
+      // If successful, put stage1 translation results in TLB.
+      if (cause == ExceptionCause::NONE)
+        vsTlb_.insertEntry(tlbEntry);
+    }
+
+  return cause;
 }
 
 

@@ -457,6 +457,9 @@ namespace WdRiscv
     ExceptionCause stage1TranslateNoTlb(uint64_t va, PrivilegeMode priv, bool r, bool w,
 					bool x, uint64_t& pa, TlbEntry& entry);
 
+    ExceptionCause stage1Translate(uint64_t va, PrivilegeMode priv, bool read, bool write,
+                                   bool exec, uint64_t& gpa);
+
     ExceptionCause twoStageTranslate(uint64_t va, PrivilegeMode priv, bool r, bool w,
 				     bool x, uint64_t& gpa, uint64_t& pa);
 
