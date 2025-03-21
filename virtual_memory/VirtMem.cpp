@@ -690,8 +690,8 @@ VirtMem::pageTableWalk(uint64_t address, PrivilegeMode privMode, bool read, bool
     {
       walkVec.back().emplace_back(pa, WalkEntry::Type::RE);
       auto& walkEntry = walkVec.back().back();
-      walkEntry.accessed_ = accessed;
-      walkEntry.dirty_ = dirty;
+      walkEntry.aUpdated_ = accessed;
+      walkEntry.dUpdated_ = dirty;
     }
 
   // Update tlb-entry with data found in page table entry.
@@ -871,8 +871,8 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
     {
       walkVec.back().emplace_back(pa, WalkEntry::Type::RE);
       auto& walkEntry = walkVec.back().back();
-      walkEntry.accessed_ = accessed;
-      walkEntry.dirty_ = dirty;
+      walkEntry.aUpdated_ = accessed;
+      walkEntry.dUpdated_ = dirty;
     }
 
   // Update tlb-entry with data found in page table entry.
@@ -1072,8 +1072,8 @@ VirtMem::stage1PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
     {
       walkVec.back().emplace_back(pa, WalkEntry::Type::RE);
       auto& walkEntry = walkVec.back().back();
-      walkEntry.accessed_ = accessed;
-      walkEntry.dirty_ = dirty;
+      walkEntry.aUpdated_ = accessed;
+      walkEntry.dUpdated_ = dirty;
     }
 
   // Update tlb-entry with data found in page table entry.
