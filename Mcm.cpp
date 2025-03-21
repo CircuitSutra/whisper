@@ -2932,8 +2932,7 @@ Mcm<URV>::getCurrentLoadValue(Hart<URV>& hart, uint64_t tag, uint64_t va, uint64
 
 template <typename URV>
 bool
-Mcm<URV>::vecStoreToReadForward(const McmInstr& store, MemoryOp& readOp, uint64_t& mask,
-				uint64_t& fwdTime) const
+Mcm<URV>::vecStoreToReadForward(const McmInstr& store, MemoryOp& readOp, uint64_t& mask) const
 {
   const auto& vecRefMap = hartData_.at(store.hartIx_).vecRefMap_;
   auto iter = vecRefMap.find(store.tag_);
@@ -2987,8 +2986,13 @@ Mcm<URV>::vecStoreToReadForward(const McmInstr& store, MemoryOp& readOp, uint64_
       if (drained)
 	continue;   // Cannot forward from a drained write.
 
-      if (writeCount)
-        fwdTime = (fwdTime == 0) ? lastWopTime : std::min(fwdTime, lastWopTime);
+      if (writeCount != 0 and lastWopTime >= readOp.time_)
+        {
+          uint64_t offset = lastWopTime - readOp.time_;
+          uint16_t off16 = static_cast<uint16_t>(offset);  // TODO: Use gsl
+          assert(off16 == offset);  // Check for overflow
+          readOp.fwOffset_.at(rix) = std::max(readOp.fwOffset_.at(rix), off16);
+        }
 
       // Process reference model writes in reverse order so that later ones forward first.
       for (auto iter = vecRefs.refs_.rbegin(); iter != vecRefs.refs_.rend(); ++iter)
@@ -3018,8 +3022,7 @@ Mcm<URV>::vecStoreToReadForward(const McmInstr& store, MemoryOp& readOp, uint64_
 template <typename URV>
 bool
 Mcm<URV>::storeToReadForward(const McmInstr& store, MemoryOp& readOp, uint64_t& mask,
-			     uint64_t addr, uint64_t data, unsigned size,
-			     uint64_t& fwdTime) const
+			     uint64_t addr, uint64_t data, unsigned size) const
 {
   if (mask == 0)
     return true;  // No bytes left to forward.
@@ -3045,6 +3048,7 @@ Mcm<URV>::storeToReadForward(const McmInstr& store, MemoryOp& readOp, uint64_t& 
 
       // Check if read-op byte overlaps drained write-op of instruction
       bool drained = false;
+      uint64_t fwdTime = 0;
       for (const auto wopIx : store.memOps_)
 	{
 	  if (wopIx >= sysMemOps_.size())
@@ -3058,7 +3062,7 @@ Mcm<URV>::storeToReadForward(const McmInstr& store, MemoryOp& readOp, uint64_t& 
 	      break;
 	    }
 
-	  fwdTime = fwdTime == 0? wop.time_ : std::min(fwdTime, wop.time_);
+	  fwdTime = std::max(fwdTime, wop.time_);
 	}
 
       if (drained)
@@ -3066,6 +3070,10 @@ Mcm<URV>::storeToReadForward(const McmInstr& store, MemoryOp& readOp, uint64_t& 
 
       if (fwdTime == 0)
 	fwdTime = store.retireTime_;  // Happens if store.memOps_ empty.
+
+      uint64_t offset = fwdTime - readOp.time_;
+      uint16_t off16 = static_cast<uint16_t>(offset);  // TOD: Use gsl
+      readOp.fwOffset_.at(rix) = std::max(readOp.fwOffset_.at(rix), off16);
 
       uint8_t byteVal = data >> (byteAddr - il)*8;
       uint64_t aligned = uint64_t(byteVal) << 8*rix;
@@ -3151,16 +3159,13 @@ Mcm<URV>::forwardToRead(Hart<URV>& hart, const std::set<McmInstrIx>& stores, Mem
       auto storeTag = *iter;
       const auto& store = instrVec.at(storeTag);
 
-      uint64_t prev = mask;
-      uint64_t fwdTime = 0;
-
       if (store.di_.isVector())
 	{
-	  if (not vecStoreToReadForward(store, readOp, mask, fwdTime))
+	  if (not vecStoreToReadForward(store, readOp, mask))
 	    continue;
 	}
       else if (not storeToReadForward(store, readOp, mask, store.physAddr_, store.storeData_,
-				      store.size_, fwdTime))
+				      store.size_))
 	{
 	  if (store.physAddr_ == store.physAddr2_)
 	    continue;
@@ -3168,17 +3173,8 @@ Mcm<URV>::forwardToRead(Hart<URV>& hart, const std::set<McmInstrIx>& stores, Mem
 	  unsigned size2 = store.size_ - size1;
 	  assert(size2 > 0 and size2 < 8);
 	  uint64_t data2 = store.storeData_ >> size1 * 8;
-	  if (not storeToReadForward(store, readOp, mask, store.physAddr2_, data2, size2,
-				     fwdTime))
+	  if (not storeToReadForward(store, readOp, mask, store.physAddr2_, data2, size2))
 	    continue;
-	}
-
-      if (mask != prev)
-	{
-	  if (readOp.forwardTime_ == 0)
-	    readOp.forwardTime_ = fwdTime;
-	  else
-	    readOp.forwardTime_ = std::min(fwdTime, readOp.forwardTime_);
 	}
     }
 
@@ -3859,10 +3855,16 @@ Mcm<URV>::effectiveMinTime(Hart<URV>& hart, const McmInstr& instr) const
 	if (isVec and op.elemIx_ >= vl)
 	  continue;
 
-	uint64_t t = op.time_;
-	if (op.isRead_ and op.forwardTime_ and op.forwardTime_ > t)
-	  t = op.forwardTime_;
-	mint = std::min(mint, t);
+        uint64_t opMin = op.time_;
+        if (op.isRead_)
+          {
+            // Take forward time into consideration.
+            opMin = op.time_ + op.fwOffset_.at(0);
+            for (unsigned i = 1; i < op.size_; ++i)
+              opMin = std::min(opMin, (op.time_ + op.fwOffset_.at(i)));
+          }
+
+	mint = std::min(mint, opMin);
       }
 
   if (mint == inf)
@@ -3887,10 +3889,15 @@ Mcm<URV>::effectiveMaxTime(const McmInstr& instr) const
     if (opIx < sysMemOps_.size())
       {
 	auto& op = sysMemOps_.at(opIx);
-	uint64_t t = op.time_;
-	if (op.isRead_ and op.forwardTime_ and op.forwardTime_ > t)
-	  t = op.forwardTime_;
-	maxt = std::max(maxt, t);
+
+	uint64_t opMax = op.time_;
+        if (op.isRead_)
+          {
+            // Take forward time into consideration.
+            for (unsigned i = 1; i < op.size_; ++i)
+              opMax = std::max(opMax, (op.time_ + op.fwOffset_.at(i)));
+          }
+	maxt = std::max(maxt, opMax);
       }
 
   return maxt;
@@ -3914,10 +3921,16 @@ Mcm<URV>::effectiveMinByteTime(const McmInstr& instr, uint64_t addr) const
 	auto& op = sysMemOps_.at(opIx);
 	if (not op.overlaps(addr))
 	  continue;
-	uint64_t t = op.time_;
-	if (op.isRead_ and op.forwardTime_ and op.forwardTime_ > t)
-	  t = op.forwardTime_;
-	mint = std::min(mint, t);
+
+        if (not op.isRead_)
+          mint = std::min(mint, op.time_);
+        else
+          {
+            unsigned ix = addr - op.pa_;
+            assert(ix < op.size_);
+            uint64_t ft = op.time_ + op.fwOffset_.at(ix);
+            mint = std::min(mint, ft);
+          }
       }
 
   return mint;
@@ -3941,10 +3954,16 @@ Mcm<URV>::effectiveMaxByteTime(const McmInstr& instr, uint64_t addr) const
 	auto& op = sysMemOps_.at(opIx);
 	if (not op.overlaps(addr))
 	  continue;
-	uint64_t t = op.time_;
-	if (op.isRead_ and op.forwardTime_ and op.forwardTime_ > t)
-	  t = op.forwardTime_;
-	maxt = std::max(maxt, t);
+
+        if (not op.isRead_)
+          maxt = std::max(maxt, op.time_);
+        else
+          {
+            unsigned ix = addr - op.pa_;
+            assert(ix < op.size_);
+            uint64_t ft = op.time_ + op.fwOffset_.at(ix);
+            maxt = std::max(maxt, ft);
+          }
       }
 
   return maxt;
@@ -4128,7 +4147,7 @@ Mcm<URV>::ppoRule4(Hart<URV>& hart, const McmInstr& instrB) const
 	      return false;
 	    }
 
-	  auto predTime = aOp.time_;
+	  auto predTime = aOp.maxForwardTime();
 	  if (predTime < succTime)
 	    continue;
 
@@ -4141,7 +4160,7 @@ Mcm<URV>::ppoRule4(Hart<URV>& hart, const McmInstr& instrB) const
 	      for (auto bOpIx : succ.memOps_)
 		{
 		  auto bOp = sysMemOps_.at(bOpIx);
-		  auto bOpTime = std::max(bOp.time_, bOp.forwardTime_);
+		  auto bOpTime = bOp.minForwardTime();
 		  match = lineNum(bOp.pa_) == predLine and bOpTime <= predTime;
 		  if (match)
 		    {
@@ -4230,7 +4249,7 @@ Mcm<URV>::ppoRule5(Hart<URV>& hart, const McmInstr& instrA, const McmInstr& inst
       for (auto bopIx : instrB.memOps_)
         {
           const auto bop = sysMemOps_.at(bopIx);
-          auto bopTime = std::max(bop.time_, bop.forwardTime_);
+          auto bopTime = bop.maxForwardTime();
           if (bopTime > timeA or op.time_ < bopTime or op.time_ > timeA)
             continue;
           if (bop.overlaps(op) and op.hartIx_ != hartIx)

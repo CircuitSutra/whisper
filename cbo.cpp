@@ -146,19 +146,15 @@ Hart<URV>::execCbo_clean(const DecodedInst* di)
   virtAddr = virtAddr & ~mask;  // Make address cache line aligned.
   uint64_t gPhysAddr = virtAddr;
   uint64_t physAddr = virtAddr;
+  uint64_t pmva = applyPointerMask(virtAddr, false /*isLoad*/);
 
   ldStAddr_ = ldStFaultAddr_ = ldStPhysAddr1_ = ldStPhysAddr2_ = virtAddr;
   ldStSize_ = cacheLineSize_;
 
 #ifndef FAST_SLOPPY
   if (hasActiveTrigger())
-    {
-      if (ldStAddrTriggerHit(virtAddr, cacheLineSize_, TriggerTiming::Before, false /* isLoad */))
-	{
-	  dataAddrTrig_ = true;
-	  triggerTripped_ = true;
-	}
-    }
+    ldStAddrTriggerHit(pmva, cacheLineSize_, TriggerTiming::Before, false /* isLoad */);
+
   if (triggerTripped_)
     return;
 #endif
@@ -167,7 +163,7 @@ Hart<URV>::execCbo_clean(const DecodedInst* di)
   auto cause = determineCboException(virtAddr, gPhysAddr, physAddr, isZero);
   if (cause != ExceptionCause::NONE)
     {
-      initiateStoreException(di, cause, virtAddr, gPhysAddr);
+      initiateStoreException(di, cause, pmva, gPhysAddr);
       return;
     }
 
@@ -214,19 +210,15 @@ Hart<URV>::execCbo_flush(const DecodedInst* di)
   virtAddr = virtAddr & ~mask;  // Make address cache line aligned.
   uint64_t gPhysAddr = virtAddr;
   uint64_t physAddr = virtAddr;
+  uint64_t pmva = applyPointerMask(virtAddr, false /*isLoad*/);
 
   ldStAddr_ = ldStFaultAddr_ = ldStPhysAddr1_ = ldStPhysAddr2_ = virtAddr;
   ldStSize_ = cacheLineSize_;
 
 #ifndef FAST_SLOPPY
   if (hasActiveTrigger())
-    {
-      if (ldStAddrTriggerHit(virtAddr, cacheLineSize_, TriggerTiming::Before, false /* isLoad */))
-	{
-	  dataAddrTrig_ = true;
-	  triggerTripped_ = true;
-	}
-    }
+    ldStAddrTriggerHit(pmva, cacheLineSize_, TriggerTiming::Before, false /* isLoad */);
+
   if (triggerTripped_)
     return;
 #endif
@@ -235,7 +227,7 @@ Hart<URV>::execCbo_flush(const DecodedInst* di)
   auto cause = determineCboException(virtAddr, gPhysAddr, physAddr, isZero);
   if (cause != ExceptionCause::NONE)
     {
-      initiateStoreException(di, cause, virtAddr, gPhysAddr);
+      initiateStoreException(di, cause, pmva, gPhysAddr);
       return;
     }
 
@@ -284,19 +276,14 @@ Hart<URV>::execCbo_inval(const DecodedInst* di)
   virtAddr = virtAddr & ~mask;  // Make address cache line aligned.
   uint64_t gPhysAddr = virtAddr;
   uint64_t physAddr = virtAddr;
+  uint64_t pmva = applyPointerMask(virtAddr, false /*isLoad*/);
 
   ldStAddr_ = ldStFaultAddr_ = ldStPhysAddr1_ = ldStPhysAddr2_ = virtAddr;
   ldStSize_ = cacheLineSize_;
 
 #ifndef FAST_SLOPPY
   if (hasActiveTrigger())
-    {
-      if (ldStAddrTriggerHit(virtAddr, cacheLineSize_, TriggerTiming::Before, false /* isLoad */))
-	{
-	  dataAddrTrig_ = true;
-	  triggerTripped_ = true;
-	}
-    }
+    ldStAddrTriggerHit(pmva, cacheLineSize_, TriggerTiming::Before, false /* isLoad */);
   if (triggerTripped_)
     return;
 #endif
@@ -304,7 +291,7 @@ Hart<URV>::execCbo_inval(const DecodedInst* di)
   auto cause = determineCboException(virtAddr, gPhysAddr, physAddr, isZero);
   if (cause != ExceptionCause::NONE)
     {
-      initiateStoreException(di, cause, virtAddr, gPhysAddr);
+      initiateStoreException(di, cause, pmva, gPhysAddr);
       return;
     }
 
@@ -352,19 +339,14 @@ Hart<URV>::execCbo_zero(const DecodedInst* di)
   virtAddr = virtAddr & ~mask;  // Make address cache line aligned.
   uint64_t gPhysAddr = virtAddr;
   uint64_t physAddr = virtAddr;
+  uint64_t pmva = applyPointerMask(virtAddr, false /*isLoad*/);
 
   ldStAddr_ = ldStFaultAddr_ = ldStPhysAddr1_ = ldStPhysAddr2_ = virtAddr;
   ldStSize_ = cacheLineSize_;
 
 #ifndef FAST_SLOPPY
   if (hasActiveTrigger())
-    {
-      if (ldStAddrTriggerHit(virtAddr, cacheLineSize_, TriggerTiming::Before, false /* isLoad */))
-	{
-	  dataAddrTrig_ = true;
-	  triggerTripped_ = true;
-	}
-    }
+    ldStAddrTriggerHit(pmva, cacheLineSize_, TriggerTiming::Before, false /* isLoad */);
   if (triggerTripped_)
     return;
 #endif
@@ -373,7 +355,7 @@ Hart<URV>::execCbo_zero(const DecodedInst* di)
   auto cause = determineCboException(virtAddr, gPhysAddr, physAddr, isZero);
   if (cause != ExceptionCause::NONE)
     {
-      initiateStoreException(di, cause, virtAddr, gPhysAddr);
+      initiateStoreException(di, cause, pmva, gPhysAddr);
       return;
     }
 

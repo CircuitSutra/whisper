@@ -808,6 +808,10 @@ namespace WdRiscv
     void setAclintAdjustTimeCompare(uint64_t offset)
     { aclintAdjustTimeCmp_ = offset; }
 
+    /// Enable/disable interrupt delivery by the ACLINT device.
+    void setAclintDeliverInterrupts(bool flag)
+    { aclintDeliverInterrupts_ = flag; }
+
     /// Set the output file in which to dump the state of accessed
     /// memory lines. Return true on success and false if file cannot
     /// be opened.
@@ -3054,7 +3058,7 @@ namespace WdRiscv
     /// parameter is used to annotate the instruction rectord in the log file (if logging
     /// is enabeld).
     bool takeTriggerAction(FILE* traceFile, URV epc, URV info,
-			   uint64_t instrTag, bool beforeTiming);
+			   uint64_t instrTag, const DecodedInst* di);
 
     /// Helper to load methods: Initiate an exception with the given
     /// cause and data address.
@@ -3185,8 +3189,15 @@ namespace WdRiscv
     /// that trip.
     bool ldStAddrTriggerHit(URV addr, unsigned size, TriggerTiming t, bool isLoad)
     {
-      return csRegs_.ldStAddrTriggerHit(addr, size, t, isLoad, privilegeMode(), virtMode(),
-					isInterruptEnabled());
+      bool hit = csRegs_.ldStAddrTriggerHit(addr, size, t, isLoad, privilegeMode(), virtMode(),
+                                            isInterruptEnabled());
+      if (hit)
+        {
+          dataAddrTrig_ = true;
+          triggerTripped_ = true;
+          ldStFaultAddr_ = addr;   // For pointer masking, addr is masked.
+        }
+      return hit;
     }
 
     /// Return true if one or more load-address/store-address trigger has a hit on the
@@ -3194,8 +3205,14 @@ namespace WdRiscv
     /// triggers that trip.
     bool ldStDataTriggerHit(URV value, TriggerTiming t, bool isLoad)
     {
-      return csRegs_.ldStDataTriggerHit(value, t, isLoad, privilegeMode(), virtMode(),
-					isInterruptEnabled());
+      bool hit = csRegs_.ldStDataTriggerHit(value, t, isLoad, privilegeMode(), virtMode(),
+                                            isInterruptEnabled());
+      if (hit)
+        {
+          dataAddrTrig_ = true;
+          triggerTripped_ = true;
+        }
+      return hit;
     }
 
     /// Return true if one or more execution trigger has a hit on the given address and

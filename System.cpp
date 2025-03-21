@@ -751,8 +751,6 @@ System<URV>::configAplic(unsigned num_sources, std::span<const TT_APLIC::DomainP
   aplic_->setDirectCallback(aplicCallback);
 
   TT_APLIC::MsiDeliveryCallback imsicFunc = [this] (uint64_t addr, uint32_t data) -> bool {
-    std::cerr << "Imsic write addr=0x" << std::hex << addr << " value="
-              << data << std::dec << '\n';
     return imsicMgr_.write(addr, 4, data);
   };
   aplic_->setMsiCallback(imsicFunc);
