@@ -1450,8 +1450,7 @@ CsRegs<URV>::writeSip(URV value, bool recordWr)
   auto mvip = getImplementedCsr(CsrNumber::MVIP);
   if (mideleg and mvien and mvip)
     {
-      // Special hack for RTL only applies bit 9 aliasing write.
-      URV mvipMask = mvien->read() & ~mideleg->read() & URV(0x200);
+      URV mvipMask = mvien->read() & ~mideleg->read();
       sipMask &= ~ mvipMask;  // Don't write SIP where SIP is an alias to mvip.
       mvip->write((mvip->read() & ~mvipMask) | (value & mvipMask)); // Write mvip instead.
       if (recordWr)
@@ -4473,8 +4472,8 @@ CsRegs<URV>::updateVirtInterrupt()
   auto mvip = getImplementedCsr(CsrNumber::MVIP);
   if (mvien and mvip)
     {
-      // RTL does not write bit 1 when aliasing
-      // Bit 9 of MVIP is an alias to bit 9 in MIP if bit 1/9 is not set in MVIEN.
+      // Bit 9 of MVIP is an alias to bit 9 in MIP if bit 9 is not set in MVIEN.
+      // Special hack for RTL which does not alias bit 1.
       URV mask = mvien->read();
       URV b9 = URV(0x200);
       mask ^= b9;
