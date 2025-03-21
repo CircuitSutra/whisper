@@ -560,7 +560,7 @@ VirtMem::pageTableWalk(uint64_t address, PrivilegeMode privMode, bool read, bool
     }
 
   bool global = false;
-  bool accessed = false, dirty = false;  // For tracing: A/D written by traversal.
+  bool aUpdated = false, dUpdated = false;  // For tracing: A/D written by traversal.
 
   while (true)
     {
@@ -655,11 +655,11 @@ VirtMem::pageTableWalk(uint64_t address, PrivilegeMode privMode, bool read, bool
 	    if (pte.data_ != pte2.data_)
 	      continue;  // Comparison fails: return to step 2.
 	    pte.bits_.accessed_ = orig.bits_.accessed_ = true;
-            accessed = true;
+            aUpdated = true;
 	    if (write)
               {
                 pte.bits_.dirty_ = orig.bits_.dirty_ = 1;
-                dirty = true;
+                dUpdated = true;
               }
 	    if (not memWrite(pteAddr, bigEnd_, orig.data_))
 	      return stage1PageFaultType(read, write, exec);
@@ -690,8 +690,8 @@ VirtMem::pageTableWalk(uint64_t address, PrivilegeMode privMode, bool read, bool
     {
       walkVec.back().emplace_back(pa, WalkEntry::Type::RE);
       auto& walkEntry = walkVec.back().back();
-      walkEntry.aUpdated_ = accessed;
-      walkEntry.dUpdated_ = dirty;
+      walkEntry.aUpdated_ = walkEntry.accessed_ = aUpdated;
+      walkEntry.dUpdated_ = walkEntry.dirty_ = dUpdated;
     }
 
   // Update tlb-entry with data found in page table entry.
@@ -740,7 +740,7 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
     }
 
   bool global = false;
-  bool accessed = false, dirty = false;  // For tracing: A/D written by traversal.
+  bool aUpdated = false, dUpdated = false;  // For tracing: A/D written by traversal.
 
   while (true)
     {
@@ -836,11 +836,11 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 	    if (pte.data_ != pte2.data_)
 	      continue;  // Comparison fails: return to step 2.
 	    pte.bits_.accessed_ = orig.bits_.accessed_ = 1;
-            accessed = true;
+            aUpdated = true;
 	    if (write or (dirtyGForVsNonleaf_ and isPteAddr))
               {
                 pte.bits_.dirty_ = orig.bits_.dirty_ = 1;
-                dirty = true;
+                dUpdated = true;
               }
 	    if (not memWrite(pteAddr, bigEnd_, orig.data_))
 	      return stage2PageFaultType(read, write, exec);
@@ -871,8 +871,8 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
     {
       walkVec.back().emplace_back(pa, WalkEntry::Type::RE);
       auto& walkEntry = walkVec.back().back();
-      walkEntry.aUpdated_ = accessed;
-      walkEntry.dUpdated_ = dirty;
+      walkEntry.aUpdated_ = walkEntry.accessed_ = aUpdated;
+      walkEntry.dUpdated_ = walkEntry.dirty_ = dUpdated;
     }
 
   // Update tlb-entry with data found in page table entry.
@@ -922,7 +922,7 @@ VirtMem::stage1PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
     }
 
   bool global = false;
-  bool accessed = false, dirty = false;  // For tracing: A/D written by traversal.
+  bool aUpdated = false, dUpdated = false;  // For tracing: A/D written by traversal.
 
   while (true)
     {
@@ -1030,11 +1030,11 @@ VirtMem::stage1PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 	    if (pte.data_ != pte2.data_)
 	      continue;  // Comparison fails: return to step 2.
 	    pte.bits_.accessed_ = orig.bits_.accessed_ = 1;
-            accessed = true;
+            aUpdated = true;
 	    if (write)
               {
                 pte.bits_.dirty_ = orig.bits_.dirty_ = 1;
-                dirty = true;
+                dUpdated = true;
               }
 
 	    // Need to make sure we have write access to page.
@@ -1072,8 +1072,8 @@ VirtMem::stage1PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
     {
       walkVec.back().emplace_back(pa, WalkEntry::Type::RE);
       auto& walkEntry = walkVec.back().back();
-      walkEntry.aUpdated_ = accessed;
-      walkEntry.dUpdated_ = dirty;
+      walkEntry.aUpdated_ = walkEntry.accessed_ = aUpdated;
+      walkEntry.dUpdated_ = walkEntry.dirty_ = dUpdated;
     }
 
   // Update tlb-entry with data found in page table entry.
