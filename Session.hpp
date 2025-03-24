@@ -48,6 +48,7 @@ namespace WdRiscv
     /// Define a system. Basic system parameters (like number of harts) are taken form
     /// configuration object (likely populated from a JSON config file) and the command
     /// line arguments. Command line arguments take precedence (they are applied last).
+    /// Return pointer to the defined system on success and a nullptr on failure.
     std::shared_ptr<System<URV>>
     defineSystem(const Args& args, const HartConfig& config);
 
