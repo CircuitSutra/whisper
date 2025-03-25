@@ -926,7 +926,7 @@ PerfApi::commitMemoryWrite(Hart64& hart, uint64_t pa1, uint64_t pa2, unsigned si
 bool
 PerfApi::commitMemoryWrite(Hart64& hart, const InstrPac& packet)
 {
-  if (not packet.isVectorStore())
+  if (not packet.isVectorStore() and not packet.isCbo_zero())
     return commitMemoryWrite(hart, packet.dpa_, packet.dpa2_, packet.dsize_, packet.stData_);
 
   auto ok = true;
