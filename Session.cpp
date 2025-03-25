@@ -167,6 +167,8 @@ Session<URV>::configureSystem(const Args& args, const HartConfig& config)
 	if (not hart.configIsa(isa, updateMisa))
 	  return false;
       hart.reset();
+      hart.filterMachineInterrupts(args.verbose);
+      // hart.filterSupervisorInterrupts(args.verbose);
     }
 
   // This needs Smaia extension to be enabled.
@@ -967,6 +969,9 @@ Session<URV>::applyCmdLineArgs(const Args& args, Hart<URV>& hart,
 
   if (args.hintOps)
     hart.enableHintOps(args.hintOps);
+
+  if (args.logLabel)
+    hart.setLogLabelEnabled(true);
 
   return errors == 0;
 }

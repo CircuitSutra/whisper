@@ -27,8 +27,17 @@ namespace WdRiscv
     uint64_t   data_           = 0;  // Model (Whisper) data for ld/st instructions.
     uint64_t   rtlData_        = 0;  // RTL data.
     McmInstrIx tag_            = 0;  // Instruction tag.
-    uint64_t   forwardTime_    = 0;  // Time of store instruction forwarding to this op.
+
+    // Per byte forward time as offset from read time (time_). A forwarded byte effective
+    // time is time + offset. This would not be needed if RTL/test-bech would break a read
+    // op at forward boundary.
+    std::array<uint16_t, 8> fwOffset_  = { 0, 0, 0, 0, 0, 0, 0, 0 };
+
+    // This would not be needed if the RTL always writes vector elements in order. In some
+    // cases (e.g. element ops crossing middle of cache line) we do get the writes out of
+    // order.
     uint64_t   insertTime_     = 0;  // Time of merge buffer insert (if applicable).
+
     uint16_t   elemIx_         = 0;  // Vector element index.
     uint16_t   field_          = 0;  // Vector element field (for segment load).
     uint8_t    hartIx_    : 8  = 0;
@@ -60,7 +69,33 @@ namespace WdRiscv
       byte = data_ >> ((pa - pa_) * 8);
       return true;
     }
+
+    /// Return the minimum forward time of this operation.
+    uint64_t minForwardTime() const
+    {
+      if (not isRead_)
+        return time_;
+
+      uint64_t mt = time_ + fwOffset_.at(0);
+      for (unsigned i = 1; i < size_; ++i)
+        mt = std::min(mt, time_ + fwOffset_.at(i));
+      return mt;
+    }
+
+    /// Return the maxnimum forward time of this operation.
+    uint64_t maxForwardTime() const
+    {
+      if (not isRead_)
+        return time_;
+
+      uint64_t mt = time_;
+      for (unsigned i = 0; i < size_; ++i)
+        mt = std::max(mt, time_ + fwOffset_.at(i));
+      return mt;
+    }
+
   };
+
 
 
   struct McmInstr
@@ -94,16 +129,17 @@ namespace WdRiscv
 
     DecodedInst di_;
     McmInstrIx tag_ = 0;
-    uint8_t hartIx_ : 8 = 0;
-    uint8_t size_   : 8 = 0;        // Data size for load/store instructions.
-    PrivilegeMode privilege = PrivilegeMode::Machine;
+    uint8_t hartIx_     : 8 = 0;
+    uint8_t size_       : 8 = 0;        // Data size for load/store instructions.
+    PrivilegeMode priv_ : 2 = PrivilegeMode::Machine;
+    bool virt_          : 1 = false;    // Virtual mode.
 
-    bool retired_    : 1 = false;
-    bool canceled_   : 1 = false;
-    bool isLoad_     : 1 = false;
-    bool isStore_    : 1 = false;
-    bool complete_   : 1 = false;
-    bool hasOverlap_ : 1 = false;   // For vector load and store instructions.
+    bool retired_       : 1 = false;
+    bool canceled_      : 1 = false;
+    bool isLoad_        : 1 = false;
+    bool isStore_       : 1 = false;
+    bool complete_      : 1 = false;
+    bool hasOverlap_    : 1 = false;   // For vector load and store instructions.
 
     /// Return true if this a load/store instruction.
     bool isMemory() const { return isLoad_ or isStore_; }
@@ -604,11 +640,9 @@ namespace WdRiscv
     /// Addr/data/size are the physical-address/data-value/data-size of the store
     /// instruction.
     bool storeToReadForward(const McmInstr& store, MemoryOp& readOp, uint64_t& mask,
-			    uint64_t addr, uint64_t data, unsigned size,
-			    uint64_t& fwdTime) const;
+			    uint64_t addr, uint64_t data, unsigned size) const;
 
-    bool vecStoreToReadForward(const McmInstr& store, MemoryOp& readOp, uint64_t& mask,
-			       uint64_t& fwdTime) const;
+    bool vecStoreToReadForward(const McmInstr& store, MemoryOp& readOp, uint64_t& mask) const;
 
     /// Determine the source and destination registers of the given instruction.
     void identifyRegisters(const Hart<URV>& hart,

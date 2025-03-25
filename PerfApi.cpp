@@ -30,7 +30,7 @@ PerfApi::PerfApi(System64& system)
 
   hartPacketMaps_.resize(n);
   hartStoreMaps_.resize(n);
-  hartLastRetired_.resize(n);
+  hartLastRetired_.resize(n, initHartLastRetired);
   hartRegProducers_.resize(n);
 
   for (auto& producers : hartRegProducers_)
@@ -176,49 +176,78 @@ PerfApi::decode(unsigned hartIx, uint64_t time, uint64_t tag)
   if (not checkTime("Decode", time))
     return false;
 
-  auto hart = checkHart("Decode", hartIx);
-  if (not hart)
+  auto hartPtr = checkHart("Decode", hartIx);
+  if (not hartPtr)
     return false;
+  auto& hart = *hartPtr;
 
-  auto packet = checkTag("Decode", hartIx, tag);
-  if (not packet)
+  auto packPtr = checkTag("Decode", hartIx, tag);
+  if (not packPtr)
     return false;
+  auto& packet = *packPtr;
 
-  if (packet->decoded())
+  if (packet.decoded())
     return true;
 
-  hart->decode(packet->instrVa(), packet->instrPa(), packet->opcode_, packet->di_);
-  packet->decoded_ = true;
+  hart.decode(packet.instrVa(), packet.instrPa(), packet.opcode_, packet.di_);
+  packet.decoded_ = true;
+
+  using OM = WdRiscv::OperandMode;
+  using OT = WdRiscv::OperandType;
+
+  if (packet.di_.isVector())
+    getVectorOperandsLmul(hart, packet);
 
   // Collect producers of operands of this instruction.
-  auto& di = packet->decodedInst();
+  auto& di = packet.decodedInst();
   auto& producers = hartRegProducers_.at(hartIx);
   for (unsigned i = 0; i < di.operandCount(); ++i)
     {
-      using OM = WdRiscv::OperandMode;
-
       auto mode = di.ithOperandMode(i);
       if (mode != OM::None)
 	{
 	  unsigned regNum = di.ithOperand(i);
-	  unsigned gri = globalRegIx(di.ithOperandType(i), regNum);
-	  packet->opProducers_.at(i) = producers.at(gri);
+          auto type = di.ithOperandType(i);
+	  unsigned gri = globalRegIx(type, regNum);
+
+          if (type != OT::VecReg)
+            packet.opProducers_.at(i).scalar = producers.at(gri);
+          else
+            {
+              auto lmul = packet.opLmul_.at(i);
+              assert(lmul != 0);
+              for (unsigned n = 0; n < lmul; ++n)
+                {
+                  unsigned vgri = gri + n;
+                  packet.opProducers_.at(i).vec.push_back(producers.at(vgri));
+                }
+            }
 	}
     }
 
   // Mark this insruction as the producer of each of its destination registers.
   for (unsigned i = 0; i < di.operandCount(); ++i)
     {
-      using OM = WdRiscv::OperandMode;
-
       auto mode = di.effectiveIthOperandMode(i);
       if (mode == OM::Write or mode == OM::ReadWrite)
 	{
 	  unsigned regNum = di.ithOperand(i);
+          auto type = di.ithOperandType(i);
 	  unsigned gri = globalRegIx(di.ithOperandType(i), regNum);
-	  if (regNum == 0 and di.ithOperandType(i) == WdRiscv::OperandType::IntReg)
+	  if (regNum == 0 and di.ithOperandType(i) == OT::IntReg)
 	    continue;  // Reg X0 has no producer
-	  producers.at(gri) = packet;
+
+          if (type != OT::VecReg)
+            producers.at(gri) = packPtr;
+          else
+            {
+              auto lmul = packet.opLmul_.at(i);
+              for (unsigned n = 0; n < lmul; ++n)
+                {
+                  unsigned vgri = gri + n;
+                  producers.at(vgri) = packPtr;
+                }
+            }
 	}
     }
 
@@ -269,44 +298,16 @@ PerfApi::execute(unsigned hartIx, uint64_t time, uint64_t tag)
 	}
     }
 
-  // Collect register operand values.
-  bool peekOk = true;
-  assert(di.operandCount() <= packet.opVal_.size());
-  for (unsigned i = 0; i < di.operandCount(); ++i)
-    {
-      if (di.ithOperandType(i) == WdRiscv::OperandType::Imm)
-	{
-	  packet.opVal_.at(i) = di.ithOperand(i);
-	  continue;
-	}
-      assert(di.ithOperandMode(i) != WdRiscv::OperandMode::None);
-      unsigned regNum = di.ithOperand(i);
-      unsigned gri = globalRegIx(di.ithOperandType(i), regNum);
-      uint64_t value = 0;
-
-      auto& producer = packet.opProducers_.at(i);
-      if (producer)
-	{
-	  value = getDestValue(*producer, gri);
-	  if (not producer->executed())
-	    {
-	      std::cerr << "Error: PerfApi::execute: Hart-ix=" << hartIx << "tag=" << tag
-			<< " depends on tag=" << producer->tag_ << " which is not yet executed.\n";
-	      assert(0);
-	      return false;
-	    }
-	}
-      else
-	peekOk = peekRegister(hart, di.ithOperandType(i), regNum, value) and peekOk;
-
-      packet.opVal_.at(i) = value;
-    }
+  // Collect register operand values. Some values come from in-flight instructions
+  // (register renaming).
+  bool peekOk = collectOperandValues(hart, packet);
 
   // Execute the instruction: Poke source register values, execute, recover destination
-  // values.
+  // register values.
   if (not execute(hartIx, packet))
     assert(0);
 
+  // We should not fail to read an operand value unless there is an exception.
   if (not peekOk)
     assert(packet.trap_);
 
@@ -355,7 +356,7 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
   hart.pokePc(packet.instrVa());
   hart.setInstructionCount(packet.tag_ - 1);
 
-  std::array<uint64_t, 4> prevVal;  // Previous operand values
+  std::array<OpVal, 4> prevVal;  // Previous operand values
 
   // Save hart register values corresponding to packet operands in prevVal.
   bool saveOk = saveHartValues(hart, packet, prevVal);
@@ -364,14 +365,30 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
   // into the hart registers.
   bool setOk = setHartValues(hart, packet);
 
-  assert(packet.tag_ > hartLastRetired_.at(hartIx));
-  hart.adjustTime(packet.tag_ - hartLastRetired_.at(hartIx) - 1);
+  assert(hartLastRetired_.at(hartIx) == initHartLastRetired ||  packet.tag_ > hartLastRetired_.at(hartIx));
+
+  // Only make the time adjustment when the hart has retired atleast one instruction. 
+  if (hartLastRetired_.at(hartIx) != initHartLastRetired)
+    hart.adjustTime(packet.tag_ - hartLastRetired_.at(hartIx) - 1);
 
   auto& di = packet.decodedInst();
 
   unsigned imsicId = 0, imsicGuest = 0;
   if (di.isCsr())
     saveImsicTopei(hart, CSRN(di.ithOperand(2)), imsicId, imsicGuest);
+
+  uint64_t prevMstatus = 0;
+  if (not hart.peekCsr(CSRN::MSTATUS, prevMstatus))
+    assert(0);
+  uint64_t prevVtype = 0, prevVl = 0, prevFcsr = 0;
+  if (di.isVector())
+    {
+      (void) hart.peekCsr(CSRN::VTYPE, prevVtype);
+      (void) hart.peekCsr(CSRN::VL, prevVl);
+      (void) hart.peekCsr(CSRN::FCSR, prevFcsr);
+    }
+  else if (di.isFp())
+    (void) hart.peekCsr(CSRN::FCSR, prevFcsr);
 
   // Execute
   skipIoLoad_ = true;   // Load from IO space takes effect at retire.
@@ -393,7 +410,10 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
 
   // Undo changes to the hart.
 
-  hart.adjustTime(-(int64_t)(packet.tag_ - hartLastRetired_.at(hartIx)));  // Restore timer value.
+  if (hartLastRetired_.at(hartIx) != initHartLastRetired)
+    hart.adjustTime(-(int64_t)(packet.tag_ - hartLastRetired_.at(hartIx)));  // Restore timer value.
+  else
+    hart.adjustTime(-1); // untick one cycle for the first instruction
 
   // Restore CSRs modified by the instruction or trap. TODO: For vector ld/st we have to
   // restore partially modified vectors.
@@ -403,17 +423,15 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
       hart.setPrivilegeMode(hart.lastPrivMode());
     }
 
-  // Restore changed CSR changes due to a trap or to mret/sret.
-  if (trap or di.isXRet())
+  // Restore CSR changes due to a trap or to mret/sret or to side effects from
+  // vector/fp instructions (MSTATUS.VS, MSTATUS.FS, FCSR, etc...).
+  std::vector<CSRN> csrns;
+  hart.lastCsr(csrns);
+  for (auto csrn : csrns)
     {
-      std::vector<CSRN> csrns;
-      hart.lastCsr(csrns);
-      for (auto csrn : csrns)
-	{
-	  uint64_t value = hart.lastCsrValue(csrn);
-	  if (not hart.pokeCsr(csrn, value))
-	    assert(0);
-	}
+      uint64_t value = hart.lastCsrValue(csrn);
+      if (not hart.pokeCsr(csrn, value))
+        assert(0);
     }
 
   if (trap)
@@ -424,6 +442,21 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
 
   // Restore hart registers that we changed before single step.
   restoreHartValues(hart, packet, prevVal);
+
+  if (di.isVector())
+    {
+      hart.pokeCsr(CSRN::VTYPE, prevVtype);
+      hart.pokeCsr(CSRN::VL, prevVl);
+      hart.pokeCsr(CSRN::FCSR, prevFcsr);
+    }
+  else if (di.isFp())
+    hart.pokeCsr(CSRN::FCSR, prevFcsr);
+
+  uint64_t mstatus = 0;
+  if (not hart.peekCsr(CSRN::MSTATUS, mstatus))
+    assert(0);
+  if (mstatus != prevMstatus)
+    hart.pokeCsr(CSRN::MSTATUS, prevMstatus);
 
   if (di.isCsr())
     restoreImsicTopei(hart, CSRN(di.ithOperand(2)), imsicId, imsicGuest);
@@ -448,16 +481,18 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
   if (not checkTime("Retire", time))
     return false;
 
-  auto hart = checkHart("Retire", hartIx);
-  if (not hart)
+  auto hartPtr = checkHart("Retire", hartIx);
+  if (not hartPtr)
     return false;
 
   auto pacPtr = checkTag("Retire", hartIx, tag);
   if (not pacPtr)
     return false;
-  auto& packet = *pacPtr;
 
-  if (tag <= hartLastRetired_.at(hartIx))
+  auto& packet = *pacPtr;
+  auto& hart = *hartPtr;
+
+  if (hartLastRetired_.at(hartIx) != initHartLastRetired && tag <= hartLastRetired_.at(hartIx))
     {
       std::cerr << "Hart=" << hartIx << " time=" << time << " tag=" << tag
 		<< " Out of order retire\n";
@@ -472,17 +507,16 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
       return false;
     }
 
-
-  if (packet.instrVa() != hart->peekPc())
+  if (packet.instrVa() != hart.peekPc())
     {
       std::cerr << "Hart=" << hartIx << " time=" << time << " tag=" << tag << std::hex
 		<< " Wrong pc at retire: 0x" << packet.instrVa() << " expecting 0x"
-		<< hart->peekPc() << '\n' << std::dec;
+		<< hart.peekPc() << '\n' << std::dec;
       return false;
     }
 
-  hart->setInstructionCount(tag - 1);
-  hart->singleStep(traceFiles_.at(hartIx));
+  hart.setInstructionCount(tag - 1);
+  hart.singleStep(traceFiles_.at(hartIx));
 
   // Undo renaming of destination registers.
   auto& producers = hartRegProducers_.at(hartIx);
@@ -490,28 +524,41 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
   for (size_t i = 0; i < di.operandCount(); ++i)
     {
       using OM = WdRiscv::OperandMode;
+      using OT = WdRiscv::OperandType;
       auto mode = di.ithOperandMode(i);
       if (mode == OM::Write or mode == OM::ReadWrite)
 	{
 	  unsigned regNum = di.ithOperand(i);
 	  unsigned gri = globalRegIx(di.ithOperandType(i), regNum);
-	  auto& producer = producers.at(gri);
-	  if (producer and producer->tag() == packet.tag())
-	    producer = nullptr;
+          auto type = di.ithOperandType(i);
+          if (type != OT::VecReg)
+            {
+              auto& producer = producers.at(gri);
+              if (producer and producer->tag() == packet.tag())
+                producer = nullptr;
+            }
+          else
+            {
+              for (unsigned n = 0; n < packet.opLmul_.at(i); ++n)
+                {
+                  auto& producer = producers.at(gri + n);
+                  if (producer and producer->tag() == packet.tag())
+                    producer = nullptr;
+                }
+            }
 	}
     }
 
+  bool trap = hart.lastInstructionTrapped();
+  packet.trap_ = packet.trap_ or trap;
+
   if (di.isLr())
     {
-      bool trap = hart->lastInstructionTrapped();
-      packet.trap_ = packet.trap_ or trap;
-
       // Record PC of subsequent packet.
-      packet.nextIva_ = hart->peekPc();
+      packet.nextIva_ = hart.peekPc();
 
-      if (not trap)
-        recordExecutionResults(*hart, packet);
-
+      if (not packet.trap_)
+        recordExecutionResults(hart, packet);
       packet.executed_ = true;
     }
 
@@ -520,12 +567,12 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
   if (packet.isAmo() or packet.isSc())
     {
       uint64_t sva = 0, spa1 = 0, spa2 = 0, sval = 0;
-      unsigned size = hart->lastStore(sva, spa1, spa2, sval);
+      unsigned size = hart.lastStore(sva, spa1, spa2, sval);
       if (size != 0)   // Could be zero for a failed sc
-	if (not commitMemoryWrite(*hart, spa1, size, packet.storeData_))
+	if (not commitMemoryWrite(hart, spa1, spa2, size, packet.stData_))
 	  assert(0);
       if (packet.isSc())
-	hart->cancelLr(WdRiscv::CancelLrCause::SC);
+	hart.cancelLr(WdRiscv::CancelLrCause::SC);
       auto& storeMap = hartStoreMaps_.at(hartIx);
       packet.drained_ = true;
       storeMap.erase(packet.tag());
@@ -533,14 +580,12 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
 
   // Clear dependency on other packets to expedite release of packet memory.
   for (auto& producer : packet.opProducers_)
-    producer = nullptr;
+    producer.clear();
 
-  // Stores erased at drain time.
-  if (not packet.isStore())
-    {
-      auto& packetMap = hartPacketMaps_.at(hartIx);
-      packetMap.erase(packet.tag());
-    }
+  // Erase packet from packet map. Stores erased at drain time.
+  auto& packetMap = hartPacketMaps_.at(hartIx);
+  if (not packet.isStore() and not di.isVectorStore())
+    packetMap.erase(packet.tag());
 
   return true;
 }
@@ -631,18 +676,19 @@ PerfApi::drainStore(unsigned hartIx, uint64_t time, uint64_t tag)
   if (not checkTime("Drain-store", time))
     return false;
 
-  auto hart = checkHart("Drain-store", hartIx);
+  auto hartPtr = checkHart("Drain-store", hartIx);
   auto pacPtr = checkTag("Drain-store", hartIx, tag);
 
-  if (not hart or not pacPtr or not pacPtr->retired())
+  if (not hartPtr or not pacPtr or not pacPtr->retired())
     {
       assert(0);
       return false;
     }
 
+  auto& hart = *hartPtr;
   auto& packet = *pacPtr;
 
-  if (not packet.di_.isStore())
+  if (not packet.di_.isStore() and not packet.di_.isVectorStore())
     {
       std::cerr << "Hart=" << hartIx << " time=" << time << " tag=" << tag
 		<< " Draining a non-store instruction\n";
@@ -660,10 +706,7 @@ PerfApi::drainStore(unsigned hartIx, uint64_t time, uint64_t tag)
 	  assert(0);
 	}
 
-      uint64_t value = packet.storeData_;
-      uint64_t addr = packet.dpa_;    // FIX TODO : Handle page crossing store.
-
-      if (packet.dsize_ and not commitMemoryWrite(*hart, addr, packet.dsize_, value))
+      if (packet.dsize_ and not commitMemoryWrite(hart, packet))
 	assert(0);
 
       packet.drained_ = true;
@@ -671,7 +714,7 @@ PerfApi::drainStore(unsigned hartIx, uint64_t time, uint64_t tag)
 
   // Clear dependency on other packets to expedite release of packet memory.
   for (auto& producer : packet.opProducers_)
-    producer = nullptr;
+    producer.clear();
 
   auto& packetMap = hartPacketMaps_.at(hartIx);
   packetMap.erase(packet.tag());
@@ -685,12 +728,14 @@ PerfApi::drainStore(unsigned hartIx, uint64_t time, uint64_t tag)
 
 bool
 PerfApi::getLoadData(unsigned hartIx, uint64_t tag, uint64_t va, uint64_t pa1,
-		     uint64_t pa2, unsigned size, uint64_t& data)
+		     uint64_t pa2, unsigned size, uint64_t& data, unsigned elemIx,
+                     unsigned field)
 {
   auto hart = checkHart("Get-load-data", hartIx);
   auto packet = checkTag("Get-load-Data", hartIx, tag);
 
-  bool isLoad = packet->di_.isLoad() or packet->di_.isAmo();
+  bool isLoad = ( packet->di_.isLoad() or packet->di_.isAmo() or
+                  packet->di_.isVectorLoad() );
 
   if (not hart or not packet or not isLoad or packet->trapped())
     {
@@ -700,11 +745,12 @@ PerfApi::getLoadData(unsigned hartIx, uint64_t tag, uint64_t va, uint64_t pa1,
 
   // If AMO destination register is x0, we lose the loaded value: redo the read for AMOs
   // to avoid that case. AMOs should not have a discrepancy between early read and read at
-  // excecute, so redoing the read is ok.
-  if (packet->executed() and not packet->isAmo())
+  // retire, so redoing the read is ok.
+  bool amoRedo = packet->isAmo() and packet->di_.op0() == 0;
+
+  if (packet->executed() and not amoRedo)
     {
-      assert(size == packet->dataSize());
-      data = packet->destValues_.at(0).second;
+      data = packet->executedDestVal(*hart, size, elemIx, field);
       return true;
     }
 
@@ -726,59 +772,54 @@ PerfApi::getLoadData(unsigned hartIx, uint64_t tag, uint64_t va, uint64_t pa1,
   unsigned mask = (1 << size) - 1;  // One bit ber byte of load data.
   unsigned forwarded = 0;            // One bit per forwarded byte.
 
+  unsigned size1 = size;
+  if (pa1 != pa2 and pageNum(pa1) != pageNum(pa2))
+    size1 = offsetToNextPage(pa1);
+
   for (auto& kv : storeMap)
     {
       auto stTag = kv.first;
-      auto& stPac = kv.second;
-
       if (stTag > tag)
 	break;
 
-      if (not stPac->executed())
+      auto& stPac = *(kv.second);
+      if (not stPac.executed())
 	continue;
 
-      uint64_t stAddr = stPac->dataVa();
-      unsigned stSize = stPac->dataSize();
-      if (stAddr + stSize < va or va + size < stAddr)
+      uint64_t stAddr = stPac.dataVa();
+      unsigned stSize = stPac.dataSize();
+      if ((stAddr + stSize < va or va + size < stAddr) and not stPac.isVectorStore())
 	continue;  // No overlap.
 
-      uint64_t stData = stPac->opVal_.at(0);
+      auto& stMap = stPac.stDataMap_;
 
       for (unsigned i = 0; i < size; ++i)
 	{
 	  unsigned byteMask = 1 << i;
-	  uint64_t byteAddr = va + i;
-	  if (byteAddr >= stAddr and byteAddr < stAddr + stSize)
-	    {
-	      data &= ~(0xffull << (i * 8));
-	      uint64_t stByte = (stData >> (byteAddr - stAddr)*8) & 0xff;
-	      data |= stByte << (i*8);
-	      forwarded |= byteMask;
-	    }
+	  uint64_t byteAddr = i < size1 ? pa1 + i : pa2 + (i - size1);
+
+          auto iter = stMap.find(byteAddr);
+          if (iter == stMap.end())
+            continue;
+
+          data &= ~(0xffLL << (i * 8));     // Clear byte location in data
+          uint8_t byte = iter->second;
+          data |= uint64_t(byte) << (i*8);  // Insert forwarded value instead
+          forwarded |= byteMask;
 	}
     }
 
   if (forwarded == mask)
     return true;
 
-  unsigned size1 = size;
-  if (pa1 != pa2 and pageNum(pa1) != pageNum(pa2))
-    size1 = offsetToNextPage(pa1);
-
+  // Non-forward bytes are read from memory.
   for (unsigned i = 0; i < size; ++i)
     if (not (forwarded & (1 << i)))
       {
 	uint8_t byte = 0;
-	if (i < size1)
-	  {
-	    if (not hart->peekMemory(pa1 + i, byte, true))
-	      assert(0);
-	  }
-	else
-	  {
-	    if (not hart->peekMemory(pa2 + (i-size1), byte, true))
-	      assert(0);
-	  }
+        uint64_t pa = i < size1 ? pa1 + i : pa2 + (i - size1);
+        if (not hart->peekMemory(pa, byte, true))
+          assert(0);
 	data |= uint64_t(byte) << (i*8);
       }
 
@@ -787,9 +828,10 @@ PerfApi::getLoadData(unsigned hartIx, uint64_t tag, uint64_t va, uint64_t pa1,
 
 
 bool
-PerfApi::setStoreData(unsigned hartIx, uint64_t tag, uint64_t value)
+PerfApi::setStoreData(unsigned hartIx, uint64_t tag, uint64_t pa1, uint64_t pa2,
+                      unsigned size, uint64_t value)
 {
-  auto hart = checkHart("Set-store-data", hartIx);
+  auto hartPtr = checkHart("Set-store-data", hartIx);
   auto packetPtr = checkTag("Set-store-Data", hartIx, tag);
   if (not packetPtr)
     {
@@ -798,36 +840,99 @@ PerfApi::setStoreData(unsigned hartIx, uint64_t tag, uint64_t value)
     }
 
   auto& packet = *packetPtr;
-  if (not hart or not (packet.isStore() or packet.isAmo()))
+  if (not hartPtr or not (packet.isStore() or packet.isAmo() or packet.isVectorStore()))
     {
       assert(0);
       return false;
     }
 
-  packet.storeData_ = value;
+  auto& hart = *hartPtr;
+
+  if (pa1 != pa2)
+    {
+      bool isDev = hart.isAclintAddr(pa1) or hart.isImsicAddr(pa1) or hart.isPciAddr(pa1);
+      if (isDev)
+        assert(0);
+
+      isDev = hart.isAclintAddr(pa2) or hart.isImsicAddr(pa2) or hart.isPciAddr(pa2);
+      if (isDev)
+        assert(0);
+    }
+
+  packet.dpa_ = pa1;
+  packet.dpa2_ = pa2;
+  packet.stData_ = value;
+  packet.dsize_ = size;
+
+  unsigned size1 = size;
+  if (pa1 != pa2 and pageNum(pa1) != pageNum(pa2))
+    size1 = offsetToNextPage(pa1);
+
+  for (unsigned i = 0; i < size; ++i, value >>= 8)
+    {
+      uint64_t pa = i < size1 ? pa1 + i : pa2 + (i - size1);
+      uint8_t byte = value;
+      packet.stDataMap_[pa] = byte;
+    }      
+
   return true;
 }
 
 
 bool
-PerfApi::commitMemoryWrite(Hart64& hart, uint64_t addr, unsigned size, uint64_t value)
+PerfApi::commitMemoryWrite(Hart64& hart, uint64_t pa1, uint64_t pa2, unsigned size, uint64_t value)
 {
-  if (hart.isToHostAddr(addr))
+  if (hart.isToHostAddr(pa1))
     {
-      hart.handleStoreToHost(addr, value);
+      hart.handleStoreToHost(pa1, value);
       return true;
     }
 
-  switch (size)
-    {
-    case 1:  return hart.pokeMemory(addr, uint8_t(value), true);
-    case 2:  return hart.pokeMemory(addr, uint16_t(value), true);
-    case 4:  return hart.pokeMemory(addr, uint32_t(value), true);
-    case 8:  return hart.pokeMemory(addr, value, true);
-    default: assert(0);
-    }
+  auto commit = [] (Hart64& hart, uint64_t pa, unsigned sz, uint64_t val) -> bool {
+    switch (sz)
+      {
+      case 1:  return hart.pokeMemory(pa, uint8_t(val), true);
+      case 2:  return hart.pokeMemory(pa, uint16_t(val), true);
+      case 4:  return hart.pokeMemory(pa, uint32_t(val), true);
+      case 8:  return hart.pokeMemory(pa, val, true);
+      default:
+        {
+          bool ok = true;
+          for (unsigned i = 0; i < sz; ++i, val >>= 8)
+            {
+              uint8_t byte = val;
+              ok = hart.pokeMemory(pa + i, byte, true) and ok;
+            }
+          return ok;
+        }
+      }
+    return true;
+  };
 
-  return false;
+  if (pa1 == pa2 or pageNum(pa1) == pageNum(pa2))
+    return commit(hart, pa1, size, value);
+
+  unsigned size1 = offsetToNextPage(pa1);
+  bool ok = commit(hart, pa1, size1, value);
+
+  value = value >> size1*8;
+  ok = commit(hart, pa2, size - size1, value) and ok;
+  return ok;
+}
+
+
+bool
+PerfApi::commitMemoryWrite(Hart64& hart, const InstrPac& packet)
+{
+  if (not packet.isVectorStore())
+    return commitMemoryWrite(hart, packet.dpa_, packet.dpa2_, packet.dsize_, packet.stData_);
+
+  auto ok = true;
+
+  for (auto [addr, val] : packet.stDataMap_)
+    ok = hart.pokeMemory(addr, val, true) and ok;
+
+  return ok;
 }
 
 
@@ -873,10 +978,29 @@ PerfApi::flush(unsigned hartIx, uint64_t time, uint64_t tag)
               unsigned gri = globalRegIx(di.ithOperandType(i), regNum);
 	      if (gri != 0)
 		assert(producers.at(gri)->tag_ == packet.tag_);
-              auto prev = packet.opProducers_.at(i);
-	      if (prev and prev->retired_)
-                prev = nullptr;
-	      producers.at(gri) = prev;
+
+              auto& iop = packet.opProducers_.at(i);  // ith op producer
+
+              using OT = WdRiscv::OperandType;
+              OT type = di.ithOperandType(i);
+
+              if (type != OT::VecReg)
+                {
+                  auto prev = iop.scalar;
+                  if (prev and prev->retired_)
+                    prev = nullptr;
+                  producers.at(gri) = prev;
+                }
+              else
+                {
+                  for (unsigned n = 0; n < iop.vec.size(); ++n)
+                    {
+                      auto prev = iop.vec.at(n);
+                      if (prev and prev->retired_)
+                        prev = nullptr;
+                      producers.at(gri+n) = prev;
+                    }
+                }
             }
         }
 
@@ -970,8 +1094,8 @@ InstrPac::getSourceOperands(std::array<Operand, 3>& ops)
 	{
 	  auto& op = ops.at(count);
 	  op.type = di_.ithOperandType(i);
-	  op.number = (di_.ithOperandType(i) == OperandType::Imm) ? 0 : di_.ithOperand(i);
-	  op.value = opVal_.at(i);
+	  op.number = (op.type == OperandType::Imm) ? 0 : di_.ithOperand(i);
+          op.value = opValues_.at(i);
 	  ++count;
 	}
     }
@@ -1000,7 +1124,7 @@ InstrPac::getDestOperands(std::array<Operand, 2>& ops)
 	  op.type = di_.ithOperandType(i);
 	  op.number = di_.ithOperand(i);
 	  op.value = destValues_.at(count).second;
-	  op.prevValue = opVal_.at(i);
+	  op.prevValue = opValues_.at(i);
 	  ++count;
 	}
     }
@@ -1038,9 +1162,52 @@ InstrPac::branchTargetFromDecode() const
 }
 
 
+uint64_t
+InstrPac::executedDestVal(const Hart64& hart, unsigned size, unsigned elemIx, unsigned field) const
+{
+  assert(executed());
+
+  OpVal destVal = destValues_.at(0).second;
+
+  if (not di_.isVector())
+    {
+      assert(size == dataSize());
+      return destVal.scalar;
+    }
+
+  std::vector<uint8_t>& vec = destVal.vec;   // Vector register value.
+
+  auto& info = hart.getLastVectorMemory();
+  unsigned elemSize = info.elemSize_;
+
+  unsigned offset = elemSize * elemIx;
+  if (info.fields_ > 0)
+    {
+      // Segmented load.
+      unsigned bytesPerReg = hart.vecRegs().bytesPerRegister();
+      unsigned regsPerField = opLmul_[0] / info.fields_;
+      if (regsPerField == 0)
+        regsPerField = 1;
+      offset += field*bytesPerReg*regsPerField;
+    }
+  else
+    assert(field == 0);
+
+  assert(offset + size <= vec.size());
+
+  uint64_t val = 0;
+  for (unsigned i = 0; i < size; ++i)
+    {
+      uint64_t byte = vec.at(offset + i);
+      val |= byte << i*8;
+    }
+  return val;
+}
+
+
 bool
 PerfApi::saveHartValues(Hart64& hart, const InstrPac& packet,
-			std::array<uint64_t, 4>& prevVal)
+			std::array<OpVal, 4>& prevVal)
 {
   using OM = WdRiscv::OperandMode;
   using OT = WdRiscv::OperandType;
@@ -1059,20 +1226,25 @@ PerfApi::saveHartValues(Hart64& hart, const InstrPac& packet,
       switch (type)
 	{
 	case OT::IntReg:
-	  if (not hart.peekIntReg(operand, prevVal.at(i)))
+	  if (not hart.peekIntReg(operand, prevVal.at(i).scalar))
 	    assert(0);
 	  break;
+
 	case OT::FpReg:
-	  ok = hart.peekFpReg(operand, prevVal.at(i)) and ok;
+	  ok = hart.peekFpReg(operand, prevVal.at(i).scalar) and ok;
 	  break;
+
 	case OT::CsReg:
-	  ok = hart.peekCsr(CSRN(operand), prevVal.at(i)) and ok;
+	  ok = hart.peekCsr(CSRN(operand), prevVal.at(i).scalar) and ok;
 	  break;
+
 	case OT::VecReg:
-	  assert(0);
+          ok = peekVecRegGroup(hart, operand, packet.opLmul_.at(i), prevVal.at(i));
 	  break;
+
 	case OT::Imm:
 	  break;
+
 	default:
 	  assert(0);
 	  break;
@@ -1147,7 +1319,7 @@ PerfApi::restoreImsicTopei(Hart64& hart, CSRN csrn, unsigned id, unsigned guest)
 
 void
 PerfApi::restoreHartValues(Hart64& hart, const InstrPac& packet,
-			   const std::array<uint64_t, 4>& prevVal)
+			   const std::array<OpVal, 4>& prevVal)
 {
   using OM = WdRiscv::OperandMode;
   using OT = WdRiscv::OperandType;
@@ -1159,7 +1331,8 @@ PerfApi::restoreHartValues(Hart64& hart, const InstrPac& packet,
       auto mode = di.ithOperandMode(i);
       auto type = di.ithOperandType(i);
       uint32_t operand = di.ithOperand(i);
-      uint64_t prev = prevVal.at(i);
+      uint64_t prev = prevVal.at(i).scalar;
+      const std::vector<uint8_t>& vec = prevVal.at(i).vec;
       if (mode == OM::None)
 	continue;
 
@@ -1183,7 +1356,17 @@ PerfApi::restoreHartValues(Hart64& hart, const InstrPac& packet,
 	  break;
 
 	case OT::VecReg:
-	  assert(0);
+          {
+            size_t bytesPerReg = hart.vecRegs().bytesPerRegister();
+            size_t count = vec.size() / bytesPerReg;
+            assert(count * bytesPerReg == vec.size());
+            for (unsigned i = 0; i < count; ++i)
+              {
+                auto pokeData = vec.data() + i*bytesPerReg;
+                if (not hart.pokeVecRegLsb(operand + i, std::span(pokeData, bytesPerReg)))
+                  assert(0);
+              }
+          }
 	  break;
 
 	default:
@@ -1197,43 +1380,107 @@ PerfApi::restoreHartValues(Hart64& hart, const InstrPac& packet,
 bool
 PerfApi::setHartValues(Hart64& hart, const InstrPac& packet)
 {
-  using OM = WdRiscv::OperandMode;
-  using OT = WdRiscv::OperandType;
-
   auto& di = packet.decodedInst();
-
   bool ok = true;
 
   for (unsigned i = 0; i < di.operandCount(); ++i)
     {
       auto mode = di.ithOperandMode(i);
-      auto type = di.ithOperandType(i);
-      uint32_t operand = di.ithOperand(i);
-      uint64_t val = packet.opVal_.at(i);
-      if (mode == OM::None)
+      if (mode == WdRiscv::OperandMode::None)
  	continue;
 
-      switch (type)
- 	{
- 	case OT::IntReg:
- 	  if (not hart.pokeIntReg(operand, val))
- 	    assert(0);
- 	  break;
- 	case OT::FpReg:
- 	  ok = hart.pokeFpReg(operand, val) and ok;
- 	  break;
- 	case OT::CsReg:
- 	  ok = hart.pokeCsr(CSRN(operand), val) and ok;
- 	  break;
- 	case OT::VecReg:
- 	  assert(0);
- 	  break;
- 	case OT::Imm:
- 	  break;
- 	default:
- 	  assert(0);
- 	  break;
- 	}
+      auto type = di.ithOperandType(i);
+      uint32_t operand = di.ithOperand(i);
+      const OpVal& value = packet.opValues_.at(i);
+      ok = pokeRegister(hart, type, operand, value) and ok;
+    }
+
+  return ok;
+}
+
+
+bool
+PerfApi::peekRegister(Hart64& hart, WdRiscv::OperandType type, unsigned regNum,
+                      OpVal& value)
+{
+  using OT = WdRiscv::OperandType;
+  switch(type)
+    {
+    case OT::IntReg: return hart.peekIntReg(regNum, value.scalar);
+    case OT::FpReg:  return hart.peekFpReg(regNum, value.scalar);
+    case OT::CsReg:  return hart.peekCsr(WdRiscv::CsrNumber(regNum), value.scalar);
+    case OT::VecReg: return hart.peekVecRegLsb(regNum, value.vec);
+    case OT::Imm:
+    case OT::None:   assert(0); return false;
+    }
+  return false;
+}
+
+
+bool
+PerfApi::pokeRegister(Hart64& hart, WdRiscv::OperandType type, unsigned regNum,
+		      const OpVal& value)
+{
+  using OT = WdRiscv::OperandType;
+
+  uint64_t scalar = value.scalar;
+  const std::vector<uint8_t>& vecVal = value.vec;
+
+  switch (type)
+    {
+    case OT::IntReg:
+      if (hart.pokeIntReg(regNum, scalar))
+        return true;
+      assert(0);
+      return false;
+
+    case OT::FpReg:
+      return hart.pokeFpReg(regNum, scalar);
+
+    case OT::CsReg:
+      return hart.pokeCsr(CSRN(regNum), scalar);
+      
+    case OT::VecReg:
+      {
+        bool ok = true;
+
+        size_t bytesPerReg = hart.vecRegs().bytesPerRegister();
+        size_t count = vecVal.size() / bytesPerReg;
+        assert(count * bytesPerReg == vecVal.size());
+
+        for (unsigned i = 0; i < count; ++i)
+          {
+            auto pokeData = vecVal.data() + i*bytesPerReg;
+            ok = hart.pokeVecRegLsb(regNum + i, std::span(pokeData, bytesPerReg)) and ok;
+          }
+
+        return ok;
+      }
+
+    case OT::Imm:
+    default:
+      break;
+    }
+
+  assert(0);
+  return false;
+}
+
+
+bool
+PerfApi::peekVecRegGroup(Hart64& hart, unsigned regNum, unsigned lmul, OpVal& value)
+{
+  std::vector<uint8_t>& data = value.vec;
+  std::vector<uint8_t> vecVal;  // Single vector value.
+
+  bool ok = true;
+
+  for (unsigned n = 0; n < lmul; ++n)
+    {
+      ok = hart.peekVecRegLsb(regNum + n, vecVal) and ok;
+
+      // Append single vector value to data.
+      data.insert(data.end(), vecVal.begin(), vecVal.end());
     }
 
   return ok;
@@ -1249,29 +1496,39 @@ PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
 
   if (di.isLoad())
     {
-      hart.lastLdStAddress(packet.dva_, packet.dpa_);  // FIX TODO : handle page corrsing
+      hart.lastLdStAddress(packet.dva_, packet.dpa_, packet.dpa2_);
       packet.dsize_ = di.loadSize();
       packet.deviceAccess_ = hart.isAclintMtimeAddr(packet.dpa_) or hart.isImsicAddr(packet.dpa_) or hart.isPciAddr(packet.dpa_) or hart.isHtifAddr(packet.dpa_);
     }
-  else if (di.isStore() or di.isAmo())
+  else if (di.isStore() or di.isAmo() or di.isVectorStore())
     {
       uint64_t sva = 0, spa1 = 0, spa2 = 0, sval = 0;
       unsigned ssize = hart.lastStore(sva, spa1, spa2, sval);
-      if (ssize == 0 and not di.isSc())
-	{
+      if (ssize == 0 and (di.isStore() or di.isAmo()) and not di.isSc())
+	{    // sc or vec-store may have 0 size
 	  std::cerr << "Hart=" << hartIx << " tag=" << packet.tag_
 		    << " store/AMO with zero size\n";
 	  assert(0);
 	}
 
       packet.dva_ = sva;
-      packet.dpa_ = spa1;  // FIX TODO : handle page corrsing
+      packet.dpa_ = spa1;  // FIX TODO : handle page crossing
+      packet.dpa2_ = spa2;
       packet.dsize_ = ssize;
       assert(ssize == packet.dsize_);
-      if (di.isStore() and not di.isSc())
+    
+      auto& storeMap =  hartStoreMaps_.at(hartIx);
+      auto tag = packet.tag();
+
+      if (di.isVectorStore())
+        {
+          storeMap[tag] = getInstructionPacket(hartIx, tag);
+          // FIX What to do about device access? Do we allow mixed device/non-device
+          // access?
+        }
+      else if (di.isStore() and not di.isSc())
 	{
-	  auto& storeMap =  hartStoreMaps_.at(hartIx);
-	  storeMap[packet.tag()] = getInstructionPacket(hartIx, packet.tag());
+	  storeMap[tag] = getInstructionPacket(hartIx, tag);
 	  packet.deviceAccess_ = hart.isAclintMtimeAddr(packet.dpa_) or hart.isImsicAddr(packet.dpa_) or hart.isPciAddr(packet.dpa_) or hart.isHtifAddr(packet.dpa_);
 	}
     }
@@ -1286,19 +1543,347 @@ PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
   for (unsigned i = 0; i < di.operandCount(); ++i)
     {
       using OM = WdRiscv::OperandMode;
+      using OT = WdRiscv::OperandType;
 
       auto mode = di.effectiveIthOperandMode(i);
+      auto type = di.ithOperandType(i);
+
       if (mode == OM::Write or mode == OM::ReadWrite)
 	{
 	  unsigned regNum = di.ithOperand(i);
 	  unsigned gri = globalRegIx(di.ithOperandType(i), regNum);
-	  uint64_t destVal = 0;
-	  if (not peekRegister(hart, di.ithOperandType(i), regNum, destVal))
-	    assert(0);
+	  OpVal destVal;
+          if (type != OT::VecReg)
+            {
+              if (not peekRegister(hart, di.ithOperandType(i), regNum, destVal))
+                assert(0);
+            }
+          else
+            {
+              auto lmul = packet.opLmul_.at(i);
+              if (not peekVecRegGroup(hart, regNum, lmul, destVal))
+                assert(0);
+            }
 	  packet.destValues_.at(destIx) = InstrPac::DestValue(gri, destVal);
 	  destIx++;
 	}
     }
 
   // Memory should not have changed.
+}
+
+
+void
+PerfApi::getVectorOperandsLmul(Hart64& hart, InstrPac& packet)
+{
+  auto di = packet.decodedInst();
+  if (not di.isVector())
+    return;
+
+  using CN = WdRiscv::CsrNumber;
+  using OT = WdRiscv::OperandType;
+
+  // 1. Set vtype value if it is in-flight.
+  auto hartIx = hart.sysHartIndex();
+  auto& producers = hartRegProducers_.at(hartIx);
+  auto vtypeGri = globalRegIx(OT::CsReg, unsigned(CN::VTYPE));
+  auto producer = producers.at(vtypeGri);  // Producer of vtype
+
+  uint64_t prevVal = 0;
+  if (producer)
+    {
+      if (not hart.peekCsr(CN::VTYPE, prevVal))
+        assert(0);
+
+      OpVal vtypeVal;
+      getDestValue(*producer, vtypeGri, vtypeVal);
+      hart.pokeCsr(CN::VTYPE, vtypeVal.scalar);
+    }
+
+  // 2. Determine the operands LMUL
+  getVecOpsLmul(hart, packet);
+
+  // 3. Restore vtype if it was set.
+  if (producer)
+    hart.pokeCsr(CN::VTYPE, prevVal);
+}
+
+
+void
+PerfApi::getVecOpsLmul(Hart64& hart, InstrPac& packet)
+{
+  auto& vecRegs = hart.vecRegs();
+
+  auto groupX8 = vecRegs.groupMultiplierX8();
+  unsigned effLmul = groupX8 <= 8 ? 1 : groupX8 / 8;
+
+  auto wideX8 = 2*groupX8;
+  unsigned effWideLmul = wideX8 <= 8 ? 1 : wideX8 / 8;
+
+  for (unsigned i = 0; i < 3; ++i)
+    packet.opLmul_[i] = effLmul;
+
+  using InstId = WdRiscv::InstId;
+
+  auto di = packet.decodedInst();
+
+  if (di.isVectorLoad() or di.isVectorStore())
+    {
+      if (di.isVectorLoadIndexed() or di.isVectorStoreIndexed())
+        {
+          auto ig8 = groupX8 * hart.vecLdStIndexElemSize(di) / vecRegs.elemWidthInBytes();
+          auto dg8 = groupX8;
+
+          if (di.vecFieldCount() > 0)
+            {
+              ig8 *= di.vecFieldCount();
+              dg8 *= di.vecFieldCount();
+            }
+
+          unsigned dmul = dg8 <= 8 ? 1 : dg8 / 8;   // Data reg effective lmul
+          unsigned imul = ig8 <= 8 ? 1 : ig8 / 8;   // Index reg effective lmul
+          packet.opLmul_[0] = dmul;
+          packet.opLmul_[2] = imul;
+        }
+      else
+        {
+          auto id = di.instId();
+          if (id >= InstId::vlre8_v and id <= InstId::vlre64_v)
+            packet.opLmul_[0] = di.vecFieldCount();
+          else
+            {
+              auto dg8 = groupX8 * hart.vecLdStElemSize(di) / vecRegs.elemWidthInBytes();
+              if (di.vecFieldCount() > 0)
+                dg8 *= di.vecFieldCount();
+              unsigned dmul = dg8 <= 8 ? 1 : dg8 / 8;   // Data reg effective lmul
+              packet.opLmul_[0] = dmul;
+            }
+        }
+
+      return;
+    }
+
+  switch(di.instId())
+    {
+    case InstId::vwaddu_vv:
+    case InstId::vwaddu_vx:
+    case InstId::vwsubu_vv:
+    case InstId::vwsubu_vx:
+    case InstId::vwadd_vv:
+    case InstId::vwadd_vx:
+    case InstId::vwsub_vv:
+    case InstId::vwsub_vx:
+    case InstId::vwredsumu_vs:
+    case InstId::vwredsum_vs:
+    case InstId::vwmulu_vv:
+    case InstId::vwmulu_vx:
+    case InstId::vwmul_vv:
+    case InstId::vwmul_vx:
+    case InstId::vwmulsu_vv:
+    case InstId::vwmulsu_vx:
+    case InstId::vwmaccu_vv:
+    case InstId::vwmaccu_vx:
+    case InstId::vwmacc_vv:
+    case InstId::vwmacc_vx:
+    case InstId::vwmaccsu_vv:
+    case InstId::vwmaccsu_vx:
+    case InstId::vwmaccus_vx:
+    case InstId::vwsll_vv:
+    case InstId::vwsll_vx:
+    case InstId::vwsll_vi:
+    case InstId::vfwcvt_xu_f_v:
+    case InstId::vfwcvt_x_f_v:
+    case InstId::vfwcvt_rtz_xu_f_v:
+    case InstId::vfwcvt_rtz_x_f_v:
+    case InstId::vfwcvt_f_xu_v:
+    case InstId::vfwcvt_f_x_v:
+    case InstId::vfwcvt_f_f_v:
+    case InstId::vfwredusum_vs:
+    case InstId::vfwredosum_vs:
+    case InstId::vfwcvtbf16_f_f_v:
+    case InstId::vfwmaccbf16_vv:
+    case InstId::vfwmaccbf16_vf:
+      packet.opLmul_[0] = effWideLmul;
+      break;
+
+    case InstId::vwaddu_wv:
+    case InstId::vwaddu_wx:
+    case InstId::vwsubu_wv:
+    case InstId::vwsubu_wx:
+    case InstId::vwadd_wv:
+    case InstId::vwadd_wx:
+    case InstId::vwsub_wv:
+    case InstId::vwsub_wx:
+    case InstId::vfwadd_wv:
+    case InstId::vfwadd_wf:
+    case InstId::vfwsub_wv:
+    case InstId::vfwsub_wf:
+      packet.opLmul_[0] = effWideLmul;
+      packet.opLmul_[1] = effWideLmul;
+      break;
+
+    case InstId::vnsrl_wv:
+    case InstId::vnsrl_wx:
+    case InstId::vnsrl_wi:
+    case InstId::vnsra_wv:
+    case InstId::vnsra_wx:
+    case InstId::vnsra_wi:
+    case InstId::vnclipu_wv:
+    case InstId::vnclipu_wx:
+    case InstId::vnclipu_wi:
+    case InstId::vnclip_wv:
+    case InstId::vnclip_wx:
+    case InstId::vnclip_wi:
+      packet.opLmul_[1] = effWideLmul;
+      break;
+
+    case InstId::vfncvt_xu_f_w:
+    case InstId::vfncvt_x_f_w:
+    case InstId::vfncvt_rtz_xu_f_w:
+    case InstId::vfncvt_rtz_x_f_w :
+    case InstId::vfncvt_f_xu_w:
+    case InstId::vfncvt_f_x_w :
+    case InstId::vfncvt_f_f_w:
+    case InstId::vfncvt_rod_f_f_w:
+    case InstId::vfncvtbf16_f_f_w:
+      packet.opLmul_[1] = effWideLmul;
+      break;
+
+    case InstId::vsext_vf2:
+    case InstId::vzext_vf2:
+      packet.opLmul_[1] = effLmul < 2 ? 1 : effLmul / 2;
+      break;
+
+    case InstId::vsext_vf4:
+    case InstId::vzext_vf4:
+      packet.opLmul_[1] = effLmul < 4 ? 1 : effLmul / 4;
+      break;
+
+    case InstId::vsext_vf8:
+    case InstId::vzext_vf8:
+      packet.opLmul_[1] = effLmul < 8 ? 1 : effLmul / 8;
+      break;
+
+    case InstId::vmseq_vv:
+    case InstId::vmseq_vx:
+    case InstId::vmseq_vi:
+    case InstId::vmsne_vv:
+    case InstId::vmsne_vx:
+    case InstId::vmsne_vi:
+    case InstId::vmsltu_vv:
+    case InstId::vmsltu_vx:
+    case InstId::vmslt_vv:
+    case InstId::vmslt_vx:
+    case InstId::vmsleu_vv:
+    case InstId::vmsleu_vx:
+    case InstId::vmsleu_vi:
+    case InstId::vmsle_vv:
+    case InstId::vmsle_vx:
+    case InstId::vmsle_vi:
+    case InstId::vmsgtu_vx:
+    case InstId::vmsgtu_vi:
+    case InstId::vmsgt_vx:
+    case InstId::vmsgt_vi:
+      packet.opLmul_[0] = 1;
+      break;
+
+    case InstId::vmand_mm:
+    case InstId::vmnand_mm:
+    case InstId::vmandn_mm:
+    case InstId::vmxor_mm:
+    case InstId::vmor_mm:
+    case InstId::vmnor_mm:
+    case InstId::vmorn_mm:
+    case InstId::vmxnor_mm:
+    case InstId::vcpop_m:
+    case InstId::vfirst_m:
+    case InstId::vmsbf_m:
+    case InstId::vmsif_m:
+    case InstId::vmsof_m:
+    case InstId::viota_m:
+      packet.opLmul_[0] = packet.opLmul_[1] = packet.opLmul_[2] = 1;
+      break;
+
+    default:
+      break;
+    }
+}
+
+
+bool
+PerfApi::collectOperandValues(Hart64& hart, InstrPac& packet)
+{
+  bool peekOk = true;
+
+  auto& di = packet.decodedInst();
+  assert(di.operandCount() <= packet.opValues_.size());
+
+  auto hartIx = hart.sysHartIndex();
+  auto tag = packet.tag();
+
+  using OT = WdRiscv::OperandType;
+
+  for (unsigned i = 0; i < di.operandCount(); ++i)
+    {
+      OT type = di.ithOperandType(i);
+      if (type == OT::Imm)
+	{
+	  packet.opValues_.at(i).scalar = di.ithOperand(i);
+	  continue;
+	}
+
+      assert(di.ithOperandMode(i) != WdRiscv::OperandMode::None);
+
+      unsigned regNum = di.ithOperand(i);
+      unsigned gri = globalRegIx(di.ithOperandType(i), regNum);
+      OpVal opVal;
+
+      auto& iop = packet.opProducers_.at(i);   // Ith operand producer
+
+      if (type != OT::VecReg)
+        {
+          auto& producer = iop.scalar;
+          if (producer)
+            {
+              if (not producer->executed())
+                {
+                  std::cerr << "Error: PerfApi::execute: Hart-ix=" << hartIx << "tag=" << tag
+                            << " depends on tag=" << producer->tag_ << " which is not yet executed.\n";
+                  assert(0);
+                  return false;
+                }
+              getDestValue(*producer, gri, opVal);
+            }
+          else
+            peekOk = peekRegister(hart, di.ithOperandType(i), regNum, opVal) and peekOk;
+        }
+      else
+        {
+          for (unsigned n = 0; n < iop.vec.size(); ++n)
+            {
+              OpVal val;  // Single register value
+              auto& producer = iop.vec.at(n);
+              if (producer)
+                {
+                  if (not producer->executed())
+                    {
+                      std::cerr << "Error: PerfApi::execute: Hart-ix=" << hartIx << "tag=" << tag
+                                << " depends on tag=" << producer->tag_ << " which is not yet executed.\n";
+                      assert(0);
+                      return false;
+                    }
+                  getDestValue(*producer, gri + n, val);
+                }
+              else
+                peekOk = peekRegister(hart, type, regNum+n, val) and peekOk;
+
+              // Append val to opVal.
+              opVal.vec.insert(opVal.vec.end(), val.vec.begin(), val.vec.end());
+            }
+        }
+
+      packet.opValues_.at(i) = opVal;
+    }
+
+  return peekOk;
 }

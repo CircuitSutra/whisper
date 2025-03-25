@@ -127,7 +127,6 @@ namespace WdRiscv
   class Hart
   {
   public:
-
     /// Alias the template parameter to allow it to be used outside this
     /// template.
     using URV = URV_;
@@ -144,6 +143,24 @@ namespace WdRiscv
 
     /// Destructor.
     ~Hart();
+
+    /// Define the set of possible machine interrupts in priority order (high to low).
+    void setMachineInterrupts(const std::vector<InterruptCause>& newInterrupts) {
+      mInterrupts_ = newInterrupts;
+    }
+
+    /// Define the set of possible supervisor interrupts in priority order (high to low).
+    void setSupervisorInterrupts(const std::vector<InterruptCause>& newInterrupts) {
+      sInterrupts_ = newInterrupts;
+    }
+
+    /// Filter out from possible machine interrupts those interrupt that cannot become
+    /// pending or enabled.
+    void filterMachineInterrupts(bool verbose);
+
+    /// Filter out from possible supervisor interrupts those interrupt that cannot become
+    /// pending or enabled, but always allow SEI
+    void filterSupervisorInterrupts(bool verbose);
 
     /// Return count of integer registers.
     unsigned intRegCount() const
@@ -267,16 +284,26 @@ namespace WdRiscv
     bool externalPokeCsr(CsrNumber csr, URV val, bool virtMode)
     { if (csr == CsrNumber::MIP) mipPoked_ = true; return pokeCsr(csr, val, virtMode); }
 
-    /// Put in value the bytes of the given vector register (most
-    /// significant byte first). Return true on success, return false
-    /// if reg is out of bounds.
+    /// Put in value the bytes of the given vector register (most significant byte
+    /// first). Return true on success, return false if reg is out of bounds.
     bool peekVecReg(unsigned reg, std::vector<uint8_t>& value) const;
 
-    /// Put the bytes of the value in the given vector register.
-    /// The first byte in value should be the most significant.
-    /// If value is smaller than vector register size, it is padded
-    /// with zeros on the most-significant side.
+    /// Put the bytes of the value in the given vector register. The first byte in value
+    /// is more significant than the next. If value is smaller than vector register size, the
+    /// vector register is padded with zeros on the most-significant side.
     bool pokeVecReg(unsigned reg, const std::vector<uint8_t>& value);
+
+    /// Put in value the bytes of the given vector register (least significant byte
+    /// first). Return true on success, return false if reg is out of bounds.
+    bool peekVecRegLsb(unsigned reg, std::vector<uint8_t>& value) const;
+
+    /// Put the bytes of value in the given vector register. The first byte in value
+    /// should be the least significant. If value is smaller than vector register size, it
+    /// is padded with zeros on the most-significant side.
+    bool pokeVecRegLsb(unsigned reg, const std::vector<uint8_t>& value);
+
+    /// Simular to above but with a span instead of a vector.
+    bool pokeVecRegLsb(unsigned reg, const std::span<const uint8_t>& value);
 
     /// Find the integer register with the given name (which may
     /// represent an integer or a symbolic name). Set num to the
@@ -781,6 +808,10 @@ namespace WdRiscv
     void setAclintAdjustTimeCompare(uint64_t offset)
     { aclintAdjustTimeCmp_ = offset; }
 
+    /// Enable/disable interrupt delivery by the ACLINT device.
+    void setAclintDeliverInterrupts(bool flag)
+    { aclintDeliverInterrupts_ = flag; }
+
     /// Set the output file in which to dump the state of accessed
     /// memory lines. Return true on success and false if file cannot
     /// be opened.
@@ -1107,6 +1138,19 @@ namespace WdRiscv
 	return 0;
       virtAddr = ldStAddr_;
       physAddr = ldStPhysAddr1_;
+      return ldStSize_;
+    }
+
+    /// Similar tos previous lastLdStAddress but also returns in pa2 the address
+    /// on the other page for a page crossing store. If store is not page crossing
+    /// then pa2 will be the same as pa1.
+    unsigned lastLdStAddress(uint64_t& virtAddr, uint64_t& pa1, uint64_t& pa2) const
+    {
+      if (ldStSize_ == 0)
+	return 0;
+      virtAddr = ldStAddr_;
+      pa1 = ldStPhysAddr1_;
+      pa2 = ldStPhysAddr2_;
       return ldStSize_;
     }
 
@@ -2332,6 +2376,12 @@ namespace WdRiscv
     void configSteeSecureRegion(uint64_t low, uint64_t high)
     { stee_.configSecureRegion(low, high); }
 
+    /// Trap read operations on insecure access to a secure region when flag is true;
+    /// otherwise, let the secure device decide what to do (in Whisper device returns
+    /// zero).
+    void configSteeTrapRead(bool flag)
+    { steeTrapRead_ = flag; }
+
     /// Enable STEE.
     void enableStee(bool flag)
     { steeEnabled_ = flag; csRegs_.enableStee(flag); }
@@ -2566,6 +2616,8 @@ namespace WdRiscv
     void autoIncrementTimer(bool flag)
     { autoIncrementTimer_ = flag; }
 
+    void setLogLabelEnabled(bool enable) { logLabelEnabled_ = enable; }
+
   protected:
 
     /// Retun cached value of the mpp field of the mstatus CSR.
@@ -2579,6 +2631,9 @@ namespace WdRiscv
     /// Provide MMU (virtMem_) the call-backs necessary to read/write memory and to check
     /// PMP.
     void setupVirtMemCallbacks();
+
+    /// Tie frequency updated CSRs to variables in this object for fast access.
+    void tieCsrs();
 
     /// Return true if the NMIE bit of NMSTATUS overrides the effect of
     /// MSTATUS.MPRV. See Smrnmi secton in RISCV privileged spec.
@@ -3000,7 +3055,7 @@ namespace WdRiscv
     /// parameter is used to annotate the instruction rectord in the log file (if logging
     /// is enabeld).
     bool takeTriggerAction(FILE* traceFile, URV epc, URV info,
-			   uint64_t instrTag, bool beforeTiming);
+			   uint64_t instrTag, const DecodedInst* di);
 
     /// Helper to load methods: Initiate an exception with the given
     /// cause and data address.
@@ -3131,8 +3186,15 @@ namespace WdRiscv
     /// that trip.
     bool ldStAddrTriggerHit(URV addr, unsigned size, TriggerTiming t, bool isLoad)
     {
-      return csRegs_.ldStAddrTriggerHit(addr, size, t, isLoad, privilegeMode(), virtMode(),
-					isInterruptEnabled());
+      bool hit = csRegs_.ldStAddrTriggerHit(addr, size, t, isLoad, privilegeMode(), virtMode(),
+                                            isInterruptEnabled());
+      if (hit)
+        {
+          dataAddrTrig_ = true;
+          triggerTripped_ = true;
+          ldStFaultAddr_ = addr;   // For pointer masking, addr is masked.
+        }
+      return hit;
     }
 
     /// Return true if one or more load-address/store-address trigger has a hit on the
@@ -3140,8 +3202,14 @@ namespace WdRiscv
     /// triggers that trip.
     bool ldStDataTriggerHit(URV value, TriggerTiming t, bool isLoad)
     {
-      return csRegs_.ldStDataTriggerHit(value, t, isLoad, privilegeMode(), virtMode(),
-					isInterruptEnabled());
+      bool hit = csRegs_.ldStDataTriggerHit(value, t, isLoad, privilegeMode(), virtMode(),
+                                            isInterruptEnabled());
+      if (hit)
+        {
+          dataAddrTrig_ = true;
+          triggerTripped_ = true;
+        }
+      return hit;
     }
 
     /// Return true if one or more execution trigger has a hit on the given address and
@@ -5382,7 +5450,7 @@ namespace WdRiscv
     void execLpad(const DecodedInst*);
 
   private:
-
+    bool logLabelEnabled_ = false;
     // We model non-blocking load buffer in order to undo load
     // effects after an imprecise load exception.
     struct LoadInfo
@@ -5627,10 +5695,12 @@ namespace WdRiscv
 
     InstProfiles instProfs_; // Instruction frequency manager
 
-    std::vector<uint64_t> interruptStat_;  // Count of different types of interrupts.
+    std::vector<uint64_t> interruptStat_;  // Count of encoutred interrupts (indexed by cause).
+    std::vector<uint64_t> exceptionStat_;  // Count of encoutered exceptions (indexed by cause).
 
-    // Indexed by exception cause.
-    std::vector<uint64_t> exceptionStat_;
+    std::vector<InterruptCause> mInterrupts_;  // Possible M interrupts in high to low priority.
+    std::vector<InterruptCause> sInterrupts_;  // Possible S interrupts in high to low priority.
+    std::vector<InterruptCause> vsInterrupts_; // Possible VS interrupts in high to low priority.
 
     // Decoded instruction cache.
     std::vector<DecodedInst> decodeCache_;
@@ -5665,8 +5735,9 @@ namespace WdRiscv
     // Static tee (trusted execution environment).
     bool steeEnabled_ = false;
     TT_STEE::Stee stee_;
-    bool steeInsec1_ = false;  // True if insecure access to a secure region.
-    bool steeInsec2_ = false;  // True if insecure access to a secure region.
+    bool steeInsec1_ = false;    // True if insecure access to a secure region.
+    bool steeInsec2_ = false;    // True if insecure access to a secure region.
+    bool steeTrapRead_ = false;  // Trap insecure read to secure device when true.
 
     // Exceptions injected by user.
     ExceptionCause injectException_ = ExceptionCause::NONE;

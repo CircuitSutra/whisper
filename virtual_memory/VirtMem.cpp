@@ -446,46 +446,57 @@ VirtMem::twoStageTranslate(uint64_t va, PrivilegeMode priv, bool read, bool writ
 
   if (vsMode_ != Mode::Bare)
     {
-      // Lookup virtual page number in TLB.
-      uint64_t virPageNum = va >> pageBits_;
-      TlbEntry* entry = vsTlb_.findEntryUpdateTime(virPageNum, vsAsid_, vmid_);
-      if (entry)
-	{
-	  if (priv == PrivilegeMode::User and not entry->user_)
-            return stage1PageFaultType(read, write, exec);
-	  if (priv == PrivilegeMode::Supervisor)
-	    if (entry->user_ and (exec or not vsSum_))
-              return stage1PageFaultType(read, write, exec);
-	  bool ra = entry->read_ or ((execReadable_ or s1ExecReadable_) and entry->exec_);
-	  if (xForR_)
-	    ra = entry->exec_;
-	  bool wa = entry->write_, xa = entry->exec_;
-	  if ((read and not ra) or (write and not wa) or (exec and not xa))
-            return stage1PageFaultType(read, write, exec);
-	  if (not entry->accessed_ or (write and not entry->dirty_))
-	    entry->valid_ = false;
-	  if (entry->valid_)
-	    {
-	      // Use TLB entry.
-	      vsPbmt_ = Pbmt(entry->pbmt_);
-	      gpa = (entry->physPageNum_ << pageBits_) | (va & pageMask_);
-	    }
-	}
-
-      if (not entry or not entry->valid_)
-	{
-	  TlbEntry tlbEntry;
-	  auto cause = stage1TranslateNoTlb(va, priv, read, write, exec, gpa, tlbEntry);
-
-	  // If successful, put stage1 translation results in TLB.
-	  if (cause == ExceptionCause::NONE)
-	    vsTlb_.insertEntry(tlbEntry);
-	  else
-	    return cause;
-	}
+      auto cause = stage1Translate(va, priv, read, write, exec, gpa);
+      if (cause != ExceptionCause::NONE)
+        return cause;
     }
 
   return stage2Translate(gpa, priv, read, write, exec, /* isPteAddr */ false, pa);
+}
+
+
+ExceptionCause
+VirtMem::stage1Translate(uint64_t va, PrivilegeMode priv, bool read, bool write,
+                         bool exec, uint64_t& gpa)
+{
+  // Lookup virtual page number in TLB.
+  uint64_t virPageNum = va >> pageBits_;
+  TlbEntry* entry = vsTlb_.findEntryUpdateTime(virPageNum, vsAsid_, vmid_);
+  if (entry)
+    {
+      if (priv == PrivilegeMode::User and not entry->user_)
+        return stage1PageFaultType(read, write, exec);
+      if (priv == PrivilegeMode::Supervisor)
+        if (entry->user_ and (exec or not vsSum_))
+          return stage1PageFaultType(read, write, exec);
+      bool ra = entry->read_ or ((execReadable_ or s1ExecReadable_) and entry->exec_);
+      if (xForR_)
+        ra = entry->exec_;
+      bool wa = entry->write_, xa = entry->exec_;
+      if ((read and not ra) or (write and not wa) or (exec and not xa))
+        return stage1PageFaultType(read, write, exec);
+      if (not entry->accessed_ or (write and not entry->dirty_))
+        entry->valid_ = false;
+      if (entry->valid_)
+        {
+          // Use TLB entry.
+          vsPbmt_ = Pbmt(entry->pbmt_);
+          gpa = (entry->physPageNum_ << pageBits_) | (va & pageMask_);
+        }
+    }
+
+  ExceptionCause cause = ExceptionCause::NONE;
+  if (not entry or not entry->valid_)
+    {
+      TlbEntry tlbEntry;
+      cause = stage1TranslateNoTlb(va, priv, read, write, exec, gpa, tlbEntry);
+
+      // If successful, put stage1 translation results in TLB.
+      if (cause == ExceptionCause::NONE)
+        vsTlb_.insertEntry(tlbEntry);
+    }
+
+  return cause;
 }
 
 
@@ -560,6 +571,7 @@ VirtMem::pageTableWalk(uint64_t address, PrivilegeMode privMode, bool read, bool
     }
 
   bool global = false;
+  bool aUpdated = false, dUpdated = false;  // For tracing: A/D written by traversal.
 
   while (true)
     {
@@ -574,10 +586,10 @@ VirtMem::pageTableWalk(uint64_t address, PrivilegeMode privMode, bool read, bool
         }
 
       // Check PMP. The privMode here is the effective one that already accounts for MPRV.
-      if (not pmpIsReadable(pteAddr, privMode))
+      if (not isAddrReadable(pteAddr, privMode))
 	return accessFaultType(read, write, exec);
 
-      if (!memRead(pteAddr, bigEnd_, pte.data_))
+      if (not memRead(pteAddr, bigEnd_, pte.data_))
         return accessFaultType(read, write, exec);
       if (not napotCheck(pte, va))
         return stage1PageFaultType(read, write, exec);
@@ -637,7 +649,7 @@ VirtMem::pageTableWalk(uint64_t address, PrivilegeMode privMode, bool read, bool
 	  saveUpdatedPte(pteAddr, sizeof(pte.data_), pte.data_);  // For logging
 
 	  // B1. Check PMP.
-	  if (not pmpIsWritable(pteAddr, privMode))
+	  if (not isAddrWritable(pteAddr, privMode))
 	    return accessFaultType(read, write, exec);
 
 	  {
@@ -653,9 +665,13 @@ VirtMem::pageTableWalk(uint64_t address, PrivilegeMode privMode, bool read, bool
 
 	    if (pte.data_ != pte2.data_)
 	      continue;  // Comparison fails: return to step 2.
-	    pte.bits_.accessed_ = orig.bits_.accessed_ = 1;
+	    pte.bits_.accessed_ = orig.bits_.accessed_ = true;
+            aUpdated = true;
 	    if (write)
-	      pte.bits_.dirty_ = orig.bits_.dirty_ = 1;
+              {
+                pte.bits_.dirty_ = orig.bits_.dirty_ = 1;
+                dUpdated = true;
+              }
 	    if (not memWrite(pteAddr, bigEnd_, orig.data_))
 	      return stage1PageFaultType(read, write, exec);
 	  }
@@ -670,10 +686,24 @@ VirtMem::pageTableWalk(uint64_t address, PrivilegeMode privMode, bool read, bool
     pa = pa | (va.vpn(j) << pte.paPpnShift(j)); // Copy from va to pa
 
   for (unsigned j = ii; j < levels; ++j)
-    pa = pa | pte.ppn(j) << pte.paPpnShift(j);
+    {
+      uint64_t ppnVal = pte.ppn(j);
+      unsigned napotBits = pte.napotBits(j);
+      if (napotBits)
+        {
+          uint64_t mask = (uint64_t(1) << napotBits) - 1;
+          ppnVal = (ppnVal & ~mask) | (va.vpn(j) & mask);
+        }
+      pa = pa | ppnVal << pte.paPpnShift(j);
+    }
 
   if (trace_)
-    walkVec.back().emplace_back(pa, WalkEntry::Type::RE);
+    {
+      walkVec.back().emplace_back(pa, WalkEntry::Type::RE);
+      auto& walkEntry = walkVec.back().back();
+      walkEntry.aUpdated_ = walkEntry.accessed_ = aUpdated;
+      walkEntry.dUpdated_ = walkEntry.dirty_ = dUpdated;
+    }
 
   // Update tlb-entry with data found in page table entry.
   tlbEntry.virtPageNum_ = address >> pageBits_;
@@ -721,6 +751,7 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
     }
 
   bool global = false;
+  bool aUpdated = false, dUpdated = false;  // For tracing: A/D written by traversal.
 
   while (true)
     {
@@ -735,10 +766,10 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
         }
 
       // Check PMP. The privMode here is the effective one that already accounts for MPRV.
-      if (not pmpIsReadable(pteAddr, privMode))
+      if (not isAddrReadable(pteAddr, privMode))
 	return accessFaultType(read, write, exec);
 
-      if (!memRead(pteAddr, bigEnd_, pte.data_))
+      if (not memRead(pteAddr, bigEnd_, pte.data_))
         return accessFaultType(read, write, exec);
       if (not napotCheck(pte, va))
         return stage2PageFaultType(read, write, exec);
@@ -799,7 +830,7 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 	  saveUpdatedPte(pteAddr, sizeof(pte.data_), pte.data_);  // For logging
 
 	  // B1. Check PMP.
-	  if (not pmpIsWritable(pteAddr, privMode))
+	  if (not isAddrWritable(pteAddr, privMode))
 	    return accessFaultType(read, write, exec);
 
 	  {
@@ -816,9 +847,12 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 	    if (pte.data_ != pte2.data_)
 	      continue;  // Comparison fails: return to step 2.
 	    pte.bits_.accessed_ = orig.bits_.accessed_ = 1;
-	    if (write or
-                (dirtyGForVsNonleaf_ and isPteAddr))
-	      pte.bits_.dirty_ = orig.bits_.dirty_ = 1;
+            aUpdated = true;
+	    if (write or (dirtyGForVsNonleaf_ and isPteAddr))
+              {
+                pte.bits_.dirty_ = orig.bits_.dirty_ = 1;
+                dUpdated = true;
+              }
 	    if (not memWrite(pteAddr, bigEnd_, orig.data_))
 	      return stage2PageFaultType(read, write, exec);
 	  }
@@ -833,10 +867,24 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
     pa = pa | (va.vpn(j) << pte.paPpnShift(j)); // Copy from va to pa
 
   for (unsigned j = ii; j < levels; ++j)
-    pa = pa | pte.ppn(j) << pte.paPpnShift(j);
+    {
+      uint64_t ppnVal = pte.ppn(j);
+      unsigned napotBits = pte.napotBits(j);
+      if (napotBits)
+        {
+          uint64_t mask = (uint64_t(1) << napotBits) - 1;
+          ppnVal = (ppnVal & ~mask) | (va.vpn(j) & mask);
+        }
+      pa = pa | ppnVal << pte.paPpnShift(j);
+    }
 
   if (trace_)
-    walkVec.back().emplace_back(pa, WalkEntry::Type::RE);
+    {
+      walkVec.back().emplace_back(pa, WalkEntry::Type::RE);
+      auto& walkEntry = walkVec.back().back();
+      walkEntry.aUpdated_ = walkEntry.accessed_ = aUpdated;
+      walkEntry.dUpdated_ = walkEntry.dirty_ = dUpdated;
+    }
 
   // Update tlb-entry with data found in page table entry.
   tlbEntry.virtPageNum_ = address >> pageBits_;
@@ -885,6 +933,7 @@ VirtMem::stage1PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
     }
 
   bool global = false;
+  bool aUpdated = false, dUpdated = false;  // For tracing: A/D written by traversal.
 
   while (true)
     {
@@ -908,10 +957,10 @@ VirtMem::stage1PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
         }
 
       // Check PMP. The privMode here is the effective one that already accounts for MPRV.
-      if (not pmpIsReadable(pteAddr, privMode))
+      if (not isAddrReadable(pteAddr, privMode))
 	return accessFaultType(read, write, exec);
 
-      if (!memRead(pteAddr, bigEnd_, pte.data_))
+      if (not memRead(pteAddr, bigEnd_, pte.data_))
         return accessFaultType(read, write, exec);
       if (not napotCheck(pte, va))
         return stage1PageFaultType(read, write, exec);
@@ -975,7 +1024,7 @@ VirtMem::stage1PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 
           s1ADUpdate_ = true;
 	  // B1. Check PMP.
-	  if (not pmpIsWritable(pteAddr, privMode))
+	  if (not isAddrWritable(pteAddr, privMode))
 	    return accessFaultType(read, write, exec);
 
 	  {
@@ -992,8 +1041,12 @@ VirtMem::stage1PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 	    if (pte.data_ != pte2.data_)
 	      continue;  // Comparison fails: return to step 2.
 	    pte.bits_.accessed_ = orig.bits_.accessed_ = 1;
+            aUpdated = true;
 	    if (write)
-	      pte.bits_.dirty_ = orig.bits_.dirty_ = 1;
+              {
+                pte.bits_.dirty_ = orig.bits_.dirty_ = 1;
+                dUpdated = true;
+              }
 
 	    // Need to make sure we have write access to page.
 	    uint64_t pteAddr2 = gpteAddr; pa = gpteAddr;
@@ -1015,10 +1068,24 @@ VirtMem::stage1PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
     pa = pa | (va.vpn(j) << pte.paPpnShift(j)); // Copy from va to pa
 
   for (unsigned j = ii; j < levels; ++j)
-    pa = pa | pte.ppn(j) << pte.paPpnShift(j);
+    {
+      uint64_t ppnVal = pte.ppn(j);
+      unsigned napotBits = pte.napotBits(j);
+      if (napotBits)
+        {
+          uint64_t mask = (uint64_t(1) << napotBits) - 1;
+          ppnVal = (ppnVal & ~mask) | (va.vpn(j) & mask);
+        }
+      pa = pa | ppnVal << pte.paPpnShift(j);
+    }
 
   if (trace_)
-    walkVec.back().emplace_back(pa, WalkEntry::Type::RE);
+    {
+      walkVec.back().emplace_back(pa, WalkEntry::Type::RE);
+      auto& walkEntry = walkVec.back().back();
+      walkEntry.aUpdated_ = walkEntry.accessed_ = aUpdated;
+      walkEntry.dUpdated_ = walkEntry.dirty_ = dUpdated;
+    }
 
   // Update tlb-entry with data found in page table entry.
   tlbEntry.virtPageNum_ = address >> pageBits_;

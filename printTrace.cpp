@@ -312,6 +312,14 @@ Hart<URV>::printDecodedInstTrace(const DecodedInst& di, uint64_t tag, std::strin
   // Serialize to avoid jumbled output.
   auto lock = (ownTrace_)? std::unique_lock<std::mutex>() : std::unique_lock<std::mutex>(printInstTraceMutex());
 
+  if (logLabelEnabled_)
+    {
+      // Get the symbol label corresponding to the instruction’s PC:
+      std::string label;
+      if (memory_.findSymbolByAddress(di.address(), label))
+        fprintf(out, "%s:\n", label.c_str());
+    }
+
   disassembleInst(di, tmp);
   if (hasInterrupt_)
     tmp += " (interrupted)";

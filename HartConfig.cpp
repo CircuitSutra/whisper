@@ -1098,6 +1098,16 @@ applySteeConfig(Hart<URV>& hart, const nlohmann::json& config)
 	hart.configSteeSecureMask(secMask);
     }
 
+  tag = "trap_insecure_read";
+  if (sconf.contains(tag))
+    {
+      bool flag = false;
+      if (not getJsonBoolean(tag, sconf.at(tag), flag))
+        errors++;
+      else
+        hart.configSteeTrapRead(flag);
+    }
+
   tag = "secure_region";
   if (sconf.contains(tag))
     {
@@ -1611,6 +1621,54 @@ HartConfig::applyAplicConfig(System<URV>& system) const
   return system.configAplic(num_sources, domain_params_list);
 }
 
+
+// Helper function that converts a JSON array of interrupt identifiers
+// into a vector of InterruptCause values.
+static std::vector<InterruptCause> parseInterruptArray(const nlohmann::json &arr, const std::string &context) {
+  std::vector<InterruptCause> vec;
+  for (const auto &item : arr)
+  {
+    InterruptCause ic;
+    if (item.is_number())
+    {
+      unsigned num = item.get<unsigned>();
+      ic = static_cast<InterruptCause>(num);
+    }
+    else if (item.is_string())
+    {
+      std::string s = item.get<std::string>();
+      std::transform(s.begin(), s.end(), s.begin(), ::tolower);
+      if (s == "ssi")              ic = InterruptCause::S_SOFTWARE;
+      else if (s == "vssi")        ic = InterruptCause::VS_SOFTWARE;
+      else if (s == "msi")         ic = InterruptCause::M_SOFTWARE;
+      else if (s == "sti")         ic = InterruptCause::S_TIMER;
+      else if (s == "vsti")        ic = InterruptCause::VS_TIMER;
+      else if (s == "mti")         ic = InterruptCause::M_TIMER;
+      else if (s == "sei")         ic = InterruptCause::S_EXTERNAL;
+      else if (s == "vsei")        ic = InterruptCause::VS_EXTERNAL;
+      else if (s == "mei")         ic = InterruptCause::M_EXTERNAL;
+      else if (s == "sgei")        ic = InterruptCause::G_EXTERNAL;
+      else if (s == "lcofi")       ic = InterruptCause::LCOF;
+      else
+      {
+        std::cerr << "Unknown interrupt symbol in " << context << ": " << s << "\n";
+        continue;
+      }
+    }
+    else
+    {
+      std::cerr << "Invalid element in " << context << " (expecting number or string)\n";
+      continue;
+    }
+    if (std::find(vec.begin(), vec.end(), ic) != vec.end())
+    {
+      std::cerr << "Duplicate interrupt entry in " << context << ": " << static_cast<unsigned>(ic) << "\n";
+      continue;
+    }
+    vec.push_back(ic);
+  }
+  return vec;
+}
 
 template<typename URV>
 bool
@@ -2307,7 +2365,50 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
     }
 
   // Parse enable_ppo, it it is missing all PPO rules are enabled.
+  
+  // ----------------- MACHINE INTERRUPTS -----------------
+  tag = "machine_interrupts";
+  if (config_->contains(tag))
+  {
+    const auto &mi = config_->at(tag);
+    if (!mi.is_array())
+    {
+      std::cerr << "Invalid machine_interrupts entry in config file (expecting an array)\n";
+      ++errors;
+    }
+    else
+    {
+      auto vec = parseInterruptArray(mi, "machine_interrupts");
+      if (!vec.empty())
+      {
+        hart.setMachineInterrupts(vec);
+        if (verbose)
+          std::cerr << "Applied machine_interrupts configuration\n";
+      }
+    }
+  }
 
+  // -------------- SUPERVISOR INTERRUPTS ------------------
+  tag = "supervisor_interrupts";
+  if (config_->contains(tag))
+  {
+    const auto &si = config_->at(tag);
+    if (!si.is_array())
+    {
+      std::cerr << "Invalid supervisor_interrupts entry in config file (expecting an array)\n";
+      ++errors;
+    }
+    else
+    {
+      auto vec = parseInterruptArray(si, "supervisor_interrupts");
+      if (!vec.empty())
+      {
+        hart.setSupervisorInterrupts(vec);
+        if (verbose)
+          std::cerr << "Applied supervisor_interrupts configuration\n";
+      }
+    }
+  }
   return errors == 0;
 }
 

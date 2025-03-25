@@ -555,7 +555,9 @@ Args::parseCmdLineArgs(std::span<char*> argv)
 	("verbose,v", po::bool_switch(&this->verbose),
 	 "Be verbose.")
 	("version", po::bool_switch(&this->version),
-	 "Print version.");
+	 "Print version.")
+        ("loglabel,ll", po::bool_switch(&this->logLabel)->default_value(false),
+         "When enabled, prepend ELF symbol label (if any) to text log output");
 
       // Define positional options.
       po::positional_options_description pdesc;

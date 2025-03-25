@@ -1095,7 +1095,7 @@ Hart<URV>::execVsetivli(const DecodedInst* di)
   vecRegs_.elemCount(elems);  // Update cached value of VL.
   intRegs_.write(rd, elems);
 
-  // Pack vtype values and update vtype
+  // Pack vtype values and update vtype. Vtype is read-only, poke it.
   URV vtype = 0;
   vtype |= URV(gm) | (URV(ew) << 3) | (URV(ta) << 6) | (URV(ma) << 7);
   vtype |= (URV(vill) << (8*sizeof(URV) - 1));
@@ -11083,14 +11083,17 @@ Hart<URV>::vectorLoad(const DecodedInst* di, ElementWidth eew, bool faultFirst)
 #ifndef FAST_SLOPPY
       cause = determineLoadException(pa1, pa2, gpa1, gpa2, elemSize, false, ix);
 
-      if (hasTrig and ldStAddrTriggerHit(addr, elemSize, timing, isLd))
-	{
-	  triggerTripped_ = true;
-	  ldStInfo.removeLastElem();
-          markVsDirty();
-          csRegs_.write(CsrNumber::VSTART, PrivilegeMode::Machine, ix);
-	  return false;
-	}
+      if (hasTrig)
+        {
+          uint64_t pmva = applyPointerMask(addr, isLd);
+          if (ldStAddrTriggerHit(pmva, elemSize, timing, isLd))
+            {
+              ldStInfo.removeLastElem();
+              markVsDirty();
+              csRegs_.write(CsrNumber::VSTART, PrivilegeMode::Machine, ix);
+              return false;
+            }
+        }
 #else
       if (faultFirst)
 	cause = determineLoadException(pa1, pa2, gpa1, gpa2, elemSize, false, ix);
@@ -11285,9 +11288,12 @@ Hart<URV>::vectorStore(const DecodedInst* di, ElementWidth eew)
 
       auto cause = determineStoreException(pa1, pa2, gpa1, gpa2, elemSize, false /*hyper*/);
 
-      if (hasTrig and (ldStAddrTriggerHit(addr, elemSize, timing, isLd) or
-		       ldStDataTriggerHit(elem, timing, isLd)))
-	triggerTripped_ = true;
+      if (hasTrig)
+        {
+          uint64_t pmva = applyPointerMask(addr, isLd);
+          ldStAddrTriggerHit(pmva, elemSize, timing, isLd);
+          ldStDataTriggerHit(elem, timing, isLd);
+        }
 
       if (cause == ExceptionCause::NONE and not triggerTripped_)
 	{
@@ -11519,13 +11525,16 @@ Hart<URV>::vectorLoadWholeReg(const DecodedInst* di, ElementWidth eew)
       uint64_t gpa2 = addr;
       cause = determineLoadException(pa1, pa2, gpa1, gpa2, sizeof(ELEM_TYPE), false /*hyper*/, ix);
 
-      if (hasTrig and ldStAddrTriggerHit(addr, elemBytes, timing, isLd))
+      if (hasTrig)
 	{
-	  triggerTripped_ = true;
-          markVsDirty();
-          csRegs_.write(CsrNumber::VSTART, PrivilegeMode::Machine, ix);
-	  return false;
-	}
+          uint64_t pmva = applyPointerMask(addr, isLd);
+          if (ldStAddrTriggerHit(pmva, elemBytes, timing, isLd))
+            {
+              markVsDirty();
+              csRegs_.write(CsrNumber::VSTART, PrivilegeMode::Machine, ix);
+              return false;
+            }
+        }
 #endif
 
       if (cause == ExceptionCause::NONE)
@@ -11686,9 +11695,12 @@ Hart<URV>::vectorStoreWholeReg(const DecodedInst* di)
       uint64_t gpa1 = addr, gpa2 = addr;
       auto cause = determineStoreException(pa1, pa2, gpa1, gpa2, elemBytes, false /*hyper*/);
 
-      if (hasTrig and (ldStAddrTriggerHit(addr, elemBytes, timing, isLd) or
-		       ldStDataTriggerHit(val, timing, isLd)))
-	triggerTripped_ = true;
+      if (hasTrig)
+        {
+          uint64_t pmva = applyPointerMask(addr, isLd);
+          ldStAddrTriggerHit(pmva, elemBytes, timing, isLd);
+          ldStDataTriggerHit(val, timing, isLd);
+        }
 
       if (cause == ExceptionCause::NONE and not triggerTripped_)
 	{
@@ -11893,13 +11905,16 @@ Hart<URV>::vectorLoadStrided(const DecodedInst* di, ElementWidth eew)
       uint64_t gpa2 = addr;
       cause = determineLoadException(pa1, pa2, gpa1, gpa2, sizeof(elem), false /*hyper*/, ix);
 
-      if (hasTrig and ldStAddrTriggerHit(addr, elemSize, timing, isLd))
+      if (hasTrig)
 	{
-	  triggerTripped_ = true;
-	  ldStInfo.removeLastElem();
-          markVsDirty();
-          csRegs_.write(CsrNumber::VSTART, PrivilegeMode::Machine, ix);
-	  return false;
+          uint64_t pmva = applyPointerMask(addr, isLd);
+          if (ldStAddrTriggerHit(pmva, elemSize, timing, isLd))
+            {
+              ldStInfo.removeLastElem();
+              markVsDirty();
+              csRegs_.write(CsrNumber::VSTART, PrivilegeMode::Machine, ix);
+              return false;
+            }
 	}
 #endif
 
@@ -12061,9 +12076,12 @@ Hart<URV>::vectorStoreStrided(const DecodedInst* di, ElementWidth eew)
 
       auto cause = determineStoreException(pa1, pa2, gpa1, gpa2, elemSize, false /*hyper*/);
 
-      if (hasTrig and (ldStAddrTriggerHit(addr, elemSize, timing, isLd) or
-		       ldStDataTriggerHit(val, timing, isLd)))
-	triggerTripped_ = true;
+      if (hasTrig)
+        {
+          uint64_t pmva = applyPointerMask(addr, isLd);
+          ldStAddrTriggerHit(pmva, elemSize, timing, isLd);
+          ldStDataTriggerHit(val, timing, isLd);
+        }
 
       if (cause == ExceptionCause::NONE and not triggerTripped_)
 	{
@@ -12242,14 +12260,17 @@ Hart<URV>::vectorLoadIndexed(const DecodedInst* di, ElementWidth offsetEew)
       uint64_t gpa2 = vaddr;
       cause = determineLoadException(pa1, pa2, gpa1, gpa2, elemSize, false /*hyper*/, ix);
 
-      if (hasTrig and ldStAddrTriggerHit(vaddr, elemSize, timing, isLd))
-	{
-	  triggerTripped_ = true;
-	  ldStInfo.removeLastElem();
-          markVsDirty();
-          csRegs_.write(CsrNumber::VSTART, PrivilegeMode::Machine, ix);
-	  return false;
-	}
+      if (hasTrig)
+        {
+          uint64_t pmva = applyPointerMask(vaddr, isLd);
+          if (ldStAddrTriggerHit(pmva, elemSize, timing, isLd))
+            {
+              ldStInfo.removeLastElem();
+              markVsDirty();
+              csRegs_.write(CsrNumber::VSTART, PrivilegeMode::Machine, ix);
+              return false;
+            }
+        }
 #endif
 
       if (cause == ExceptionCause::NONE)
@@ -12465,9 +12486,12 @@ Hart<URV>::vectorStoreIndexed(const DecodedInst* di, ElementWidth offsetEew)
 	  uint8_t x = 0;
 	  vecRegs_.read(vd, ix, groupX8, x);
 
-	  if (hasTrig and (ldStAddrTriggerHit(vaddr, elemSize, timing, isLd) or
-			   ldStDataTriggerHit(x, timing, isLd)))
-	    triggerTripped_ = true;
+	  if (hasTrig)
+            {
+              uint64_t pmva = applyPointerMask(vaddr, isLd);
+              ldStAddrTriggerHit(pmva, elemSize, timing, isLd);
+              ldStDataTriggerHit(x, timing, isLd);
+            }
 
 	  if (cause == ExceptionCause::NONE and not triggerTripped_)
 	    if (not writeForStore(vaddr, pa1, pa2, x))
@@ -12479,9 +12503,12 @@ Hart<URV>::vectorStoreIndexed(const DecodedInst* di, ElementWidth offsetEew)
 	  uint16_t x = 0;
 	  vecRegs_.read(vd, ix, groupX8, x);
 
-	  if (hasTrig and (ldStAddrTriggerHit(vaddr, elemSize, timing, isLd) or
-			   ldStDataTriggerHit(x, timing, isLd)))
-	    triggerTripped_ = true;
+	  if (hasTrig)
+            {
+              uint64_t pmva = applyPointerMask(vaddr, isLd);
+              ldStAddrTriggerHit(pmva, elemSize, timing, isLd);
+              ldStDataTriggerHit(x, timing, isLd);
+            }
 
 	  if (cause == ExceptionCause::NONE and not triggerTripped_)
 	    if (not writeForStore(vaddr, pa1, pa2, x))
@@ -12493,9 +12520,12 @@ Hart<URV>::vectorStoreIndexed(const DecodedInst* di, ElementWidth offsetEew)
 	  uint32_t x = 0;
 	  vecRegs_.read(vd, ix, groupX8, x);
 
-	  if (hasTrig and (ldStAddrTriggerHit(vaddr, elemSize, timing, isLd) or
-			   ldStDataTriggerHit(x, timing, isLd)))
-	    triggerTripped_ = true;
+	  if (hasTrig)
+            {
+              uint64_t pmva = applyPointerMask(vaddr, isLd);
+              ldStAddrTriggerHit(pmva, elemSize, timing, isLd);
+              ldStDataTriggerHit(x, timing, isLd);
+            }
 
 	  if (cause == ExceptionCause::NONE and not triggerTripped_)
 	    if (not writeForStore(vaddr, pa1, pa2, x))
@@ -12507,10 +12537,12 @@ Hart<URV>::vectorStoreIndexed(const DecodedInst* di, ElementWidth offsetEew)
 	  uint64_t x = 0;
 	  vecRegs_.read(vd, ix, groupX8, x);
 
-	  if (hasTrig and (ldStAddrTriggerHit(vaddr, elemSize, timing, isLd) or
-			   ldStDataTriggerHit(x, timing, isLd)))
-	    triggerTripped_ = true;
-
+	  if (hasTrig)
+            {
+              uint64_t pmva = applyPointerMask(vaddr, isLd);
+              ldStAddrTriggerHit(pmva, elemSize, timing, isLd);
+              ldStDataTriggerHit(x, timing, isLd);
+            }
 
 	  if (cause == ExceptionCause::NONE)
 	    if (not writeForStore(vaddr, pa1, pa2, x))
@@ -12748,14 +12780,17 @@ Hart<URV>::vectorLoadSeg(const DecodedInst* di, ElementWidth eew,
 	  uint64_t gpa2 = faddr;
           cause = determineLoadException(pa1, pa2, gpa1, gpa2, elemSize, false /*hyper*/, ix);
 
-	  if (hasTrig and ldStAddrTriggerHit(faddr, elemSize, timing, isLd))
-	    {
-	      triggerTripped_ = true;
-	      ldStInfo.removeLastElem();
-              markVsDirty();
-	      csRegs_.write(CsrNumber::VSTART, PrivilegeMode::Machine, ix);
-	      return false;
-	    }
+	  if (hasTrig)
+            {
+              uint64_t pmva = applyPointerMask(faddr, isLd);
+              if (ldStAddrTriggerHit(pmva, elemSize, timing, isLd))
+                {
+                  ldStInfo.removeLastElem();
+                  markVsDirty();
+                  csRegs_.write(CsrNumber::VSTART, PrivilegeMode::Machine, ix);
+                  return false;
+                }
+            }
 #endif
 
 	  if (cause == ExceptionCause::NONE)
@@ -12978,9 +13013,12 @@ Hart<URV>::vectorStoreSeg(const DecodedInst* di, ElementWidth eew,
 
           auto cause = determineStoreException(pa1, pa2, gpa1, gpa2, elemSize, false /*hyper*/);
 
-          if (hasTrig and (ldStAddrTriggerHit(faddr, elemSize, timing, isLd) or
-                           ldStDataTriggerHit(val, timing, isLd)))
-	    triggerTripped_ = true;
+          if (hasTrig)
+            {
+              uint64_t pmva = applyPointerMask(faddr, isLd);
+              ldStAddrTriggerHit(pmva, elemSize, timing, isLd);
+              ldStDataTriggerHit(val, timing, isLd);
+            }
 
           if (cause == ExceptionCause::NONE and not triggerTripped_)
             {
@@ -13356,13 +13394,16 @@ Hart<URV>::vectorLoadSegIndexed(const DecodedInst* di, ElementWidth offsetEew,
           uint64_t gpa2 = faddr;
           cause = determineLoadException(pa1, pa2, gpa1, gpa2, elemSize, false /*hyper*/, ix);
 
-          if (hasTrig and ldStAddrTriggerHit(faddr, elemSize, timing, isLd))
+          if (hasTrig)
             {
-              triggerTripped_ = true;
-              ldStInfo.removeLastElem();
-              markVsDirty();
-              csRegs_.write(CsrNumber::VSTART, PrivilegeMode::Machine, ix);
-              return false;
+              uint64_t pmva = applyPointerMask(faddr, isLd);
+              if (ldStAddrTriggerHit(pmva, elemSize, timing, isLd))
+                {
+                  ldStInfo.removeLastElem();
+                  markVsDirty();
+                  csRegs_.write(CsrNumber::VSTART, PrivilegeMode::Machine, ix);
+                  return false;
+                }
             }
 #endif
 
@@ -13552,9 +13593,12 @@ Hart<URV>::vectorStoreSegIndexed(const DecodedInst* di, ElementWidth offsetEew,
 
           auto cause = determineStoreException(pa1, pa2, gpa1, gpa2, elemSize, false /*hyper*/);
 
-          if (hasTrig and (ldStAddrTriggerHit(faddr, elemSize, timing, isLd) or
-                           ldStDataTriggerHit(val, timing, isLd)))
-            triggerTripped_ = true;
+          if (hasTrig)
+            {
+              uint64_t pmva = applyPointerMask(faddr, isLd);
+              ldStAddrTriggerHit(pmva, elemSize, timing, isLd);
+              ldStDataTriggerHit(val, timing, isLd);
+            }
 
           if (cause == ExceptionCause::NONE and not triggerTripped_)
             {
