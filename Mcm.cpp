@@ -2124,18 +2124,13 @@ Mcm<URV>::checkStoreComplete(unsigned hartIx, const McmInstr& instr) const
 	mask = maskCoveredBytes(addr, size, op.pa_, op.size_);
       else
 	{
-	  if (pageNum(addr) == pageNum(addr2))
-	    mask = maskCoveredBytes(addr, size, op.pa_, op.size_);
-	  else
-	    {
-	      unsigned size1 = offsetToNextPage(addr);
-	      mask = maskCoveredBytes(addr, size1, op.pa_, op.size_);
+          unsigned size1 = offsetToNextPage(addr);
+          mask = maskCoveredBytes(addr, size1, op.pa_, op.size_);
 
-	      unsigned size2 = size - size1;
-	      unsigned mask2 = maskCoveredBytes(addr2, size2, op.pa_, op.size_);
-	      mask2 <<= size1;
-	      mask |= mask2;
-	    }
+          unsigned size2 = size - size1;
+          unsigned mask2 = maskCoveredBytes(addr2, size2, op.pa_, op.size_);
+          mask2 <<= size1;
+          mask |= mask2;
 	}
 
       mask &= expectedMask;
