@@ -17,6 +17,7 @@
 
 #include "DecodedInst.hpp"
 #include "Hart.hpp"
+#include "PerfApi.hpp"
 
 using namespace WdRiscv;
 
@@ -380,8 +381,23 @@ Hart<URV>::execCbo_zero(const DecodedInst* di)
   ldStWrite_ = true;
   ldStPhysAddr1_ = ldStPhysAddr2_ = physAddr;
 
-  if (mcm_)
-    return;   // We update memory when we get bypass message from test bench.
+  if (ooo_)
+    {
+      if (perfApi_)
+        {
+          uint64_t val = 0;
+          unsigned size = sizeof(val);   // Chunk size.
+          for (unsigned i = 0; i < cacheLineSize_; i += size)
+            {
+              uint64_t pa = physAddr + i;
+              perfApi_->setStoreData(hartIx_, instCounter_, pa, pa, size, val);
+            }
+        }
+
+      // For MCM: We update memory when we get bypass message from test bench.
+
+      return;
+    }
 
   for (unsigned i = 0; i < cacheLineSize_; i += 8)
     {
