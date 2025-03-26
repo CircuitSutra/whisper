@@ -2413,7 +2413,8 @@ Mcm<URV>::commitVecReadOpsStride0(Hart<URV>& hart, McmInstr& instr)
 
   unsigned mask = (1u << elemSize) - 1;
 
-  const auto& vecRef = vecRefs.refs_.front();
+  const auto& refs = vecRefs.refs_;
+  const auto& vecRef = refs.front();
 
   for (auto iter = ops.rbegin(); iter != ops.rend(); ++iter)
     {
@@ -2421,6 +2422,9 @@ Mcm<URV>::commitVecReadOpsStride0(Hart<URV>& hart, McmInstr& instr)
       auto& op = sysMemOps_.at(opIx);
       if (not op.isRead_)
         continue;  // Should not happen.
+
+      if (op.elemIx_ >= info.elems_.size() or info.elems_.at(op.elemIx_).skip_)
+        continue;  // Skipped element.
 
       for (unsigned i = 0; i < elemSize; ++i)
         {
