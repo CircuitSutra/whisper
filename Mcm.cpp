@@ -496,12 +496,32 @@ Mcm<URV>::updateVecLoadDependencies(const Hart<URV>& hart, const McmInstr& instr
 	  uint64_t addr = i < size1 ? pa1 + i : pa2 + i - size1;
 	  uint64_t byteTime = 0;
 
-          // For strided with stride=0, test-bench sends one read for all indices.
-          // Don't use element index for that case.
-          if (unitStride or stride0)
-            byteTime = latestByteTime(instr, addr);
+          if (unitStride)
+            byteTime = latestByteTime(instr, addr);  // Don't use elem ix.
           else
-            byteTime = latestByteTime(instr, addr, elem.ix_);
+            {
+              unsigned elemIx = elem.ix_;
+
+              // For strided with stride=0, test-bench sometimes sends one read for all indices
+              // and sometimes sends one read per index. Compensate.
+              if (stride0)
+                {
+                  // Find highest read op with highest elem ix that is <= the current index.
+                  unsigned high = 0;
+                  for (auto opIx : instr.memOps_)
+                    if (auto& op = sysMemOps_.at(opIx); op.isRead_)
+                      {
+                        unsigned opElemIx = op.elemIx_;
+                        if (opElemIx <= elemIx and opElemIx > high and
+                            opElemIx < info.elems_.size() and not info.elems_.at(opElemIx).skip_)
+                          high = opElemIx;
+                      }
+                  elemIx = high;
+                }
+
+              byteTime = latestByteTime(instr, addr, elemIx);
+            }
+
 	  regTime = std::max(byteTime, regTime);
 	}
 
@@ -1284,7 +1304,7 @@ Mcm<URV>::retire(Hart<URV>& hart, uint64_t time, uint64_t tag,
   if (di.isAmo())
     instr->isStore_ = true;  // AMO is both load and store.
 
-  // Set data/address producer times (if any) for current instructions.
+  // Set data/address producer times (if any) for current instruction.
   setProducerTime(hart, *instr);
 
   if (instr->isStore_ and instr->complete_)
@@ -2379,8 +2399,9 @@ Mcm<URV>::commitVecReadOpsStride0(Hart<URV>& hart, McmInstr& instr)
   auto& vecRefs = hartData_.at(hart.sysHartIndex()).vecRefMap_[instr.tag_];
 
   auto& info = hart.getLastVectorMemory();
-  unsigned nfields = info.fields_ == 0 ? 1 : info.fields_;
   unsigned elemSize = info.elemSize_;
+
+  assert(info.fields_ == 0);
 
   bool matched = true;   // True until a mismatch.
   instr.complete_ = true;  // True until byte not covered.
@@ -2390,59 +2411,50 @@ Mcm<URV>::commitVecReadOpsStride0(Hart<URV>& hart, McmInstr& instr)
   // addresses covered by read ops. Set reference (Whisper) values of reference addresses.
   auto& ops = instr.memOps_;
 
-  // Process all the fields of the 1st active element.
-  unsigned elemIx = vecRefs.refs_.front().ix_;  // This is the same for all the fields.
+  unsigned mask = (1u << elemSize) - 1;
 
-  for (unsigned field = 0; field < nfields; ++field)
+  const auto& vecRef = vecRefs.refs_.front();
+
+  for (auto iter = ops.rbegin(); iter != ops.rend(); ++iter)
     {
-      unsigned mask = (1u << elemSize) - 1;
+      auto opIx = *iter;
+      auto& op = sysMemOps_.at(opIx);
+      if (not op.isRead_)
+        continue;  // Should not happen.
 
-      const auto& vecRef = vecRefs.refs_.at(field);
-
-      for (auto iter = ops.rbegin(); iter != ops.rend(); ++iter)
+      for (unsigned i = 0; i < elemSize; ++i)
         {
-          auto opIx = *iter;
-          auto& op = sysMemOps_.at(opIx);
-          if (not op.isRead_)
-            continue;  // Should not happen.
+          unsigned byteMask = 1 << i;
 
+          uint64_t byteAddr = vecRef.pa_ + i;  // TODO handle page crosser
+          if (not op.overlaps(byteAddr))
+            continue;
 
-          for (unsigned i = 0; i < elemSize; ++i)
+          mask &= ~byteMask;
+          op.canceled_ = false;
+
+          if (not isReadDataCheckEnabled(byteAddr))
+            continue;
+
+          unsigned offset = byteAddr - op.pa_;
+          uint8_t refVal = op.data_ >> (offset*8);
+          uint8_t rtlVal = op.rtlData_ >> (offset*8);
+
+          if (refVal != rtlVal)
             {
-              unsigned byteMask = 1 << i;
-              if ((mask & byteMask) == 0)
-                continue;   // Byte covered by a another read op.
-
-              uint64_t byteAddr = vecRef.pa_ + i;  // TODO handle page crosser
-              if (not vecReadOpOverlapsElemByte(op, byteAddr, elemIx, false /*unitStride*/, elemSize))
-                continue;
-
-              mask &= ~byteMask;
-              op.canceled_ = false;
-
-              if (not isReadDataCheckEnabled(byteAddr))
-                continue;
-
-              unsigned offset = byteAddr - op.pa_;
-              uint8_t refVal = op.data_ >> (offset*8);
-              uint8_t rtlVal = op.rtlData_ >> (offset*8);
-
-              if (refVal != rtlVal)
-                {
-                  if (matched)
-                    printReadMismatch(hart, op.time_, op.tag_, byteAddr, op.size_, rtlVal, refVal);
-                  matched = false;
-                }
+              if (matched)
+                printReadMismatch(hart, op.time_, op.tag_, byteAddr, op.size_, rtlVal, refVal);
+              matched = false;
             }
         }
+    }
 
-      if (mask and instr.complete_)
-        {
-          cerr << "Error: hart-id=" << hart.hartId() << " tag=" << instr.tag_
-               << " elem-ix=" << unsigned(vecRef.ix_) << " addr=0x" << std::hex << vecRef.pa_ << std::dec 
-               << " read ops do not cover all the bytes of vector load instruction\n";
-          instr.complete_ = false;
-        }
+  if (mask and instr.complete_)
+    {
+      cerr << "Error: hart-id=" << hart.hartId() << " tag=" << instr.tag_
+           << " elem-ix=" << unsigned(vecRef.ix_) << " addr=0x" << std::hex << vecRef.pa_ << std::dec 
+           << " read ops do not cover all the bytes of vector load instruction\n";
+      instr.complete_ = false;
     }
 
   // Remove ops still marked canceled.
@@ -2836,8 +2848,8 @@ Mcm<URV>::getCurrentLoadValue(Hart<URV>& hart, uint64_t tag, uint64_t va, uint64
 
   bool unitStride = isVector and isUnitStride(info);
 
-  // For strided load with 0 stride, all active elems get one read associated with 1st
-  // active.
+  // For strided load with 0 stride, test-bench sometimes sends one read for all active
+  // elements and sometimes sends multiple reads.
   if (isVector)
     {
       const VecLdStInfo& info = hart.getLastVectorMemory();
