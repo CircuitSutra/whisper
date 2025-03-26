@@ -2845,9 +2845,23 @@ Mcm<URV>::getCurrentLoadValue(Hart<URV>& hart, uint64_t tag, uint64_t va, uint64
       const VecLdStInfo& info = hart.getLastVectorMemory();
       if (info.isStrided_ and info.stride_ == 0 and info.fields_ == 0)
         {
+          // Find highest read op with highest elem ix that is <= the current index.
+          unsigned high = 0;
+          for (auto opIx : instr->memOps_)
+            if (auto& op = sysMemOps_.at(opIx); op.isRead_)
+              {
+                unsigned opElemIx = op.elemIx_;
+                if (opElemIx <= elemIx and opElemIx > high and
+                    opElemIx < info.elems_.size() and not info.elems_.at(opElemIx).skip_)
+                  high = opElemIx;
+              }
+
+          elemIx = high;
+#if 0
           for (auto& elem : info.elems_)
             if (not elem.skip_ and elem.ix_ < elemIx)
               elemIx = elem.ix_;
+#endif
         }
     }
 
