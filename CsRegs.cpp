@@ -3248,7 +3248,7 @@ CsRegs<URV>::defineDebugRegs()
   // Debug mode registers.
   URV dcsrVal = 0x40000003;
   URV dcsrMask = 0x00008e04;
-  URV dcsrPokeMask = dcsrMask | 0x1cf; // Cause field modifiable
+  URV dcsrPokeMask = dcsrMask | 0x1ef; // Cause field modifiable
   defineCsr("dcsr", Csrn::DCSR, !mand, imp, dcsrVal, dcsrMask, dcsrPokeMask);
 
   // Least sig bit of dpc is not writeable.
