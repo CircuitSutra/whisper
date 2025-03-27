@@ -542,6 +542,12 @@ namespace WdRiscv
     /// Helper to comitVecReadOps for unit stride.
     bool commitVecReadOpsUnitStride(Hart<URV>& hart, McmInstr& instr);
 
+    /// Helper to getCurrentLoadValue. For stride-zero vector loads, sometimes the
+    /// test-bench will send fewer reads than elements (worst case, it will send one read
+    /// for all the elements). Return the highest element index sent by the test-bench
+    /// that is less than or equal to the given element index.
+    unsigned effectiveStride0ElemIx(const Hart<URV>&, const McmInstr&, unsigned elemIx) const;
+
     /// Helper to commitVecReadOps: Collect the reference (Whisper) element info:
     /// address, index, field, data-reg, index-reg. Determine the number of
     /// active (non-masked) elements.

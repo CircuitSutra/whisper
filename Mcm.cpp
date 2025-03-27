@@ -472,8 +472,6 @@ Mcm<URV>::updateVecLoadDependencies(const Hart<URV>& hart, const McmInstr& instr
   if (elemSize == 0 or elems.empty())
     return;  // Should not happen.
 
-  unsigned vstart = elems.front().ix_;
-
   for (auto& elem : elems)
     {
       if (elem.skip_)
@@ -506,22 +504,7 @@ Mcm<URV>::updateVecLoadDependencies(const Hart<URV>& hart, const McmInstr& instr
               // For strided with stride=0, test-bench sometimes sends one read for all indices
               // and sometimes sends one read per index. Compensate.
               if (stride0)
-                {
-                  // Find highest read op with highest elem ix that is <= the current index.
-                  unsigned high = 0;
-                  for (auto opIx : instr.memOps_)
-                    if (auto& op = sysMemOps_.at(opIx); op.isRead_)
-                      {
-                        unsigned opElemIx = op.elemIx_;
-                        if (opElemIx < vstart)
-                          continue;
-                        unsigned offset = opElemIx - vstart;
-                        if (opElemIx <= elemIx and opElemIx > high and
-                            offset < elems.size() and not elems.at(offset).skip_)
-                          high = opElemIx;
-                      }
-                  elemIx = high;
-                }
+                elemIx = effectiveStride0ElemIx(hart, instr, elemIx);
 
               byteTime = latestByteTime(instr, addr, elemIx);
             }
@@ -2868,33 +2851,8 @@ Mcm<URV>::getCurrentLoadValue(Hart<URV>& hart, uint64_t tag, uint64_t va, uint64
   // For strided load with 0 stride, test-bench sometimes sends one read for all active
   // elements and sometimes sends multiple reads.
   if (isVector and not elems.empty())
-    {
-      if (info.isStrided_ and info.stride_ == 0 and info.fields_ == 0)
-        {
-          unsigned vstart = elems.front().ix_;
-
-          // Find highest read op with highest elem ix that is <= the current index.
-          unsigned high = 0;
-          for (auto opIx : instr->memOps_)
-            if (auto& op = sysMemOps_.at(opIx); op.isRead_)
-              {
-                unsigned opElemIx = op.elemIx_;
-                if (opElemIx < vstart)
-                  continue;
-                unsigned offset = opElemIx - vstart;
-                if (opElemIx <= elemIx and opElemIx > high and
-                    offset < elems.size() and not elems.at(offset).skip_)
-                  high = opElemIx;
-              }
-
-          elemIx = high;
-#if 0
-          for (auto& elem : elems)
-            if (not elem.skip_ and elem.ix_ < elemIx)
-              elemIx = elem.ix_;
-#endif
-        }
-    }
+    if (info.isStrided_ and info.stride_ == 0 and info.fields_ == 0)
+      elemIx = effectiveStride0ElemIx(hart, *instr, elemIx);
 
   // For vector load, we don't check indices if unit stride (no possibility of overlap).
   for (auto opIx : instr->memOps_)
@@ -2967,6 +2925,34 @@ Mcm<URV>::getCurrentLoadValue(Hart<URV>& hart, uint64_t tag, uint64_t va, uint64
     instr->complete_ = covered;
 
   return covered;
+}
+
+
+template <typename URV>
+unsigned
+Mcm<URV>::effectiveStride0ElemIx(const Hart<URV>& hart, const McmInstr& instr, unsigned elemIx) const
+{
+  const auto& info = hart.getLastVectorMemory();
+  const auto& elems = info.elems_;
+  unsigned vstart = elems.front().ix_;
+
+  // Find highest read op with highest elem ix that is <= the current index.
+  unsigned high = 0;
+  for (auto opIx : instr.memOps_)
+    {
+      if (auto& op = sysMemOps_.at(opIx); op.isRead_)
+        {
+          unsigned opElemIx = op.elemIx_;
+          if (opElemIx < vstart)
+            continue;
+          unsigned offset = opElemIx - vstart;
+          if (opElemIx <= elemIx and opElemIx > high and
+              offset < elems.size() and not elems.at(offset).skip_)
+            high = opElemIx;
+        }
+    }
+
+  return high;
 }
 
 
