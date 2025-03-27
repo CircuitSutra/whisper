@@ -91,6 +91,9 @@ namespace WdRiscv
     bool applyIommuConfig(System<URV>& system) const;
 
     template<typename URV>
+    bool applyFrameBufferConfig(System<URV>& system) const;
+
+    template<typename URV>
     bool applyPciConfig(System<URV>&) const;
 
     /// Set xeln to the register width configuration held in this
