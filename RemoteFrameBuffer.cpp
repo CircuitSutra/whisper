@@ -1,9 +1,11 @@
 #include <iostream>
-#include <rfb/rfb.h>
 #include <sys/mman.h>
 #include <cassert>
 #include <thread>
 #include <chrono>
+#ifdef REMOTE_FRAME_BUFFER
+#include <rfb/rfb.h>
+#endif
 
 #include "RemoteFrameBuffer.hpp"
 
@@ -49,7 +51,9 @@ RemoteFrameBuffer::~RemoteFrameBuffer()
 void
 RemoteFrameBuffer::vncServerLoop()
 {
-  // idk what these are for
+#ifdef REMOTE_FRAME_BUFFER
+
+  // libvncserver needs command line args passed to it
   int rfbArgc = 1;
   char programName[] = "whisper";
   char *rfbArgv[] = {programName, nullptr};
@@ -74,6 +78,8 @@ RemoteFrameBuffer::vncServerLoop()
   }
 
   rfbScreenCleanup(rfbScreen);
+
+#endif
 
 }
 
