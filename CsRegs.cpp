@@ -3516,6 +3516,8 @@ CsRegs<URV>::defineSteeRegs()
   bool mand = false;
   uint64_t reset = 0, mask = 0x1, pokeMask = 0x1;
   defineCsr("c_matp", CsrNumber::C_MATP, !mand, !imp, reset, mask, pokeMask);
+  setCsrFields(CsrNumber::C_MATP,
+    {{"SWID", 1}, {"Zero", 63}});
 }
 
 
