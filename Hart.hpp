@@ -2179,11 +2179,6 @@ namespace WdRiscv
     // Load snapshot of registers (PC, integer, floating point, CSR) into file
     bool loadSnapshotRegs(const std::string& path);
 
-    // Define the additional delay to add to the timecmp register
-    // before the timer expires. This is relevant to the clint.
-    void setTimeShift(unsigned shift)
-    { timeShift_ = shift; }
-
     // Define time scaling factor such that the time value increment period
     // is scaled down by 2^N.
     void setTimeDownSample(unsigned n)
@@ -5818,12 +5813,6 @@ namespace WdRiscv
     FILE* initStateFile_ = nullptr;
     std::unordered_set<uint64_t> initInstrLines_;
     std::unordered_set<uint64_t> initDataLines_;
-
-    // Shift executed instruction counter by this amount to produce a
-    // fake timer value. For example, if shift amount is 3, we are
-    // dividing instruction count by 8 (2 to power 3) to produce a
-    // timer value.
-    unsigned timeShift_ = 0;
 
     bool traceHeaderPrinted_ = false;
     bool ownTrace_ = false;

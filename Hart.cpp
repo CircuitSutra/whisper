@@ -6070,7 +6070,7 @@ Hart<URV>::processTimerInterrupt()
   if (hasAclint() and aclintDeliverInterrupts_)
     {
       // Deliver/clear machine timer interrupt from clint.
-      if (time_ >= aclintAlarm_ + timeShift_)
+      if (time_ >= aclintAlarm_)
         mipVal = mipVal | (URV(1) << URV(IC::M_TIMER));
       else
         mipVal = mipVal & ~(URV(1) << URV(IC::M_TIMER));
@@ -6107,7 +6107,7 @@ Hart<URV>::processTimerInterrupt()
   // Deliver/clear supervisor timer from stimecmp CSR.
   if (stimecmpActive_)
     {
-      if (time_ >= stimecmp_ + timeShift_)
+      if (time_ >= stimecmp_)
         mipVal = mipVal | (URV(1) << URV(IC::S_TIMER));
       else
         mipVal = mipVal & ~(URV(1) << URV(IC::S_TIMER));
@@ -6116,7 +6116,7 @@ Hart<URV>::processTimerInterrupt()
   // Deliver/clear virtual supervisor timer from vstimecmp CSR.
   if (vstimecmpActive_)
     {
-      if ((time_ + htimedelta_) >= (vstimecmp_ + timeShift_))
+      if ((time_ + htimedelta_) >= vstimecmp_)
         mipVal = mipVal | (URV(1) << URV(IC::VS_TIMER));
       else
         {
