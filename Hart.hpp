@@ -2423,10 +2423,7 @@ namespace WdRiscv
 
     /// Set the CLINT alarm to the given value.
     void setAclintAlarm(uint64_t value)
-    {
-      if (hasAclint())
-	aclintAlarm_ = value;
-    }
+    { aclintAlarm_ = value; }
 
     /// Fetch an instruction from the given virtual address. Return ExceptionCause::None
     /// on success. Return exception cause on fail. If successful set pysAddr to the

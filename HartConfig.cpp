@@ -2568,6 +2568,15 @@ HartConfig::applyAclintConfig(System<URV>& system, Hart<URV>& hart) const
       hart.setAclintAdjustTimeCompare(offset);
     }
 
+  tag = "timecmp_reset";
+  if (aclint.contains(tag))
+    {
+      uint64_t reset = 0;
+      if (not getJsonUnsigned("aclint.timecmp_reset", aclint.at(tag), reset))
+        return false;
+      hart.setAclintAlarm(reset);
+    }
+
   return configAclint(system, hart, base, size, swOffset, hasMswi, mtimeCmpOffset,
                       timeOffset, hasMtimer, siOnReset, deliverInterrupts);
 }
