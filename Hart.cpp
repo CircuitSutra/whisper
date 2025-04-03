@@ -5256,10 +5256,14 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
 	    ++cycleCount_;
 
           if (processExternalInterrupt(traceFile, instStr))
-	    continue;  // Next instruction in trap handler.
+            {
+              if (sdtrigOn_)
+                evaluateIcountTrigger();
+              continue;  // Next instruction in trap handler.
+            }
 
           if (sdtrigOn_ and icountTriggerFired())
-            {            
+            {
               if (takeTriggerAction(traceFile, currPc_, 0, instCounter_, nullptr /*di*/))
                 return true;
               continue;
@@ -6200,7 +6204,11 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
 	++cycleCount_;
 
       if (processExternalInterrupt(traceFile, instStr))
-	return;  // Next instruction in interrupt handler.
+        {
+          if (sdtrigOn_)
+            evaluateIcountTrigger();
+          return;  // Next instruction in interrupt handler.
+        }
 
       if (sdtrigOn_ and icountTriggerFired())
         {            
