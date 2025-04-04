@@ -5269,12 +5269,13 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
               continue;
             }
 
-	  if (sdtrigOn_)
-            evaluateIcountTrigger();
-
 	  uint64_t physPc = 0;
           if (not fetchInstWithTrigger(pc_, physPc, inst, traceFile))
-	    continue;  // Next instruction in trap handler.
+            {
+              if (sdtrigOn_)
+                evaluateIcountTrigger();
+              continue;  // Next instruction in trap handler.
+            }
 
 	  // Decode unless match in decode cache.
 	  uint32_t ix = (physPc >> 1) & decodeCacheMask_;
@@ -5286,6 +5287,9 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
           // Increment pc and execute instruction
 	  pc_ += di->instSize();
 	  execute(di);
+
+          if (sdtrigOn_)
+            evaluateIcountTrigger();
 
 	  if (hasException_)
 	    {
@@ -6211,23 +6215,27 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
         }
 
       if (sdtrigOn_ and icountTriggerFired())
-        {            
+        {
           takeTriggerAction(traceFile, currPc_, 0, instCounter_, nullptr /*di*/);
           return;
         }
 
-      if (sdtrigOn_)
-        evaluateIcountTrigger();
-
       uint64_t physPc = 0;
       if (not fetchInstWithTrigger(pc_, physPc, inst, traceFile))
-        return;
+        {
+          if (sdtrigOn_)
+            evaluateIcountTrigger();
+          return;
+        }
 
       decode(pc_, physPc, inst, di);
 
       // Increment pc and execute instruction
       pc_ += di.instSize();
       execute(&di);
+
+      if (sdtrigOn_)
+        evaluateIcountTrigger();
 
       if (lastInstructionTrapped())
 	{
