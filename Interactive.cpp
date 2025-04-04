@@ -1960,6 +1960,15 @@ Interactive<URV>::executeLine(const std::string& inLine, FILE* traceFile,
       return true;
     }
 
+  if (command == "inject_exception")
+    {
+      if (not injectExceptionCommand(hart, line, tokens))
+        return false;
+      if (commandLog)
+        fprintf(commandLog, "%s\n", line.c_str());
+      return true;
+    }
+
   if (command == "perf_model_fetch")
     {
       if (not perfModelFetchCommand(line, tokens))
@@ -2729,6 +2738,32 @@ Interactive<URV>::pmaCommand(Hart<URV>& hart, const std::string& line,
     {
       cerr << "Invalid pma command: " << line << '\n';
       cerr << "Expecting: pma [<address>]\n";
+      return false;
+    }
+
+  return true;
+}
+
+
+template <typename URV>
+bool
+Interactive<URV>::injectExceptionCommand(Hart<URV>& hart, const std::string& line,
+                                         const std::vector<std::string>& tokens)
+{
+  if (tokens.size() == 4)
+    {
+      uint64_t flags, address, resource;
+      if (not parseCmdLineNumber("inject-exception-flags", tokens.at(1), flags))
+        return false;
+      if (not parseCmdLineNumber("inject-exception-address", tokens.at(2), address))
+        return false;
+      if (not parseCmdLineNumber("inject-exception-resource", tokens.at(3), resource))
+        return false;
+      hart.injectException(flags, address, resource);
+    }
+  else
+    {
+      cerr << "Invalid inject_exception command: " << line << '\n';
       return false;
     }
 

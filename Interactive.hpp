@@ -156,6 +156,9 @@ namespace WdRiscv
     bool pmaCommand(Hart<URV>& hart, const std::string& line,
 		    const std::vector<std::string>& tokens);
 
+    bool injectExceptionCommand(Hart<URV>& hart, const std::string& line,
+		                const std::vector<std::string>& tokens);
+
     bool perfModelFetchCommand(const std::string& line,
 		               const std::vector<std::string>& tokens);
 

@@ -363,6 +363,12 @@ Hart<URV>::storeConditional(const DecodedInst* di, URV virtAddr, STORE_TYPE stor
   uint64_t addr1 = virtAddr, addr2 = virtAddr;
   uint64_t gaddr1 = virtAddr, gaddr2 = virtAddr;
   auto cause = determineStoreException(addr1, addr2, gaddr1, gaddr2, ldStSize_, false /*hyper*/);
+
+  // Store conditionals may also take exception
+  if (injectException_ != EC::NONE and
+      injectExceptionIsLd_)
+    cause = injectException_;
+
   ldStPhysAddr1_ = addr1;
   ldStPhysAddr2_ = addr2;
 
