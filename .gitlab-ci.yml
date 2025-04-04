@@ -125,10 +125,6 @@ notify_riscv_cluster:
   trigger:
       project: riscv/riscv_cluster
 
-notify-riescue:
-  <<: *notify-template
-  trigger:
-    project: riscv/riescue
 
 # notify-archcov:
 #   <<: *notify-template
