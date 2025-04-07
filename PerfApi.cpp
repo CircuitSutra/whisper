@@ -584,7 +584,7 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
 
   // Erase packet from packet map. Stores erased at drain time.
   auto& packetMap = hartPacketMaps_.at(hartIx);
-  if (not packet.isStore() and not di.isVectorStore())
+  if (not packet.isStore() and not di.isVectorStore() and not di.isCbo_zero())
     packetMap.erase(packet.tag());
 
   return true;
@@ -688,7 +688,8 @@ PerfApi::drainStore(unsigned hartIx, uint64_t time, uint64_t tag)
   auto& hart = *hartPtr;
   auto& packet = *pacPtr;
 
-  if (not packet.di_.isStore() and not packet.di_.isVectorStore())
+  auto& di = packet.di_;
+  if (not di.isStore() and not di.isVectorStore() and not di.isCbo_zero())
     {
       std::cerr << "Hart=" << hartIx << " time=" << time << " tag=" << tag
 		<< " Draining a non-store instruction\n";
@@ -788,8 +789,9 @@ PerfApi::getLoadData(unsigned hartIx, uint64_t tag, uint64_t va, uint64_t pa1,
 
       uint64_t stAddr = stPac.dataVa();
       unsigned stSize = stPac.dataSize();
-      if ((stAddr + stSize < va or va + size < stAddr) and not stPac.isVectorStore())
-	continue;  // No overlap.
+      if (not stPac.isVectorStore() and not stPac.isCbo_zero())
+        if ((stAddr + stSize < va or va + size < stAddr))
+          continue;  // No overlap.
 
       auto& stMap = stPac.stDataMap_;
 
@@ -833,14 +835,14 @@ PerfApi::setStoreData(unsigned hartIx, uint64_t tag, uint64_t pa1, uint64_t pa2,
 {
   auto hartPtr = checkHart("Set-store-data", hartIx);
   auto packetPtr = checkTag("Set-store-Data", hartIx, tag);
-  if (not packetPtr)
+  if (not packetPtr or not hartPtr)
     {
       assert(0);
       return false;
     }
 
   auto& packet = *packetPtr;
-  if (not hartPtr or not (packet.isStore() or packet.isAmo() or packet.isVectorStore()))
+  if (not (packet.isStore() or packet.isAmo() or packet.isVectorStore() or packet.isCbo_zero()))
     {
       assert(0);
       return false;
@@ -924,7 +926,7 @@ PerfApi::commitMemoryWrite(Hart64& hart, uint64_t pa1, uint64_t pa2, unsigned si
 bool
 PerfApi::commitMemoryWrite(Hart64& hart, const InstrPac& packet)
 {
-  if (not packet.isVectorStore())
+  if (not packet.isVectorStore() and not packet.isCbo_zero())
     return commitMemoryWrite(hart, packet.dpa_, packet.dpa2_, packet.dsize_, packet.stData_);
 
   auto ok = true;
@@ -1520,7 +1522,11 @@ PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
       auto& storeMap =  hartStoreMaps_.at(hartIx);
       auto tag = packet.tag();
 
-      if (di.isVectorStore())
+      if (di.isCbo_zero())
+        {
+          storeMap[tag] = getInstructionPacket(hartIx, tag);
+        }
+      else if (di.isVectorStore())
         {
           storeMap[tag] = getInstructionPacket(hartIx, tag);
           // FIX What to do about device access? Do we allow mixed device/non-device

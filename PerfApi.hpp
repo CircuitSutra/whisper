@@ -212,6 +212,10 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     bool isVectorStore() const
     { return di_.isVectorStore(); }
 
+    /// Return true if this is a cbo_zero instruction. Pakced must be decoed.
+    bool isCbo_zero() const
+    { return di_.isCbo_zero(); }
+
     /// Return true if this an AMO instruction (does not include lr/sc).  Packet must be
     /// decoded.
     bool isAmo() const
@@ -221,6 +225,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     bool isSc() const
     { return di_.isSc(); }
 
+    /// Return true if this a load reserve (lr) instruction.  Packet must be decoded.
     bool isLr() const
     { return di_.isLr(); }
 

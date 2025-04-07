@@ -400,6 +400,10 @@ namespace WdRiscv
     bool isSc() const
     { return entry_ and entry_->isSc(); }
 
+    /// Return true if this is an cbo.zero (cache bloc zoer) instruction.
+    bool isCbo_zero() const
+    { return entry_ and entry_->instId() == InstId::cbo_zero; }
+
     /// Return the data size in bytes of a load instruction. Return
     /// zero for a non-load instruction.
     unsigned loadSize() const
