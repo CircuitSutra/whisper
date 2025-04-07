@@ -3484,6 +3484,8 @@ CsRegs<URV>::defineEntropyReg()
   // Entropy source
   auto csr = defineCsr("seed", CN::SEED, mand, imp, 0, rom, pokeMask);
   csr->setHypervisor(true);
+  setCsrFields(CsrNumber::SEED, {{"ENTROPY", 16}, {"CUSTOM", 8},{"RSVD", 6},
+    {"OPST",2},{"ZERO",32}});
 }
 
 
