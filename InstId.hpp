@@ -769,6 +769,7 @@ namespace WdRiscv
      vlsege512ff_v,
      vlsege1024ff_v,
 
+     // Vector floating point
      vfadd_vv,
      vfadd_vf,
      vfsub_vv,
