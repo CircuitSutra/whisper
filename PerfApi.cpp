@@ -212,6 +212,11 @@ PerfApi::decode(unsigned hartIx, uint64_t time, uint64_t tag)
         op.value.scalar = di.ithOperand(i);
     }
 
+  // Determine effective group multiplier of vector operands. We do this before adding
+  // explicit operands as we may be producing vtype which affects LMUL.
+  if (packet.di_.isVector())
+    getVectorOperandsLmul(hart, packet);
+
   // Determine explicit operands. Vtype is an implicit source for all vector instructions.
   // It is an implicit destination for the vsetvl/vsetvli/vsetivli.
   if (di.isVector())
@@ -242,10 +247,6 @@ PerfApi::decode(unsigned hartIx, uint64_t time, uint64_t tag)
       if (di.modifiesFflags())
         op.mode = di.hasDynamicRoundingMode() ? OM::ReadWrite : OM::Write;
     }      
-
-  // Determine effective group multiplier of vector operands.
-  if (packet.di_.isVector())
-    getVectorOperandsLmul(hart, packet);
 
   // Collect producers of operands of this instruction.
   auto& producers = hartRegProducers_.at(hartIx);
@@ -1034,24 +1035,22 @@ PerfApi::flush(unsigned hartIx, uint64_t time, uint64_t tag)
         }
 
       auto& packet = *pacPtr;
-      auto& di = packet.di_;
-      for (size_t i = 0; i < di.operandCount(); ++i)
+      for (size_t i = 0; i < packet.operandCount_; ++i)
         {
-	  auto mode = di.effectiveIthOperandMode(i);
-          if (mode == WdRiscv::OperandMode::Write or
-              mode == WdRiscv::OperandMode::ReadWrite)
+          using OM = WdRiscv::OperandMode;
+          using OT = WdRiscv::OperandType;
+
+          auto& op = packet.operands_.at(i);
+          if (op.mode == OM::Write or op.mode == OM::ReadWrite)
             {
-              unsigned regNum = di.ithOperand(i);
-              unsigned gri = globalRegIx(di.ithOperandType(i), regNum);
+              unsigned regNum = op.number;
+              unsigned gri = globalRegIx(op.type, regNum);
 	      if (gri != 0)
 		assert(producers.at(gri)->tag_ == packet.tag_);
 
               auto& iop = packet.opProducers_.at(i);  // ith op producer
 
-              using OT = WdRiscv::OperandType;
-              OT type = di.ithOperandType(i);
-
-              if (type != OT::VecReg)
+              if (op.type != OT::VecReg)
                 {
                   auto prev = iop.scalar;
                   if (prev and prev->retired_)
