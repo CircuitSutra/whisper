@@ -1150,10 +1150,21 @@ InstrPac::getSourceOperands(std::array<Operand, 3>& ops)
   if (not decoded_)
     return 0;
 
-  for (unsigned i = 0; i < operandCount_; ++i)
-    ops.at(i) = operands_.at(i);
+  assert(di_.operandCount() <= operandCount_);
 
-  return operandCount_;
+  unsigned limit = di_.operandCount();   // Return explicit operands. Skip implicit.
+  unsigned count = 0;
+
+  using OM = WdRiscv::OperandMode;
+
+  for (unsigned i = 0; i < limit; ++i)
+    {
+      const auto& op = operands_.at(i);
+      if (op.mode== OM::Read or op.mode == OM::ReadWrite or op.type == OperandType::Imm)
+        ops.at(count++) = op;
+    }
+
+  return count;
 }
 
 
@@ -1164,16 +1175,16 @@ InstrPac::getDestOperands(std::array<Operand, 2>& ops)
   if (not decoded_)
     return 0;
 
+  unsigned limit = di_.operandCount();   // Return explicit operands. Skip implicit.
   unsigned count = 0;
 
   using OM = WdRiscv::OperandMode;
 
-  for (unsigned i = 0; i < operandCount_; ++i)
+  for (unsigned i = 0; i < limit; ++i)
     {
-      auto& packetOp = operands_.at(i);
-      auto mode = packetOp.mode;
-      if (mode == OM::Write or mode == OM::ReadWrite)
-        ops.at(count++) = packetOp;
+      auto& op = operands_.at(i);
+      if (op.mode == OM::Write or op.mode == OM::ReadWrite)
+        ops.at(count++) = op;
     }
 
   return count;
