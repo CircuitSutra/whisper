@@ -10511,18 +10511,25 @@ Hart<URV>::execEbreak(const DecodedInst* di)
 	}
     }
 
-  // If in machine/supervisor/user mode and DCSR bit ebreakm/s/u is set, then enter debug
-  // mode.
+  // If in M/S/U privilege mode and DCSR bit ebreakm/s/u is set, then enter debug
+  // mode. Same if in VS/VU mode and DCSR bit ebreakvs/vu set.
   if (hasDcsr)
     {
       DcsrFields<URV> fields{dcsrVal};
-      bool ebm = fields.bits_.EBREAKM;  // Break in M-privilege enabled.
-      bool ebs = fields.bits_.EBREAKS;  // Break in S-privilege enabled.
-      bool ebu = fields.bits_.EBREAKU;  // Break in U-privilege enabled.
+      bool ebm  = fields.bits_.EBREAKM;  // Ebreak in M-privilege enabled.
+      bool ebs  = fields.bits_.EBREAKS;
+      bool ebu  = fields.bits_.EBREAKU;
+      bool ebvs = fields.bits_.EBREAKVS;
+      bool ebvu = fields.bits_.EBREAKVU;
 
-      bool hit = ( (ebm and privMode_ == PrivilegeMode::Machine) or
-		   (ebs and privMode_ == PrivilegeMode::Supervisor) or
-		   (ebu and privMode_ == PrivilegeMode::User) );
+      using PM = PrivilegeMode;
+
+      bool hit = ( (ebm and privMode_ == PM::Machine) or
+		   (ebs and privMode_ == PM::Supervisor) or
+		   (ebu and privMode_ == PM::User) );
+
+      hit = hit or ( virtMode_ and ( (ebvs and privMode_ == PM::Supervisor) or
+                                     (ebvu and privMode_ == PM::User) ) );
 
       // Should we do if we are debug-mode single stepping?
       if (hit)
