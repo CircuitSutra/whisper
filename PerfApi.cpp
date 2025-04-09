@@ -201,11 +201,13 @@ PerfApi::decode(unsigned hartIx, uint64_t time, uint64_t tag)
   for (unsigned i = 0; i < di.operandCount(); ++i)
     {
       auto mode = di.effectiveIthOperandMode(i);
+      auto type = di.ithOperandType(i);
+
       if (mode == OM::None)
-        continue;
+        assert(type == OT::Imm);
 
       auto& op = packet.operands_.at(packet.operandCount_++);
-      op.type = di.ithOperandType(i);
+      op.type = type;
       op.mode = di.ithOperandMode(i);
       op.number = di.ithOperand(i);     // Irrelevant for immediate ops.
       if (op.type == OT::Imm)
@@ -254,11 +256,13 @@ PerfApi::decode(unsigned hartIx, uint64_t time, uint64_t tag)
     {
       auto& op = packet.operands_.at(i);
       auto mode = op.mode;
-      assert(mode != OM::None);
-
       auto type = op.type;
-      assert(type != OT::None);
-      if (type == OT::None or type == OT::Imm)
+
+      if (type == OT::Imm)
+        continue;
+
+      assert(type != OT::None and mode != OM::None);
+      if (mode == OM::None)
         continue;
 
       unsigned regNum = op.number;
@@ -1150,9 +1154,8 @@ InstrPac::getSourceOperands(std::array<Operand, 3>& ops)
   if (not decoded_)
     return 0;
 
-  assert(di_.operandCount() <= operandCount_);
-
-  unsigned limit = di_.operandCount();   // Return explicit operands. Skip implicit.
+  // Return explicit operands. Skip implicit.
+  unsigned limit = std::min(di_.operandCount(), operandCount_);
   unsigned count = 0;
 
   using OM = WdRiscv::OperandMode;
@@ -1175,7 +1178,8 @@ InstrPac::getDestOperands(std::array<Operand, 2>& ops)
   if (not decoded_)
     return 0;
 
-  unsigned limit = di_.operandCount();   // Return explicit operands. Skip implicit.
+  // Return explicit operands. Skip implicit.
+  unsigned limit = std::min(di_.operandCount(), operandCount_);
   unsigned count = 0;
 
   using OM = WdRiscv::OperandMode;
