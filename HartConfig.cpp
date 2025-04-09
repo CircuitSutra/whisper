@@ -2777,7 +2777,7 @@ HartConfig::configHarts(System<URV>& system, bool userMode, bool verbose) const
 	}
 		
       uint32_t iid = 0;
-      std::string channel = "stdio";
+      std::string channel = "pty";
       if (type == "uart8250")
         {
           if (uart.contains("iid") &&
