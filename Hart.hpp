@@ -3221,10 +3221,12 @@ namespace WdRiscv
     }
 
     /// Make all active icount triggers count down if possible marking pending
-    /// the ones that reach zero.
+    /// the ones that reach zero. We use last values because privMode/virtMode may
+    /// be modified by execution and we can't decrement icount before the instruction
+    /// because tdata1 may be read.
     void evaluateIcountTrigger()
     {
-      return csRegs_.evaluateIcountTrigger(privilegeMode(), virtMode(), isInterruptEnabled());
+      return csRegs_.evaluateIcountTrigger(lastPriv_, lastVirt_, lastInterruptEnabled_);
     }
 
     /// Return true if a pending icount triger can fire clearning its pending status.
@@ -5482,6 +5484,7 @@ namespace WdRiscv
       ldStSize_ = 0;
       lastPriv_ = privMode_;
       lastVirt_ = virtMode_;
+      lastInterruptEnabled_ = isInterruptEnabled();
       ldStWrite_ = false;
       ldStAtomic_ = false;
       lastPageMode_ = virtMem_.mode();
@@ -5637,6 +5640,8 @@ namespace WdRiscv
     bool lastVirt_ = false;         // Before current inst.
     bool lastHyer_ = false;         // Hypervisor extension state before current inst.
     bool hyperLs_ = false;          // True if last instr is hypervisor load/store.
+
+    bool lastInterruptEnabled_ = false; // Before current inst
 
     // These are used to get fast access to the FS and VS bits.
     Emstatus<URV> mstatus_;         // Cached value of mstatus CSR or mstatush/mstatus.
