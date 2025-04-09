@@ -4587,14 +4587,16 @@ Mcm<URV>::ppoRule9(Hart<URV>& hart, const McmInstr& instrB) const
 
   uint64_t addrTime = instrB.addrTime_;
 
+  // FIX : Issue error if A and B are both cacheable.
+
   for (auto opIx : instrB.memOps_)
     {
       if (opIx < sysMemOps_.size() and sysMemOps_.at(opIx).time_ <= addrTime)
 	{
-	  cerr << "Error: PPO rule 9 failed: hart-id=" << hart.hartId() << " tag1="
+	  cerr << "Warning: PPO rule 9 failed: hart-id=" << hart.hartId() << " tag1="
 	       << instrB.addrProducer_ << " tag2=" << instrB.tag_
                << " time1=" << addrTime << " time2=" << sysMemOps_.at(opIx).time_ << '\n';
-	  return false;
+	  return true;
 	}
     }
 
@@ -4606,10 +4608,10 @@ Mcm<URV>::ppoRule9(Hart<URV>& hart, const McmInstr& instrB) const
   unsigned ixReg = 0;   // Vector index register.
   if (isVecIndexOutOfOrder(hart, instrB, ixReg, ixTag, ixTime, dataTime))
     {
-      cerr << "Error: PPO rule 9 failed: hart-id=" << hart.hartId() << " tag1="
+      cerr << "Warning: PPO rule 9 failed: hart-id=" << hart.hartId() << " tag1="
 	   << ixTag << " tag2=" << instrB.tag_ << " time1=" << ixTime
 	   << " time2=" << dataTime << " vec-ix-reg=" << ixReg << '\n';
-      return false;
+      return true;
     }
 
   return true;
