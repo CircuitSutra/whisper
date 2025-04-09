@@ -220,25 +220,33 @@ PerfApi::decode(unsigned hartIx, uint64_t time, uint64_t tag)
     getVectorOperandsLmul(hart, packet);
 
   // Determine explicit operands. Vtype is an implicit source for all vector instructions.
-  // It is an implicit destination for the vsetvl/vsetvli/vsetivli.
+  // It is an implicit destination for the vsetvl/vsetvli/vsetivli. Same for VL.
   if (di.isVector())
     {
-      auto& op = packet.operands_.at(packet.operandCount_++);
-      op.type = OperandType::CsReg;
-      op.mode = OM::Read;
-      op.number = unsigned(CSRN::VTYPE);
+      auto& vtOp = packet.operands_.at(packet.operandCount_++);
+      vtOp.type = OperandType::CsReg;
+      vtOp.mode = OM::Read;
+      vtOp.number = unsigned(CSRN::VTYPE);
       
+      auto& vlOp = packet.operands_.at(packet.operandCount_++);
+      vlOp.type = OperandType::CsReg;
+      vlOp.mode = OM::Read;
+      vlOp.number = unsigned(CSRN::VL);
+
       using WdRiscv::InstId;
       auto id = di.instId();
       bool isVset = (id == InstId::vsetvl or id == InstId::vsetvli or id == InstId::vsetivli);
       if (isVset)
-        op.mode = OM::Write;
+        {
+          vtOp.mode = OM::Write;
+          vlOp.mode = OM::Write;
+        }
 
       // We currently don't keep track of vector instructions that use FCSR. Assume all do.
-      auto& op2 = packet.operands_.at(packet.operandCount_++);
-      op2.type = OperandType::CsReg;
-      op2.mode = OM::ReadWrite;
-      op2.number = unsigned(CSRN::FCSR);
+      auto& fcsrOp = packet.operands_.at(packet.operandCount_++);
+      fcsrOp.type = OperandType::CsReg;
+      fcsrOp.mode = OM::ReadWrite;
+      fcsrOp.number = unsigned(CSRN::FCSR);
     }
   else if (di.isFp() and (di.modifiesFflags() or di.hasDynamicRoundingMode()))
     {
@@ -419,7 +427,7 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
     assert(0);
 
   // Save hart register values corresponding to packet operands in prevVal.
-  std::array<OpVal, 6> prevVal;
+  std::array<OpVal, 7> prevVal;
   bool saveOk = saveHartValues(hart, packet, prevVal);
 
   // Install packet operand values (some obtained from previous in-flight instructions)
@@ -437,15 +445,6 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
   unsigned imsicId = 0, imsicGuest = 0;
   if (di.isCsr())
     saveImsicTopei(hart, CSRN(di.ithOperand(2)), imsicId, imsicGuest);
-
-  uint64_t prevVl = 0, prevFcsr = 0;
-  if (di.isVector())
-    {
-      (void) hart.peekCsr(CSRN::VL, prevVl);
-      (void) hart.peekCsr(CSRN::FCSR, prevFcsr);
-    }
-  else if (di.isFp())
-    (void) hart.peekCsr(CSRN::FCSR, prevFcsr);
 
   // Execute
   skipIoLoad_ = true;   // Load from IO space takes effect at retire.
@@ -499,25 +498,6 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
 
   // Restore hart registers that we changed before single step.
   restoreHartValues(hart, packet, prevVal);
-
-  if (di.isVector())
-    {
-      uint64_t val = 0;
-      (void) hart.peekCsr(CSRN::VL, val);
-      if (prevVl != val)
-        hart.pokeCsr(CSRN::VL, prevVl);
-      val = 0;
-      (void) hart.peekCsr(CSRN::FCSR, val);
-      if (val != prevFcsr)
-        hart.pokeCsr(CSRN::FCSR, prevFcsr);
-    }
-  else if (di.isFp())
-    {
-      uint64_t val = 0;
-      (void) hart.peekCsr(CSRN::FCSR, val);
-      if (val != prevFcsr)
-        hart.pokeCsr(CSRN::FCSR, prevFcsr);
-    }
 
   uint64_t mstatus = 0;
   if (not hart.peekCsr(CSRN::MSTATUS, mstatus))
@@ -1269,7 +1249,7 @@ InstrPac::executedDestVal(const Hart64& hart, unsigned size, unsigned elemIx, un
 
 bool
 PerfApi::saveHartValues(Hart64& hart, const InstrPac& packet,
-			std::array<OpVal, 6>& prevVal)
+                        std::array<OpVal, 7>& prevVal)
 {
   using OM = WdRiscv::OperandMode;
   using OT = WdRiscv::OperandType;
@@ -1302,7 +1282,7 @@ PerfApi::saveHartValues(Hart64& hart, const InstrPac& packet,
 	  break;
 
 	case OT::VecReg:
-          ok = peekVecRegGroup(hart, number, op.lmul, prevVal.at(i));
+          ok = peekVecRegGroup(hart, number, op.lmul, prevVal.at(i)) and ok;
 	  break;
 
 	case OT::Imm:
@@ -1382,7 +1362,7 @@ PerfApi::restoreImsicTopei(Hart64& hart, CSRN csrn, unsigned id, unsigned guest)
 
 void
 PerfApi::restoreHartValues(Hart64& hart, const InstrPac& packet,
-			   const std::array<OpVal, 6>& prevVal)
+			   const std::array<OpVal, 7>& prevVal)
 {
   using OM = WdRiscv::OperandMode;
   using OT = WdRiscv::OperandType;

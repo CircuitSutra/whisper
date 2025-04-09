@@ -260,7 +260,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
 
     /// Fill the given array with the destination operands of this instruction (which must
     /// be decoded). Value of each operand will be zero unless the instruction is
-    /// executed.  Return the number of operands written into the array.
+    /// executed. Return the number of operands written into the array.
     unsigned getDestOperands(std::array<Operand, 2>& ops);
 
   protected:
@@ -298,18 +298,18 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     uint64_t execTime_ = 0;   // Execution time
     uint64_t prTarget_ = 0;   // Predicted branch target
 
-    // Up to 4 explicit operands and 2 implicit ones (VTYPE, FCSR).
-    std::array<Operand, 6> operands_;
+    // Up to 4 explicit operands and 3 implicit ones (VTYPE, VL, and FCSR).
+    std::array<Operand, 7> operands_;
     unsigned operandCount_ = 0;
 
     // Entry i is the in-flight producer of the ith operand.
-    std::array<OpProducer, 6> opProducers_;
+    std::array<OpProducer, 7> opProducers_;
 
     // Global register index of a destination register and its corresponding value.
     typedef std::pair<unsigned, OpVal> DestValue;
 
-    // One expicit destination register and up to 2 implicit ones (FCSR and VTYPE)
-    std::array<DestValue, 3> destValues_;
+    // One expicit destination register and up to 3 implicit ones (FCSR, VL, and VTYPE)
+    std::array<DestValue, 4> destValues_;
 
     uint32_t opcode_ = 0;
 
@@ -553,7 +553,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     /// true on success. Return false if any of the required hart registers cannot be
     /// read.
     bool saveHartValues(Hart64& hart, const InstrPac& packet,
-			std::array<OpVal, 6>& prevVal);
+			std::array<OpVal, 7>& prevVal);
 
     /// Install packet operand values (some obtained from previous in-flight instructions)
     /// into the hart registers. Return true on success. Return false if any of the
@@ -563,7 +563,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     /// Restore the hart registers corresponding to the packet operands to the values in
     /// the prevVal array.
     void restoreHartValues(Hart64& hart, const InstrPac& packet,
-			   const std::array<OpVal, 6>& prevVal);
+			   const std::array<OpVal, 7>& prevVal);
 
     /// Helper to execute. Restore IMSIC top interrupt if csrn is one of M/S/VS TOPEI.
     void restoreImsicTopei(Hart64& hart, WdRiscv::CsrNumber csrn, unsigned id, unsigned guest);
