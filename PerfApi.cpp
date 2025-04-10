@@ -1862,6 +1862,8 @@ PerfApi::collectOperandValues(Hart64& hart, InstrPac& packet)
 
   using OT = WdRiscv::OperandType;
 
+  unsigned vecRegSize = hart.vecRegSize();
+
   for (unsigned i = 0; i < packet.operandCount_; ++i)
     {
       auto& op = packet.operands_.at(i);
@@ -1910,7 +1912,7 @@ PerfApi::collectOperandValues(Hart64& hart, InstrPac& packet)
                       assert(0);
                       return false;
                     }
-                  getDestValue(*producer, gri + n, val);
+                  getVecDestValue(*producer, gri + n, vecRegSize, val);
                 }
               else
                 peekOk = peekRegister(hart, type, regNum+n, val) and peekOk;

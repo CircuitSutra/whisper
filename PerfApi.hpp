@@ -535,8 +535,8 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
 
     bool peekVecRegGroup(Hart64& hart, unsigned regNum, unsigned lmul, OpVal& value);
 
-    /// Get from the producing packet, the value of the register with the given
-    /// global register index.
+    /// Get from the producing packet, the value of the register with the given global
+    /// register index.
     void getDestValue(const InstrPac& producer, unsigned gri, OpVal& val) const
     {
       assert(producer.executed());
@@ -546,6 +546,36 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
             val = p.second;
             return;
           }
+      assert(0);
+    }
+
+    /// Get from the producing packet, the value of the vector register with the given
+    /// global register index.
+    void getVecDestValue(const InstrPac& producer, unsigned gri, unsigned vecRegSize,
+                         OpVal& val) const
+    {
+      assert(producer.executed());
+
+      // Producer should have exactly one vector destination which may be a non-trivial
+      // group (LMUL > 1).
+      for (auto& pdv : producer.destValues_)
+        {
+          auto& vec = pdv.second.vec;  // Produced vector data.
+          if (vec.size())  // If vector destination
+            {
+              unsigned group = vec.size() / vecRegSize;
+              if (group == 0)
+                group = 1;
+              assert(gri >= pdv.first and gri < pdv.first + group);
+              unsigned offset = (gri - pdv.first) * vecRegSize;
+
+              auto& result = val.vec;
+              result.clear();
+              result.insert(result.end(), vec.begin() + offset, vec.begin() + offset + vecRegSize);
+              return;
+            }
+        }
+      
       assert(0);
     }
 
