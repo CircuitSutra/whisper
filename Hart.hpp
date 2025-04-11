@@ -3037,9 +3037,26 @@ namespace WdRiscv
     // commit load/store values if a trigger is fired (so no need to restore here).
     void undoForTrigger();
 
-    /// Return true if the mie bit of the mstatus register is on.
-    bool isInterruptEnabled() const
-    { return csRegs_.isInterruptEnabled(); }
+    /// Return true if configuration would allow/disallow reentrant behavior
+    /// for breakpoints.
+    bool isBreakpInterruptEnabled() const
+    {
+      if (privMode_ == PrivilegeMode::Machine)
+        return mstatus_.bits_.MIE;
+
+      URV medeleg = 0, hedeleg = 0;
+      if (peekCsr(CsrNumber::MEDELEG, medeleg))
+        medeleg &= (1 << URV(ExceptionCause::BREAKP));
+      if (privMode_ == PrivilegeMode::Supervisor and not virtMode_)
+        return medeleg? mstatus_.bits_.SIE : true;
+
+      if (peekCsr(CsrNumber::HEDELEG, hedeleg))
+        hedeleg &= (1 << URV(ExceptionCause::BREAKP));
+      if (privMode_ == PrivilegeMode::Supervisor and virtMode_)
+        return (medeleg & hedeleg)? vsstatus_.bits_.SIE : true;
+
+      return true; // Never reentrant in user mode.
+    }
 
     /// Based on current trigger configurations, either take an exception returning false
     /// or enter debug mode returning true. If we take an exception epc goes into the
@@ -3179,7 +3196,7 @@ namespace WdRiscv
     bool ldStAddrTriggerHit(URV addr, unsigned size, TriggerTiming t, bool isLoad)
     {
       bool hit = csRegs_.ldStAddrTriggerHit(addr, size, t, isLoad, privilegeMode(), virtMode(),
-                                            isInterruptEnabled());
+                                            isBreakpInterruptEnabled());
       if (hit)
         {
           dataAddrTrig_ = true;
@@ -3195,7 +3212,7 @@ namespace WdRiscv
     bool ldStDataTriggerHit(URV value, TriggerTiming t, bool isLoad)
     {
       bool hit = csRegs_.ldStDataTriggerHit(value, t, isLoad, privilegeMode(), virtMode(),
-                                            isInterruptEnabled());
+                                            isBreakpInterruptEnabled());
       if (hit)
         {
           dataAddrTrig_ = true;
@@ -3209,7 +3226,7 @@ namespace WdRiscv
     bool instAddrTriggerHit(URV addr, unsigned size, TriggerTiming t)
     {
       return csRegs_.instAddrTriggerHit(addr, size, t, privilegeMode(), virtMode(),
-					isInterruptEnabled());
+					isBreakpInterruptEnabled());
     }
 
     /// Return true if one or more execution trigger has a hit on the given opcode value
@@ -3217,22 +3234,23 @@ namespace WdRiscv
     bool instOpcodeTriggerHit(URV opcode, TriggerTiming t)
     {
       return csRegs_.instOpcodeTriggerHit(opcode, t, privilegeMode(), virtMode(),
-					  isInterruptEnabled());
+					  isBreakpInterruptEnabled());
     }
 
     /// Make all active icount triggers count down if possible marking pending
     /// the ones that reach zero. We use last values because privMode/virtMode may
     /// be modified by execution and we can't decrement icount before the instruction
-    /// because tdata1 may be read.
+    /// because tdata1 may be read. Reentrancy detection using option 1 in the spec
+    /// has unspecified behavior when relevant CSRs are modified.
     void evaluateIcountTrigger()
     {
-      return csRegs_.evaluateIcountTrigger(lastPriv_, lastVirt_, lastInterruptEnabled_);
+      return csRegs_.evaluateIcountTrigger(lastPriv_, lastVirt_, lastBreakpInterruptEnabled_);
     }
 
     /// Return true if a pending icount triger can fire clearning its pending status.
     bool icountTriggerFired()
     {
-      return csRegs_.icountTriggerFired(privilegeMode(), virtMode(), isInterruptEnabled());
+      return csRegs_.icountTriggerFired(privilegeMode(), virtMode(), isBreakpInterruptEnabled());
     }
 
     /// Return true if this hart has one or more active debug triggers.
@@ -5484,7 +5502,7 @@ namespace WdRiscv
       ldStSize_ = 0;
       lastPriv_ = privMode_;
       lastVirt_ = virtMode_;
-      lastInterruptEnabled_ = isInterruptEnabled();
+      lastBreakpInterruptEnabled_ = sdtrigOn_? isBreakpInterruptEnabled() : false;
       ldStWrite_ = false;
       ldStAtomic_ = false;
       lastPageMode_ = virtMem_.mode();
@@ -5641,7 +5659,7 @@ namespace WdRiscv
     bool lastHyer_ = false;         // Hypervisor extension state before current inst.
     bool hyperLs_ = false;          // True if last instr is hypervisor load/store.
 
-    bool lastInterruptEnabled_ = false; // Before current inst
+    bool lastBreakpInterruptEnabled_ = false; // Before current inst
 
     // These are used to get fast access to the FS and VS bits.
     Emstatus<URV> mstatus_;         // Cached value of mstatus CSR or mstatush/mstatus.

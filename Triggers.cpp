@@ -269,7 +269,7 @@ Triggers<URV>::ldStAddrTriggerHit(URV address, unsigned size, TriggerTiming timi
 {
   // Check if we should skip tripping because we are running in machine mode and
   // interrupts are disabled.
-  bool skip = mode == PrivilegeMode::Machine and not interruptEnabled;
+  bool skip = not interruptEnabled;
   if (tcontrolEnabled_)
     skip = mode == PrivilegeMode::Machine and not mmodeEnabled_;
 
@@ -296,9 +296,8 @@ bool
 Triggers<URV>::ldStDataTriggerHit(URV value, TriggerTiming timing, bool isLoad,
 				  PrivilegeMode mode, bool virtMode, bool interruptEnabled)
 {
-  // Check if we should skip tripping because we are running in machine mode and
-  // interrupts are enabled.
-  bool skip = mode == PrivilegeMode::Machine and not interruptEnabled;
+  // Check if we should skip tripping because of reentrant behavior.
+  bool skip = not interruptEnabled;
   if (tcontrolEnabled_)
     skip = mode == PrivilegeMode::Machine and not mmodeEnabled_;
 
@@ -326,9 +325,8 @@ bool
 Triggers<URV>::instAddrTriggerHit(URV address, unsigned size, TriggerTiming timing,
                                   PrivilegeMode mode, bool virtMode, bool interruptEnabled)
 {
-  // Check if we should skip tripping because we are running in machine mode and
-  // interrupts are enabled.
-  bool skip = mode == PrivilegeMode::Machine and not interruptEnabled;
+  // Check if we should skip tripping because of reentrant behavior
+  bool skip = not interruptEnabled;
   if (tcontrolEnabled_)
     skip = mode == PrivilegeMode::Machine and not mmodeEnabled_;
 
@@ -357,9 +355,8 @@ Triggers<URV>::instOpcodeTriggerHit(URV opcode, TriggerTiming timing,
                                     PrivilegeMode mode, bool virtMode,
 				    bool interruptEnabled)
 {
-  // Check if we should skip tripping because we are running in machine mode and
-  // interrupts are enabled.
-  bool skip = mode == PrivilegeMode::Machine and not interruptEnabled;
+  // Check if we should skip tripping because of reentrant behavior. 
+  bool skip = not interruptEnabled;
   if (tcontrolEnabled_)
     skip = mode == PrivilegeMode::Machine and not mmodeEnabled_;
 
@@ -386,9 +383,8 @@ template <typename URV>
 bool
 Triggers<URV>::icountTriggerFired(PrivilegeMode mode, bool virtMode, bool interruptEnabled)
 {
-  // Check if we should skip tripping because we are running in machine mode and
-  // interrupts are enabled.
-  bool skip = mode == PrivilegeMode::Machine and not interruptEnabled;
+  // Check if we should skip tripping because of reentrant behavior. 
+  bool skip = not interruptEnabled;
   if (tcontrolEnabled_)
     skip = mode == PrivilegeMode::Machine and not mmodeEnabled_;
 
@@ -416,9 +412,8 @@ template <typename URV>
 void
 Triggers<URV>::evaluateIcount(PrivilegeMode mode, bool virtMode, bool interruptEnabled)
 {
-  // Check if we should skip tripping because we are running in machine mode and
-  // interrupts are enabled.
-  bool skip = mode == PrivilegeMode::Machine and not interruptEnabled;
+  // Check if we should skip tripping because of reentrant behavior. 
+  bool skip = not interruptEnabled;
   if (tcontrolEnabled_)
     skip = mode == PrivilegeMode::Machine and not mmodeEnabled_;
 
@@ -446,9 +441,8 @@ template <typename URV>
 bool
 Triggers<URV>::expTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool interruptEnabled)
 {
-  // Check if we should skip tripping because we are running in machine mode and
-  // interrupts are enabled.
-  bool skip = mode == PrivilegeMode::Machine and not interruptEnabled;
+  // Check if we should skip tripping because of reentrant behavior. 
+  bool skip = not interruptEnabled;
   if (tcontrolEnabled_)
     skip = mode == PrivilegeMode::Machine and not mmodeEnabled_;
 
@@ -496,9 +490,8 @@ template <typename URV>
 bool
 Triggers<URV>::intTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool interruptEnabled)
 {
-  // Check if we should skip tripping because we are running in machine mode and
-  // interrupts are enabled.
-  bool skip = mode == PrivilegeMode::Machine and not interruptEnabled;
+  // Check if we should skip tripping because of reentrant behavior. 
+  bool skip = not interruptEnabled;
   if (tcontrolEnabled_)
     skip = mode == PrivilegeMode::Machine and not mmodeEnabled_;
 
