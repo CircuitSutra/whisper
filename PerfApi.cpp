@@ -1209,7 +1209,7 @@ InstrPac::executedDestVal(const Hart64& hart, unsigned size, unsigned elemIx, un
 {
   assert(executed());
 
-  OpVal destVal = destValues_.at(0).second;
+  const OpVal& destVal = destValues_.at(0).second;
 
   if (not di_.isVector())
     {
@@ -1217,7 +1217,7 @@ InstrPac::executedDestVal(const Hart64& hart, unsigned size, unsigned elemIx, un
       return destVal.scalar;
     }
 
-  std::vector<uint8_t>& vec = destVal.vec;   // Vector register value.
+  const std::vector<uint8_t>& vec = destVal.vec;   // Vector register value.
 
   auto& info = hart.getLastVectorMemory();
   unsigned elemSize = info.elemSize_;
