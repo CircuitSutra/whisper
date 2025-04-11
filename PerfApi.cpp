@@ -1707,6 +1707,24 @@ PerfApi::getVecOpsLmul(Hart64& hart, InstrPac& packet)
 
   switch(di.instId())
     {
+    case InstId::vmv1r_v:
+      packet.operands_.at(0).lmul = packet.operands_.at(1).lmul = 1;
+      break;
+    case InstId::vmv2r_v:
+      packet.operands_.at(0).lmul = packet.operands_.at(1).lmul = 2;
+      break;
+    case InstId::vmv4r_v:
+      packet.operands_.at(0).lmul = packet.operands_.at(1).lmul = 4;
+      break;
+    case InstId::vmv8r_v:
+      packet.operands_.at(0).lmul = packet.operands_.at(1).lmul = 8;
+      break;
+
+    case InstId::vmv_x_s:
+    case InstId::vmv_s_x:
+      packet.operands_.at(0).lmul = packet.operands_.at(1).lmul = 1;
+      break;
+
     case InstId::vwaddu_vv:
     case InstId::vwaddu_vx:
     case InstId::vwsubu_vv:
