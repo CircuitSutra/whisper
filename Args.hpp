@@ -127,6 +127,7 @@ namespace WdRiscv
     uint64_t bblockInsts = ~uint64_t(0);
 
     bool help = false;
+    bool use_numactl = false;
     bool hasRegWidth = false;
     bool hasHarts = false;
     bool hasCores = false;

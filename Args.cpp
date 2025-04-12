@@ -324,6 +324,8 @@ Args::parseCmdLineArgs(std::span<char*> argv)
       desc.add_options()
 	("help,h", po::bool_switch(&this->help),
 	 "Produce this message.")
+	("numa", po::bool_switch(&this->use_numactl),
+	 "Use numactl.")
 	("log,l", po::bool_switch(&this->trace),
 	 "Enable tracing to standard output of executed instructions.")
 	("isa", po::value(&this->isa),
