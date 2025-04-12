@@ -9975,6 +9975,7 @@ Hart<URV>::enterDebugMode_(DebugModeCause cause, URV pc)
 
   csRegs_.poke(CsrNumber::DPC, pc);
   setPrivilegeMode(PrivilegeMode::Machine);
+  setVirtualMode(false);
 
   // If hart is configured to jump to a special target on enetering debug mode, then set
   // the pc to that target.

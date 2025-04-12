@@ -26,12 +26,13 @@ privilegeModeToStr(const Hart<URV>& hart)
 {
   bool vm = hart.lastVirtMode();
   auto pm = hart.lastPrivMode();
+  bool dm = hart.lastDebugMode();
 
   bool hyper = hart.extensionIsEnabled(RvExtension::H);
 
   if (not vm)
     {
-      if (pm == PrivilegeMode::Machine)    return "M";
+      if (pm == PrivilegeMode::Machine)    return dm? "D" : "M";
       if (pm == PrivilegeMode::Supervisor) return hyper ? "HS" : "S";
       if (pm == PrivilegeMode::User)       return "U";
     }
@@ -770,7 +771,7 @@ Hart<URV>::printInstCsvTrace(const DecodedInst& di, FILE* out)
     buffer.printChar('v');
 
   // Privilege mode.
-  if      (lastPriv_ == PrivilegeMode::Machine)    buffer.print(",m,");
+  if      (lastPriv_ == PrivilegeMode::Machine)    buffer.print((lastDm_)? ",d," : ",m,");
   else if (lastPriv_ == PrivilegeMode::Supervisor) buffer.print((lastVirt_)? ",vs," : ",s,");
   else if (lastPriv_ == PrivilegeMode::User)       buffer.print((lastVirt_)? ",vu," : ",u,");
   else                                             buffer.print(",,");

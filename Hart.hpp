@@ -1966,6 +1966,10 @@ namespace WdRiscv
     bool lastVirtMode() const
     { return lastVirt_; }
 
+    /// Return true if in debug mode.
+    bool lastDebugMode() const
+    { return lastDm_; }
+
     /// Return the number of page table walks of the last
     /// executed instruction
     unsigned getNumPageTableWalks(bool isInstr) const
@@ -5502,6 +5506,7 @@ namespace WdRiscv
       ldStSize_ = 0;
       lastPriv_ = privMode_;
       lastVirt_ = virtMode_;
+      lastDm_ = debugMode_;
       lastBreakpInterruptEnabled_ = sdtrigOn_? isBreakpInterruptEnabled() : false;
       ldStWrite_ = false;
       ldStAtomic_ = false;
@@ -5688,6 +5693,7 @@ namespace WdRiscv
     URV debugParkLoop_ = ~URV(0);    // Jump to this address on entering debug mode.
     URV debugTrapAddr_ = ~URV(0);    // Jump to this address on exception in debug mode.
     bool enteredDebugMode_ = false;  // True if entered debug mode because of trigger or ebreak.
+    bool lastDm_ = false;     // Before current inst
 
     bool inDebugParkLoop_ = false;    // True if BREAKP exception goes to DPL.
 
