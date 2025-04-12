@@ -1223,17 +1223,18 @@ InstrPac::executedDestVal(const Hart64& hart, unsigned size, unsigned elemIx, un
   unsigned elemSize = info.elemSize_;
 
   unsigned offset = elemSize * elemIx;
-  if (info.fields_ > 0)
+  if (info.isSegmented_)
     {
-      // Segmented load.
-      unsigned bytesPerReg = hart.vecRegs().bytesPerRegister();
-      unsigned regsPerField = operands_.at(0).lmul / info.fields_;
-      if (regsPerField == 0)
-        regsPerField = 1;
-      offset += field*bytesPerReg*regsPerField;
+      if (info.fields_ > 0)
+        {
+          assert(field < info.fields_);
+          unsigned bytesPerReg = hart.vecRegs().bytesPerRegister();
+          assert(info.group_ > 0);
+          offset += field*bytesPerReg*info.group_;
+        }
+      else
+        assert(field == 0);
     }
-  else
-    assert(field == 0);
 
   assert(offset + size <= vec.size());
 
@@ -1671,19 +1672,22 @@ PerfApi::getVecOpsLmul(Hart64& hart, InstrPac& packet)
 
   if (di.isVectorLoad() or di.isVectorStore())
     {
+      unsigned fields = di.vecFieldCount();
+
       if (di.isVectorLoadIndexed() or di.isVectorStoreIndexed())
         {
           auto ig8 = groupX8 * hart.vecLdStIndexElemSize(di) / vecRegs.elemWidthInBytes();
           auto dg8 = groupX8;
 
-          if (di.vecFieldCount() > 0)
-            {
-              ig8 *= di.vecFieldCount();
-              dg8 *= di.vecFieldCount();
-            }
-
           unsigned dmul = dg8 <= 8 ? 1 : dg8 / 8;   // Data reg effective lmul
           unsigned imul = ig8 <= 8 ? 1 : ig8 / 8;   // Index reg effective lmul
+
+          if (fields > 0)
+            {
+              dmul *= fields;
+              imul *= fields;
+            }
+
           packet.operands_.at(0).lmul = dmul;
           packet.operands_.at(2).lmul = imul;
         }
@@ -1691,13 +1695,13 @@ PerfApi::getVecOpsLmul(Hart64& hart, InstrPac& packet)
         {
           auto id = di.instId();
           if (id >= InstId::vlre8_v and id <= InstId::vlre64_v)
-            packet.operands_.at(0).lmul = di.vecFieldCount();
+            packet.operands_.at(0).lmul = fields;
           else
             {
               auto dg8 = groupX8 * hart.vecLdStElemSize(di) / vecRegs.elemWidthInBytes();
-              if (di.vecFieldCount() > 0)
-                dg8 *= di.vecFieldCount();
               unsigned dmul = dg8 <= 8 ? 1 : dg8 / 8;   // Data reg effective lmul
+              if (fields)
+                dmul *= fields;             // Segment load/store
               packet.operands_.at(0).lmul = dmul;
             }
         }
