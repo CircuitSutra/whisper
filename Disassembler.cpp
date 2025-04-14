@@ -765,6 +765,40 @@ Disassembler::disassembleUncached(const DecodedInst& di, std::ostream& out) cons
 	  << "(" << intRegName(di.op1()) << ")";
       break;
 
+    case InstId::c_sh:
+      out << "c.sh     " << intRegName(di.op0()) << ", 0x"
+	  << std::hex << di.op2As<int32_t>() << std::dec
+	  << "(" << intRegName(di.op1()) << ")";
+      break;
+
+    case InstId::c_zext_b:
+      out << "c.zext.b " << intRegName(di.op0());
+      break;
+
+    case InstId::c_sext_b:
+      out << "c.sext.b " << intRegName(di.op0());
+      break;
+
+    case InstId::c_zext_h:
+      out << "c.zext.h " << intRegName(di.op0());
+      break;
+
+    case InstId::c_sext_h:
+      out << "c.sext.h " << intRegName(di.op0());
+      break;
+
+    case InstId::c_zext_w:
+      out << "c.zext.w " << intRegName(di.op0());
+      break;
+
+    case InstId::c_not:
+      out << "c.not    " << intRegName(di.op0());
+      break;
+
+    case InstId::c_mul:
+      out << "c.mul    " << intRegName(di.op0()) << ", " << intRegName(di.op2());
+      break;
+
     case InstId::cbo_clean:
     case InstId::cbo_flush:
     case InstId::cbo_inval:
