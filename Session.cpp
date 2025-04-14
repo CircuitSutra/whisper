@@ -184,6 +184,10 @@ Session<URV>::configureSystem(const Args& args, const HartConfig& config)
     if (not system.loadSnapshot(args.loadFrom, args.loadFromTrace))
       return false;
 
+  // Enable uart input (if exists)
+  if (not args.interactive)
+    system.enableUartInput();
+
 #if 0
   if (linux and checkForOpenMp(args))
     {

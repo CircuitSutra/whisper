@@ -113,7 +113,7 @@ System<URV>::defineUart(const std::string& type, uint64_t addr, uint64_t size,
           std::cerr << "System::defineUart: Invalid channel: " << channel_type << "\n";
           return false;
         }
-      dev = std::make_shared<Uart8250>(addr, size, aplic_, iid, std::move(channel));
+      dev = std::make_shared<Uart8250>(addr, size, aplic_, iid, std::move(channel), false);
     }
   else
     {
