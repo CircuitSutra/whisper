@@ -17,9 +17,9 @@ namespace WdRiscv
   public:
     virtual ~UartChannel() = default;
 
-    /// Block until a byte is available
-    /// Return false on failure
-    /// Return true on success and the read byte is placed in byte parameter
+    /// Block until bytes are available
+    /// Return 0 on EOF
+    /// Return number of bytes read and populate buf on success
     virtual size_t read(uint8_t *buf, size_t size) = 0;
 
     /// Send the given byte

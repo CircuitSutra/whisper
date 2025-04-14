@@ -239,26 +239,27 @@ void Uart8250::monitorInput() {
 
     std::array<uint8_t, FIFO_SIZE> arr;
     size_t count = channel_->read(arr.data(), FIFO_SIZE);
+    if (count == 0)
+      // EOF
+      return;
 
-    if (count != 0) {
-      std::unique_lock<std::mutex> lock(mutex_);
+    std::unique_lock<std::mutex> lock(mutex_);
 
-      size_t i = 0;
-      do {
-        if (terminate_)
-          return;
+    size_t i = 0;
+    do {
+      if (terminate_)
+        return;
 
-        for (; i < count && rx_fifo.size() < FIFO_SIZE; i++) {
-          rx_fifo.push(arr[i]);
-        }
+      for (; i < count && rx_fifo.size() < FIFO_SIZE; i++) {
+        rx_fifo.push(arr[i]);
+      }
 
-        lsr_ |= 1;  // Set receiver data ready
-        interruptUpdate();
+      lsr_ |= 1;  // Set receiver data ready
+      interruptUpdate();
 
-        if (rx_fifo.size() >= FIFO_SIZE)
-          // Block until rx_fifo has space
-          cv_.wait(lock);
-      } while (i != count);
-    }
+      if (rx_fifo.size() >= FIFO_SIZE)
+        // Block until rx_fifo has space
+        cv_.wait(lock);
+    } while (i != count);
   }
 }
