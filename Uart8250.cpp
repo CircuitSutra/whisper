@@ -117,18 +117,24 @@ PTYChannel::PTYChannel() : PTYChannelBase(), FDChannel(master_, master_)
 
 Uart8250::Uart8250(uint64_t addr, uint64_t size,
     std::shared_ptr<TT_APLIC::Aplic> aplic, uint32_t iid,
-    std::unique_ptr<UartChannel> channel)
+    std::unique_ptr<UartChannel> channel, bool enableInput)
   : IoDevice(addr, size, aplic, iid), channel_(std::move(channel))
 {
-  auto func = [this]() { this->monitorInput(); };
-  inThread_ = std::thread(func);
+  if (enableInput)
+    this->enableInput();
 }
 
 Uart8250::~Uart8250()
 {
   terminate_ = true;
   channel_->terminate();
-  inThread_.join();
+  if (inThread_.joinable())
+    inThread_.join();
+}
+
+void Uart8250::enableInput() {
+  auto func = [this]() { this->monitorInput(); };
+  inThread_ = std::thread(func);
 }
 
 void Uart8250::interruptUpdate() {
