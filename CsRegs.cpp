@@ -3904,6 +3904,8 @@ unsigned(InterruptCause::LCOF),
 
 static unsigned highestIidPrio(uint64_t bits)
 {
+  if (not bits)
+    return 0;
   for (unsigned ic : iidPrioTable)
     {
       uint64_t mask = uint64_t(1) << ic;
