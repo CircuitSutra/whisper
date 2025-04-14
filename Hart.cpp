@@ -3897,7 +3897,7 @@ Hart<URV>::peekVecReg(unsigned ix, std::vector<uint8_t>& value) const
   if (not isRvv())
     return false;
 
-  if (ix > vecRegs_.size())
+  if (ix >= vecRegs_.size())
     return false;
 
   const uint8_t* data = vecRegs_.getVecData(ix);
@@ -3915,7 +3915,7 @@ template <typename URV>
 bool
 Hart<URV>::pokeVecReg(unsigned ix, const std::vector<uint8_t>& val)
 {
-  if (not isRvv() or ix > vecRegs_.size() or val.empty())
+  if (not isRvv() or ix >= vecRegs_.size() or val.empty())
     return false;
 
   uint8_t* regData = vecRegs_.getVecData(ix);
@@ -3944,7 +3944,7 @@ Hart<URV>::peekVecRegLsb(unsigned ix, std::vector<uint8_t>& value) const
   if (not isRvv())
     return false;
 
-  if (ix > vecRegs_.size())
+  if (ix >= vecRegs_.size())
     return false;
 
   const uint8_t* data = vecRegs_.getVecData(ix);
@@ -3962,7 +3962,7 @@ template <typename URV>
 bool
 Hart<URV>::pokeVecRegLsb(unsigned ix, const std::vector<uint8_t>& val)
 {
-  if (not isRvv() or ix > vecRegs_.size() or val.empty())
+  if (not isRvv() or ix >= vecRegs_.size() or val.empty())
     return false;
 
   uint8_t* regData = vecRegs_.getVecData(ix);

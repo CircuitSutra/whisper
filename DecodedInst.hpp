@@ -156,9 +156,15 @@ namespace WdRiscv
     const InstEntry* instEntry() const
     { return entry_; }
 
-    /// Relevant for floating point instructions with rounding mode.
+    /// Relevant for floating point instructions with rounding mode. Return true
+    /// if instruction has an explcit rounding mode field.
     bool hasRoundingMode() const
     { return entry_ and entry_->hasRoundingMode(); }
+
+    /// Return true if instruction has an explicit rouning mode field that is set
+    /// to dynamic.
+    bool hasDynamicRoundingMode() const
+    { return hasRoundingMode() and roundingMode() == 7; }
 
     /// Relevant for floating point instructions.
     unsigned roundingMode() const
