@@ -118,7 +118,7 @@ PTYChannel::PTYChannel() : PTYChannelBase(), FDChannel(master_, master_)
 Uart8250::Uart8250(uint64_t addr, uint64_t size,
     std::shared_ptr<TT_APLIC::Aplic> aplic, uint32_t iid,
     std::unique_ptr<UartChannel> channel, bool enableInput)
-  : IoDevice(addr, size, aplic, iid), channel_(std::move(channel))
+  : IoDevice("uart8250", addr, size, aplic, iid), channel_(std::move(channel))
 {
   if (enableInput)
     this->enableInput();
@@ -177,7 +177,7 @@ uint32_t Uart8250::read(uint64_t addr) {
 	uint32_t iir = iir_;
 	interruptUpdate();
 	return iir;
-      } 
+      }
       case 3: return lcr_;
       case 4: return mcr_;
       case 5: return lsr_;
@@ -209,7 +209,7 @@ void Uart8250::write(uint64_t addr, uint32_t value) {
         interruptUpdate();
       }
       break;
-      case 1: { 
+      case 1: {
         ier_ = value;
         interruptUpdate();
       } break;

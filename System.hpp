@@ -26,6 +26,7 @@
 #include "pci/Pci.hpp"
 #include "pci/virtio/Blk.hpp"
 #include "aplic/Aplic.hpp"
+#include "Uart8250.hpp"
 
 
 namespace TT_PERF
@@ -258,6 +259,14 @@ namespace WdRiscv
     /// types: uartsf, uart8250).
     bool defineUart(const std::string& type, uint64_t addr, uint64_t size,
 		    uint32_t iid, const std::string& channel);
+
+    /// Enable UART input. This is useful in non-interactive mode.
+    void enableUartInput()
+    {
+      for (auto& dev : ioDevs_)
+        if (dev->type() == "uart8250")
+          static_cast<Uart8250*>(dev.get())->enableInput();
+    }
 
     /// Return the memory page size.
     size_t pageSize() const
