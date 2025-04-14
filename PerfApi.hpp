@@ -215,6 +215,10 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     bool isVectorStore() const
     { return di_.isVectorStore(); }
 
+    /// Return true if this is a vector load instruction. Packet must be decoded.
+    bool isVectorLoad() const
+    { return di_.isVectorLoad(); }
+
     /// Return true if this is a cbo_zero instruction. Pakced must be decoed.
     bool isCbo_zero() const
     { return di_.isCbo_zero(); }
