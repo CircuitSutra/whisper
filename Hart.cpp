@@ -5165,7 +5165,7 @@ Hart<URV>::fetchInstWithTrigger(URV addr, uint64_t& physAddr, uint32_t& inst, FI
       std::string instStr;
       printInstTrace(inst, instCounter_, instStr, file);
 
-      if (dcsrStep_)
+      if (dcsrStep_ and not debugMode_)
         enterDebugMode_(DebugModeCause::STEP, pc_);
 
       return false;  // Next instruction in trap handler.
@@ -6209,6 +6209,8 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
 
       if (processExternalInterrupt(traceFile, instStr))
         {
+	  if (dcsrStep_ and not debugMode_ and not ebreakInstDebug_)
+	    enterDebugMode_(DebugModeCause::STEP, pc_);
           if (sdtrigOn_)
             evaluateIcountTrigger();
           return;  // Next instruction in interrupt handler.

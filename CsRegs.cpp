@@ -3910,6 +3910,7 @@ static unsigned highestIidPrio(uint64_t bits)
       if (bits & mask)
         return unsigned(ic);
     }
+  assert(false);
   return 0;
 }
 
@@ -3980,26 +3981,6 @@ CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode) const
           HvictlFields hvf = hvictl->read();
 
           URV prio = 0;
-          if (not hvf.bits_.VTI)
-            {
-              unsigned iid = highestIidPrio(vs & ~(URV(1) << unsigned(IC::S_EXTERNAL)));
-              if (iid)
-                {
-                  value = (iid << 16) | (hvf.bits_.IPRIOM? prio : 1);
-                  if (not higherIidPrio(iid, unsigned(IC::S_EXTERNAL))) // hviprio is always 0
-                    prio = 256;
-                }
-            }
-          else if (hvf.bits_.IID != unsigned(IC::S_EXTERNAL))
-            {
-              prio = hvf.bits_.IPRIO;
-              value = (hvf.bits_.IID << 16) | (hvf.bits_.IPRIOM? prio : 1);
-              if (hvf.bits_.DPR and not prio)
-                prio = 256;
-            }
-
-          URV prio2 = 0;
-          URV value2 = 0;
           if ((vs >> unsigned(IC::S_EXTERNAL)) & 1)
             {
               unsigned id = 0;
@@ -4014,31 +3995,45 @@ CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode) const
                 }
               if (id != 0)
                 {
-                  prio2 = id;
-                  if (prio2 > 255)
-                    value2 = (unsigned(IC::S_EXTERNAL) << 16) | 255;
+                  prio = id;
+                  if (prio > 255)
+                    value = (unsigned(IC::S_EXTERNAL) << 16) | 255; // prio greater than 255
                   else
-                    value2 = (unsigned(IC::S_EXTERNAL) << 16) | prio2;
+                    value = (unsigned(IC::S_EXTERNAL) << 16) | prio; // prior always non-zero
                 }
               else if (hvf.bits_.IID == unsigned(IC::S_EXTERNAL) and hvf.bits_.IPRIO != 0)
                 {
-                  prio2 = hvf.bits_.IPRIO;
-                  value2 = (unsigned(IC::S_EXTERNAL) << 16) | prio2;
+                  prio = hvf.bits_.IPRIO; // prio always within 1 <= prio <= 255
+                  value = (unsigned(IC::S_EXTERNAL) << 16) | prio;
                 }
               else
                 {
-                  prio2 = 256;
-                  value2 = (unsigned(IC::S_EXTERNAL) << 16) | 255;
+                  prio = 256;
+                  value = (unsigned(IC::S_EXTERNAL) << 16) | 255; // prio greater than 255
                 }
-
-              URV reportedPrio = value2 & 0xff;
-              value2 &= ~URV(0xff);
-              value2 |= hvf.bits_.IPRIOM? reportedPrio : 1;
             }
 
-          if (value and value2)
+          if (not hvf.bits_.VTI)
             {
-              if (prio2 < prio)
+              URV value2 = 0;
+              URV prio2 = 0;
+              unsigned iid2 = highestIidPrio(vs & ~(URV(1) << unsigned(IC::S_EXTERNAL)));
+              if (iid2)
+                {
+                  // hviprio is always 0
+                  if (not higherIidPrio(iid2, unsigned(IC::S_EXTERNAL)))
+                    {
+                      prio2 = 256;
+                      value2 = (iid2 << 16) | 255;
+                    }
+                  else
+                    value2 = (iid2 << 16) | 0;
+                }
+
+              if (not value and not value2)
+                return true;
+
+              if (prio2 < prio or (not value and value2))
                 {
                   prio = prio2;
                   value = value2;
@@ -4046,10 +4041,8 @@ CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode) const
               else if (prio2 == prio)
                 {
                   // ties broken by default priority (IID)
-                  auto iid1 = value >> 16;
-                  auto iid2 = value2 >> 16;
+                  unsigned iid1 = value >> 16;
                   assert(iid1 != iid2);
-
                   if (higherIidPrio(iid2, iid1))
                     {
                       prio = prio2;
@@ -4057,31 +4050,38 @@ CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode) const
                     }
                 }
             }
-          else if (not value and value2)
+          else if (hvf.bits_.VTI and hvf.bits_.IID != unsigned(IC::S_EXTERNAL))
             {
-              prio = prio2;
-              value = value2;
-            }
-          else if (not value and not value2)
-            return true;
+              // Priority solely determined by DPR
+              // What's interesting is IID=0 is actually valid here.
+              URV value2 = 0;
+              URV prio2 = hvf.bits_.IPRIO; // can't be greater than 255
+              unsigned iid2 = hvf.bits_.IID;
 
-          // if prio == 0, then adjust based on relative priority
-          // compared to S_EXTERNAL
-          if ((not prio or (prio == 256)) and hvf.bits_.IPRIOM)
-            {
-              if (prio == 256)
+              if (hvf.bits_.DPR and not prio2) // lower priority
                 {
-                  value &= ~URV(0xff);
-                  value |= 255;
+                  prio2 = 256;
+                  value2 = (iid2 << 16) | 255;
                 }
               else
+                value2 = (iid2 << 16) | prio2;
+
+              if ((prio2 < prio) or (not value))
                 {
-                  unsigned iid = value >> 16;
-                  assert(iid != unsigned(IC::S_EXTERNAL));
-                  assert((value & 0xff) == 0);
-                  if (not higherIidPrio(iid, unsigned(IC::S_EXTERNAL)))
-                    value |= 255;
+                  prio = prio2;
+                  value = value2;
                 }
+              else if ((prio2 == prio) and not hvf.bits_.DPR)
+                {
+                  prio = prio2;
+                  value = value2;
+                }
+            }
+
+          if (value and not hvf.bits_.IPRIOM)
+            {
+              value &= ~URV(0xff);
+              value |= 1;
             }
         }
 
