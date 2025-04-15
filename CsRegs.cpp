@@ -5554,6 +5554,18 @@ CsRegs<URV>::isStateEnabled(CsrNumber num, PrivilegeMode pm, bool vm) const
             {
               if (select >= 0x30 and select <= 0x3f)
                 rseb.bits_.AIA = 1;  // Sections 2.5 and 5.4.1 of AIA
+              if (select >= 0x70 and select <= 0xff)
+                rseb.bits_.IMSIC = 1;
+            }
+        }
+      if ((num == CN::SIREG and vm) or
+          (num == CN::VSIREG))
+        {
+          URV select = 0;
+          if (peek(CN::VSISELECT, select))
+            {
+              if (select >= 0x70 and select <= 0xff)
+                rseb.bits_.IMSIC = 1;
             }
         }
     }
