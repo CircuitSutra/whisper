@@ -9017,19 +9017,17 @@ Hart<URV>::vmv_v_v(unsigned vd, unsigned vs1, unsigned group,
 {
   ELEM_TYPE e1 = 0, dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
-
   if (start >= vecRegs_.elemCount())
     return;
 
   for (unsigned ix = start; ix < elems; ++ix)
     {
-      if (vecRegs_.isDestActive(vd, ix, destGroup, false /*masked*/, dest))
+      if (vecRegs_.isDestActive(vd, ix, group, false /*masked*/, dest))
 	{
 	  vecRegs_.read(vs1, ix, group, e1);
 	  dest = e1;
 	}
-      vecRegs_.write(vd, ix, destGroup, dest);
+      vecRegs_.write(vd, ix, group, dest);
     }
 }
 
@@ -9051,6 +9049,8 @@ Hart<URV>::execVmv_v_v(const DecodedInst* di)
   unsigned vd = di->op0(),  vs1 = di->op1();
 
   unsigned group = vecRegs_.groupMultiplierX8();
+  group = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+
   unsigned elems = vecRegs_.elemMax();
   ElementWidth sew = vecRegs_.elemWidth();
 
@@ -9066,6 +9066,8 @@ Hart<URV>::execVmv_v_v(const DecodedInst* di)
     case EW::Word2: vmv_v_v<int64_t>(vd, vs1, group, start, elems); break;
     default:        postVecFail(di); return;
     }
+
+  vecRegs_.touchReg(vd, group);
   postVecSuccess();
 }
 
@@ -9076,18 +9078,15 @@ void
 Hart<URV>::vmv_v_x(unsigned vd, ELEM_TYPE e1, unsigned group,
                    unsigned start, unsigned elems)
 {
-  ELEM_TYPE dest = 0;
-
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
-
   if (start >= vecRegs_.elemCount())
     return;
 
   for (unsigned ix = start; ix < elems; ++ix)
     {
-      if (vecRegs_.isDestActive(vd, ix, destGroup, false /*masked*/, dest))
+      ELEM_TYPE dest = 0;
+      if (vecRegs_.isDestActive(vd, ix, group, false /*masked*/, dest))
 	dest = e1;
-      vecRegs_.write(vd, ix, destGroup, dest);
+      vecRegs_.write(vd, ix, group, dest);
     }
 }
 
@@ -9109,6 +9108,7 @@ Hart<URV>::execVmv_v_x(const DecodedInst* di)
   unsigned vd = di->op0();
   unsigned rs1 = di->op1();
   unsigned group = vecRegs_.groupMultiplierX8();
+  group = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
   unsigned elems = vecRegs_.elemMax();
   ElementWidth sew = vecRegs_.elemWidth();
 
@@ -9126,6 +9126,8 @@ Hart<URV>::execVmv_v_x(const DecodedInst* di)
     case EW::Word2: vmv_v_x<int64_t>(vd, e1, group, start, elems); break;
     default:        postVecFail(di); return;
     }
+
+  vecRegs_.touchReg(vd, group);
   postVecSuccess();
 }
 
@@ -9146,6 +9148,7 @@ Hart<URV>::execVmv_v_i(const DecodedInst* di)
   unsigned start = csRegs_.peekVstart();
   unsigned vd = di->op0();
   unsigned group = vecRegs_.groupMultiplierX8();
+  group = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
   unsigned elems = vecRegs_.elemMax();
   ElementWidth sew = vecRegs_.elemWidth();
 
@@ -9163,6 +9166,8 @@ Hart<URV>::execVmv_v_i(const DecodedInst* di)
     case EW::Word2: vmv_v_x<int64_t>(vd, e1, group, start, elems); break;
     default:        postVecFail(di); return;
     }
+
+  vecRegs_.touchReg(vd, group);
   postVecSuccess();
 }
 
