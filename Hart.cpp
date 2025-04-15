@@ -5164,10 +5164,6 @@ Hart<URV>::fetchInstWithTrigger(URV addr, uint64_t& physAddr, uint32_t& inst, FI
 
       std::string instStr;
       printInstTrace(inst, instCounter_, instStr, file);
-
-      if (dcsrStep_ and not debugMode_)
-        enterDebugMode_(DebugModeCause::STEP, pc_);
-
       return false;  // Next instruction in trap handler.
     }
 
@@ -5258,14 +5254,20 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
           if (processExternalInterrupt(traceFile, instStr))
             {
               if (sdtrigOn_)
-                evaluateIcountTrigger();
+                {
+                  evaluateIcountTrigger();
+                  evaluateDebugStep();
+                }
               continue;  // Next instruction in trap handler.
             }
 
           if (sdtrigOn_ and icountTriggerFired())
             {
               if (takeTriggerAction(traceFile, currPc_, 0, instCounter_, nullptr /*di*/))
-                return true;
+                {
+                  evaluateDebugStep();
+                  return true;
+                }
               continue;
             }
 
@@ -5273,7 +5275,10 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
           if (not fetchInstWithTrigger(pc_, physPc, inst, traceFile))
             {
               if (sdtrigOn_)
-                evaluateIcountTrigger();
+                {
+                  evaluateIcountTrigger();
+                  evaluateDebugStep();
+                }
               continue;  // Next instruction in trap handler.
             }
 
@@ -5296,6 +5301,7 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
               if (doStats)
                 accumulateInstructionStats(*di);
 	      printDecodedInstTrace(*di, instCounter_, instStr, traceFile);
+              evaluateDebugStep();
 	      continue;
 	    }
 
@@ -5315,7 +5321,10 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
 	    {
 	      URV tval = ldStFaultAddr_;
 	      if (takeTriggerAction(traceFile, currPc_, tval, instCounter_, di))
-		return true;
+                {
+                  evaluateDebugStep();
+                  return true;
+                }
 	      continue;
 	    }
 
@@ -5337,6 +5346,9 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
 	  if (doStats)
 	    accumulateInstructionStats(*di);
 	  printDecodedInstTrace(*di, instCounter_, instStr, traceFile);
+
+          if (sdtrigOn_)
+            evaluateDebugStep();
 
           prevPerfControl_ = perfControl_;
 
@@ -6209,16 +6221,18 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
 
       if (processExternalInterrupt(traceFile, instStr))
         {
-	  if (dcsrStep_ and not debugMode_ and not ebreakInstDebug_)
-	    enterDebugMode_(DebugModeCause::STEP, pc_);
           if (sdtrigOn_)
-            evaluateIcountTrigger();
+            {
+              evaluateIcountTrigger();
+              evaluateDebugStep();
+            }
           return;  // Next instruction in interrupt handler.
         }
 
       if (sdtrigOn_ and icountTriggerFired())
         {
           takeTriggerAction(traceFile, currPc_, 0, instCounter_, nullptr /*di*/);
+          evaluateDebugStep();
           return;
         }
 
@@ -6226,7 +6240,10 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
       if (not fetchInstWithTrigger(pc_, physPc, inst, traceFile))
         {
           if (sdtrigOn_)
-            evaluateIcountTrigger();
+            {
+              evaluateIcountTrigger();
+              evaluateDebugStep();
+            }
           return;
         }
 
@@ -6244,8 +6261,7 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
 	  if (doStats)
 	    accumulateInstructionStats(di);
 	  printDecodedInstTrace(di, instCounter_, instStr, traceFile);
-	  if (dcsrStep_ and not debugMode_ and not ebreakInstDebug_)
-	    enterDebugMode_(DebugModeCause::STEP, pc_);
+          evaluateDebugStep();
 	  return;
 	}
 
@@ -6253,6 +6269,7 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
 	{
           URV tval = ldStFaultAddr_;
 	  takeTriggerAction(traceFile, currPc_, tval, instCounter_, &di);
+          evaluateDebugStep();
 	  return;
 	}
 
@@ -6263,18 +6280,14 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
 	accumulateInstructionStats(di);
       printInstTrace(inst, instCounter_, instStr, traceFile);
 
-      // If step bit set in dcsr then enter debug mode unless already there.
-      if (dcsrStep_ and not debugMode_ and not ebreakInstDebug_)
-	enterDebugMode_(DebugModeCause::STEP, pc_);
+      if (sdtrigOn_)
+        evaluateDebugStep();
 
       prevPerfControl_ = perfControl_;
     }
   catch (const CoreException& ce)
     {
-      // If step bit set in dcsr then enter debug mode unless already there.
-      // This is for the benefit of the test bench.
-      if (dcsrStep_ and not debugMode_ and not ebreakInstDebug_)
-	enterDebugMode_(DebugModeCause::STEP, pc_);
+      evaluateDebugStep();
 
       stepResult_ = logStop(ce, instCounter_, traceFile);
       if (ce.type() == CoreException::Type::Snapshot or

@@ -1340,6 +1340,16 @@ namespace WdRiscv
     bool hasDcsrStep() const
     { return dcsrStep_; }
 
+    /// Enter debug mode if dcsr step unless already there.
+    void evaluateDebugStep()
+    {
+      // If step bit set in dcsr then enter debug mode unless already there.
+      // From section 4.5.1, if a trigger fires we write TRIGGER instead of STEP to
+      // dcsr.
+      if (dcsrStep_ and not debugMode_ and not ebreakInstDebug_)
+	enterDebugMode_(triggerTripped_?DebugModeCause::TRIGGER : DebugModeCause::STEP, pc_);
+    }
+
     /// Take this hart out of debug mode.
     void exitDebugMode();
 
