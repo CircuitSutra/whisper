@@ -2088,23 +2088,6 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
         hart.enableClearTinstOnCboFlush(flag);
     }
 
-  // This is used to reduce the frequency of timer interupts. By
-  // default the timer runs at the frequence of the instruction
-  // counter. By adding a time shift, we put additional delay before
-  // the timer expires (reaches timecmp).
-  tag = "time_shift";
-  if (config_ ->contains(tag))
-    {
-      if (hart.sysHartIndex() == 0)
-	cerr << "Warning: Config tag time_shift may overflow timecmp and have "
-	     << "unintended consequences.\n";
-      unsigned shift = 0;
-      if (not getJsonUnsigned(tag, config_ -> at(tag), shift))
-	errors++;
-      else
-	hart.setTimeShift(shift);
-    }
-
   // Same as above, but this is used to apply a scaling factor
   // instead of a simple shift.
   tag = "time_down_sample";
@@ -2566,6 +2549,15 @@ HartConfig::applyAclintConfig(System<URV>& system, Hart<URV>& hart) const
       if (not getJsonUnsigned("aclint.time_adjust", aclint.at(tag), offset))
         return false;
       hart.setAclintAdjustTimeCompare(offset);
+    }
+
+  tag = "timecmp_reset";
+  if (aclint.contains(tag))
+    {
+      uint64_t reset = 0;
+      if (not getJsonUnsigned("aclint.timecmp_reset", aclint.at(tag), reset))
+        return false;
+      hart.setAclintAlarm(reset);
     }
 
   return configAclint(system, hart, base, size, swOffset, hasMswi, mtimeCmpOffset,

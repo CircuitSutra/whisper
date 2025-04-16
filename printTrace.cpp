@@ -26,12 +26,13 @@ privilegeModeToStr(const Hart<URV>& hart)
 {
   bool vm = hart.lastVirtMode();
   auto pm = hart.lastPrivMode();
+  bool dm = hart.lastDebugMode();
 
   bool hyper = hart.extensionIsEnabled(RvExtension::H);
 
   if (not vm)
     {
-      if (pm == PrivilegeMode::Machine)    return "M";
+      if (pm == PrivilegeMode::Machine)    return dm? "D" : "M";
       if (pm == PrivilegeMode::Supervisor) return hyper ? "HS" : "S";
       if (pm == PrivilegeMode::User)       return "U";
     }
@@ -311,6 +312,14 @@ Hart<URV>::printDecodedInstTrace(const DecodedInst& di, uint64_t tag, std::strin
 
   // Serialize to avoid jumbled output.
   auto lock = (ownTrace_)? std::unique_lock<std::mutex>() : std::unique_lock<std::mutex>(printInstTraceMutex());
+
+  if (logLabelEnabled_)
+    {
+      // Get the symbol label corresponding to the instruction’s PC:
+      std::string label;
+      if (memory_.findSymbolByAddress(di.address(), label))
+        fprintf(out, "%s:\n", label.c_str());
+    }
 
   disassembleInst(di, tmp);
   if (hasInterrupt_)
@@ -762,7 +771,7 @@ Hart<URV>::printInstCsvTrace(const DecodedInst& di, FILE* out)
     buffer.printChar('v');
 
   // Privilege mode.
-  if      (lastPriv_ == PrivilegeMode::Machine)    buffer.print(",m,");
+  if      (lastPriv_ == PrivilegeMode::Machine)    buffer.print((lastDm_)? ",d," : ",m,");
   else if (lastPriv_ == PrivilegeMode::Supervisor) buffer.print((lastVirt_)? ",vs," : ",s,");
   else if (lastPriv_ == PrivilegeMode::User)       buffer.print((lastVirt_)? ",vu," : ",u,");
   else                                             buffer.print(",,");

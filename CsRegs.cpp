@@ -3248,7 +3248,7 @@ CsRegs<URV>::defineDebugRegs()
   // Debug mode registers.
   URV dcsrVal = 0x40000003;
   URV dcsrMask = 0x00008e04;
-  URV dcsrPokeMask = dcsrMask | 0x1cf; // Cause field modifiable
+  URV dcsrPokeMask = dcsrMask | 0x1ef; // Cause field modifiable
   defineCsr("dcsr", Csrn::DCSR, !mand, imp, dcsrVal, dcsrMask, dcsrPokeMask);
 
   // Least sig bit of dpc is not writeable.
@@ -3484,6 +3484,8 @@ CsRegs<URV>::defineEntropyReg()
   // Entropy source
   auto csr = defineCsr("seed", CN::SEED, mand, imp, 0, rom, pokeMask);
   csr->setHypervisor(true);
+  setCsrFields(CsrNumber::SEED, {{"ENTROPY", 16}, {"CUSTOM", 8},{"RSVD", 6},
+    {"OPST",2},{"ZERO",32}});
 }
 
 
@@ -3516,6 +3518,8 @@ CsRegs<URV>::defineSteeRegs()
   bool mand = false;
   uint64_t reset = 0, mask = 0x1, pokeMask = 0x1;
   defineCsr("c_matp", CsrNumber::C_MATP, !mand, !imp, reset, mask, pokeMask);
+  setCsrFields(CsrNumber::C_MATP,
+    {{"SWID", 1}, {"Zero", 63}});
 }
 
 
@@ -4472,10 +4476,11 @@ CsRegs<URV>::updateVirtInterrupt()
   auto mvip = getImplementedCsr(CsrNumber::MVIP);
   if (mvien and mvip)
     {
-      // Bit 1/9 of MVIP is an alias to bit 1/9 in MIP if bit 1/9 is not set in MVIEN.
+      // Bit 9 of MVIP is an alias to bit 9 in MIP if bit 9 is not set in MVIEN.
+      // Special hack for RTL which does not alias bit 1.
       URV mask = mvien->read();
-      URV b19 = URV(0x202);
-      mask ^= b19;
+      URV b9 = URV(0x200);
+      mask ^= b9;
 
       // Bit STIE (5) of MVIP is an alias to bit 5 of MIP if bit 5 of MIP is writable.
       // Othrwise, it is zero.
@@ -4483,7 +4488,7 @@ CsRegs<URV>::updateVirtInterrupt()
       if ((mip->getWriteMask() & b5) != 0)   // Bit 5 writable in mip
 	mask |= b5;
 
-      mask &= b19 | b5;
+      mask &= b9 | b5;
       // Write aliasing bits.
       mvip->write((mvip->read() & ~mask) | (value & mask));
       return true;
@@ -4593,7 +4598,7 @@ CsRegs<URV>::addMachineFields()
   if (rv32_)
     {
        setCsrFields(CsrNumber::MSTATEEN0, {{"C", 1}, {"FCSR", 1}, {"JVT", 1}, {"zero", 29}});
-       setCsrFields(CsrNumber::MSTATEEN0H, {{"zero", 24},{"P1P13", 1},{"CNTXT", 1}, {"IMSIC", 1}, {"AIA", 1},
+       setCsrFields(CsrNumber::MSTATEEN0H, {{"zero", 23}, {"P1P14", 1}, {"P1P13", 1},{"CNTXT", 1}, {"IMSIC", 1}, {"AIA", 1},
                                            {"CSRIND",1}, {"zero",  1},{"ENVCFG",1}, {"SEO", 1}});
        // no fields defined yet for mstateen1,2,3
        setCsrFields(CsrNumber::MSTATEEN1H, {{"zero", 31}, {"SEO", 1}});
@@ -4602,7 +4607,7 @@ CsRegs<URV>::addMachineFields()
     }
   else
     {
-       setCsrFields(CsrNumber::MSTATEEN0, {{"C", 1},    {"FCSR", 1}, {"JVT", 1}, {"zero",  53}, {"P1P13", 1}, {"CNTXT",1},
+       setCsrFields(CsrNumber::MSTATEEN0, {{"C", 1},    {"FCSR", 1}, {"JVT", 1}, {"zero",  52}, {"P1P14", 1}, {"P1P13", 1}, {"CNTXT",1},
                                            {"IMSIC", 1},{"AIA",1}, {"CSRIND",1}, {"zero",1}, {"ENVCFG", 1}, {"SEO",  1}});
        setCsrFields(CsrNumber::MSTATEEN1, {{"zero", 63}, {"SEO", 1}});
        setCsrFields(CsrNumber::MSTATEEN2, {{"zero", 63}, {"SEO", 1}});

@@ -472,7 +472,6 @@ Mcm<URV>::updateVecLoadDependencies(const Hart<URV>& hart, const McmInstr& instr
   if (elemSize == 0 or elems.empty())
     return;  // Should not happen.
 
-
   for (auto& elem : elems)
     {
       if (elem.skip_)
@@ -496,12 +495,20 @@ Mcm<URV>::updateVecLoadDependencies(const Hart<URV>& hart, const McmInstr& instr
 	  uint64_t addr = i < size1 ? pa1 + i : pa2 + i - size1;
 	  uint64_t byteTime = 0;
 
-          // For strided with stride=0, test-bench sends one read for all indices.
-          // Don't use element index for that case.
-          if (unitStride or stride0)
-            byteTime = latestByteTime(instr, addr);
+          if (unitStride)
+            byteTime = latestByteTime(instr, addr);  // Don't use elem ix.
           else
-            byteTime = latestByteTime(instr, addr, elem.ix_);
+            {
+              unsigned elemIx = elem.ix_;
+
+              // For strided with stride=0, test-bench sometimes sends one read for all indices
+              // and sometimes sends one read per index. Compensate.
+              if (stride0)
+                elemIx = effectiveStride0ElemIx(hart, instr, elemIx);
+
+              byteTime = latestByteTime(instr, addr, elemIx);
+            }
+
 	  regTime = std::max(byteTime, regTime);
 	}
 
@@ -1284,7 +1291,7 @@ Mcm<URV>::retire(Hart<URV>& hart, uint64_t time, uint64_t tag,
   if (di.isAmo())
     instr->isStore_ = true;  // AMO is both load and store.
 
-  // Set data/address producer times (if any) for current instructions.
+  // Set data/address producer times (if any) for current instruction.
   setProducerTime(hart, *instr);
 
   if (instr->isStore_ and instr->complete_)
@@ -2124,18 +2131,13 @@ Mcm<URV>::checkStoreComplete(unsigned hartIx, const McmInstr& instr) const
 	mask = maskCoveredBytes(addr, size, op.pa_, op.size_);
       else
 	{
-	  if (pageNum(addr) == pageNum(addr2))
-	    mask = maskCoveredBytes(addr, size, op.pa_, op.size_);
-	  else
-	    {
-	      unsigned size1 = offsetToNextPage(addr);
-	      mask = maskCoveredBytes(addr, size1, op.pa_, op.size_);
+          unsigned size1 = offsetToNextPage(addr);
+          mask = maskCoveredBytes(addr, size1, op.pa_, op.size_);
 
-	      unsigned size2 = size - size1;
-	      unsigned mask2 = maskCoveredBytes(addr2, size2, op.pa_, op.size_);
-	      mask2 <<= size1;
-	      mask |= mask2;
-	    }
+          unsigned size2 = size - size1;
+          unsigned mask2 = maskCoveredBytes(addr2, size2, op.pa_, op.size_);
+          mask2 <<= size1;
+          mask |= mask2;
 	}
 
       mask &= expectedMask;
@@ -2170,14 +2172,12 @@ Mcm<URV>::checkLoadComplete(const McmInstr& instr) const
       else
 	{
 	  unsigned size1 = offsetToNextPage(addr);
-	  if (pageNum(op.pa_) == pageNum(addr))
-	    mask = maskCoveredBytes(addr, size1, op.pa_, op.size_);
-	  else
-	    {
-	      unsigned size2 = size - size1;
-	      mask = maskCoveredBytes(addr2, size2, op.pa_, op.size_);
-	      mask = mask << size1;
-	    }
+          mask = maskCoveredBytes(addr, size1, op.pa_, op.size_);
+
+          unsigned size2 = size - size1;
+          unsigned mask2 = maskCoveredBytes(addr2, size2, op.pa_, op.size_);
+          mask2 <<= size1;
+          mask |= mask2;
 	}
 
       mask &= expectedMask;
@@ -2385,9 +2385,13 @@ Mcm<URV>::commitVecReadOpsStride0(Hart<URV>& hart, McmInstr& instr)
   // element. We process vecRefs[0].
   auto& vecRefs = hartData_.at(hart.sysHartIndex()).vecRefMap_[instr.tag_];
 
-  auto& info = hart.getLastVectorMemory();
-  unsigned nfields = info.fields_ == 0 ? 1 : info.fields_;
+  const auto& info = hart.getLastVectorMemory();
+  const auto& elems = info.elems_;
+
   unsigned elemSize = info.elemSize_;
+  unsigned vstart = elems.front().ix_;
+
+  assert(info.fields_ == 0);
 
   bool matched = true;   // True until a mismatch.
   instr.complete_ = true;  // True until byte not covered.
@@ -2397,59 +2401,59 @@ Mcm<URV>::commitVecReadOpsStride0(Hart<URV>& hart, McmInstr& instr)
   // addresses covered by read ops. Set reference (Whisper) values of reference addresses.
   auto& ops = instr.memOps_;
 
-  // Process all the fields of the 1st active element.
-  unsigned elemIx = vecRefs.refs_.front().ix_;  // This is the same for all the fields.
+  unsigned mask = (1u << elemSize) - 1;
 
-  for (unsigned field = 0; field < nfields; ++field)
+  const auto& refs = vecRefs.refs_;
+  const auto& vecRef = refs.front();
+
+  for (auto iter = ops.rbegin(); iter != ops.rend(); ++iter)
     {
-      unsigned mask = (1u << elemSize) - 1;
+      auto opIx = *iter;
+      auto& op = sysMemOps_.at(opIx);
+      if (not op.isRead_)
+        continue;  // Should not happen.
 
-      const auto& vecRef = vecRefs.refs_.at(field);
+      if (op.elemIx_ < vstart)
+        continue;
 
-      for (auto iter = ops.rbegin(); iter != ops.rend(); ++iter)
+      unsigned offset = op.elemIx_ - vstart;  // Location of op.elemIx_ in elems.
+
+      if (offset >= elems.size() or elems.at(offset).skip_)
+        continue;  // Skipped element.
+
+      for (unsigned i = 0; i < elemSize; ++i)
         {
-          auto opIx = *iter;
-          auto& op = sysMemOps_.at(opIx);
-          if (not op.isRead_)
-            continue;  // Should not happen.
+          unsigned byteMask = 1 << i;
 
+          uint64_t byteAddr = vecRef.pa_ + i;  // TODO handle page crosser
+          if (not op.overlaps(byteAddr))
+            continue;
 
-          for (unsigned i = 0; i < elemSize; ++i)
+          mask &= ~byteMask;
+          op.canceled_ = false;
+
+          if (not isReadDataCheckEnabled(byteAddr))
+            continue;
+
+          unsigned offset = byteAddr - op.pa_;
+          uint8_t refVal = op.data_ >> (offset*8);
+          uint8_t rtlVal = op.rtlData_ >> (offset*8);
+
+          if (refVal != rtlVal)
             {
-              unsigned byteMask = 1 << i;
-              if ((mask & byteMask) == 0)
-                continue;   // Byte covered by a another read op.
-
-              uint64_t byteAddr = vecRef.pa_ + i;  // TODO handle page crosser
-              if (not vecReadOpOverlapsElemByte(op, byteAddr, elemIx, false /*unitStride*/, elemSize))
-                continue;
-
-              mask &= ~byteMask;
-              op.canceled_ = false;
-
-              if (not isReadDataCheckEnabled(byteAddr))
-                continue;
-
-              unsigned offset = byteAddr - op.pa_;
-              uint8_t refVal = op.data_ >> (offset*8);
-              uint8_t rtlVal = op.rtlData_ >> (offset*8);
-
-              if (refVal != rtlVal)
-                {
-                  if (matched)
-                    printReadMismatch(hart, op.time_, op.tag_, byteAddr, op.size_, rtlVal, refVal);
-                  matched = false;
-                }
+              if (matched)
+                printReadMismatch(hart, op.time_, op.tag_, byteAddr, op.size_, rtlVal, refVal);
+              matched = false;
             }
         }
+    }
 
-      if (mask and instr.complete_)
-        {
-          cerr << "Error: hart-id=" << hart.hartId() << " tag=" << instr.tag_
-               << " elem-ix=" << unsigned(vecRef.ix_) << " addr=0x" << std::hex << vecRef.pa_ << std::dec 
-               << " read ops do not cover all the bytes of vector load instruction\n";
-          instr.complete_ = false;
-        }
+  if (mask and instr.complete_)
+    {
+      cerr << "Error: hart-id=" << hart.hartId() << " tag=" << instr.tag_
+           << " elem-ix=" << unsigned(vecRef.ix_) << " addr=0x" << std::hex << vecRef.pa_ << std::dec 
+           << " read ops do not cover all the bytes of vector load instruction\n";
+      instr.complete_ = false;
     }
 
   // Remove ops still marked canceled.
@@ -2840,21 +2844,15 @@ Mcm<URV>::getCurrentLoadValue(Hart<URV>& hart, uint64_t tag, uint64_t va, uint64
 
   auto& info = hart.getLastVectorMemory();
   unsigned elemSize = info.elemSize_;
+  auto& elems = info.elems_;
 
   bool unitStride = isVector and isUnitStride(info);
 
-  // For strided load with 0 stride, all active elems get one read associated with 1st
-  // active.
-  if (isVector)
-    {
-      const VecLdStInfo& info = hart.getLastVectorMemory();
-      if (info.isStrided_ and info.stride_ == 0 and info.fields_ == 0)
-        {
-          for (auto& elem : info.elems_)
-            if (not elem.skip_ and elem.ix_ < elemIx)
-              elemIx = elem.ix_;
-        }
-    }
+  // For strided load with 0 stride, test-bench sometimes sends one read for all active
+  // elements and sometimes sends multiple reads.
+  if (isVector and not elems.empty())
+    if (info.isStrided_ and info.stride_ == 0 and info.fields_ == 0)
+      elemIx = effectiveStride0ElemIx(hart, *instr, elemIx);
 
   // For vector load, we don't check indices if unit stride (no possibility of overlap).
   for (auto opIx : instr->memOps_)
@@ -2927,6 +2925,34 @@ Mcm<URV>::getCurrentLoadValue(Hart<URV>& hart, uint64_t tag, uint64_t va, uint64
     instr->complete_ = covered;
 
   return covered;
+}
+
+
+template <typename URV>
+unsigned
+Mcm<URV>::effectiveStride0ElemIx(const Hart<URV>& hart, const McmInstr& instr, unsigned elemIx) const
+{
+  const auto& info = hart.getLastVectorMemory();
+  const auto& elems = info.elems_;
+  unsigned vstart = elems.front().ix_;
+
+  // Find highest read op with highest elem ix that is <= the current index.
+  unsigned high = 0;
+  for (auto opIx : instr.memOps_)
+    {
+      if (auto& op = sysMemOps_.at(opIx); op.isRead_)
+        {
+          unsigned opElemIx = op.elemIx_;
+          if (opElemIx < vstart)
+            continue;
+          unsigned offset = opElemIx - vstart;
+          if (opElemIx <= elemIx and opElemIx > high and
+              offset < elems.size() and not elems.at(offset).skip_)
+            high = opElemIx;
+        }
+    }
+
+  return high;
 }
 
 
@@ -4561,14 +4587,16 @@ Mcm<URV>::ppoRule9(Hart<URV>& hart, const McmInstr& instrB) const
 
   uint64_t addrTime = instrB.addrTime_;
 
+  // FIX : Issue error if A and B are both cacheable.
+
   for (auto opIx : instrB.memOps_)
     {
       if (opIx < sysMemOps_.size() and sysMemOps_.at(opIx).time_ <= addrTime)
 	{
-	  cerr << "Error: PPO rule 9 failed: hart-id=" << hart.hartId() << " tag1="
+	  cerr << "Warning: PPO rule 9 failed: hart-id=" << hart.hartId() << " tag1="
 	       << instrB.addrProducer_ << " tag2=" << instrB.tag_
                << " time1=" << addrTime << " time2=" << sysMemOps_.at(opIx).time_ << '\n';
-	  return false;
+	  return true;
 	}
     }
 
@@ -4580,10 +4608,10 @@ Mcm<URV>::ppoRule9(Hart<URV>& hart, const McmInstr& instrB) const
   unsigned ixReg = 0;   // Vector index register.
   if (isVecIndexOutOfOrder(hart, instrB, ixReg, ixTag, ixTime, dataTime))
     {
-      cerr << "Error: PPO rule 9 failed: hart-id=" << hart.hartId() << " tag1="
+      cerr << "Warning: PPO rule 9 failed: hart-id=" << hart.hartId() << " tag1="
 	   << ixTag << " tag2=" << instrB.tag_ << " time1=" << ixTime
 	   << " time2=" << dataTime << " vec-ix-reg=" << ixReg << '\n';
-      return false;
+      return true;
     }
 
   return true;

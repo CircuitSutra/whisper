@@ -42,15 +42,23 @@ namespace WdRiscv
   {
   public:
 
+    /// Constructor.
     Session();
 
+    /// Define a system. Basic system parameters (like number of harts) are taken form
+    /// configuration object (likely populated from a JSON config file) and the command
+    /// line arguments. Command line arguments take precedence (they are applied last).
+    /// Return pointer to the defined system on success and a nullptr on failure.
     std::shared_ptr<System<URV>>
     defineSystem(const Args& args, const HartConfig& config);
 
+    /// Configure the system.
     bool configureSystem(const Args& args, const HartConfig& config);
 
+    /// Run the target program on the system.
     bool run(const Args& args);
 
+    /// End of run cleanup.
     bool cleanup(const Args& args);
 
     /// Obtain integer-register width (xlen). Command line has top priority, then config

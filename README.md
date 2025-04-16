@@ -769,6 +769,7 @@ The advanced core local interrupt controller (aclint) configuration is an object
   timer interrupts and is relevant for booting a Linux image (Whisper uses the instruction
   count to fake a timer value and that is too fast for Linux which expect a much lower
   frequency for its timer). Default value is 10000.
+* timecmp_reset: reset value of mtimecmp
 
 ###  reset_vec
 Defines the program counter (PC) value after reset. The ELF file

@@ -567,8 +567,10 @@ Memory::collectElfSymbols(ELFIO::elfio& reader)
 	      if (name.empty())
 		continue;
 
-	      if (type == STT_NOTYPE or type == STT_FUNC or type == STT_OBJECT)
-		symbols_[name] = ElfSymbol(address, size);
+    if (type == STT_NOTYPE || type == STT_FUNC || type == STT_OBJECT) {
+      symbols_[name] = ElfSymbol(address, size);
+      addrToSymName_[address] = name;
+    }
 	    }
 	}
     }
@@ -1204,4 +1206,14 @@ void
 Memory::resetMemoryMappedRegisters()
 {
   pmaMgr_.resetMemMapped();
+}
+
+
+bool Memory::findSymbolByAddress(uint64_t address, std::string &symbol) const {
+  auto it = addrToSymName_.find(address);
+  if (it != addrToSymName_.end()) {
+    symbol = it->second;
+    return true;
+  }
+  return false;
 }

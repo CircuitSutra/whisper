@@ -127,7 +127,6 @@ namespace WdRiscv
   class Hart
   {
   public:
-
     /// Alias the template parameter to allow it to be used outside this
     /// template.
     using URV = URV_;
@@ -1967,6 +1966,10 @@ namespace WdRiscv
     bool lastVirtMode() const
     { return lastVirt_; }
 
+    /// Return true if in debug mode.
+    bool lastDebugMode() const
+    { return lastDm_; }
+
     /// Return the number of page table walks of the last
     /// executed instruction
     unsigned getNumPageTableWalks(bool isInstr) const
@@ -2179,11 +2182,6 @@ namespace WdRiscv
 
     // Load snapshot of registers (PC, integer, floating point, CSR) into file
     bool loadSnapshotRegs(const std::string& path);
-
-    // Define the additional delay to add to the timecmp register
-    // before the timer expires. This is relevant to the clint.
-    void setTimeShift(unsigned shift)
-    { timeShift_ = shift; }
 
     // Define time scaling factor such that the time value increment period
     // is scaled down by 2^N.
@@ -2424,10 +2422,7 @@ namespace WdRiscv
 
     /// Set the CLINT alarm to the given value.
     void setAclintAlarm(uint64_t value)
-    {
-      if (hasAclint())
-	aclintAlarm_ = value;
-    }
+    { aclintAlarm_ = value; }
 
     /// Fetch an instruction from the given virtual address. Return ExceptionCause::None
     /// on success. Return exception cause on fail. If successful set pysAddr to the
@@ -2616,6 +2611,8 @@ namespace WdRiscv
     /// values.
     void autoIncrementTimer(bool flag)
     { autoIncrementTimer_ = flag; }
+
+    void setLogLabelEnabled(bool enable) { logLabelEnabled_ = enable; }
 
   protected:
 
@@ -3044,9 +3041,26 @@ namespace WdRiscv
     // commit load/store values if a trigger is fired (so no need to restore here).
     void undoForTrigger();
 
-    /// Return true if the mie bit of the mstatus register is on.
-    bool isInterruptEnabled() const
-    { return csRegs_.isInterruptEnabled(); }
+    /// Return true if configuration would allow/disallow reentrant behavior
+    /// for breakpoints.
+    bool isBreakpInterruptEnabled() const
+    {
+      if (privMode_ == PrivilegeMode::Machine)
+        return mstatus_.bits_.MIE;
+
+      URV medeleg = 0, hedeleg = 0;
+      if (peekCsr(CsrNumber::MEDELEG, medeleg))
+        medeleg &= (1 << URV(ExceptionCause::BREAKP));
+      if (privMode_ == PrivilegeMode::Supervisor and not virtMode_)
+        return medeleg? mstatus_.bits_.SIE : true;
+
+      if (peekCsr(CsrNumber::HEDELEG, hedeleg))
+        hedeleg &= (1 << URV(ExceptionCause::BREAKP));
+      if (privMode_ == PrivilegeMode::Supervisor and virtMode_)
+        return (medeleg & hedeleg)? vsstatus_.bits_.SIE : true;
+
+      return true; // Never reentrant in user mode.
+    }
 
     /// Based on current trigger configurations, either take an exception returning false
     /// or enter debug mode returning true. If we take an exception epc goes into the
@@ -3054,7 +3068,7 @@ namespace WdRiscv
     /// parameter is used to annotate the instruction rectord in the log file (if logging
     /// is enabeld).
     bool takeTriggerAction(FILE* traceFile, URV epc, URV info,
-			   uint64_t instrTag, bool beforeTiming);
+			   uint64_t instrTag, const DecodedInst* di);
 
     /// Helper to load methods: Initiate an exception with the given
     /// cause and data address.
@@ -3185,8 +3199,15 @@ namespace WdRiscv
     /// that trip.
     bool ldStAddrTriggerHit(URV addr, unsigned size, TriggerTiming t, bool isLoad)
     {
-      return csRegs_.ldStAddrTriggerHit(addr, size, t, isLoad, privilegeMode(), virtMode(),
-					isInterruptEnabled());
+      bool hit = csRegs_.ldStAddrTriggerHit(addr, size, t, isLoad, privilegeMode(), virtMode(),
+                                            isBreakpInterruptEnabled());
+      if (hit)
+        {
+          dataAddrTrig_ = true;
+          triggerTripped_ = true;
+          ldStFaultAddr_ = addr;   // For pointer masking, addr is masked.
+        }
+      return hit;
     }
 
     /// Return true if one or more load-address/store-address trigger has a hit on the
@@ -3194,8 +3215,14 @@ namespace WdRiscv
     /// triggers that trip.
     bool ldStDataTriggerHit(URV value, TriggerTiming t, bool isLoad)
     {
-      return csRegs_.ldStDataTriggerHit(value, t, isLoad, privilegeMode(), virtMode(),
-					isInterruptEnabled());
+      bool hit = csRegs_.ldStDataTriggerHit(value, t, isLoad, privilegeMode(), virtMode(),
+                                            isBreakpInterruptEnabled());
+      if (hit)
+        {
+          dataAddrTrig_ = true;
+          triggerTripped_ = true;
+        }
+      return hit;
     }
 
     /// Return true if one or more execution trigger has a hit on the given address and
@@ -3203,7 +3230,7 @@ namespace WdRiscv
     bool instAddrTriggerHit(URV addr, unsigned size, TriggerTiming t)
     {
       return csRegs_.instAddrTriggerHit(addr, size, t, privilegeMode(), virtMode(),
-					isInterruptEnabled());
+					isBreakpInterruptEnabled());
     }
 
     /// Return true if one or more execution trigger has a hit on the given opcode value
@@ -3211,20 +3238,23 @@ namespace WdRiscv
     bool instOpcodeTriggerHit(URV opcode, TriggerTiming t)
     {
       return csRegs_.instOpcodeTriggerHit(opcode, t, privilegeMode(), virtMode(),
-					  isInterruptEnabled());
+					  isBreakpInterruptEnabled());
     }
 
     /// Make all active icount triggers count down if possible marking pending
-    /// the ones that reach zero.
+    /// the ones that reach zero. We use last values because privMode/virtMode may
+    /// be modified by execution and we can't decrement icount before the instruction
+    /// because tdata1 may be read. Reentrancy detection using option 1 in the spec
+    /// has unspecified behavior when relevant CSRs are modified.
     void evaluateIcountTrigger()
     {
-      return csRegs_.evaluateIcountTrigger(privilegeMode(), virtMode(), isInterruptEnabled());
+      return csRegs_.evaluateIcountTrigger(lastPriv_, lastVirt_, lastBreakpInterruptEnabled_);
     }
 
     /// Return true if a pending icount triger can fire clearning its pending status.
     bool icountTriggerFired()
     {
-      return csRegs_.icountTriggerFired(privilegeMode(), virtMode(), isInterruptEnabled());
+      return csRegs_.icountTriggerFired(privilegeMode(), virtMode(), isBreakpInterruptEnabled());
     }
 
     /// Return true if this hart has one or more active debug triggers.
@@ -5436,7 +5466,7 @@ namespace WdRiscv
     void execLpad(const DecodedInst*);
 
   private:
-
+    bool logLabelEnabled_ = false;
     // We model non-blocking load buffer in order to undo load
     // effects after an imprecise load exception.
     struct LoadInfo
@@ -5476,6 +5506,8 @@ namespace WdRiscv
       ldStSize_ = 0;
       lastPriv_ = privMode_;
       lastVirt_ = virtMode_;
+      lastDm_ = debugMode_;
+      lastBreakpInterruptEnabled_ = sdtrigOn_? isBreakpInterruptEnabled() : false;
       ldStWrite_ = false;
       ldStAtomic_ = false;
       lastPageMode_ = virtMem_.mode();
@@ -5632,6 +5664,8 @@ namespace WdRiscv
     bool lastHyer_ = false;         // Hypervisor extension state before current inst.
     bool hyperLs_ = false;          // True if last instr is hypervisor load/store.
 
+    bool lastBreakpInterruptEnabled_ = false; // Before current inst
+
     // These are used to get fast access to the FS and VS bits.
     Emstatus<URV> mstatus_;         // Cached value of mstatus CSR or mstatush/mstatus.
     MstatusFields<URV> vsstatus_;   // Cached value of vsstatus CSR
@@ -5659,6 +5693,7 @@ namespace WdRiscv
     URV debugParkLoop_ = ~URV(0);    // Jump to this address on entering debug mode.
     URV debugTrapAddr_ = ~URV(0);    // Jump to this address on exception in debug mode.
     bool enteredDebugMode_ = false;  // True if entered debug mode because of trigger or ebreak.
+    bool lastDm_ = false;     // Before current inst
 
     bool inDebugParkLoop_ = false;    // True if BREAKP exception goes to DPL.
 
@@ -5807,12 +5842,6 @@ namespace WdRiscv
     FILE* initStateFile_ = nullptr;
     std::unordered_set<uint64_t> initInstrLines_;
     std::unordered_set<uint64_t> initDataLines_;
-
-    // Shift executed instruction counter by this amount to produce a
-    // fake timer value. For example, if shift amount is 3, we are
-    // dividing instruction count by 8 (2 to power 3) to produce a
-    // timer value.
-    unsigned timeShift_ = 0;
 
     bool traceHeaderPrinted_ = false;
     bool ownTrace_ = false;

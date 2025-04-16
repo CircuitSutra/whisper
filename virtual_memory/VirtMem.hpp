@@ -106,6 +106,36 @@ namespace WdRiscv
                                       uint64_t& gpa2, uint64_t& pa2)
     { return translateForLdSt2(va, size, pm, twoStage, false, gpa1, pa1, gpa2, pa2); }
 
+    /// Configure regular translation (not 2-stage). This is typically called
+    /// at reset and as a result of changes to the SATP CSR. The page table
+    /// will be at address rootPageNum * pageSize.
+    void configTranslation(Mode mode, uint32_t asid, uint64_t rootPageNum)
+    {
+      setMode(mode);
+      setAsid(asid);
+      setRootPage(rootPageNum);
+    }
+
+    /// Configure the first stage of 2-stage translation. This is typically called at
+    /// reset and as a result of changes to the VSATP CSR. The page table will be at
+    /// address rootPageNum * pageSize.
+    void configStage1(Mode mode, uint32_t asid, uint64_t rootPageNum)
+    {
+      setVsMode(mode);
+      setVsAsid(asid);
+      setVsRootPage(rootPageNum);
+    }
+
+    /// Configure the second stage of 2-stage translation. This is typically called at
+    /// reset and as a result of changes to the HGATP CSR. The page table will be at
+    /// address rootPageNum * pageSize.
+    void configStage2(Mode mode, uint32_t vmid, uint64_t rootPageNum)
+    {
+      setStage2Mode(mode);
+      setVmid(vmid);
+      setStage2RootPage(rootPageNum);
+    }
+
     /// Set number of TLB entries.
     void setTlbSize(unsigned size)
     {
@@ -183,8 +213,10 @@ namespace WdRiscv
       uint64_t addr_ = 0;
       Type type_ = Type::PA;
       Pbmt pbmt_ = Pbmt::None; // Only applicable for leaf entries
-      bool accessed_ = false;  // True if A bit set by walk (for leaf entries)
-      bool dirty_ = false;     // True if D bit set by walk (for leaf entries)
+      bool aUpdated_ = false;  // True if A bit updated by this walk (for leaf entries)
+      bool dUpdated_ = false;  // True if D bit updated by this walk (for leaf entries)
+      bool accessed_ = false;  // temporary, remove asap
+      bool dirty_ = false;     // temporary, remove asap
     };
 
     /// Return the addresses of the instruction page table entries
@@ -296,40 +328,47 @@ namespace WdRiscv
     bool lastTwoStage() const
     { return twoStage_; }
 
-    // =======================
-    // Callback setter APIs 
-    void setMemReadCallback(const std::function<bool(uint64_t, bool, uint64_t&)>& cb) {
-      memReadCallback64_ = cb;
-    }
-    void setMemReadCallback(const std::function<bool(uint64_t, bool, uint32_t&)>& cb) {
-      memReadCallback32_ = cb;
-    }
-    void setMemWriteCallback(const std::function<bool(uint64_t, bool, uint64_t)>& cb) {
-      memWriteCallback_ = cb;
-    }
-    void setPmpIsReadableCallback(const std::function<bool(uint64_t, PrivilegeMode)>& cb) {
-      pmpReadableCallback_ = cb;
-    }
-    void setPmpIsWritableCallback(const std::function<bool(uint64_t, PrivilegeMode)>& cb) {
-      pmpWritableCallback_ = cb;
-    }
 
-    // Callback getter APIs
-    const std::function<bool(uint64_t, bool, uint64_t&)>& getMemReadCallback64() const {
-      return memReadCallback64_;
-    }
-    const std::function<bool(uint64_t, bool, uint32_t&)>& getMemReadCallback32() const {
-      return memReadCallback32_;
-    }
-    const std::function<bool(uint64_t, bool, uint64_t)>& getMemWriteCallback() const {
-      return memWriteCallback_;
-    }
-    const std::function<bool(uint64_t, PrivilegeMode)>& getPmpReadableCallback() const {
-      return pmpReadableCallback_;
-    }
-    const std::function<bool(uint64_t, PrivilegeMode)>& getPmpWritableCallback() const {
-      return pmpWritableCallback_;
-    }
+    /// Define callback to be used by this class to read a memory word.
+    /// Callback args: (uint64_t addr, bool bigEndian, uin64_t& value)
+    void setMemReadCallback(const std::function<bool(uint64_t, bool, uint64_t&)>& cb)
+    { memReadCallback64_ = cb; }
+
+    /// Define callback to be used by this class to read a memory double-word.
+    /// Callback args: (uint64_t addr, bool bigEndian, uint32_t& value)
+    void setMemReadCallback(const std::function<bool(uint64_t, bool, uint32_t&)>& cb)
+    { memReadCallback32_ = cb; }
+
+    /// Define callback to be used by this class to read a memory double-word.
+    /// Callback args: (uint64_t addr, bool bigEndian, uint64_t value)
+    void setMemWriteCallback(const std::function<bool(uint64_t, bool, uint64_t)>& cb)
+    { memWriteCallback_ = cb; }
+
+    /// Define callback to be used by this class to determine whether or not
+    /// an address is readable. This includes PMP and PMA checks.
+    void setIsReadableCallback(const std::function<bool(uint64_t, PrivilegeMode)>& cb)
+    { isReadableCallback_ = cb; }
+
+    /// Define callback to be used by this class to determine whether or not
+    /// an address is readable. This includes PMP and PMA checks.
+    void setIsWritableCallback(const std::function<bool(uint64_t, PrivilegeMode)>& cb)
+    { isWritableCallback_ = cb; }
+
+    /// Callback getter APIs
+    const std::function<bool(uint64_t, bool, uint64_t&)>& getMemReadCallback64() const
+    { return memReadCallback64_; }
+
+    const std::function<bool(uint64_t, bool, uint32_t&)>& getMemReadCallback32() const
+    { return memReadCallback32_; }
+
+    const std::function<bool(uint64_t, bool, uint64_t)>& getMemWriteCallback() const
+    { return memWriteCallback_; }
+
+    const std::function<bool(uint64_t, PrivilegeMode)>& getIsReadableCallback() const
+    { return isReadableCallback_; }
+
+    const std::function<bool(uint64_t, PrivilegeMode)>& getIsWritableCallback() const
+    { return isWritableCallback_; }
 
     // =======================
     /// Enable/disable tracing of accessed page table entries.
@@ -342,8 +381,8 @@ namespace WdRiscv
     std::function<bool(uint64_t, bool, uint64_t&)> memReadCallback64_ = nullptr;
     std::function<bool(uint64_t, bool, uint32_t&)> memReadCallback32_ = nullptr;
     std::function<bool(uint64_t, bool, uint64_t)>  memWriteCallback_ = nullptr;
-    std::function<bool(uint64_t, PrivilegeMode)>     pmpReadableCallback_ = nullptr;
-    std::function<bool(uint64_t, PrivilegeMode)>     pmpWritableCallback_ = nullptr;
+    std::function<bool(uint64_t, PrivilegeMode)>   isReadableCallback_ = nullptr;
+    std::function<bool(uint64_t, PrivilegeMode)>   isWritableCallback_ = nullptr;
 
     template<typename T>
     bool memRead(uint64_t addr, bool bigEndian, T &data) const {
@@ -369,13 +408,14 @@ namespace WdRiscv
       return cb ? cb(addr, bigEndian, data) : false;
     }
 
-    bool pmpIsReadable(uint64_t addr, PrivilegeMode pm) const {
-      auto cb = getPmpReadableCallback();
+    bool isAddrReadable(uint64_t addr, PrivilegeMode pm) const {
+      auto cb = getIsReadableCallback();
       return cb ? cb(addr, pm) : true;
     }
 
-    bool pmpIsWritable(uint64_t addr, PrivilegeMode pm) const {
-      auto cb = getPmpWritableCallback();
+    /// Return true if address is writable. This includes PMP and PMA checks.
+    bool isAddrWritable(uint64_t addr, PrivilegeMode pm) const {
+      auto cb = getIsWritableCallback();
       return cb ? cb(addr, pm) : true;
     }
 
@@ -446,6 +486,9 @@ namespace WdRiscv
 
     ExceptionCause stage1TranslateNoTlb(uint64_t va, PrivilegeMode priv, bool r, bool w,
 					bool x, uint64_t& pa, TlbEntry& entry);
+
+    ExceptionCause stage1Translate(uint64_t va, PrivilegeMode priv, bool read, bool write,
+                                   bool exec, uint64_t& gpa);
 
     ExceptionCause twoStageTranslate(uint64_t va, PrivilegeMode priv, bool r, bool w,
 				     bool x, uint64_t& gpa, uint64_t& pa);

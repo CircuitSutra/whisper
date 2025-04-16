@@ -747,6 +747,10 @@ namespace WdRiscv
       instrLineMap_[vaddr >> lineShift_] = LineEntry{paddr >> lineShift_, memRefCount_++, true};
     }
 
+    /// Given an address, return the ELF symbol name that contains that address.
+    /// Returns an empty string if no symbol covers the address.
+    bool findSymbolByAddress(uint64_t address, std::string &symbol) const;
+
   private:
 
     /// Information about last write operation by a hart.
@@ -772,6 +776,7 @@ namespace WdRiscv
 
     std::unordered_map<std::string, ElfSymbol, util::string_hash, std::equal_to<>> symbols_;
     std::unordered_map<std::string, ElfSymbol, util::string_hash, std::equal_to<>> sections_;
+    std::unordered_map<uint64_t, std::string> addrToSymName_;
 
     std::vector<Reservation> reservations_;
     std::vector<LastWriteData> lastWriteData_;

@@ -127,6 +127,7 @@ namespace WdRiscv
     uint64_t bblockInsts = ~uint64_t(0);
 
     bool help = false;
+    bool use_numactl = false;
     bool hasRegWidth = false;
     bool hasHarts = false;
     bool hasCores = false;
@@ -162,5 +163,6 @@ namespace WdRiscv
     bool logPerHart = false; // Enable separate log files for each hart.
     bool loadFromTrace = false;    // Enable loading trace information from snapshot.
     bool hintOps = false;    // Enable HINT ops.
+    bool logLabel = false;
   };
 }

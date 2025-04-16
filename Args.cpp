@@ -324,6 +324,8 @@ Args::parseCmdLineArgs(std::span<char*> argv)
       desc.add_options()
 	("help,h", po::bool_switch(&this->help),
 	 "Produce this message.")
+	("numa", po::bool_switch(&this->use_numactl),
+	 "Use numactl.")
 	("log,l", po::bool_switch(&this->trace),
 	 "Enable tracing to standard output of executed instructions.")
 	("isa", po::value(&this->isa),
@@ -555,7 +557,9 @@ Args::parseCmdLineArgs(std::span<char*> argv)
 	("verbose,v", po::bool_switch(&this->verbose),
 	 "Be verbose.")
 	("version", po::bool_switch(&this->version),
-	 "Print version.");
+	 "Print version.")
+        ("loglabel,ll", po::bool_switch(&this->logLabel)->default_value(false),
+         "When enabled, prepend ELF symbol label (if any) to text log output");
 
       // Define positional options.
       po::positional_options_description pdesc;
