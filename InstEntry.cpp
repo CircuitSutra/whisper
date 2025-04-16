@@ -1780,6 +1780,7 @@ InstTable::setupInstVec()
 	OperandType::IntReg, OperandMode::Read, 0,
 	OperandType::Imm, OperandMode::None, 0 },
 
+      // This expands to add rd, x0, rs2
       { "c.mv", InstId::c_mv, 0x8002, 0xf003,
 	RvExtension::I, RvFormat::None,
 	OperandType::IntReg, OperandMode::Write, 0xf80,
