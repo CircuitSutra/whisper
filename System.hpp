@@ -239,6 +239,14 @@ namespace WdRiscv
     /// contents of accessed pages.
     bool writeAccessedMemory(const std::string& path) const;
 
+
+    /// Set whether APLIC automatically forwards MSIs
+    void setAplicAutoForwardViaMsi(bool autoForward)
+    {
+      if (!aplic_) return;
+      aplic_->autoForwardViaMsi = autoForward;
+    }
+
     /// Special target program symbol writing to which stops the
     /// simulated program or performs console io.
     void setTohostSymbol(const std::string& sym)
