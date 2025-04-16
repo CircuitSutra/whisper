@@ -195,78 +195,14 @@ PerfApi::decode(unsigned hartIx, uint64_t time, uint64_t tag)
   using OM = WdRiscv::OperandMode;
   using OT = WdRiscv::OperandType;
 
-  // Determine implicit operands.
-  auto& di = packet.decodedInst();
-  packet.operandCount_ = 0;
-  for (unsigned i = 0; i < di.operandCount(); ++i)
-    {
-      auto mode = di.effectiveIthOperandMode(i);
-      auto type = di.ithOperandType(i);
-
-      if (mode == OM::None)
-        assert(type == OT::Imm);
-
-      auto& op = packet.operands_.at(packet.operandCount_++);
-      op.type = type;
-      op.mode = di.ithOperandMode(i);
-      op.number = di.ithOperand(i);     // Irrelevant for immediate ops.
-      if (op.type == OT::Imm)
-        op.value.scalar = di.ithOperand(i);
-    }
+  determineExplicitOperands(packet);
 
   // Determine effective group multiplier of vector operands. We do this before adding
   // explicit operands as we may be producing vtype which affects LMUL.
   if (packet.di_.isVector())
     getVectorOperandsLmul(hart, packet);
 
-  // Determine explicit operands. Vtype is an implicit source for all vector instructions.
-  // It is an implicit destination for the vsetvl/vsetvli/vsetivli. Same for VL.
-  if (di.isVector())
-    {
-      using WdRiscv::InstId;
-      auto id = di.instId();
-      bool isVset = (id == InstId::vsetvl or id == InstId::vsetvli or id == InstId::vsetivli);
-
-      if (di.isMasked() and not isVset)
-        {
-          auto& v0Op = packet.operands_.at(packet.operandCount_++);
-          v0Op.type = OperandType::VecReg;
-          v0Op.mode = OM::Read;
-          v0Op.number = 0;
-          v0Op.lmul = 1;
-        }
-
-      auto& vtOp = packet.operands_.at(packet.operandCount_++);
-      vtOp.type = OperandType::CsReg;
-      vtOp.mode = OM::Read;
-      vtOp.number = unsigned(CSRN::VTYPE);
-      
-      auto& vlOp = packet.operands_.at(packet.operandCount_++);
-      vlOp.type = OperandType::CsReg;
-      vlOp.mode = OM::Read;
-      vlOp.number = unsigned(CSRN::VL);
-
-      if (isVset)
-        {
-          vtOp.mode = OM::Write;
-          vlOp.mode = OM::Write;
-        }
-
-      // We currently don't keep track of vector instructions that use FCSR. Assume all do.
-      auto& fcsrOp = packet.operands_.at(packet.operandCount_++);
-      fcsrOp.type = OperandType::CsReg;
-      fcsrOp.mode = OM::ReadWrite;
-      fcsrOp.number = unsigned(CSRN::FCSR);
-    }
-  else if (di.isFp() and (di.modifiesFflags() or di.hasDynamicRoundingMode()))
-    {
-      auto& op = packet.operands_.at(packet.operandCount_++);
-      op.type = OperandType::CsReg;
-      op.mode = OM::Read;
-      op.number = unsigned(CSRN::FCSR);
-      if (di.modifiesFflags())
-        op.mode = di.hasDynamicRoundingMode() ? OM::ReadWrite : OM::Write;
-    }      
+  determineImplicitOperands(packet);
 
   // Collect producers of operands of this instruction.
   auto& producers = hartRegProducers_.at(hartIx);
@@ -437,7 +373,7 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
     assert(0);
 
   // Save hart register values corresponding to packet operands in prevVal.
-  std::array<OpVal, 7> prevVal;
+  std::array<OpVal, 8> prevVal;
   bool saveOk = saveHartValues(hart, packet, prevVal);
 
   // Install packet operand values (some obtained from previous in-flight instructions)
@@ -669,9 +605,8 @@ PerfApi::checkExecVsRetire(const Hart64& hart, const InstrPac& packet) const
       return false;
     }
 
-  if (packet.trap_)
+  if (packet.trap_ or packet.di_.isLr())
     return true;
-
 
   if (int reg = hart.lastIntReg(); reg > 0)
     {
@@ -1335,7 +1270,7 @@ InstrPac::executedDestVal(const Hart64& hart, unsigned size, unsigned elemIx, un
 
 bool
 PerfApi::saveHartValues(Hart64& hart, const InstrPac& packet,
-                        std::array<OpVal, 7>& prevVal)
+                        std::array<OpVal, 8>& prevVal)
 {
   using OM = WdRiscv::OperandMode;
   using OT = WdRiscv::OperandType;
@@ -1448,7 +1383,7 @@ PerfApi::restoreImsicTopei(Hart64& hart, CSRN csrn, unsigned id, unsigned guest)
 
 void
 PerfApi::restoreHartValues(Hart64& hart, const InstrPac& packet,
-			   const std::array<OpVal, 7>& prevVal)
+			   const std::array<OpVal, 8>& prevVal)
 {
   using OM = WdRiscv::OperandMode;
   using OT = WdRiscv::OperandType;
@@ -2033,4 +1968,96 @@ PerfApi::collectOperandValues(Hart64& hart, InstrPac& packet)
     }
 
   return peekOk;
+}
+
+
+void
+PerfApi::determineExplicitOperands(InstrPac& packet)
+{
+  using OM = WdRiscv::OperandMode;
+  using OT = WdRiscv::OperandType;
+
+  auto& di = packet.decodedInst();
+
+  packet.operandCount_ = 0;
+
+  for (unsigned i = 0; i < di.operandCount(); ++i)
+    {
+      auto mode = di.effectiveIthOperandMode(i);
+      auto type = di.ithOperandType(i);
+
+      if (mode == OM::None)
+        assert(type == OT::Imm);
+
+      auto& op = packet.operands_.at(packet.operandCount_++);
+      op.type = type;
+      op.mode = di.ithOperandMode(i);
+      op.number = di.ithOperand(i);     // Irrelevant for immediate ops.
+      if (op.type == OT::Imm)
+        op.value.scalar = di.ithOperand(i);
+    }
+}
+
+
+void
+PerfApi::determineImplicitOperands(InstrPac& packet)
+{
+  using OM = WdRiscv::OperandMode;
+  using OT = WdRiscv::OperandType;
+
+  auto& di = packet.decodedInst();
+
+  // Determine implicit operands. Vtype is an implicit source for all vector instructions.
+  // It is an implicit destination for the vsetvl/vsetvli/vsetivli. Same for VL.
+  if (di.isVector())
+    {
+      using WdRiscv::InstId;
+      auto id = di.instId();
+      bool isVset = (id == InstId::vsetvl or id == InstId::vsetvli or id == InstId::vsetivli);
+
+      if (di.isMasked() and not isVset)
+        {
+          auto& v0Op = packet.operands_.at(packet.operandCount_++);
+          v0Op.type = OT::VecReg;
+          v0Op.mode = OM::Read;
+          v0Op.number = 0;
+          v0Op.lmul = 1;
+        }
+
+      auto& vtOp = packet.operands_.at(packet.operandCount_++);
+      vtOp.type = OT::CsReg;
+      vtOp.mode = OM::Read;
+      vtOp.number = unsigned(CSRN::VTYPE);
+      
+      auto& vlOp = packet.operands_.at(packet.operandCount_++);
+      vlOp.type = OT::CsReg;
+      vlOp.mode = OM::Read;
+      vlOp.number = unsigned(CSRN::VL);
+
+      if (isVset)
+        {
+          vtOp.mode = OM::Write;
+          vlOp.mode = OM::Write;
+        }
+
+      auto& vsOp = packet.operands_.at(packet.operandCount_++);
+      vsOp.type = OT::CsReg;
+      vsOp.mode = OM::ReadWrite;
+      vsOp.number = unsigned(CSRN::VSTART);
+
+      // We currently don't keep track of vector instructions that use FCSR. Assume all do.
+      auto& fcsrOp = packet.operands_.at(packet.operandCount_++);
+      fcsrOp.type = OT::CsReg;
+      fcsrOp.mode = OM::ReadWrite;
+      fcsrOp.number = unsigned(CSRN::FCSR);
+    }
+  else if (di.isFp() and (di.modifiesFflags() or di.hasDynamicRoundingMode()))
+    {
+      auto& op = packet.operands_.at(packet.operandCount_++);
+      op.type = OT::CsReg;
+      op.mode = OM::Read;
+      op.number = unsigned(CSRN::FCSR);
+      if (di.modifiesFflags())
+        op.mode = di.hasDynamicRoundingMode() ? OM::ReadWrite : OM::Write;
+    }      
 }

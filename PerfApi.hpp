@@ -302,18 +302,18 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     uint64_t execTime_ = 0;   // Execution time
     uint64_t prTarget_ = 0;   // Predicted branch target
 
-    // Up to 4 explicit operands and 3 implicit ones (VTYPE, VL, and FCSR).
-    std::array<Operand, 7> operands_;
+    // Up to 4 explicit operands and 4 implicit ones (FCSR, VL, VTYPE, VSTART)
+    std::array<Operand, 8> operands_;
     unsigned operandCount_ = 0;
 
     // Entry i is the in-flight producer of the ith operand.
-    std::array<OpProducer, 7> opProducers_;
+    std::array<OpProducer, 8> opProducers_;
 
     // Global register index of a destination register and its corresponding value.
     typedef std::pair<unsigned, OpVal> DestValue;
 
-    // One expicit destination register and up to 3 implicit ones (FCSR, VL, and VTYPE)
-    std::array<DestValue, 4> destValues_;
+    // One expicit destination register and up to 4 implicit ones (FCSR, VL, VTYPE, VSTART)
+    std::array<DestValue, 5> destValues_;
 
     uint32_t opcode_ = 0;
 
@@ -587,7 +587,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     /// true on success. Return false if any of the required hart registers cannot be
     /// read.
     bool saveHartValues(Hart64& hart, const InstrPac& packet,
-			std::array<OpVal, 7>& prevVal);
+			std::array<OpVal, 8>& prevVal);
 
     /// Install packet operand values (some obtained from previous in-flight instructions)
     /// into the hart registers. Return true on success. Return false if any of the
@@ -597,7 +597,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     /// Restore the hart registers corresponding to the packet operands to the values in
     /// the prevVal array.
     void restoreHartValues(Hart64& hart, const InstrPac& packet,
-			   const std::array<OpVal, 7>& prevVal);
+			   const std::array<OpVal, 8>& prevVal);
 
     /// Helper to execute. Restore IMSIC top interrupt if csrn is one of M/S/VS TOPEI.
     void restoreImsicTopei(Hart64& hart, WdRiscv::CsrNumber csrn, unsigned id, unsigned guest);
@@ -612,6 +612,12 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     /// Check execute stage results versus retire stage. Return true on match and false on
     /// mismatch.
     bool checkExecVsRetire(const Hart64& hart, const InstrPac& packet) const;
+
+    /// Helper to decode method.
+    void determineExplicitOperands(InstrPac& packet);
+
+    /// Helper to decode method.
+    void determineImplicitOperands(InstrPac& packet);
 
   private:
 
