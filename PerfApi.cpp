@@ -13,13 +13,13 @@
 // limitations under the License.
 
 #include <cinttypes>
+#include <iomanip>
 #include "PerfApi.hpp"
 
 using namespace TT_PERF;
 
-
 using CSRN = WdRiscv::CsrNumber;
-
+using std::cerr;
 
 PerfApi::PerfApi(System64& system)
   : system_(system)
@@ -223,6 +223,19 @@ PerfApi::decode(unsigned hartIx, uint64_t time, uint64_t tag)
   // It is an implicit destination for the vsetvl/vsetvli/vsetivli. Same for VL.
   if (di.isVector())
     {
+      using WdRiscv::InstId;
+      auto id = di.instId();
+      bool isVset = (id == InstId::vsetvl or id == InstId::vsetvli or id == InstId::vsetivli);
+
+      if (di.isMasked() and not isVset)
+        {
+          auto& v0Op = packet.operands_.at(packet.operandCount_++);
+          v0Op.type = OperandType::VecReg;
+          v0Op.mode = OM::Read;
+          v0Op.number = 0;
+          v0Op.lmul = 1;
+        }
+
       auto& vtOp = packet.operands_.at(packet.operandCount_++);
       vtOp.type = OperandType::CsReg;
       vtOp.mode = OM::Read;
@@ -233,9 +246,6 @@ PerfApi::decode(unsigned hartIx, uint64_t time, uint64_t tag)
       vlOp.mode = OM::Read;
       vlOp.number = unsigned(CSRN::VL);
 
-      using WdRiscv::InstId;
-      auto id = di.instId();
-      bool isVset = (id == InstId::vsetvl or id == InstId::vsetvli or id == InstId::vsetivli);
       if (isVset)
         {
           vtOp.mode = OM::Write;
@@ -565,6 +575,12 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
   hart.setInstructionCount(tag - 1);
   hart.singleStep(traceFiles_.at(hartIx));
 
+  // Sanity check. Results at execute and retire must match.
+#if 0
+  if (not checkExecVsRetire(hart, packet))
+    assert(0);
+#endif
+
   // Undo renaming of destination registers.
   auto& producers = hartRegProducers_.at(hartIx);
   for (size_t i = 0; i < packet.operandCount_; ++i)
@@ -636,6 +652,75 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
   auto& packetMap = hartPacketMaps_.at(hartIx);
   if (not packet.isStore() and not di.isVectorStore() and not di.isCbo_zero())
     packetMap.erase(packet.tag());
+
+  return true;
+}
+
+
+bool
+PerfApi::checkExecVsRetire(const Hart64& hart, const InstrPac& packet) const
+{
+  unsigned hartIx = hart.sysHartIndex();
+  auto tag = packet.tag_;
+
+  if (packet.trap_ != hart.lastInstructionTrapped())
+    {
+      cerr << "Hart=" << hartIx << " tag=" << tag << " execute and retire differ on trap\n";
+      return false;
+    }
+
+  if (packet.trap_)
+    return true;
+
+
+  if (int reg = hart.lastIntReg(); reg > 0)
+    {
+      uint64_t val = hart.peekIntReg(reg);
+      uint64_t execVal = packet.destValues_.at(0).second.scalar;
+      if (val != execVal)
+        cerr << "Hart=" << hartIx << " tag=" << tag << " retire & exec vals differ:"
+             << " 0x" << std::hex << val << " & 0x" << execVal << std::dec << '\n';
+      return val == execVal;
+    }
+
+  if (int reg = hart.lastFpReg(); reg >= 0)
+    {
+      uint64_t val = 0;
+      if (not hart.peekFpReg(reg, val))
+        assert(0);
+      uint64_t execVal = packet.destValues_.at(0).second.scalar;
+      if (val != execVal)
+        cerr << "Hart=" << hartIx << " tag=" << tag << " exec & retire vals differ:"
+             << " 0x" << std::hex << val << " & 0x" << execVal << std::dec << '\n';
+      return val == execVal;
+    }
+
+
+  unsigned group = 0;
+  int vr = hart.lastVecReg(packet.di_, group);
+  if (vr >= 0)
+    {
+      std::vector<uint8_t> retire;
+      hart.peekVecRegLsb(vr, retire);
+      const auto& exec = packet.destValues_.at(0).second.vec;
+      assert(retire.size() <= exec.size());
+      for (unsigned i = 0; i < retire.size(); ++i)
+        if (retire.at(i) != exec.at(i))
+          {
+            cerr << "Hart=" << hartIx << " tag=" << tag << " exec & retire vec vals differ\n";
+            cerr << std::hex;
+            cerr << " retire: 0x";
+            unsigned count = retire.size();
+            for (unsigned j = 0; j < count; ++j)
+              cerr << cerr.width(2) << std::setfill('0') << unsigned(retire.at(count-1-j));
+            cerr << '\n';
+            cerr << " exec:   0x";
+            for (unsigned j = 0; j < count; ++j)
+              cerr << cerr.width(2) << std::setfill('0') << unsigned(exec.at(count-1-j));
+            cerr << '\n';
+            return false;
+          }
+    }
 
   return true;
 }
@@ -1211,7 +1296,7 @@ InstrPac::executedDestVal(const Hart64& hart, unsigned size, unsigned elemIx, un
 
   const OpVal& destVal = destValues_.at(0).second;
 
-  if (not di_.isVector())
+  if (operands_.at(0).type != WdRiscv::OperandType::VecReg)
     {
       assert(size == dataSize());
       return destVal.scalar;

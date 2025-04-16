@@ -609,6 +609,10 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     /// after the execution of the instruction of that packet.
     void recordExecutionResults(Hart64& hart, InstrPac& packet);
 
+    /// Check execute stage results versus retire stage. Return true on match and false on
+    /// mismatch.
+    bool checkExecVsRetire(const Hart64& hart, const InstrPac& packet) const;
+
   private:
 
     /// Map an instruction tag to corresponding packet.
