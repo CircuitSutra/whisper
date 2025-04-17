@@ -2290,6 +2290,24 @@ namespace WdRiscv
       return bits | (s << 1);
     }
 
+    /// Determine the highest priority interrupt from among the nominal
+    /// interrupt numbers.
+    unsigned highestIidPrio(uint64_t bits, PrivilegeMode mode, bool virtMode) const;
+
+    /// Determine if prio1 has higher priority than prio2 interrupt.
+    bool higherIidPrio(uint32_t prio1, uint32_t prio2, PrivilegeMode mode, bool virtMode) const;
+
+    /// Set interrupt priorities for the benefit of *topi registers. This is
+    /// necessary to support custom/local interrupt definitions.
+    void updateIidPrio(const std::vector<InterruptCause>& mInterrupts,
+                       const std::vector<InterruptCause>& sInterrupts,
+                       const std::vector<InterruptCause>& vsInterrupts)
+    {
+      mInterrupts_ = mInterrupts;
+      sInterrupts_ = sInterrupts;
+      vsInterrupts_ = vsInterrupts;
+    }
+
   private:
 
     bool rv32_ = sizeof(URV) == 4;
@@ -2339,6 +2357,10 @@ namespace WdRiscv
     bool recordWrite_ = true;
     bool debugMode_ = false;
     bool virtMode_ = false;       // True if hart virtual (V) mode is on.
+
+    std::vector<InterruptCause> mInterrupts_;
+    std::vector<InterruptCause> sInterrupts_;
+    std::vector<InterruptCause> vsInterrupts_;
 
     bool seiPin_ = false;
   };

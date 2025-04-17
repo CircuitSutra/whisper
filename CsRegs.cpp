@@ -3883,32 +3883,25 @@ CsRegs<URV>::pokeTrigger(CsrNumber number, URV value)
 }
 
 
-// From section 5.1 of the AIA spec.
-static std::vector<unsigned> iidPrioTable =
-{
-47u, 23u, 46u, 45u, 22u, 44u, 43u, 21u, 42u, 41u, 20u, 40u,
-unsigned(InterruptCause::M_EXTERNAL),
-unsigned(InterruptCause::M_SOFTWARE),
-unsigned(InterruptCause::M_TIMER),
-unsigned(InterruptCause::S_EXTERNAL),
-unsigned(InterruptCause::S_SOFTWARE),
-unsigned(InterruptCause::S_TIMER),
-unsigned(InterruptCause::G_EXTERNAL),
-unsigned(InterruptCause::VS_EXTERNAL),
-unsigned(InterruptCause::VS_SOFTWARE),
-unsigned(InterruptCause::VS_TIMER),
-unsigned(InterruptCause::LCOF),
-39u, 19u, 38u, 37u, 18u, 36u, 35u, 17u, 34u, 33u, 16u, 32u
-};
-
-
-static unsigned highestIidPrio(uint64_t bits)
+template <typename URV>
+unsigned
+CsRegs<URV>::highestIidPrio(uint64_t bits, PrivilegeMode mode, bool virtMode) const
 {
   if (not bits)
     return 0;
-  for (unsigned ic : iidPrioTable)
+
+  const std::vector<InterruptCause>* iidPrioTable;
+
+  if (mode == PrivilegeMode::Machine)
+    iidPrioTable = &mInterrupts_;
+  else if (mode == PrivilegeMode::Supervisor and not virtMode)
+    iidPrioTable = &sInterrupts_;
+  else
+    iidPrioTable = &vsInterrupts_;
+
+  for (InterruptCause ic : *iidPrioTable)
     {
-      uint64_t mask = uint64_t(1) << ic;
+      uint64_t mask = uint64_t(1) << unsigned(ic);
       if (bits & mask)
         return unsigned(ic);
     }
@@ -3917,13 +3910,24 @@ static unsigned highestIidPrio(uint64_t bits)
 }
 
 
-[[maybe_unused]]
-static bool higherIidPrio(uint64_t prio1, uint64_t prio2)
+template <typename URV>
+bool
+CsRegs<URV>::higherIidPrio(uint32_t prio1, uint32_t prio2, PrivilegeMode mode, bool virtMode) const
 {
-  auto it1 = std::find(iidPrioTable.begin(), iidPrioTable.end(), prio1);
-  auto it2 = std::find(iidPrioTable.begin(), iidPrioTable.end(), prio2);
 
-  assert(it1 != iidPrioTable.end() and it2 != iidPrioTable.end());
+  const std::vector<InterruptCause>* iidPrioTable;
+
+  if (mode == PrivilegeMode::Machine)
+    iidPrioTable = &mInterrupts_;
+  else if (mode == PrivilegeMode::Supervisor and not virtMode)
+    iidPrioTable = &sInterrupts_;
+  else
+    iidPrioTable = &vsInterrupts_;
+
+  auto it1 = std::find(iidPrioTable->begin(), iidPrioTable->end(), InterruptCause(prio1));
+  auto it2 = std::find(iidPrioTable->begin(), iidPrioTable->end(), InterruptCause(prio2));
+
+  assert(it1 != iidPrioTable->end() and it2 != iidPrioTable->end());
 
   return it1 < it2;
 }
@@ -3933,6 +3937,7 @@ template <typename URV>
 bool
 CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode) const
 {
+  using PM = PrivilegeMode;
   using IC = InterruptCause;
 
   value = 0;
@@ -3945,7 +3950,7 @@ CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode) const
       auto mip = effectiveMip();
       auto mie = effectiveMie();
 
-      unsigned iid = highestIidPrio(mip & mie & ~midelegMask);
+      unsigned iid = highestIidPrio(mip & mie & ~midelegMask, PM::Machine, false);
       if (iid)
         value = (iid << 16) | 1;
       return true;
@@ -3967,7 +3972,7 @@ CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode) const
           auto hie = getImplementedCsr(CsrNumber::HIE);
           URV hieVal = hie? hie->read() : 0;
 
-          unsigned iid = highestIidPrio(((sip & sie) | (hipVal & hieVal)) & ~hidelegMask);
+          unsigned iid = highestIidPrio(((sip & sie) | (hipVal & hieVal)) & ~hidelegMask, PM::Supervisor, false);
           if (iid)
             value = (iid << 16) | 1;
           return true;
@@ -4019,11 +4024,11 @@ CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode) const
             {
               URV value2 = 0;
               URV prio2 = 0;
-              unsigned iid2 = highestIidPrio(vs & ~(URV(1) << unsigned(IC::S_EXTERNAL)));
+              unsigned iid2 = highestIidPrio(vs & ~(URV(1) << unsigned(IC::S_EXTERNAL)), PM::Supervisor, false);
               if (iid2)
                 {
                   // hviprio is always 0
-                  if (not higherIidPrio(iid2, unsigned(IC::S_EXTERNAL)))
+                  if (not higherIidPrio(iid2, unsigned(IC::S_EXTERNAL), PM::Supervisor, false))
                     {
                       prio2 = 256;
                       value2 = (iid2 << 16) | 255;
@@ -4045,7 +4050,7 @@ CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode) const
                   // ties broken by default priority (IID)
                   unsigned iid1 = value >> 16;
                   assert(iid1 != iid2);
-                  if (higherIidPrio(iid2, iid1))
+                  if (higherIidPrio(iid2, iid1, PM::Supervisor, false))
                     {
                       prio = prio2;
                       value = value2;

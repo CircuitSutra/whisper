@@ -902,6 +902,9 @@ Hart<URV>::reset(bool resetMemoryMappedRegs)
       memory_.pmaMgr_.clearDefaultPma();  // No access.
       memory_.pmaMgr_.enableInDefaultPma(Pma::Attrib::MisalAccFault); // Access fault on misal.
     }
+
+  // Update IID priority for benefit of *topi registers.
+  csRegs_.updateIidPrio(mInterrupts_, sInterrupts_, vsInterrupts_);
 }
 
 
