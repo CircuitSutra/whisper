@@ -1496,7 +1496,8 @@ template <typename URV>
 bool
 Mcm<URV>::mergeBufferWrite(Hart<URV>& hart, uint64_t time, uint64_t physAddr,
 			   const std::vector<uint8_t>& rtlData,
-			   const std::vector<bool>& rtlMask)
+			   const std::vector<bool>& rtlMask,
+                           bool skipCheck)
 {
   if (not updateTime("Mcm::mergeBufferWrite", time))
     return false;
@@ -1538,45 +1539,49 @@ Mcm<URV>::mergeBufferWrite(Hart<URV>& hart, uint64_t time, uint64_t physAddr,
 
   std::vector<McmInstrIx> insertTags(lineSize_);
 
-  // Apply pending writes (from mbinsert operations) to our line and to memory.
-  for (const auto& write : coveredWrites)
-    {
-      if ((write.pa_ < physAddr) or (write.pa_ + write.size_ > lineEnd))
-	{
-	  cerr << "Mcm::mergeBufferWrite: Store address out of line bound\n";
-	  return false;
-	}
-
-      assert(write.size_ <= 8);
-      pokeHartMemory(hart, write.pa_, write.rtlData_, write.size_);
-
-      unsigned ix = write.pa_ - physAddr;
-      for (unsigned i = 0; i < write.size_; ++i)
-	{
-	  line.at(ix+i) = ((uint8_t*) &(write.rtlData_))[i];
-	  insertTags.at(ix+i) = write.tag_;
-	}
-    }
-
-  // Compare inserted data to written (drained) data.
   bool result = true;
-  size_t count = std::min(line.size(), rtlData.size());
-  for (unsigned i = 0; i < count; ++i)
-    if ((rtlMask.empty() or rtlMask.at(i)) and (line.at(i) != rtlData.at(i)))
-      {
-	cerr << "Error: hart-id=" << hart.hartId() << " time=" << time;
-	uint64_t addr = physAddr + i;
-	if (insertTags.at(i) == 0)
-	  cerr << " merge-buffer write without corresponding insert addr=0x"
-	       << std::hex << addr << std::dec << '\n';
-	else
-	  cerr << " merge-buffer write does not match merge-buffer insert addr=0x"
-	       << std::hex << addr << " write-data=0x" << unsigned(rtlData.at(i))
-	       << " insert-data=0x" << unsigned(line.at(i)) << std::dec
-	       << " insert-tag=" << insertTags.at(i) << '\n';
-	result = false;
-	break;
-      }
+
+  if (not skipCheck)
+    {
+      // Apply pending writes (from mbinsert operations) to our line and to memory.
+      for (const auto& write : coveredWrites)
+        {
+          if ((write.pa_ < physAddr) or (write.pa_ + write.size_ > lineEnd))
+            {
+              cerr << "Mcm::mergeBufferWrite: Store address out of line bound\n";
+              return false;
+            }
+
+          assert(write.size_ <= 8);
+          pokeHartMemory(hart, write.pa_, write.rtlData_, write.size_);
+
+          unsigned ix = write.pa_ - physAddr;
+          for (unsigned i = 0; i < write.size_; ++i)
+            {
+              line.at(ix+i) = ((uint8_t*) &(write.rtlData_))[i];
+              insertTags.at(ix+i) = write.tag_;
+            }
+        }
+
+      // Compare inserted data to written (drained) data.
+      size_t count = std::min(line.size(), rtlData.size());
+      for (unsigned i = 0; i < count; ++i)
+        if ((rtlMask.empty() or rtlMask.at(i)) and (line.at(i) != rtlData.at(i)))
+          {
+            cerr << "Error: hart-id=" << hart.hartId() << " time=" << time;
+            uint64_t addr = physAddr + i;
+            if (insertTags.at(i) == 0)
+              cerr << " merge-buffer write without corresponding insert addr=0x"
+                   << std::hex << addr << std::dec << '\n';
+            else
+              cerr << " merge-buffer write does not match merge-buffer insert addr=0x"
+                   << std::hex << addr << " write-data=0x" << unsigned(rtlData.at(i))
+                   << " insert-data=0x" << unsigned(line.at(i)) << std::dec
+                   << " insert-tag=" << insertTags.at(i) << '\n';
+            result = false;
+            break;
+          }
+    }
 
   auto& instrVec = hartData_.at(hartIx).instrVec_;
   auto& undrained = hartData_.at(hartIx).undrainedStores_;

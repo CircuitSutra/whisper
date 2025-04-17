@@ -1359,13 +1359,11 @@ printInteractiveHelp()
   cout << "  Post a non-maskable interrupt with a given cause number (default 0).\n\n";
   cout << "clear_nmi\n";
   cout << "  Clear a pending non-maskable interrupt.\n\n";
-  cout << "mread tag addr size data i|e\n";
+  cout << "mread tag addr size data [vec-elem [vec-field]]\n";
   cout << "  Perform a memory model (out of order) read for load/amo instruction with\n";
   cout << "  given tag. Data is the RTL data to be compared with whisper data\n";
-  cout << "  when instruction is later retired. The whisper data is obtained\n";
-  cout << "  forwarding from preceding instructions if 'i' is present; otherwise,\n";
-  cout << "  it is obtained from memory.\n\n";
-  cout << "mbwrite addr data\n";
+  cout << "  when instruction is later retired. \n\n";
+  cout << "mbwrite addr data [[mask] [skip-check]]\n";
   cout << "  Perform a memory model merge-buffer-write for given address. Given\n";
   cout << "  data (hexadecimal string) is from a different model (RTL) and is compared\n";
   cout << "  to whisper data. Addr should be a multiple of cache-line size. If hex\n";
@@ -2226,13 +2224,13 @@ bool
 Interactive<URV>::mbwriteCommand(Hart<URV>& hart, const std::string& line,
 				 const std::vector<std::string>& tokens)
 {
-  // Format: mbwrite <physical-address> <rtl-data> [<mask>]
+  // Format: mbwrite <physical-address> <rtl-data> [<mask> [<skip-check>]]
   // Data is up to 64 bytes (each byte is 2 hex digits) with least significant
   // byte (rightmost two hex digits) corresponding to smallest address.
-  if (tokens.size() != 3 and tokens.size() != 4)
+  if (tokens.size() < 3 or tokens.size() > 5)
     {
       cerr << "Invalid mbwrite command: " << line << '\n';
-      cerr << "  Expecting: mbwrite <addr> <data>\n";
+      cerr << "  Expecting: mbwrite <addr> <data> <mask> [<skip-check>]\n";
       return false;
     }
 
@@ -2279,41 +2277,44 @@ Interactive<URV>::mbwriteCommand(Hart<URV>& hart, const std::string& line,
     }
 		     
   std::vector<bool> mask;
-  if (tokens.size() == 4)
+  if (tokens.size() > 3)
     {
       hexDigits = tokens.at(3);
-      if (not (hexDigits.starts_with("0x")) or
-	  not (hexDigits.starts_with("0x")))
-	{
-	  cerr << "Error mbwrtie mask myst begin with 0x: " << hexDigits << '\n';
-	  return false;
-	}
+      if (not (hexDigits.starts_with("0x")) or not (hexDigits.starts_with("0x")))
+        {
+          cerr << "Error mbwrtie mask myst begin with 0x: " << hexDigits << '\n';
+          return false;
+        }
       hexDigits = hexDigits.substr(2);
       if ((hexDigits.size() & 1) == 1)
-	{
-	  cerr << "Error: mbwrite hex digit count must be even\n";
-	  return false;
-	}
+        {
+          cerr << "Error: mbwrite hex digit count must be even\n";
+          return false;
+        }
       for (size_t i = 0; i < hexDigits.size(); i += 2)
-	{
-	  std::string byteStr = hexDigits.substr(i, 2);
-	  char* end = nullptr;
-	  unsigned value = strtoul(byteStr.c_str(), &end, 16);
-	  if (end and *end)
-	    {
-	      cerr << "Error: Invalid hex digit(s) in mbwrite data: " << byteStr << '\n';
-	      return false;
-	    }
-	  for (unsigned j = 0; j < 8; ++j)
-	    {
-	      unsigned bit = (value >> (7-j)) & 1;
-	      mask.push_back(bit);
-	    }
-	}
+        {
+          std::string byteStr = hexDigits.substr(i, 2);
+          char* end = nullptr;
+          unsigned value = strtoul(byteStr.c_str(), &end, 16);
+          if (end and *end)
+            {
+              cerr << "Error: Invalid hex digit(s) in mbwrite data: " << byteStr << '\n';
+              return false;
+            }
+          for (unsigned j = 0; j < 8; ++j)
+            {
+              unsigned bit = (value >> (7-j)) & 1;
+              mask.push_back(bit);
+            }
+        }
       std::reverse(mask.begin(), mask.end());
     }
 
-  return system_.mcmMbWrite(hart, this->time_, addr, data, mask);
+  bool skipCheck = false;
+  if (tokens.size() == 5 and not parseCmdLineBool("skip-check", tokens.at(4), skipCheck))
+    return false;
+
+  return system_.mcmMbWrite(hart, this->time_, addr, data, mask, skipCheck);
 }
 
 

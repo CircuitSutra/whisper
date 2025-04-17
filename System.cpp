@@ -1007,11 +1007,11 @@ template <typename URV>
 bool
 System<URV>::mcmMbWrite(Hart<URV>& hart, uint64_t time, uint64_t addr,
 			const std::vector<uint8_t>& data,
-			const std::vector<bool>& mask)
+			const std::vector<bool>& mask, bool skipCheck)
 {
   if (not mcm_)
     return false;
-  return mcm_->mergeBufferWrite(hart, time, addr, data, mask);
+  return mcm_->mergeBufferWrite(hart, time, addr, data, mask, skipCheck);
 }
 
 

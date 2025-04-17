@@ -364,7 +364,8 @@ namespace WdRiscv
     /// is set for each byte of rtlData that is written by the RTL.
     bool mcmMbWrite(Hart<URV>& hart, uint64_t time, uint64_t pysAddr,
 		    const std::vector<uint8_t>& rtlData,
-		    const std::vector<bool>& mask);
+		    const std::vector<bool>& mask,
+                    bool skipCheck = false);
 
     bool mcmMbInsert(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t addr,
                      unsigned size, uint64_t data, unsigned elem, unsigned field);

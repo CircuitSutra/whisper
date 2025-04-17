@@ -223,18 +223,19 @@ namespace WdRiscv
     bool bypassOp(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa,
                   unsigned size, uint64_t rtlData, unsigned elem, unsigned field);
 
-    /// Initiate a merge buffer write.  All associated store write
-    /// transactions are marked completed. Write instructions where
-    /// all writes are complete are marked complete. Return true on
-    /// success.  The given physical address must be a multiple of the
-    /// merge buffer line size (which is also the cache line
-    /// size). The rtlData vector must be of size n or larger where n
-    /// is the merge buffer line size. The rtlData bytes will be
-    /// placed in memory in consecutive locations starting with
-    /// physAddr.
+    /// Initiate a merge buffer write.  All associated store write transactions are marked
+    /// completed. Write instructions where all writes are complete are marked
+    /// complete. Return true on success.  The given physical address must be a multiple
+    /// of the merge buffer line size (which is also the cache line size). The rtlData
+    /// vector must be of size n or larger where n is the merge buffer line size. The
+    /// rtlData bytes will be placed in memory in consecutive locations starting with
+    /// physAddr. If skipCheck is true, do not check RTL data versus Whisper data and do
+    /// not update Whisper memory (this is used by test-bench for non correctable checksum
+    /// errors).
     bool mergeBufferWrite(Hart<URV>& hart, uint64_t time, uint64_t physAddr,
 			  const std::vector<uint8_t>& rtlData,
-			  const std::vector<bool>& mask);
+			  const std::vector<bool>& mask,
+                          bool skipCheck = false);
 
     /// Insert a write operation for the given instruction into the merge buffer removing
     /// it from the store buffer. Return true on success. Size is expected to be less than
