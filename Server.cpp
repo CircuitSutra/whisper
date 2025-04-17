@@ -1329,7 +1329,8 @@ Server<URV>::interact(const WhisperMessage& msg, WhisperMessage& reply, FILE* tr
             for (size_t i = 0; i < msg.size; ++i)
               {
                 data.at(i) = msg.buffer.at(i);
-                mask.at(i) = msg.tag.at(i/8) & (1 << (i%8));
+                if (hasMask)
+                  mask.at(i) = msg.tag.at(i/8) & (1 << (i%8));
               }
 
             if (commandLog)
