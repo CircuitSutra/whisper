@@ -408,6 +408,8 @@ namespace WdRiscv
     /// executed by the same hart.
     bool checkSfenceWInval(Hart<URV>& hart, const McmInstr& instr) const;
 
+    bool checkCmo(Hart<URV>& bart, const McmInstr& instr) const;
+
     uint64_t latestOpTime(const McmInstr& instr) const
     {
       if (not instr.complete_)
@@ -993,11 +995,6 @@ namespace WdRiscv
       // Set of stores that may affect (through forwarding) the currently executing load
       // instruction.
       std::set<McmInstrIx> forwardingStores_;
-
-      /// Map a store instruction index to the count of associated merge buffer insert
-      /// operations. This can be dropped once mbinsert is associated with the vector
-      /// element index and field.
-      std::unordered_map<McmInstrIx, uint16_t> storeInsertCount_;
 
       McmInstrIx currentLoadTag_ = 0;  // Currently executing load instruction.
 

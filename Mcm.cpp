@@ -950,7 +950,6 @@ Mcm<URV>::mergeBufferInsert(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64
       if (instr->complete_)
 	{
 	  undrained.erase(tag);
-	  hartData_.at(hartIx).storeInsertCount_.erase(tag);
 	  checkStoreData(hart, *instr);
 	}
 
@@ -1002,7 +1001,8 @@ Mcm<URV>::bypassOp(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa,
     }
 
   auto& undrained = hartData_.at(hartIx).undrainedStores_;
-  undrained.insert(tag);
+  if (size > 0)
+    undrained.insert(tag);
 
   bool result = true;
 
@@ -1032,7 +1032,6 @@ Mcm<URV>::bypassOp(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa,
   if (instr->complete_)
     {
       undrained.erase(tag);
-      hartData_.at(hartIx).storeInsertCount_.erase(tag);
 
       if (not instr->retired_)
 	return result;
@@ -1044,6 +1043,9 @@ Mcm<URV>::bypassOp(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa,
 
       if (isEnabled(PpoRule::R3))
 	result = ppoRule3(hart, *instr) and result;
+
+      if (instr->di_.extension() == RvExtension::Zicbom)
+        result = checkCmo(hart, *instr) and result;
     }
 
   return result;
@@ -1125,7 +1127,6 @@ Mcm<URV>::retireStore(Hart<URV>& hart, McmInstr& instr)
     }
 
   undrained.erase(instr.tag_);
-  hartData_.at(hartIx).storeInsertCount_.erase(instr.tag_);
   return ok;
 }
 
@@ -1150,24 +1151,46 @@ Mcm<URV>::retireCmo(Hart<URV>& hart, McmInstr& instrB)
   if (instrB.di_.instId() == InstId::cbo_zero)
     {
       instrB.isStore_ = true;  // To enable forwarding
-
       instrB.complete_ = checkStoreComplete(hartIx, instrB);
       if (instrB.complete_)
-	{
-	  undrained.erase(instrB.tag_);
-	  hartData_.at(hartIx).storeInsertCount_.erase(instrB.tag_);
-	  if (isEnabled(PpoRule::R1))
+        {
+          undrained.erase(instrB.tag_);
+          if (isEnabled(PpoRule::R1))
 	    return ppoRule1(hart, instrB);
-	}
+        }
       else
-	undrained.insert(instrB.tag_);
+        undrained.insert(instrB.tag_);
+    }
+  else
+    {
+      instrB.complete_ = checkStoreComplete(hartIx, instrB);
+      if (instrB.complete_)
+        return checkCmo(hart, instrB);
+    }
 
+  return true;
+}
+
+
+template <typename URV>
+bool
+Mcm<URV>::checkCmo(Hart<URV>& hart, const McmInstr& instrB) const
+{
+  assert(instrB.complete_);
+
+  unsigned hartIx = hart.sysHartIndex();
+
+  if (instrB.di_.instId() == InstId::cbo_zero)
+    {
+      if (isEnabled(PpoRule::R1))
+        return ppoRule1(hart, instrB);
       return true;
     }
 
   // For cbo.flush/clean/inval, all preceding (in program order) overlapping stores/AMOs
   // must have drained.
   const auto& instrVec = hartData_.at(hartIx).instrVec_;
+  auto& undrained = hartData_.at(hartIx).undrainedStores_;
 
   for (auto storeTag : undrained)
     {
@@ -1601,7 +1624,6 @@ Mcm<URV>::mergeBufferWrite(Hart<URV>& hart, uint64_t time, uint64_t physAddr,
 	{
 	  instr->complete_ = true;
 	  undrained.erase(instr->tag_);
-	  hartData_.at(hartIx).storeInsertCount_.erase(instr->tag_);
 	  checkStoreData(hart, *instr);
 	  if (isEnabled(PpoRule::R1))
 	    result = ppoRule1(hart, *instr) and result;
@@ -1676,8 +1698,6 @@ Mcm<URV>::cancelInstr(Hart<URV>& hart, McmInstr& instr)
 	   << " canceled or trapped instruction has a write operation\n";
       undrained.erase(iter);
     }
-
-  hartData_.at(hartIx).storeInsertCount_.erase(instr.tag_);
 
   for (auto memIx : instr.memOps_)
     {
@@ -2072,7 +2092,24 @@ template <typename URV>
 bool
 Mcm<URV>::checkStoreComplete(unsigned hartIx, const McmInstr& instr) const
 {
-  if (instr.isCanceled() or not instr.isStore_)
+  if (instr.isCanceled() or not instr.retired_)
+    return false;
+
+  if (instr.di_.extension() == RvExtension::Zicbom)
+    {
+      // Cbo.flush/clean/inval are not marked store to disabled forwarding.
+      // For cbo.flush/clean/inval test-bench sends 1 zero-size bypass operation.
+      if (instr.memOps_.size() == 1)
+        {
+          const auto& op = sysMemOps_.at(instr.memOps_.at(0));
+          assert(op.size_ == 0 and op.bypass_);
+          return op.size_ == 0 and op.bypass_;
+        }
+      assert(instr.memOps_.size() == 0);
+      return false;
+    }
+
+  if (not instr.isStore_)
     return false;
 
   if (instr.di_.instId() == InstId::cbo_zero)
@@ -5263,16 +5300,23 @@ Mcm<URV>::checkLoadVsPriorCmo(Hart<URV>& hart, const McmInstr& instrB) const
       if (instrA.di_.extension() != RvExtension::Zicbom)
         continue;  // Not cbo.flush/clean/inval
 
+      auto aTime = instrA.retireTime_;
+      if (instrA.memOps_.size() == 1)   // CMO instrs have at most 1 bypass op
+        {
+          const auto& aop = sysMemOps_.at(instrA.memOps_.at(0));
+          aTime = std::min(aTime, aop.time_);  // Bypass time may be earlier.
+        }
+
       for (const auto& opIx : instrB.memOps_)
         if (opIx < sysMemOps_.size())
           {
-            const auto& op = sysMemOps_.at(opIx);
-            if (overlaps(instrA, op) and op.time_ < instrA.retireTime_)
+            const auto& bop = sysMemOps_.at(opIx);
+            if (overlaps(instrA, bop) and bop.time_ < aTime)
               {
                 cerr << "Error: Read op of load instruction happens before retire time of "
                      << "preceding overlapping cbo.clean/flush: hart-id=" << hart.hartId()
                      << " cbo-tag=" << instrA.tag_ << " load-tag=" << instrB.tag_
-                     << " cbo-time=" << instrA.retireTime_ << " read-time=" << op.time_
+                     << " cbo-time=" << aTime << " read-time=" << bop.time_
                      << '\n';
                 return false;
               }
