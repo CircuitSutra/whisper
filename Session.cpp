@@ -551,15 +551,15 @@ Session<URV>::determineIsa(const HartConfig& config, const Args& args, bool clib
   if (isa.empty() and clib)
     {
       if (args.verbose)
-	std::cerr << "No ISA specified, using i/m/a/c/f/d/v extensions for newlib/linux\n";
-      isa = "imcafdv";
+	std::cerr << "No ISA specified, using imacfdv_zicsr extensions for newlib/linux\n";
+      isa = "imacfdv_zicsr";
     }
 
   if (isa.empty() and not args.raw)
     {
       if (args.verbose)
-	std::cerr << "No ISA specified: Defaulting to imac\n";
-      isa = "imacfd";
+	std::cerr << "No ISA specified: Defaulting to imacfd_zicsr\n";
+      isa = "imacfd_zicsr";
     }
 
   return true;

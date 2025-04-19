@@ -550,7 +550,7 @@ Hart<URV>::processExtensions(bool verbose)
   enableExtension(RvExtension::Zvbc,     isa_.isEnabled(RvExtension::Zvbc));
   enableExtension(RvExtension::Zvfbfmin, isa_.isEnabled(RvExtension::Zvfbfmin));
   enableExtension(RvExtension::Zvfbfwma, isa_.isEnabled(RvExtension::Zvfbfwma));
-  enableExtension(RvExtension::Zvqdot,   true /*isa_.isEnabled(RvExtension::Zvqdot*/);
+  enableExtension(RvExtension::Zvqdot,   isa_.isEnabled(RvExtension::Zvqdot));
   enableExtension(RvExtension::Zvfh,     isa_.isEnabled(RvExtension::Zvfh));
   enableExtension(RvExtension::Zvfhmin,  isa_.isEnabled(RvExtension::Zvfhmin));
   enableExtension(RvExtension::Zvkg,     isa_.isEnabled(RvExtension::Zvkg));
@@ -570,8 +570,8 @@ Hart<URV>::processExtensions(bool verbose)
   enableExtension(RvExtension::Zcmop,    isa_.isEnabled(RvExtension::Zcmop));
   enableExtension(RvExtension::Smaia,    isa_.isEnabled(RvExtension::Smaia));
   enableExtension(RvExtension::Ssaia,    isa_.isEnabled(RvExtension::Ssaia));
-  enableExtension(RvExtension::Zicsr,    true /*isa_.isEnabled(RvExtension::Zicsr)*/);
-  enableExtension(RvExtension::Zifencei, true /*isa_.isEnabled(RvExtension::Zifencei)*/);
+  enableExtension(RvExtension::Zicsr,    isa_.isEnabled(RvExtension::Zicsr));
+  enableExtension(RvExtension::Zifencei, isa_.isEnabled(RvExtension::Zifencei));
 
   if (isa_.isEnabled(RvExtension::Sstc))
     enableRvsstc(true);
