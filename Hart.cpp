@@ -570,7 +570,7 @@ Hart<URV>::processExtensions(bool verbose)
   enableExtension(RvExtension::Zcmop,    isa_.isEnabled(RvExtension::Zcmop));
   enableExtension(RvExtension::Smaia,    isa_.isEnabled(RvExtension::Smaia));
   enableExtension(RvExtension::Ssaia,    isa_.isEnabled(RvExtension::Ssaia));
-  enableExtension(RvExtension::Zicsr,    isa_.isEnabled(RvExtension::Zicsr));
+  enableExtension(RvExtension::Zicsr,    true /*isa_.isEnabled(RvExtension::Zicsr)*/); // Default true until we fix riscof
   enableExtension(RvExtension::Zifencei, isa_.isEnabled(RvExtension::Zifencei));
 
   if (isa_.isEnabled(RvExtension::Sstc))
