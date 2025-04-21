@@ -3054,7 +3054,7 @@ Mcm<URV>::vecStoreToReadForward(const McmInstr& store, MemoryOp& readOp, uint64_
       if (drained)
 	continue;   // Cannot forward from a drained write.
 
-      if (writeCount != 0 and lastWopTime >= readOp.time_)
+      if (lastWopTime >= readOp.time_)
         {
           uint64_t offset = lastWopTime - readOp.time_;
           uint16_t off16 = static_cast<uint16_t>(offset);  // TODO: Use gsl
