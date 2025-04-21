@@ -4802,21 +4802,19 @@ Hart<URV>::vslideup(unsigned vd, unsigned vs1, URV amount, unsigned group,
 {
   ELEM_TYPE e1 = 0, dest = 0;
 
-  if (start >= vecRegs_.elemCount())
+  if (start >= vecRegs_.elemCount() or
+      amount >= vecRegs_.elemCount())
     return;
 
   unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
 
-  for (unsigned ix = start; ix < elems; ++ix)
+  for (unsigned ix = std::max(start, unsigned(amount)); ix < elems; ++ix)
     {
       if (vecRegs_.isDestActive(vd, ix, destGroup, masked, dest))
 	{
-	  if (ix >= amount)
-	    {
-	      unsigned from = ix - amount;
-	      vecRegs_.read(vs1, from, group, e1);
-	      dest = e1;
-	    }
+          unsigned from = ix - amount;
+          vecRegs_.read(vs1, from, group, e1);
+          dest = e1;
 	}
       vecRegs_.write(vd, ix, destGroup, dest);
     }
