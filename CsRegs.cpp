@@ -4037,7 +4037,8 @@ CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode) const
                     value2 = (iid2 << 16) | 0;
                 }
 
-              if (not value and not value2)
+              if ((not value and not value2) or
+                  (value and not value2))
                 return true;
 
               if (prio2 < prio or (not value and value2))
