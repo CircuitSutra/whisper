@@ -106,6 +106,13 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     uint64_t dataPa() const
     { return dpa_; }
 
+    /// Return a vector of pa/va address pairs corresponding to the virtual/physical
+    /// data addresses of the vector load/store instruction of this packet. Vector
+    /// will be empty if the instruction is not a vector load/store or if the no
+    /// memory was accessed by the instruction.
+    const std::vector<std::pair<uint64_t,uint64_t>>& vecDataAddrs() const
+    { return vecAddrs_; }
+
     /// Return the size of the instruction (2 or 4 bytes). Instruction must be fetched.
     uint64_t instrSize() const
     { assert(fetched_); return di_.instSize(); }
@@ -294,6 +301,9 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
 
     // Used for commiting vector store and for forwarding.
     std::unordered_map<uint64_t, uint8_t> stDataMap_;
+
+    // Vector of va/pa of vector load/store instruction.
+    std::vector< std::pair<uint64_t, uint64_t> > vecAddrs_;
 
     uint64_t flushVa_ = 0;    // Redirect PC for packets that should be flushed.
 
@@ -608,6 +618,9 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     /// Record the results (register values) corresponding to the operands of the packet
     /// after the execution of the instruction of that packet.
     void recordExecutionResults(Hart64& hart, InstrPac& packet);
+
+    //// Helper to recordExecutionResults.
+    void updatePacketDataAddress(Hart64& hart, InstrPac& packet);
 
     /// Check execute stage results versus retire stage. Return true on match and false on
     /// mismatch.

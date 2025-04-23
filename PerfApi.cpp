@@ -1549,7 +1549,7 @@ PerfApi::peekVecRegGroup(Hart64& hart, unsigned regNum, unsigned lmul, OpVal& va
 
 
 void
-PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
+PerfApi::updatePacketDataAddress(Hart64& hart, InstrPac& packet)
 {
   auto& di = packet.decodedInst();
 
@@ -1559,7 +1559,15 @@ PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
     {
       hart.lastLdStAddress(packet.dva_, packet.dpa_, packet.dpa2_);
       packet.dsize_ = di.loadSize();
-      packet.deviceAccess_ = hart.isAclintMtimeAddr(packet.dpa_) or hart.isImsicAddr(packet.dpa_) or hart.isPciAddr(packet.dpa_) or hart.isHtifAddr(packet.dpa_);
+      uint64_t dpa = packet.dpa_;
+      packet.deviceAccess_ = ( hart.isAclintMtimeAddr(dpa) or hart.isImsicAddr(dpa) or
+                               hart.isPciAddr(dpa) or hart.isHtifAddr(dpa) );
+    }
+  else if (di.isVectorLoad())
+    {
+      auto& info = hart.getLastVectorMemory();
+      for (auto& elem : info.elems_)
+        packet.vecAddrs_.push_back(std::pair<uint64_t, uint64_t>(elem.va_, elem.pa_));
     }
   else if (di.isStore() or di.isAmo() or di.isVectorStore())
     {
@@ -1568,7 +1576,7 @@ PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
       if (ssize == 0 and (di.isStore() or di.isAmo()) and not di.isSc())
 	{    // sc or vec-store may have 0 size
 	  std::cerr << "Hart=" << hartIx << " tag=" << packet.tag_
-		    << " store/AMO with zero size\n";
+		    << " Error: store/AMO with zero size\n";
 	  assert(0);
 	}
 
@@ -1587,6 +1595,10 @@ PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
         }
       else if (di.isVectorStore())
         {
+          auto& info = hart.getLastVectorMemory();
+          for (auto& elem : info.elems_)
+            packet.vecAddrs_.push_back(std::pair<uint64_t, uint64_t>(elem.va_, elem.pa_));
+
           storeMap[tag] = getInstructionPacket(hartIx, tag);
           // FIX What to do about device access? Do we allow mixed device/non-device
           // access?
@@ -1594,14 +1606,24 @@ PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
       else if (di.isStore() and not di.isSc())
 	{
 	  storeMap[tag] = getInstructionPacket(hartIx, tag);
-	  packet.deviceAccess_ = hart.isAclintMtimeAddr(packet.dpa_) or hart.isImsicAddr(packet.dpa_) or hart.isPciAddr(packet.dpa_) or hart.isHtifAddr(packet.dpa_);
+          uint64_t dpa = packet.dpa_;
+	  packet.deviceAccess_ = ( hart.isAclintMtimeAddr(dpa) or hart.isImsicAddr(dpa) or
+                                   hart.isPciAddr(dpa) or hart.isHtifAddr(dpa) );
 	}
     }
+}
+
+
+void
+PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
+{
+  updatePacketDataAddress(hart, packet);
 
   if (hart.hasTargetProgramFinished())
     packet.nextIva_ = haltPc;
 
-  if (di.isBranch()) packet.taken_ = hart.lastBranchTaken();
+  if (packet.di_.isBranch())
+    packet.taken_ = hart.lastBranchTaken();
 
   // Record the values of the destination register.
   unsigned destIx = 0;
