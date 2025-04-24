@@ -115,6 +115,23 @@ PTYChannelBase::~PTYChannelBase()
 PTYChannel::PTYChannel() : PTYChannelBase(), FDChannel(master_, master_)
 { }
 
+ForkChannel::ForkChannel(std::unique_ptr<UartChannel> readWriteChannel, std::unique_ptr<UartChannel> writeOnlyChannel)
+  : readWriteChannel_(std::move(readWriteChannel)), writeOnlyChannel_(std::move(writeOnlyChannel)) {}
+
+size_t ForkChannel::read(uint8_t *buf, size_t size) {
+  return readWriteChannel_->read(buf, size);
+}
+
+void ForkChannel::write(uint8_t byte) {
+  readWriteChannel_->write(byte);
+  writeOnlyChannel_->write(byte);
+}
+
+void ForkChannel::terminate() {
+  readWriteChannel_->terminate();
+  writeOnlyChannel_->terminate();
+}
+
 Uart8250::Uart8250(uint64_t addr, uint64_t size,
     std::shared_ptr<TT_APLIC::Aplic> aplic, uint32_t iid,
     std::unique_ptr<UartChannel> channel, bool enableInput)

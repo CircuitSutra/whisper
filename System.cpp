@@ -91,7 +91,6 @@ System<URV>::System(unsigned coreCount, unsigned hartsPerCore,
 #endif
 }
 
-
 template <typename URV>
 bool
 System<URV>::defineUart(const std::string& type, uint64_t addr, uint64_t size,
@@ -99,34 +98,53 @@ System<URV>::defineUart(const std::string& type, uint64_t addr, uint64_t size,
 {
   std::shared_ptr<IoDevice> dev;
 
+
+  auto createChannel = [](std::string_view channel_type) -> std::unique_ptr<UartChannel> {
+    auto createChannelImpl = [](std::string_view channel_type, auto &createChannelImpl) -> std::unique_ptr<UartChannel> {
+      auto pos = channel_type.find(';');
+      if (pos != std::string::npos)
+      {
+        std::string_view readWriteChannelType = channel_type.substr(0, pos);
+        std::string_view writeOnlyChannelType = channel_type.substr(pos + 1);
+
+        std::unique_ptr<UartChannel> readWriteChannel = createChannelImpl(readWriteChannelType, createChannelImpl);
+        std::unique_ptr<UartChannel> writeOnlyChannel = createChannelImpl(writeOnlyChannelType, createChannelImpl);
+
+        return std::make_unique<ForkChannel>(std::move(readWriteChannel), std::move(writeOnlyChannel));
+      }
+      else if (channel_type == "stdio")
+        return std::make_unique<FDChannel>(fileno(stdin), fileno(stdout));
+      else if (channel_type == "pty")
+        return std::make_unique<PTYChannel>();
+      else
+      {
+        std::cerr << "System::defineUart: Invalid channel: " << channel_type << "\n";
+        return nullptr;
+      }
+    };
+    return createChannelImpl(channel_type, createChannelImpl);
+  };
+
   if (type == "uartsf")
     dev = std::make_shared<Uartsf>(addr, size);
   else if (type == "uart8250")
-    {
-      std::unique_ptr<UartChannel> channel;
-      if (channel_type == "stdio")
-        channel = std::make_unique<FDChannel>(fileno(stdin), fileno(stdout));
-      else if (channel_type == "pty")
-        channel = std::make_unique<PTYChannel>();
-      else
-        {
-          std::cerr << "System::defineUart: Invalid channel: " << channel_type << "\n";
-          return false;
-        }
-      dev = std::make_shared<Uart8250>(addr, size, aplic_, iid, std::move(channel), false);
-    }
-  else
-    {
-      std::cerr << "System::defineUart: Invalid uadrt type: " << type << "\n";
+  {
+    std::unique_ptr<UartChannel> channel = createChannel(channel_type);
+    if (!channel)
       return false;
-    }
+    dev = std::make_shared<Uart8250>(addr, size, aplic_, iid, std::move(channel), false);
+  }
+  else
+  {
+    std::cerr << "System::defineUart: Invalid uart type: " << type << "\n";
+    return false;
+  }
 
   memory_->registerIoDevice(dev);
   ioDevs_.push_back(std::move(dev));
 
   return true;
 }
-
 
 template <typename URV>
 System<URV>::~System()
