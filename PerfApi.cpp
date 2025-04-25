@@ -1188,11 +1188,56 @@ InstrPac::getDestOperands(std::array<Operand, 2>& ops)
     {
       auto& op = operands_.at(i);
       if (op.mode == OM::Write or op.mode == OM::ReadWrite)
-        ops.at(count++) = op;
+        {
+          auto& tgt = ops.at(count);
+          tgt = op;
+          tgt.value = destValues_.at(count).second;
+          ++count;
+        }
     }
 
   return count;
 }
+
+
+unsigned
+InstrPac::getImplicitDestOperands(std::array<Operand, 4>& ops)
+{
+  assert(decoded_);
+  if (not decoded_)
+    return 0;
+
+  assert(di_.operandCount() <= operandCount_);
+
+  unsigned start = di_.operandCount();
+
+  using OM = WdRiscv::OperandMode;
+
+  unsigned explicitDests = 0;
+  for (unsigned i = start; i < di_.operandCount(); ++i)
+    {
+      auto& op = operands_.at(i);
+      if (op.mode == OM::Write or op.mode == OM::ReadWrite)
+        ++explicitDests;
+    }
+
+  unsigned count = 0;  // Count of implicit destinations.
+
+  for (unsigned i = start; i < operandCount_; ++i)
+    {
+      auto& op = operands_.at(i);
+      if (op.mode == OM::Write or op.mode == OM::ReadWrite)
+        {
+          auto& tgt = ops.at(count);
+          tgt = op;
+          tgt.value = destValues_.at(explicitDests + count).second;
+          ++count;
+        }
+    }
+
+  return count;
+}
+
 
 
 uint64_t

@@ -266,13 +266,20 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
 
     /// Fill the given array with the source operands of this instruction (which must be
     /// decoded). Value of each operand will be zero unless the instruction is executed.
-    /// Return the number of operands written into the array.
+    /// Return the number of operands written into the array. This excludes implicit
+    /// operands.
     unsigned getSourceOperands(std::array<Operand, 3>& ops);
 
     /// Fill the given array with the destination operands of this instruction (which must
     /// be decoded). Value of each operand will be zero unless the instruction is
-    /// executed. Return the number of operands written into the array.
+    /// executed. Return the number of operands written into the array. This excludes
+    /// implicit operands.
     unsigned getDestOperands(std::array<Operand, 2>& ops);
+
+    /// Fill the given array with the implicit destination operands of this instruction
+    /// (which must be decoded). Value of each operand will be zero unless the instruction
+    /// is executed. Return the number of operands written into the array.
+    unsigned getImplicitDestOperands(std::array<Operand, 4>& ops);
 
   protected:
 
