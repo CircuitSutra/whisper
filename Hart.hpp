@@ -951,13 +951,13 @@ namespace WdRiscv
     /// Set/clear low priorty exception for fetch/ld scenarios. For vector
     /// loads, we use the element index to determine the exception. This is
     /// useful for TB to inject errors.
-    void injectException(bool isLoad, URV code, unsigned elemIx)
+    void injectException(bool isLoad, URV cause, unsigned elemIx, URV addr)
     {
-      injectException_ = static_cast<ExceptionCause>(code);
       injectExceptionIsLd_ = isLoad;
+      injectException_ = static_cast<ExceptionCause>(cause);
       injectExceptionElemIx_ = elemIx;
+      injectAddr_ = addr;
     }
-
 
     /// Define address to which a write will stop the simulator. An
     /// sb, sh, or sw instruction will stop the simulator if the write
@@ -1117,6 +1117,20 @@ namespace WdRiscv
     /// Return the cache line size.
     unsigned cacheLineSize() const
     { return cacheLineSize_; }
+
+    /// Return the cache line number (address divided by line-size) of the given address.
+    uint64_t cacheLineNum(uint64_t addr) const
+    { return addr >> cacheLineShift_; }
+
+    /// Set the cache line size to n which must be a power of 2.
+    void setCacheLineSize(unsigned n)
+    {
+      assert(n > 0);
+      assert((n & (n-1)) == 0);
+      cacheLineSize_ = n;
+      cacheLineShift_ = std::countr_zero(n);
+      assert((unsigned(1) << cacheLineShift_) == n);
+    }
 
     const VecLdStInfo& getLastVectorMemory() const
     { return vecRegs_.getLastMemory(); }
@@ -5615,6 +5629,7 @@ namespace WdRiscv
     bool indexedNmi_ = false;  // NMI handler is at a cause-scaled offset when true.
 
     unsigned cacheLineSize_ = 64;
+    unsigned cacheLineShift_ = 6;
 
     uint64_t& time_;             // Only hart 0 increments this value.
     uint64_t timeDownSample_ = 0;
@@ -5772,6 +5787,7 @@ namespace WdRiscv
 
     // Exceptions injected by user.
     ExceptionCause injectException_ = ExceptionCause::NONE;
+    uint64_t injectAddr_ = 0;
     bool injectExceptionIsLd_ = false;
     unsigned injectExceptionElemIx_ = 0;
 

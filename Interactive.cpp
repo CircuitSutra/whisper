@@ -2751,16 +2751,19 @@ bool
 Interactive<URV>::injectExceptionCommand(Hart<URV>& hart, const std::string& line,
                                          const std::vector<std::string>& tokens)
 {
-  if (tokens.size() == 4)
+  if (tokens.size() >= 4)
     {
-      uint64_t flags, address, resource;
+      uint64_t flags = 0, cause = 0, elemIx = 0, addr = 0;
       if (not parseCmdLineNumber("inject-exception-flags", tokens.at(1), flags))
         return false;
-      if (not parseCmdLineNumber("inject-exception-address", tokens.at(2), address))
+      if (not parseCmdLineNumber("inject-exception-cause", tokens.at(2), cause))
         return false;
-      if (not parseCmdLineNumber("inject-exception-resource", tokens.at(3), resource))
+      if (not parseCmdLineNumber("inject-exception-elem-ix", tokens.at(3), elemIx))
         return false;
-      hart.injectException(flags, address, resource);
+      if (tokens.size() == 5)
+        if (not parseCmdLineNumber("inject-exception-addr", tokens.at(4), addr))
+          return false;
+      hart.injectException(flags, cause, elemIx, addr);
     }
   else
     {
