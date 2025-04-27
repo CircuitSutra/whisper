@@ -596,7 +596,7 @@ namespace WdRiscv
           if (mstatusMprv() and not nmieOverridesMprv() and not debugModeOverridesMprv())
             {
               pm = mstatusMpp();
-              virt = mstatus_.bits_.MPV;
+              virt = pm == PM::Machine? false : mstatus_.bits_.MPV;
             }
 
           if (hyper)
@@ -2672,7 +2672,7 @@ namespace WdRiscv
     {
       bool virt = virtMode_;
       if (mstatusMprv() and not nmieOverridesMprv())
-	virt = mstatus_.bits_.MPV;
+	virt = mstatusMpp() == PrivilegeMode::Machine? false : mstatus_.bits_.MPV;
       return virt;
     }
 
