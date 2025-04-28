@@ -2790,10 +2790,31 @@ HartConfig::configHarts(System<URV>& system, bool userMode, bool verbose) const
             }
           else
             {
-              channel = uart.at("channel").get<std::string>();
-              if (channel != "stdio" && channel != "pty")
+              auto isValidChannel = [](std::string_view channel) -> bool
                 {
-                  std::cerr << "Invalid uart channel: " << channel << ". Valid channels: stdio, pty.\n";
+                  auto isValidChannelImpl = [](std::string_view channel, auto &isValidChannelImpl) -> bool {
+                    auto pos = channel.find(';');
+                    if (pos != std::string::npos)
+                      {
+                        return isValidChannelImpl(channel.substr(0, pos), isValidChannelImpl) and
+                               isValidChannelImpl(channel.substr(pos + 1), isValidChannelImpl);
+                      }
+                    else if (channel == "stdio" or channel == "pty")
+                      {
+                        return true;
+                      }
+                    return false;
+                  };
+
+                  return isValidChannelImpl(channel, isValidChannelImpl);
+                };
+              channel = uart.at("channel").get<std::string>();
+              if (!isValidChannel(channel))
+                {
+                  std::cerr << "Invalid uart channel: " << channel << ". Valid " <<
+                    "channels: stdio, pty or a ';' delimited list of those " <<
+                    "channels where the first one will be read and written and " <<
+                    "the rest will only be written.\n";
                   return false;
                 }
             }

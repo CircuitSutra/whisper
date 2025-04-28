@@ -64,8 +64,20 @@ namespace WdRiscv
   };
 
   class PTYChannel : private PTYChannelBase, public FDChannel {
-  public:
-    PTYChannel();
+    public:
+      PTYChannel();
+  };
+
+  class ForkChannel : public UartChannel {
+    public:
+      ForkChannel(std::unique_ptr<UartChannel> readWriteChannel, std::unique_ptr<UartChannel> writeOnlyChannel);
+      size_t read(uint8_t *buf, size_t size) override;
+      void write(uint8_t byte) override;
+      void terminate() override;
+
+    private:
+      std::unique_ptr<UartChannel> readWriteChannel_;
+      std::unique_ptr<UartChannel> writeOnlyChannel_;
   };
 
   class Uart8250 : public IoDevice
