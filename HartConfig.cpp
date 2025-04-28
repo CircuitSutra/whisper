@@ -1651,6 +1651,42 @@ HartConfig::applyAplicConfig(System<URV>& system) const
   return system.configAplic(num_sources, domain_params_list);
 }
 
+template <typename URV>
+bool
+HartConfig::applyIommuConfig(System<URV>& system) const
+{
+  std::string_view tag = "iommu";
+  if (not config_ -> contains(tag))
+    return true;  // Nothing to apply
+
+  const auto& iommu_cfg = config_ -> at(tag);
+
+  for (std::string_view tag : { "base", "size", "capabilities" } )
+    {
+      if (not iommu_cfg.contains(tag))
+        {
+          std::cerr << "Error: Missing " << tag << " field in iommu section of configuration file.\n";
+          return false;
+        }
+    }
+
+  tag = "base";
+  URV base_addr;
+  if (not getJsonUnsigned("iommu.base", iommu_cfg.at(tag), base_addr))
+    return false;
+
+  tag = "size";
+  URV size;
+  if (not getJsonUnsigned("iommu.size", iommu_cfg.at(tag), size))
+    return false;
+
+  tag = "capabilities";
+  URV capabilities;
+  if (not getJsonUnsigned("iommu.capabilities", iommu_cfg.at(tag), capabilities))
+    return false;
+
+  return system.configIommu(base_addr, size, capabilities);
+}
 
 /// Helper function that converts a JSON array of interrupt identifiers into a vector of
 /// InterruptCause values. Return true on success and false on parse errors.
@@ -3391,3 +3427,9 @@ HartConfig::applyAplicConfig(System<uint32_t>&) const;
 
 template bool
 HartConfig::applyAplicConfig(System<uint64_t>&) const;
+
+template bool
+HartConfig::applyIommuConfig(System<uint32_t>&) const;
+
+template bool
+HartConfig::applyIommuConfig(System<uint64_t>&) const;

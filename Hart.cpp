@@ -2282,6 +2282,14 @@ Hart<URV>::deviceRead(uint64_t pa, unsigned size, uint64_t& val)
       return;
     }
 
+  if (isIommuAddr(pa))
+    {
+      uint64_t val64;
+      iommu_->read(pa, size, val64);
+      val = val64;
+      return;
+    }
+
   assert(0 && "Error: Assertion failed");  // No device contains given address.
 }
 
@@ -2322,6 +2330,12 @@ Hart<URV>::deviceWrite(uint64_t pa, STORE_TYPE storeVal)
             std::hex << pa << std::dec << ", size = " << sizeof(storeVal) <<
             " bytes, data = 0x" << std::hex << uint64_t(storeVal) << std::dec << "\n";
         }
+      return;
+    }
+
+  if (isIommuAddr(pa))
+    {
+      iommu_->write(pa, sizeof(storeVal), storeVal);
       return;
     }
 

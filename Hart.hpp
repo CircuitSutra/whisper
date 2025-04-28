@@ -26,6 +26,7 @@
 #include <boost/circular_buffer.hpp>
 #include <atomic>
 #include "aplic/Aplic.hpp"
+#include "iommu/Iommu.hpp"
 #include "IntRegs.hpp"
 #include "CsRegs.hpp"
 #include "float-util.hpp"
@@ -2375,6 +2376,9 @@ namespace WdRiscv
     void attachAplic(std::shared_ptr<TT_APLIC::Aplic> aplic)
     { aplic_ = aplic; }
 
+    void attachIommu(std::shared_ptr<TT_IOMMU::Iommu> iommu)
+    { iommu_ = iommu; }
+
     /// Return true if given extension is enabled.
     constexpr bool extensionIsEnabled(RvExtension ext) const
     {
@@ -2598,7 +2602,13 @@ namespace WdRiscv
     { return toHostValid_ and addr == toHost_; }
 
     bool isDeviceAddr(uint64_t addr) const
-    { return isAclintAddr(addr) or isImsicAddr(addr) or isPciAddr(addr) or isAplicAddr(addr); }
+    {
+        return isAclintAddr(addr) or
+            isImsicAddr(addr) or
+            isPciAddr(addr) or
+            isAplicAddr(addr) or
+            isIommuAddr(addr);
+    }
 
     /// Return true if the given address is in the range of the ACLINT device.
     bool isAclintAddr(uint64_t addr) const
@@ -2622,6 +2632,10 @@ namespace WdRiscv
     /// Return true if the given address is in the range of the APLIC decice.
     bool isAplicAddr(uint64_t addr) const
     { return aplic_ and aplic_->containsAddr(addr); }
+
+    /// Return true if the given address is in the range of the IOMMU decice.
+    bool isIommuAddr(uint64_t addr) const
+    { return iommu_ and iommu_->containsAddr(addr); }
 
     /// Return true if there is one or more active performance counter (a counter that is
     /// assigned a valid event).
@@ -5990,6 +6004,7 @@ namespace WdRiscv
     std::function<bool(uint64_t, unsigned, uint64_t)> imsicWrite_ = nullptr;
     std::shared_ptr<Pci> pci_;
     std::shared_ptr<TT_APLIC::Aplic> aplic_;
+    std::shared_ptr<TT_IOMMU::Iommu> iommu_;
 
     // Callback invoked before a CSR instruction accesses a CSR.
     std::function<void(unsigned, CsrNumber)> preCsrInst_ = nullptr;

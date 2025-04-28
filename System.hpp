@@ -27,6 +27,8 @@
 #include "pci/Pci.hpp"
 #include "pci/virtio/Blk.hpp"
 #include "aplic/Aplic.hpp"
+#include "virtual_memory/VirtMem.hpp"
+#include "iommu/Iommu.hpp"
 #include "Uart8250.hpp"
 #include "Cache.hpp"
 
@@ -308,6 +310,8 @@ namespace WdRiscv
     /// among other things, is configured by these parameters.
     bool configAplic(unsigned num_sources, std::span<const TT_APLIC::DomainParams> domain_params);
 
+    bool configIommu(uint64_t base_addr, uint64_t size, uint64_t capabilities);
+
     /// Enable memory consistency model with given merge buffer size. This is relevant in
     /// server/interactive where RTL monitor or interactive command may initiate out of
     /// order memory transactions. Behavior is undefined if used in
@@ -490,6 +494,8 @@ namespace WdRiscv
     std::vector<std::shared_ptr<IoDevice>> ioDevs_;
     std::shared_ptr<Pci> pci_;
     std::shared_ptr<TT_APLIC::Aplic> aplic_;
+    std::shared_ptr<TT_IOMMU::Iommu> iommu_;
+    std::shared_ptr<VirtMem> iommuVirtMem_;
 
     // We assume coherent data cache and non-coherent instruction caches. If the
     // I-cache were coherent, then this oculd be simplified into one cache model.

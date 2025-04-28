@@ -162,7 +162,7 @@ RVCORE_SRCS := IntRegs.cpp CsRegs.cpp FpRegs.cpp instforms.cpp \
             crypto.cpp Decoder.cpp Trace.cpp cbo.cpp Uart8250.cpp \
             Uartsf.cpp hypervisor.cpp vector-crypto.cpp WhisperMessage.cpp \
             Imsic.cpp Args.cpp Session.cpp PerfApi.cpp dot-product.cpp \
-            aplic/Domain.cpp aplic/Aplic.cpp numa.cpp
+            aplic/Domain.cpp aplic/Aplic.cpp numa.cpp iommu/Iommu.cpp
 
 
 # List of All CPP Sources for the project
