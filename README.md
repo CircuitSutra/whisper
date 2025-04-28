@@ -893,6 +893,14 @@ Example:
 
 ```
 
+### APLIC
+
+Place holder for APLIC configuration.
+
+### IOMMU
+
+Place holder for IOMMU configuration.
+
 <a name="Consistency"/>
 
 # Memory Consistency Checks
