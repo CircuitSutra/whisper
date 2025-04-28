@@ -1863,10 +1863,18 @@ Hart<URV>::determineLoadException(uint64_t& addr1, uint64_t& addr2, uint64_t& ga
 	return pma.misalOnMisal()? EC::LOAD_ADDR_MISAL : EC::LOAD_ACC_FAULT;
     }
 
-  if (injectException_ != EC::NONE and
-      injectExceptionIsLd_ and
-      elemIx == injectExceptionElemIx_)
-    return injectException_;
+  if (injectException_ != EC::NONE and injectExceptionIsLd_ and elemIx == injectExceptionElemIx_)
+    {
+      // Adjust ldStFaultAddr for line crossers if fault is on 2nd line.
+      if (injectAddr_ != 0 and cacheLineNum(addr1) != cacheLineNum(injectAddr_))
+        {
+          if (not misal)
+            std::cerr << "Warning: hart-id= " << hartId() << " tag=" << instCounter_
+                      << " injected exception pa does not match instruction data pa.\n";
+          ldStFaultAddr_ = cacheLineAlign(ldStFaultAddr_) + cacheLineSize();
+        }
+      return injectException_;
+    }
 
   return EC::NONE;
 }
@@ -5163,7 +5171,13 @@ Hart<URV>::fetchInstWithTrigger(URV addr, uint64_t& physAddr, uint32_t& inst, FI
 
       // Fetch was successful, but injected exception.
       if (fetch)
-        initiateException(injectException_, pc_, pc_);
+        {
+          uint64_t tval = pc_;  // For MTVAL/STVAL
+          // Adjust MTVAL/STVAL for line crossers if fault is on 2nd line.
+          if (injectAddr_ != 0 and cacheLineNum(pc_) != cacheLineNum(injectAddr_))
+            tval = cacheLineAlign(tval) + cacheLineSize();
+          initiateException(injectException_, pc_, tval);
+        }
 
       std::string instStr;
       printInstTrace(inst, instCounter_, instStr, file);
