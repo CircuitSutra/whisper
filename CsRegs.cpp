@@ -5082,7 +5082,6 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
   auto mip = getImplementedCsr(CsrNumber::MIP);
   auto vsip = getImplementedCsr(CsrNumber::VSIP);
   auto vsie = getImplementedCsr(CsrNumber::VSIE);
-  auto mideleg = getImplementedCsr(CsrNumber::MIDELEG);
   auto hideleg = getImplementedCsr(CsrNumber::HIDELEG);
   auto hvien = getImplementedCsr(CsrNumber::HVIEN);
   auto hstatus = getImplementedCsr(CsrNumber::HSTATUS);
@@ -5243,6 +5242,8 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
       // Updating HIE is reflected into MIE/VSIE.
       URV val = hie->read() & hieMask;
       URV mieVal = (mie->read() & ~hieMask) | val;
+      if (hideleg)
+        val &= hideleg->read();
       updateCsr(mie, mieVal);
       updateCsr(vsie, (vsie->read() & ~URV(0x1fff)) | vsInterruptToS(val));
     }
@@ -5254,10 +5255,8 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
       updateCsr(hie, hieVal);
 
       // Bits 13-63 may be aliasing with VSIE.
-      URV mask = ~URV(0x1fff);
-      if (mideleg and hideleg)
-        mask &= mideleg->read() & hideleg->read();
-      val = (vsie->read() & ~mask) | (mie->read() & mask) | vsInterruptToS(val);
+      URV mask = hideleg->read();
+      val = (vsie->read() & ~mask) | (vsInterruptToS(val) & mask);
       updateCsr(vsie, val);
     }
   else if (num == CsrNumber::VSIE)
