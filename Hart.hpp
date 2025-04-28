@@ -1132,6 +1132,10 @@ namespace WdRiscv
       assert((unsigned(1) << cacheLineShift_) == n);
     }
 
+    /// Align the given address to the closest smaller cache line boundary.
+    uint64_t cacheLineAlign(uint64_t addr) const
+    { return (addr >> cacheLineShift_) << cacheLineShift_; }
+
     const VecLdStInfo& getLastVectorMemory() const
     { return vecRegs_.getLastMemory(); }
 

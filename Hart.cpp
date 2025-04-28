@@ -1871,7 +1871,7 @@ Hart<URV>::determineLoadException(uint64_t& addr1, uint64_t& addr2, uint64_t& ga
           if (not misal)
             std::cerr << "Warning: hart-id= " << hartId() << " tag=" << instCounter_
                       << " injected exception pa does not match instruction data pa.\n";
-          ldStFaultAddr_ = injectAddr_;
+          ldStFaultAddr_ = cacheLineAlign(ldStFaultAddr_) + cacheLineSize();
         }
       return injectException_;
     }
@@ -5175,7 +5175,7 @@ Hart<URV>::fetchInstWithTrigger(URV addr, uint64_t& physAddr, uint32_t& inst, FI
           uint64_t tval = pc_;  // For MTVAL/STVAL
           // Adjust MTVAL/STVAL for line crossers if fault is on 2nd line.
           if (injectAddr_ != 0 and cacheLineNum(pc_) != cacheLineNum(injectAddr_))
-            tval = injectAddr_;
+            tval = cacheLineAlign(tval) + cacheLineSize();
           initiateException(injectException_, pc_, tval);
         }
 
