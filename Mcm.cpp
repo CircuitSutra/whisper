@@ -4303,8 +4303,8 @@ Mcm<URV>::ppoRule5(Hart<URV>& hart, const McmInstr& instrA, const McmInstr& inst
 
   auto hartIx = hart.sysHartIndex();
 
-  // B performs before A -- Allow if there is no write overlapping B between A and B from
-  // another core.
+  // B performs before A -- Allow if there is no write from another hart, overlapping line
+  // of B, at time between times of A and B.
   for (size_t ix = sysMemOps_.size(); ix != 0; ix--)
     {
       const auto& op = sysMemOps_.at(ix-1);
@@ -4320,7 +4320,7 @@ Mcm<URV>::ppoRule5(Hart<URV>& hart, const McmInstr& instrA, const McmInstr& inst
           auto bopTime = bop.maxForwardTime();
           if (bopTime > timeA or op.time_ < bopTime or op.time_ > timeA)
             continue;
-          if (bop.overlaps(op) and op.hartIx_ != hartIx)
+          if (lineNum(op.pa_) == lineNum(bop.pa_) and op.hartIx_ != hartIx)
             return false;
         }
     }
@@ -4512,7 +4512,36 @@ Mcm<URV>::ppoRule7(const McmInstr& instrA, const McmInstr& instrB) const
     return true;    // Un-drained store will finish later.
 
   auto btime = earliestOpTime(instrB);
-  return latestOpTime(instrA) < btime;  // A finishes before B
+  auto atime = latestOpTime(instrA);
+  if (atime < btime)
+    return true;  // A finishes before B
+
+  // B performs before A -- Allow if B is a load and there is no write from another hart,
+  // overlapping line of B, at time between the times of A and B.
+  if (not instrB.di_.isLoad() or instrB.di_.isVectorLoad())
+    return false;
+
+  for (size_t ix = sysMemOps_.size(); ix != 0; ix--)
+    {
+      const auto& op = sysMemOps_.at(ix-1);
+      if (op.isCanceled() or op.time_ > atime or op.isRead_)
+	continue;
+
+      if (op.time_ < btime)
+	break;
+
+      for (auto bopIx : instrB.memOps_)
+        {
+          const auto bop = sysMemOps_.at(bopIx);
+          auto bopTime = bop.maxForwardTime();
+          if (bopTime > atime or op.time_ < btime or op.time_ > atime)
+            continue;
+          if (lineNum(op.pa_) == lineNum(bop.pa_) and op.hartIx_ != bop.hartIx_)
+            return false;
+        }
+    }
+
+  return true;
 }
 
 
