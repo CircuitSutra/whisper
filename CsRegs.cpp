@@ -3632,6 +3632,7 @@ CsRegs<URV>::poke(CsrNumber num, URV value, bool virtMode)
     return pokeTrigger(num, value);
 
   // Poke mask of SIP/SIE is combined with that of MIE/MIP.
+#if 0
   if (num == CN::SIP or num == CN::SIE)
     {
       // Get MIP/MIE
@@ -3648,6 +3649,12 @@ CsRegs<URV>::poke(CsrNumber num, URV value, bool virtMode)
         csr->poke(value);
       return true;
     }
+#endif
+
+  if (num == CN::SIP)
+    return writeSip(value, false);
+  else if (num == CN::SIE)
+    return writeSie(value, false);
 
   if (num == CN::MISA)
     {
@@ -3676,17 +3683,11 @@ CsRegs<URV>::poke(CsrNumber num, URV value, bool virtMode)
 	return true; // New value out of bounds. Preserve old.
     }
   else if (num == CN::MTOPEI)
-    {
-      return writeMtopei();
-    }
+    return writeMtopei();
   else if (num == CN::STOPEI)
-    {
-      return writeStopei();
-    }
+    return writeStopei();
   else if (num == CN::VSTOPEI)
-    {
-      return writeVstopei();
-    }
+    return writeVstopei();
 
   csr->poke(value);
 
