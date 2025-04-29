@@ -4221,7 +4221,7 @@ Mcm<URV>::ppoRule4(Hart<URV>& hart, const McmInstr& instrB) const
 
 	  // Successor performs before predecessor -- Allow if successor is a load and
 	  // there is no store from another core to the same cache line.
-	  if (not succ.isStore_)
+	  if (not succ.isStore_ and not succ.di_.isVectorStore())
 	    {
 	      uint64_t predLine = lineNum(aOp.pa_);
 	      bool match = false;
