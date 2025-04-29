@@ -1,3 +1,5 @@
+#define REMOTE_FRAME_BUFFER
+
 #include <iostream>
 #include <sys/mman.h>
 #include <cassert>
@@ -19,7 +21,7 @@ using namespace WdRiscv;
 #define RFB_FRAME_TIME_US  100000 
 
 RemoteFrameBuffer::RemoteFrameBuffer(uint64_t addr, uint64_t width, uint64_t height, uint64_t bytes_per_pixel)
-  : IoDevice(addr, width*height*bytes_per_pixel), width_(width), height_(height), bytes_per_pixel_(bytes_per_pixel) {
+  : IoDevice("frame_buffer", addr, width*height*bytes_per_pixel), width_(width), height_(height), bytes_per_pixel_(bytes_per_pixel) {
 
   // TODO: either hard code it to be 4 or support 1,2,4 bpp
   assert(bytes_per_pixel == 4 && "bytes per pixel must be 4");
@@ -64,7 +66,7 @@ RemoteFrameBuffer::vncServerLoop()
   rfbScreen->desktopName = "Whisper VNC";
   rfbScreen->frameBuffer = (char*) frame_buffer_;
   rfbScreen->alwaysShared = TRUE;
-  rfbScreen->port = 5999;
+  rfbScreen->port = 5998;
 
   rfbInitServer(rfbScreen);
 

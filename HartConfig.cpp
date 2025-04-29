@@ -1807,8 +1807,10 @@ HartConfig::applyFrameBufferConfig(System<URV>& system) const
   std::string_view tag = "frame_buffer";
   if (not config_ -> contains(tag)) 
     {
-      return false;
+      return true;
     }
+
+  std::cout << "Configuring frame buffer\n";
 
   const auto& frame_buffer_cfg = config_ -> at(tag);
 
