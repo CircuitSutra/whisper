@@ -1613,6 +1613,7 @@ PerfApi::updatePacketDataAddress(Hart64& hart, InstrPac& packet)
       auto& info = hart.getLastVectorMemory();
       for (auto& elem : info.elems_)
         packet.vecAddrs_.push_back(std::pair<uint64_t, uint64_t>(elem.va_, elem.pa_));
+      packet.dsize_ = info.elemSize_;
     }
   else if (di.isStore() or di.isAmo() or di.isVectorStore())
     {
@@ -1643,6 +1644,8 @@ PerfApi::updatePacketDataAddress(Hart64& hart, InstrPac& packet)
           auto& info = hart.getLastVectorMemory();
           for (auto& elem : info.elems_)
             packet.vecAddrs_.push_back(std::pair<uint64_t, uint64_t>(elem.va_, elem.pa_));
+
+          packet.dsize_ = info.elemSize_;
 
           storeMap[tag] = getInstructionPacket(hartIx, tag);
           // FIX What to do about device access? Do we allow mixed device/non-device

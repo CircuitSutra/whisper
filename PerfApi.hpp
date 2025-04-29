@@ -118,7 +118,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     { assert(fetched_); return di_.instSize(); }
 
     /// Return the data size of a load/store instruction. Return 0 if instruction
-    /// is not load/store.
+    /// is not load/store. For vector load/store this will be the element size.
     uint64_t dataSize() const
     { return dsize_; }
 
