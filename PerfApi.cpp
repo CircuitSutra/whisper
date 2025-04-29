@@ -1148,7 +1148,7 @@ PerfApi::shouldFlush(unsigned hartIx, uint64_t time, uint64_t tag, bool& flush,
 
 
 unsigned
-InstrPac::getSourceOperands(std::array<Operand, 3>& ops)
+InstrPac::getSourceOperands(std::array<Operand, 3>& ops) const
 {
   assert(decoded_);
   if (not decoded_)
@@ -1172,7 +1172,7 @@ InstrPac::getSourceOperands(std::array<Operand, 3>& ops)
 
 
 unsigned
-InstrPac::getDestOperands(std::array<Operand, 2>& ops)
+InstrPac::getDestOperands(std::array<Operand, 2>& ops) const
 {
   assert(decoded_);
   if (not decoded_)
@@ -1201,7 +1201,7 @@ InstrPac::getDestOperands(std::array<Operand, 2>& ops)
 
 
 unsigned
-InstrPac::getImplicitDestOperands(std::array<Operand, 4>& ops)
+InstrPac::getImplicitDestOperands(std::array<Operand, 4>& ops) const
 {
   assert(decoded_);
   if (not decoded_)
@@ -2128,3 +2128,44 @@ PerfApi::determineImplicitOperands(InstrPac& packet)
         op.mode = di.hasDynamicRoundingMode() ? OM::ReadWrite : OM::Write;
     }      
 }
+
+
+void
+PerfApi::flattenOperand(const Operand& op, std::vector<Operand>& flat) const
+{
+  flat.clear();
+
+  auto hart0 = system_.ithHart(0);
+  unsigned vecSize = hart0->vecRegs().bytesPerRegister();
+
+  if (op.type != OperandType::VecReg or op.value.vec.size() <= vecSize)
+    {
+      flat.push_back(op);
+      return;
+    }
+
+  unsigned remains = op.value.vec.size();  // Count of remaining bytes to flatten.
+  unsigned vecIx = op.number;
+  unsigned offset = 0;  // Offset into data of original operand.
+
+  while (remains > 0)
+    {
+      Operand flatOp;
+      flatOp.type = op.type;
+      flatOp.mode = op.mode;
+      flatOp.number = vecIx++;
+      flatOp.lmul = 1;
+
+      unsigned chunk = std::min(remains, vecSize);
+      remains -= chunk;
+
+      auto& dest = flatOp.value.vec;
+      auto& src = op.value.vec;
+      dest.insert(dest.end(),  src.begin() + offset,  src.begin() + offset + chunk);
+      offset += chunk;
+
+      flat.push_back(flatOp);
+    }
+}
+
+  

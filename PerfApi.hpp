@@ -268,18 +268,18 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     /// decoded). Value of each operand will be zero unless the instruction is executed.
     /// Return the number of operands written into the array. This excludes implicit
     /// operands.
-    unsigned getSourceOperands(std::array<Operand, 3>& ops);
+    unsigned getSourceOperands(std::array<Operand, 3>& ops) const;
 
     /// Fill the given array with the destination operands of this instruction (which must
     /// be decoded). Value of each operand will be zero unless the instruction is
     /// executed. Return the number of operands written into the array. This excludes
     /// implicit operands.
-    unsigned getDestOperands(std::array<Operand, 2>& ops);
+    unsigned getDestOperands(std::array<Operand, 2>& ops) const;
 
     /// Fill the given array with the implicit destination operands of this instruction
     /// (which must be decoded). Value of each operand will be zero unless the instruction
     /// is executed. Return the number of operands written into the array.
-    unsigned getImplicitDestOperands(std::array<Operand, 4>& ops);
+    unsigned getImplicitDestOperands(std::array<Operand, 4>& ops) const;
 
   protected:
 
@@ -482,6 +482,12 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     /// Enable instruction tracing to the log file(s).
     void enableTraceLog(std::vector<FILE*>& files)
     { traceFiles_ = files; }
+
+    /// Flatten a vector operand into individual vectors putting the results into the flat
+    /// vector. For example, if operand is v4 and LMUL is 2, then the flattened operand
+    /// will consist of v4 and v5. If operand is not a vector operand or if LMUL is <= 1
+    /// then the flattened operand will be a copy of the original.
+    void flattenOperand(const Operand& op, std::vector<Operand>& flat) const;
 
   protected:
 
