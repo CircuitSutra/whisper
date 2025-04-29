@@ -931,8 +931,6 @@ namespace WdRiscv
     void attachImsic(std::shared_ptr<TT_IMSIC::Imsic> imsic)
     { imsic_ = imsic; }
 
-    bool aiaEnabled() const { return aiaEnabled_; }
-
   protected:
 
     /// Advance a csr number by the given amount (add amount to number).

@@ -748,9 +748,9 @@ System<URV>::configAplic(unsigned num_sources, std::span<const TT_APLIC::DomainP
               << " interrupt-state=" << (interState? "on" : "off") << '\n';
     // if an IMSIC is present, then interrupt should only be delivery if its eidelivery is 0x40000000
     auto& hart = *ithHart(hartIx);
-    if (hart.csRegs().aiaEnabled())
+    auto imsic = hart.imsic();
+    if (imsic)
       {
-        auto imsic = imsicMgr_.ithImsic(hartIx);
         unsigned eidelivery = is_machine ? imsic->machineDelivery() : imsic->supervisorDelivery();
         if (eidelivery != 0x40000000)
           {
