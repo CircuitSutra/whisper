@@ -106,9 +106,11 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     uint64_t dataPa() const
     { return dpa_; }
 
-    /// Return a vector of pa/va address pairs corresponding to the virtual/physical
-    /// data addresses of the vector load/store instruction of this packet. Vector
-    /// will be empty if the instruction is not a vector load/store or if the no
+    /// Return a vector of pa/va/skip tripletcorresponding to the
+    /// virtual-addr/physical-addr/skip of the elements of the vector load/store
+    /// instruction of this packet. The skip flag will be true if the corresponding element
+    /// was skipped because it was masked-off or it was a tail element.  The return
+    /// vector will be empty if the instruction is not a vector load/store or if the no
     /// memory was accessed by the instruction.
     typedef std::tuple<uint64_t, uint64_t, bool> VaPaSkip;
     const std::vector<VaPaSkip>& vecDataAddrs() const
@@ -282,6 +284,10 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     /// is executed. Return the number of operands written into the array.
     unsigned getImplicitDestOperands(std::array<Operand, 4>& ops) const;
 
+    /// FILL THE GIVEN ARRAY WITH THE CSRS THAT CHANGED AS A SIDE EFFECT TO A TRAP OR TO
+    /// AN MRET/SRET INSTRUCTION. RETURN THE COUNT OF SUCH CSRS.
+    unsigned getChangedCsrs(std::array<Operand, 8>& ops) const;
+
   protected:
 
     /// Return the value of the destination register of the instruction of this packet
@@ -333,6 +339,9 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
 
     // One expicit destination register and up to 4 implicit ones (FCSR, VL, VTYPE, VSTART)
     std::array<DestValue, 5> destValues_;
+
+    std::array<Operand, 8> changedCsrs_;
+    unsigned changedCsrCount_ = 0;
 
     uint32_t opcode_ = 0;
 

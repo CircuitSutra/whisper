@@ -148,7 +148,8 @@ PerfApi::fetch(unsigned hartIx, uint64_t time, uint64_t tag, uint64_t vpc,
     assert(0);
   prevFetch_ = packet;
 
-  packet->trap_ = trap = cause != ExceptionCause::NONE;
+  trap = cause != ExceptionCause::NONE;
+  packet->trap_ = trap;
 
   if (prev and not prev->trapped() and prev->executed() and prev->nextIva_ != vpc)
     {
@@ -398,7 +399,7 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
   skipIoLoad_ = false;
 
   bool trap = hart.lastInstructionTrapped();
-  packet.trap_ = packet.trap_ or trap;
+  packet.trap_ = trap;
 
   // If save fails or set fails, there must be a trap.
   if (not saveOk or not setOk)
@@ -434,6 +435,15 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
       uint64_t value = hart.lastCsrValue(csrn);
       if (not hart.pokeCsr(csrn, value))
         assert(0);
+      if (trap or di.isXRet())
+        {
+          Operand op;
+          op.type = OperandType::CsReg;
+          op.mode = OperandMode::Write; // Arbitrary.
+          if (not hart.peekCsr(csrn, op.value.scalar))
+            assert(0);
+          packet.changedCsrs_.at(packet.changedCsrCount_++) = op;
+        }
     }
 
   if (trap)
@@ -1238,6 +1248,14 @@ InstrPac::getImplicitDestOperands(std::array<Operand, 4>& ops) const
   return count;
 }
 
+
+unsigned
+InstrPac::getChangedCsrs(std::array<Operand, 8>& ops) const
+{
+  for (unsigned i = 0; i < changedCsrCount_; ++i)
+    ops.at(i) = changedCsrs_.at(i);
+  return changedCsrCount_;
+}
 
 
 uint64_t
@@ -2170,5 +2188,3 @@ PerfApi::flattenOperand(const Operand& op, std::vector<Operand>& flat) const
       flat.push_back(flatOp);
     }
 }
-
-  
