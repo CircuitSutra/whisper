@@ -95,7 +95,7 @@ PerfApi::fetch(unsigned hartIx, uint64_t time, uint64_t tag, uint64_t vpc,
 
   if (tag == 0)
     {
-      std::cerr << "Error in PerfApi::fetch: Hart-ix=" << hartIx << "tag=" << tag
+      std::cerr << "Error in PerfApi::fetch: Hart-ix=" << hartIx << " tag=" << tag
 		<< " zero tag is reserved.\n";
       assert(0);
       return false;
@@ -104,7 +104,7 @@ PerfApi::fetch(unsigned hartIx, uint64_t time, uint64_t tag, uint64_t vpc,
   auto& packetMap = hartPacketMaps_.at(hartIx);
   if (not packetMap.empty() and packetMap.rbegin()->first >= tag)
     {
-      std::cerr << "Error in PerfApi::fetch: Hart-ix=" << hartIx << "tag=" << tag
+      std::cerr << "Error in PerfApi::fetch: Hart-ix=" << hartIx << " tag=" << tag
 		<< " tag is not in increasing order.\n";
       assert(0);
       return false;
@@ -1612,7 +1612,7 @@ PerfApi::updatePacketDataAddress(Hart64& hart, InstrPac& packet)
     {
       auto& info = hart.getLastVectorMemory();
       for (auto& elem : info.elems_)
-        packet.vecAddrs_.push_back(std::pair<uint64_t, uint64_t>(elem.va_, elem.pa_));
+        packet.vecAddrs_.push_back(InstrPac::VaPaSkip{elem.va_, elem.pa_, elem.skip_});
       packet.dsize_ = info.elemSize_;
     }
   else if (di.isStore() or di.isAmo() or di.isVectorStore())
@@ -1643,7 +1643,7 @@ PerfApi::updatePacketDataAddress(Hart64& hart, InstrPac& packet)
         {
           auto& info = hart.getLastVectorMemory();
           for (auto& elem : info.elems_)
-            packet.vecAddrs_.push_back(std::pair<uint64_t, uint64_t>(elem.va_, elem.pa_));
+            packet.vecAddrs_.push_back(InstrPac::VaPaSkip{ elem.va_, elem.pa_, elem.skip_});
 
           packet.dsize_ = info.elemSize_;
 

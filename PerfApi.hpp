@@ -110,7 +110,8 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     /// data addresses of the vector load/store instruction of this packet. Vector
     /// will be empty if the instruction is not a vector load/store or if the no
     /// memory was accessed by the instruction.
-    const std::vector<std::pair<uint64_t,uint64_t>>& vecDataAddrs() const
+    typedef std::tuple<uint64_t, uint64_t, bool> VaPaSkip;
+    const std::vector<VaPaSkip>& vecDataAddrs() const
     { return vecAddrs_; }
 
     /// Return the size of the instruction (2 or 4 bytes). Instruction must be fetched.
@@ -309,8 +310,9 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     // Used for commiting vector store and for forwarding.
     std::unordered_map<uint64_t, uint8_t> stDataMap_;
 
-    // Vector of va/pa of vector load/store instruction.
-    std::vector< std::pair<uint64_t, uint64_t> > vecAddrs_;
+    // Vector of va/pa/masked of vector load/store instruction. The bool (skip) is set
+    // if the element is skipped (maksed-off or tail-element).
+    std::vector<VaPaSkip> vecAddrs_;
 
     uint64_t flushVa_ = 0;    // Redirect PC for packets that should be flushed.
 
