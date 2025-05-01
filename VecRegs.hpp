@@ -446,8 +446,8 @@ namespace WdRiscv
     { legalizeVsetvliAvl_ = flag; }
 
     /// If flag is true, make VL/VSTART value a multiple of EGS in vector-crypto
-    /// instructions that have EGS. Otherwise, trigger an exceptio if VL/VSTART is not a
-    /// mulitple of EGS for such instrucions.
+    /// instructions that have EGS. Otherwise, trigger an exception if VL/VSTART is not a
+    /// multiple of EGS for such instructions.
     void configLegalizeForEgs(bool flag)
     { legalizeForEgs_ = flag; }
 

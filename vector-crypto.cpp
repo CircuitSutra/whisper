@@ -1308,7 +1308,7 @@ Hart<URV>::execVghsh_vv(const DecodedInst* di)
   if (not checkVecOpsVsEmul(di, vd, vs1, vs2, groupx8))
     return;
 
-  if (start >= vecRegs_.elemCount())
+  if (start >= elems)
     return;
 
   elems = vecRegs_.elemMax();
@@ -1378,7 +1378,7 @@ Hart<URV>::execVgmul_vv(const DecodedInst* di)
   if (not checkVecOpsVsEmul(di, vd, vs1, groupx8))
     return;
 
-  if (start >= vecRegs_.elemCount())
+  if (start >= elems)
     return;
 
   elems = vecRegs_.elemMax();
@@ -1446,7 +1446,7 @@ Hart<URV>::execVaesdf_vv(const DecodedInst* di)
   if (not checkVecOpsVsEmul(di, vd, vs1, groupx8))
     return;
 
-  if (start >= vecRegs_.elemCount())
+  if (start >= elems)
     return;
 
   elems = vecRegs_.elemMax();
@@ -1495,7 +1495,6 @@ Hart<URV>::execVaesdf_vs(const DecodedInst* di)
       return;
     }
 
-
   if (not isRvzvkned() or groupx8*vecRegs_.bitsPerRegister()/8 < egw or sew != EW::Word or
       (vd <= vs2 and vd + group > vs2))
     {
@@ -1506,7 +1505,7 @@ Hart<URV>::execVaesdf_vs(const DecodedInst* di)
   if (not checkVecOpsVsEmul(di, vd, groupx8))
     return;
 
-  if (start >= vecRegs_.elemCount())
+  if (start >= elems)
     return;
 
   elems = vecRegs_.elemMax();
@@ -1565,7 +1564,7 @@ Hart<URV>::execVaesef_vv(const DecodedInst* di)
   if (not checkVecOpsVsEmul(di, vd, vs1, groupx8))
     return;
 
-  if (start >= vecRegs_.elemCount())
+  if (start >= elems)
     return;
 
   elems = vecRegs_.elemMax();
@@ -1624,7 +1623,7 @@ Hart<URV>::execVaesef_vs(const DecodedInst* di)
   if (not checkVecOpsVsEmul(di, vd, groupx8))
     return;
 
-  if (start >= vecRegs_.elemCount())
+  if (start >= elems)
     return;
 
   elems = vecRegs_.elemMax();
@@ -1683,7 +1682,7 @@ Hart<URV>::execVaesem_vv(const DecodedInst* di)
   if (not checkVecOpsVsEmul(di, vd, vs1, groupx8))
     return;
 
-  if (start >= vecRegs_.elemCount())
+  if (start >= elems)
     return;
 
   elems = vecRegs_.elemMax();
@@ -1797,7 +1796,7 @@ Hart<URV>::execVaesdm_vv(const DecodedInst* di)
   if (not checkVecOpsVsEmul(di, vd, vs1, groupx8))
     return;
 
-  if (start >= vecRegs_.elemCount())
+  if (start >= elems)
     return;
 
   elems = vecRegs_.elemMax();
@@ -1857,7 +1856,7 @@ Hart<URV>::execVaesdm_vs(const DecodedInst* di)
   if (not checkVecOpsVsEmul(di, vd, groupx8))
     return;
 
-  if (start >= vecRegs_.elemCount())
+  if (start >= elems)
     return;
 
   elems = vecRegs_.elemMax();
@@ -1920,7 +1919,7 @@ Hart<URV>::execVaeskf1_vi(const DecodedInst* di)
   if (not checkVecOpsVsEmul(di, vd, vs1, groupx8))
     return;
 
-  if (start >= vecRegs_.elemCount())
+  if (start >= elems)
     return;
 
   elems = vecRegs_.elemMax();
@@ -1983,7 +1982,7 @@ Hart<URV>::execVaeskf2_vi(const DecodedInst* di)
   if (not checkVecOpsVsEmul(di, vd, vs1, groupx8))
     return;
 
-  if (start >= vecRegs_.elemCount())
+  if (start >= elems)
     return;
 
   elems = vecRegs_.elemMax();
@@ -2050,9 +2049,8 @@ Hart<URV>::execVaesz_vs(const DecodedInst* di)
     return;
   }
 
-  if (start >= vecRegs_.elemCount()) {
+  if (start >= elems)
     return;
-  }
 
   elems = vecRegs_.elemMax();
   unsigned egLen = elems / egs, egStart = start / egs;
@@ -2111,7 +2109,7 @@ Hart<URV>::execVsha2ms_vv(const DecodedInst* di)
   if (not checkVecOpsVsEmul(di, vd, vs1, vs2, groupx8))
     return;
 
-  if (start >= vecRegs_.elemCount())
+  if (start >= elems)
     return;
 
   elems = vecRegs_.elemMax();
@@ -2192,7 +2190,7 @@ Hart<URV>::execVsha2ch_vv(const DecodedInst* di)
   if (not checkVecOpsVsEmul(di, vd, vs1, vs2, groupx8))
     return;
 
-  if (start >= vecRegs_.elemCount())
+  if (start >= elems)
     return;
 
   elems = vecRegs_.elemMax();
@@ -2277,7 +2275,7 @@ Hart<URV>::execVsha2cl_vv(const DecodedInst* di)
   if (not checkVecOpsVsEmul(di, vd, vs1, vs2, groupx8))
     return;
 
-  if (start >= vecRegs_.elemCount())
+  if (start >= elems)
     return;
 
   elems = vecRegs_.elemMax();
@@ -2372,7 +2370,7 @@ Hart<URV>::execVsm4k_vi(const DecodedInst* di)
   if (not checkVecOpsVsEmul(di, vd, vs1, groupx8))
     return;
 
-  if (start >= vecRegs_.elemCount())
+  if (start >= elems)
     return;
 
   elems = vecRegs_.elemMax();
@@ -2446,7 +2444,7 @@ Hart<URV>::execVsm4r_vv(const DecodedInst* di)
   if (not checkVecOpsVsEmul(di, vd, vs1, groupx8))
     return;
 
-  if (start >= vecRegs_.elemCount())
+  if (start >= elems)
     return;
 
   elems = vecRegs_.elemMax();
@@ -2523,7 +2521,7 @@ Hart<URV>::execVsm4r_vs(const DecodedInst* di)
   if (not checkVecOpsVsEmul(di, vd, groupx8))
     return;
 
-  if (start >= vecRegs_.elemCount())
+  if (start >= elems)
     return;
 
   elems = vecRegs_.elemMax();
@@ -2619,7 +2617,7 @@ Hart<URV>::execVsm3me_vv(const DecodedInst* di)
   if (not checkVecOpsVsEmul(di, vd, vs1, groupx8))
     return;
 
-  if (start >= vecRegs_.elemCount())
+  if (start >= elems)
     return;
 
   elems = vecRegs_.elemMax();
@@ -2717,7 +2715,7 @@ Hart<URV>::execVsm3c_vi(const DecodedInst* di)
   if (not checkVecOpsVsEmul(di, vd, vs1, groupx8))
     return;
 
-  if (start >= vecRegs_.elemCount())
+  if (start >= elems)
     return;
 
   elems = vecRegs_.elemMax();
