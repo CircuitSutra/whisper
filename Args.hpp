@@ -42,6 +42,12 @@ namespace WdRiscv
     /// Helper to parseCmdLineArgs.
     bool collectCommandLineValues(const boost::program_options::variables_map& varMap);
 
+    /// Parse the --dumpmem argument which is a string of the form <file>[:<b:e>]+
+    /// where b and e are the beginning and end of a memory address range.
+    /// Examples:  xyz:0:100   xyz:0x100:0x200:0x1000:0x2000
+    /// Count of addresses after the file name must be even and must not be zero.
+    bool parseDumpMem(const std::string& arg);
+
     /// Convert the command line string numberStr to a number using strotull and a base of
     /// zero (prefixes 0 and 0x are honored). Return true on success and false on failure
     /// (string does not represent a number). TYPE is an integer type (e.g
@@ -84,13 +90,19 @@ namespace WdRiscv
     std::string kernelFile;                // Input: Load kernel image at address.
     std::string testSignatureFile;         // Output: signature to score riscv-arch-test tests.
     StringVec   regInits;                  // Initial values of regs.
-    StringVec   targets;                   // Target (ELF file) programs and associated
-    // program options to be loaded into simulator
-    // memory. Each target plus args is one string.
-    StringVec   isaVec;                    // Extensions from isa string rv32/rv64 removed.
+
+    // Target (ELF file) programs and associated program options to be loaded into
+    // simulator memory. Each target plus args is one string.
+    StringVec targets;
+
+    StringVec   isaVec;                    // Extensions from isa string (--isa) minus
+                                           // rv32/rv64 prefix.
     std::string targetSep = " ";           // Target program argument separator.
     StringVec   pciDevs;                   // PCI device list.
     StringVec   envVars;                   // Environment variables.
+
+    std::string eorMemDump;                // End of run memory dump file.
+    Uint64Vec eorMemDumpRanges;            // Vector of address ranges to dump.
 
     std::optional<std::string> toHostSym;
     std::optional<std::string> consoleIoSym;

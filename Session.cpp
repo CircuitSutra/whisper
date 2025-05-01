@@ -1417,8 +1417,66 @@ Session<URV>::cleanup(const Args& args)
       std::cerr << "Used blocks: 0x" << std::hex << bytes << std::endl;
     }
 
+  if (not args.eorMemDump.empty())
+    result = eorMemDump(args.eorMemDump, args.eorMemDumpRanges) and result;
+
   closeUserFiles();
   return result;
+}
+
+
+template <typename URV>
+bool
+Session<URV>::eorMemDump(const std::string& file, const std::vector<uint64_t>& addrs)
+{
+  if (file.empty())
+    return true;
+
+  const auto& memory = system_->memory();
+
+  std::ofstream ofs(file);
+  if (not ofs)
+    {
+      std::cerr << "Error: Failed to open " << file << " for writing\n";
+      return false;
+    }
+
+  ofs << std::hex;
+
+  assert((addrs.size() % 2) == 0);
+  for (size_t i = 0; i < addrs.size(); i += 2)
+    {
+      auto start = addrs.at(i);
+      auto end = addrs.at(i+1);
+      if (start > end)
+        continue;
+
+      ofs << "@" << start << '\n';
+
+      while (start < end)
+        {
+          uint64_t chunk = end - start;
+          chunk = std::min(uint64_t(16), chunk);
+
+          const char* sep = "";
+
+          for (uint64_t bi = 0; bi < chunk; ++bi)
+            {
+              uint8_t byte = 0;
+              memory->peek(start++, byte, false);
+
+              ofs << sep;
+              sep = " ";
+
+              if (byte <= 0xf)
+                ofs << '0';
+              ofs << unsigned(byte);
+            }
+          ofs << '\n';
+        }
+    }
+
+  return true;
 }
 
 
