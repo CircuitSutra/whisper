@@ -244,8 +244,8 @@ Session<URV>::getPrimaryConfigParameters(const Args& args, const HartConfig& con
 					 size_t& pageSize, size_t& memorySize)
 {
   config.getHartsPerCore(hartsPerCore);
-  if (args.harts)
-    hartsPerCore = *args.harts;
+  if (args.hasHarts)
+    hartsPerCore = args.harts;
   if (hartsPerCore == 0 or hartsPerCore > 32)
     {
       std::cerr << "Unsupported hart count: " << hartsPerCore;
@@ -254,8 +254,8 @@ Session<URV>::getPrimaryConfigParameters(const Args& args, const HartConfig& con
     }
 
   config.getCoreCount(coreCount);
-  if (args.cores)
-    coreCount = *args.cores;
+  if (args.hasCores)
+    coreCount = args.cores;
   if (coreCount == 0 or coreCount > 32)
     {
       std::cerr << "Unsupported core count: " << coreCount;
@@ -1319,8 +1319,6 @@ unsigned
 Session<URV>::determineRegisterWidth(const Args& args, const HartConfig& config)
 {
   unsigned isaLen = 0;
-
-  // If --isa specifies xlen, go with that.
   if (not args.isa.empty())
     {
       if (args.isa.starts_with("rv32"))
@@ -1331,6 +1329,7 @@ Session<URV>::determineRegisterWidth(const Args& args, const HartConfig& config)
 	std::cerr << "Command line --isa tag does not start with rv32/rv64\n";
     }
 
+  // 1. If --isa specifies xlen, go with that.
   if (isaLen)
     {
       if (args.verbose)
@@ -1338,15 +1337,7 @@ Session<URV>::determineRegisterWidth(const Args& args, const HartConfig& config)
       return isaLen;
     }
 
-  // If --xlen is present, go with that.
-  if (args.xlen)
-    {
-      if (args.verbose)
-        std::cerr << "Setting xlen from --xlen: " << *args.xlen << "\n";
-      return *args.xlen;
-    }
-
-  // If config file has isa tag, go with that.
+  // 2. If config file has isa tag, go with that.
   unsigned xlen = 32;
   if (config.getXlen(xlen))
     {
@@ -1355,7 +1346,7 @@ Session<URV>::determineRegisterWidth(const Args& args, const HartConfig& config)
       return xlen;
     }
 
-  // Get xlen from ELF file.
+  // 3. Get xlen from ELF file.
   if (getXlenFromElfFile(args, xlen))
     {
       if (args.verbose)

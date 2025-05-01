@@ -68,11 +68,11 @@ main(int argc, char* argv[])
           unsigned hartsPerCore = 1;
           unsigned coreCount = 1;
           config.getHartsPerCore(hartsPerCore);
-          if (args.harts)
-            hartsPerCore = *args.harts;
+          if (args.hasHarts)
+            hartsPerCore = args.harts;
           config.getCoreCount(coreCount);
-          if (args.cores)
-            coreCount = *args.cores;
+          if (args.hasCores)
+            coreCount = args.cores;
           unsigned numa_cores = hartsPerCore * coreCount;
           attempt_numactl(argc, argv, numa_cores);
         }
