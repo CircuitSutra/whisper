@@ -4802,21 +4802,28 @@ Hart<URV>::vslideup(unsigned vd, unsigned vs1, URV amount, unsigned group,
 {
   ELEM_TYPE e1 = 0, dest = 0;
 
-  if (start >= vecRegs_.elemCount() or
-      amount >= vecRegs_.elemCount())
+  if (start >= vecRegs_.elemCount())
     return;
 
   unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
 
-  for (unsigned ix = std::max(start, unsigned(amount)); ix < elems; ++ix)
+  for (unsigned ix = start; ix < elems; ++ix)
     {
       if (vecRegs_.isDestActive(vd, ix, destGroup, masked, dest))
 	{
-          unsigned from = ix - amount;
-          vecRegs_.read(vs1, from, group, e1);
-          dest = e1;
+          if (ix >= amount)
+            {
+              unsigned from = ix - amount;
+              vecRegs_.read(vs1, from, group, e1);
+              dest = e1;
+            }
 	}
-      vecRegs_.write(vd, ix, destGroup, dest);
+
+      // When the start element is max(start, amount), there is effectively no "body" if
+      // amount >= vl. However, we need to account for the tail.
+      if (ix >= vecRegs_.elemCount() or
+          (ix < vecRegs_.elemCount() and ix >= std::max(URV(start), amount)))
+        vecRegs_.write(vd, ix, destGroup, dest);
     }
 }
 
@@ -5168,9 +5175,11 @@ Hart<URV>::execVfslide1up_vf(const DecodedInst* di)
     case ElementWidth::Half:
       {
 	vslideup<uint16_t>(vd, vs1, amount, group, start, elems, masked);
-	if (not start and (not masked or vecRegs_.isActive(0, 0)))
+	if (not start)
           {
-            Float16 f = fpRegs_.readHalf(rs2);
+            Float16 f;
+            if (vecRegs_.isDestActive(vd, 0, group, masked, f))
+              f = fpRegs_.readHalf(rs2);
             vecRegs_.write(vd, 0, group, std::bit_cast<uint16_t>(f));
           }
       }
@@ -5179,9 +5188,11 @@ Hart<URV>::execVfslide1up_vf(const DecodedInst* di)
     case ElementWidth::Word:
       {
 	vslideup<uint32_t>(vd, vs1, amount, group, start, elems, masked);
-	if (not start and (not masked or vecRegs_.isActive(0, 0)))
+	if (not start)
 	  {
-            float f = fpRegs_.readSingle(rs2);
+            float f;
+            if (vecRegs_.isDestActive(vd, 0, group, masked, f))
+              f = fpRegs_.readSingle(rs2);
             vecRegs_.write(vd, 0, group, std::bit_cast<uint32_t>(f));
 	  }
       }
@@ -5190,9 +5201,11 @@ Hart<URV>::execVfslide1up_vf(const DecodedInst* di)
     case ElementWidth::Word2:
       {
 	vslideup<uint64_t>(vd, vs1, amount, group, start, elems, masked);
-	if (not start and (not masked or vecRegs_.isActive(0, 0)))
+	if (not start)
 	  {
-            double d = fpRegs_.readDouble(rs2);
+            double d;
+            if (vecRegs_.isDestActive(vd, 0, group, masked, d))
+              d = fpRegs_.readDouble(rs2);
             vecRegs_.write(vd, 0, group, std::bit_cast<uint64_t>(d));
 	  }
       }
