@@ -4819,10 +4819,10 @@ Hart<URV>::vslideup(unsigned vd, unsigned vs1, URV amount, unsigned group,
             }
 	}
 
-      // Even though the start element is max(start, amount), there is still a "body" if
-      // amount >= vl. Therefore, we need to account for the tail.
+      // When the start element is max(start, amount), there is effectively no "body" if
+      // amount >= vl. However, we need to account for the tail.
       if (ix >= vecRegs_.elemCount() or
-          (ix < vecRegs_.elemCount() and ix >= std::max(start, unsigned(amount))))
+          (ix < vecRegs_.elemCount() and ix >= std::max(URV(start), amount)))
         vecRegs_.write(vd, ix, destGroup, dest);
     }
 }
