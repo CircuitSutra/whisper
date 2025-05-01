@@ -109,28 +109,27 @@ namespace WdRiscv
     std::optional<uint64_t> tlbSize;
     std::optional<uint64_t> nmiVec;
     std::optional<uint64_t> nmeVec;
-    Uint64Vec snapshotPeriods;
-    Uint64Vec steesr;
     std::optional<uint64_t> alarmInterval;
     std::optional<uint64_t> clint;        // Advanced core-local-interrupt (CLINT) mem mapped address
     std::optional<uint64_t> instCounter;
     std::optional<uint64_t> branchWindow;
     std::optional<uint64_t> logStart;
     std::optional<unsigned> mcmls;
-    Uint64Vec deterministic;
+    std::optional<unsigned> harts;
+    std::optional<unsigned> cores;
+    std::optional<unsigned> xlen;
     std::optional<unsigned> seed;
 
+    Uint64Vec deterministic;
+    Uint64Vec snapshotPeriods;
+    Uint64Vec steesr;
+
     unsigned regWidth = 32;
-    unsigned harts = 1;
-    unsigned cores = 1;
     unsigned pageSize = 4U*1024;
     uint64_t bblockInsts = ~uint64_t(0);
 
     bool help = false;
     bool use_numactl = false;
-    bool hasRegWidth = false;
-    bool hasHarts = false;
-    bool hasCores = false;
     bool trace = false;
     bool interactive = false;
     bool verbose = false;

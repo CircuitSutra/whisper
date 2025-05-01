@@ -159,18 +159,6 @@ Args::collectCommandLineValues(const boost::program_options::variables_map& varM
   if (varMap.count("consoleiosym"))
     this->consoleIoSym = varMap["consoleiosym"].as<std::string>();
 
-  if (varMap.count("xlen"))
-    {
-      std::cerr << "Command line option --xlen is deprecated.\n";
-      this->hasRegWidth = true;
-    }
-
-  if (varMap.count("cores"))
-    this->hasCores = true;
-
-  if (varMap.count("harts"))
-    this->hasHarts = true;
-
   if (varMap.count("alarm"))
     {
       auto numStr = varMap["alarm"].as<std::string>();
@@ -204,6 +192,28 @@ Args::collectCommandLineValues(const boost::program_options::variables_map& varM
       auto numStr = varMap["mcmls"].as<std::string>();
       if (not parseCmdLineNumber("mcmls", numStr, this->mcmls))
         ok = false;
+    }
+
+  if (varMap.count("harts"))
+    {
+      auto numStr = varMap["harts"].as<std::string>();
+      if (not parseCmdLineNumber("harts", numStr, this->harts))
+        ok = false;
+    }
+
+  if (varMap.count("cores"))
+    {
+      auto numStr = varMap["cores"].as<std::string>();
+      if (not parseCmdLineNumber("cores", numStr, this->cores))
+        ok = false;
+    }
+
+  if (varMap.count("xlen"))
+    {
+      auto numStr = varMap["cores"].as<std::string>();
+      if (not parseCmdLineNumber("xlen", numStr, this->xlen))
+        ok = false;
+      std::cerr << "Command line option --xlen is deprecated.\n";
     }
 
   if (varMap.count("noppo"))
@@ -331,11 +341,11 @@ Args::parseCmdLineArgs(std::span<char*> argv)
 	("isa", po::value(&this->isa),
 	 "Specify instruction set extensions to enable. Supported extensions "
 	 "are a, c, d, f, i, m, s and u. Default is imc.")
-	("xlen", po::value(&this->regWidth),
+	("xlen", po::value<std::string>(),
 	 "Specify register width (32 or 64), defaults to 32")
-	("harts", po::value(&this->harts),
+	("harts", po::value<std::string>(),
 	 "Specify number of hardware threads per core (default=1).")
-	("cores", po::value(&this->cores),
+	("cores", po::value<std::string>(),
 	 "Specify number of core per system (default=1).")
 	("pagesize", po::value(&this->pageSize),
 	 "Specify memory page size.")
