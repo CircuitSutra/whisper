@@ -34,40 +34,44 @@ FDChannel::FDChannel(int in_fd, int out_fd)
 }
 
 size_t FDChannel::read(uint8_t *arr, size_t n) {
-  int code = poll(pollfds_, 2, 10);
+  while (true) {
+    int code = poll(pollfds_, 2, 10);
 
-  if (code == 0)
-    return 0;
-
-  if (code > 0)
-  {
-    // Terminated
-    if ((pollfds_[1].revents & POLLIN))
-      return 0;
-
-    if ((pollfds_[0].revents & POLLIN) != 0)
+    if (code > 0)
     {
-      ssize_t count = ::read(in_fd_, arr, n);
-      if (count < 0)
-        throw std::runtime_error("FDChannel: Failed to read from in_fd_\n");
+      // Terminated
+      if ((pollfds_[1].revents & POLLIN))
+        return 0;
 
-      if (isatty(in_fd_))
-        for (size_t i = 0; i < static_cast<size_t>(count); i++) {
-          static uint8_t prev = 0;
-          const uint8_t c = arr[i];
+      if ((pollfds_[0].revents & POLLIN) != 0)
+      {
+        ssize_t count = ::read(in_fd_, arr, n);
+        std::cout << "Read " << count << " bytes from in_fd_\n";
+        if (count < 0)
+          throw std::runtime_error("FDChannel: Failed to read from in_fd_\n");
 
-          // Force a stop if control-a x is seen.
-          if (prev == 1 and c == 'x')
-            throw std::runtime_error("Keyboard stop");
-          prev = c;
-        }
+        if (isatty(in_fd_))
+          for (size_t i = 0; i < static_cast<size_t>(count); i++) {
+            static uint8_t prev = 0;
+            const uint8_t c = arr[i];
 
-      return count;
+            // Force a stop if control-a x is seen.
+            if (prev == 1 and c == 'x')
+              throw std::runtime_error("Keyboard stop");
+            prev = c;
+          }
+
+        return count;
+      }
     }
-  }
 
-  // TODO: handle error return codes from poll.
-  return 0;
+    if (code == 0)
+      // Timeout
+      continue;
+
+    // TODO: handle error return codes from poll.
+    return 0;
+  }
 }
 
 void FDChannel::write(uint8_t byte) {
