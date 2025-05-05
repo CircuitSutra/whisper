@@ -761,19 +761,6 @@ CsRegs<URV>::updateSstc()
       mip->poke((mip->read() & ~mask) | vstip);
       hyperWrite(mip);
     }
-
-  auto hip = findCsr(CsrNumber::HIP);
-  if (hip)
-    {
-      // Update VSTIP bit in HIP. See chapter 3 of SSTC spc.
-      URV mask = hip->getReadMask();
-      URV vstBit = URV(1) << unsigned(InterruptCause::VS_TIMER);
-      if (stce and not hstce)
-	mask = mask & ~vstBit;  // Make read-only zero
-      else
-	mask = mask | vstBit;  // Make readable
-      hip->setReadMask(mask);
-    }
 }
 
 
