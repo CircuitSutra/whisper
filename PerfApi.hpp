@@ -194,8 +194,8 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     bool interupted() const
     { return interrupt_; }
 
-    /// Return the trap cause. Valid only if instruction was trapped. Returned value would
-    /// hat its most significant bit set if the trap was due to an interrupt. Basically
+    /// Return the trap cause. Valid only if instruction was trapped. Returned value will
+    /// have its most significant bit set if the trap was due to an interrupt. Basically
     /// this is the value of MCASUE/SCAUSE/VSCAUSE after a trap.
     uint64_t trapCause() const
     { return trapCause_; }
