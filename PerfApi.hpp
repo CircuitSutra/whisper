@@ -185,9 +185,20 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     uint64_t nextPc() const
     { assert(executed_); return nextIva_; }
 
-    /// Return true if instruction fetch or execute encountered a trap.
+    /// Return true if instruction fetch or execute encountered a trap (exception or
+    /// interrupt).
     bool trapped() const
     { return trap_; }
+
+    /// Return true if instruction encountered an interrupt.
+    bool interupted() const
+    { return interrupt_; }
+
+    /// Return the trap cause. Valid only if instruction was trapped. Returned value would
+    /// hat its most significant bit set if the trap was due to an interrupt. Basically
+    /// this is the value of MCASUE/SCAUSE/VSCAUSE after a trap.
+    uint64_t trapCause() const
+    { return trapCause_; }
 
     /// Return true if a branch prediction was made for this instruction.
     bool predicted() const
@@ -326,6 +337,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
 
     uint64_t execTime_ = 0;   // Execution time
     uint64_t prTarget_ = 0;   // Predicted branch target
+    uint64_t trapCause_ = 0;
 
     // Up to 4 explicit operands and 4 implicit ones (FCSR, VL, VTYPE, VSTART)
     std::array<Operand, 8> operands_;
@@ -358,6 +370,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     bool retired_      : 1 = false;  // true if instruction retired (committed)
     bool drained_      : 1 = false;  // true if a store that has been drained
     bool trap_         : 1 = false;  // true if instruction trapped
+    bool interrupt_    : 1 = false;  // true if instruction interrupted
 
     bool deviceAccess_ : 1 = false;  // true if access is to device
   };
