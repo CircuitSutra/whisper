@@ -46,7 +46,7 @@ size_t FDChannel::read(uint8_t *arr, size_t n) {
       if ((pollfds_[0].revents & POLLIN) != 0)
       {
         ssize_t count = ::read(in_fd_, arr, n);
-        std::cout << "Read " << count << " bytes from in_fd_\n";
+        // std::cout << "Read " << count << " bytes from in_fd_\n";
         if (count < 0)
           throw std::runtime_error("FDChannel: Failed to read from in_fd_\n");
 
