@@ -440,6 +440,7 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
           Operand op;
           op.type = OperandType::CsReg;
           op.mode = OperandMode::Write; // Arbitrary.
+          op.number = unsigned(csrn);
           if (not hart.peekCsr(csrn, op.value.scalar))
             assert(0);
           packet.changedCsrs_.at(packet.changedCsrCount_++) = op;
