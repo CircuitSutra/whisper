@@ -17,6 +17,9 @@
 #include <fstream>
 #include <sstream>
 #include <boost/algorithm/string.hpp>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
 #include "Filesystem.hpp"
 #include "Hart.hpp"
 #include "Core.hpp"
@@ -101,6 +104,8 @@ System<URV>::defineUart(const std::string& type, uint64_t addr, uint64_t size,
 
   auto createChannel = [](std::string_view channel_type) -> std::unique_ptr<UartChannel> {
     auto createChannelImpl = [](std::string_view channel_type, auto &createChannelImpl) -> std::unique_ptr<UartChannel> {
+      constexpr std::string_view unixPrefix = "unix:";
+
       auto pos = channel_type.find(';');
       if (pos != std::string::npos)
       {
@@ -116,9 +121,62 @@ System<URV>::defineUart(const std::string& type, uint64_t addr, uint64_t size,
         return std::make_unique<FDChannel>(fileno(stdin), fileno(stdout));
       else if (channel_type == "pty")
         return std::make_unique<PTYChannel>();
+      else if (channel_type.find(unixPrefix, 0) == 0)
+      {
+        std::string filename(channel_type.substr(unixPrefix.length()));
+        if (filename.empty()) {
+          std::cerr << "System::defineUart: Missing filename for unix socket channel\n";
+          return nullptr;
+        }
+
+        int server_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+        if (server_fd < 0) {
+          perror("System::defineUart: Failed to create unix socket");
+          return nullptr;
+        }
+
+        struct sockaddr_un addr;
+        memset(&addr, 0, sizeof(addr));
+        addr.sun_family = AF_UNIX;
+        strncpy(addr.sun_path, filename.c_str(), sizeof(addr.sun_path) - 1);
+
+        // Remove existing socket file if present before binding
+        unlink(filename.c_str());
+
+        if (bind(server_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+          perror("System::defineUart: Failed to bind unix socket");
+          close(server_fd);
+          return nullptr;
+        }
+
+        if (listen(server_fd, 1) < 0) {
+          perror("System::defineUart: Failed to listen on unix socket");
+          close(server_fd);
+          return nullptr;
+        }
+
+        std::cerr << "System::defineUart: Listening on unix socket: " << filename << "\n";
+        std::unique_ptr<SocketChannel> channel;
+        try {
+          channel = std::make_unique<SocketChannel>(server_fd);
+        } catch (const std::runtime_error& e) {
+          std::cerr << "System::defineUart: Failed to create SocketChannel: " << e.what() << "\n";
+          close(server_fd);
+          unlink(filename.c_str());
+          return nullptr;
+        }
+
+        // SocketChannel constructor called accept(), server fd no longer needed here.
+        close(server_fd);
+        unlink(filename.c_str());
+
+        return channel;
+      }
       else
       {
-        std::cerr << "System::defineUart: Invalid channel: " << channel_type << "\n";
+        std::cerr << "System::defineUart: Invalid channel type: " << channel_type << "\n"
+          << "Valid channels: stdio, pty, unix:<server socket path>, or a"
+          << "semicolon separated list of those.\n";
         return nullptr;
       }
     };

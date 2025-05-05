@@ -68,6 +68,27 @@ namespace WdRiscv
       PTYChannel();
   };
 
+  // Base class to handle accepting a connection from a server socket
+  class SocketChannelBase {
+  public:
+    // Do not allow copying because that may cause the socket fd to be used
+    // after close
+    SocketChannelBase(const SocketChannelBase&) = delete;
+    SocketChannelBase& operator=(const SocketChannelBase&) = delete;
+
+  protected:
+    SocketChannelBase(int server_fd);
+    ~SocketChannelBase();
+
+    int conn_fd_ = -1;
+  };
+
+  // UartChannel implementation using a socket connection
+  class SocketChannel : private SocketChannelBase, public FDChannel {
+    public:
+      SocketChannel(int server_fd);
+  };
+
   class ForkChannel : public UartChannel {
     public:
       ForkChannel(std::unique_ptr<UartChannel> readWriteChannel, std::unique_ptr<UartChannel> writeOnlyChannel);

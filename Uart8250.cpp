@@ -8,6 +8,8 @@
 #else
 #include <pty.h>
 #endif
+#include <sys/socket.h>
+#include <netinet/in.h>
 #include "Uart8250.hpp"
 
 
@@ -118,6 +120,26 @@ PTYChannelBase::~PTYChannelBase()
 
 PTYChannel::PTYChannel() : PTYChannelBase(), FDChannel(master_, master_)
 { }
+
+
+SocketChannelBase::SocketChannelBase(int server_fd) {
+  struct sockaddr_in client_addr;
+  socklen_t client_len = sizeof(client_addr);
+  conn_fd_ = accept(server_fd, (struct sockaddr *)&client_addr, &client_len);
+  if (conn_fd_ < 0)
+    throw std::runtime_error("Failed to accept socket connection\n");
+}
+
+SocketChannelBase::~SocketChannelBase() {
+  if (conn_fd_ != -1) {
+    shutdown(conn_fd_, SHUT_RDWR);
+    close(conn_fd_);
+  }
+}
+
+SocketChannel::SocketChannel(int server_fd) : SocketChannelBase(server_fd), FDChannel(conn_fd_, conn_fd_)
+{ }
+
 
 ForkChannel::ForkChannel(std::unique_ptr<UartChannel> readWriteChannel, std::unique_ptr<UartChannel> writeOnlyChannel)
   : readWriteChannel_(std::move(readWriteChannel)), writeOnlyChannel_(std::move(writeOnlyChannel)) {}
