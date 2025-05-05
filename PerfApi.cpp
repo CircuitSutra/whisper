@@ -2085,7 +2085,7 @@ PerfApi::determineExplicitOperands(InstrPac& packet)
 
       auto& op = packet.operands_.at(packet.operandCount_++);
       op.type = type;
-      op.mode = di.ithOperandMode(i);
+      op.mode = mode;
       op.number = di.ithOperand(i);     // Irrelevant for immediate ops.
       if (op.type == OT::Imm)
         op.value.scalar = di.ithOperand(i);
