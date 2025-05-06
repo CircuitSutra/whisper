@@ -970,6 +970,9 @@ Mcm<URV>::mergeBufferInsert(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64
       if (instr->di_.isAmo() and isEnabled(PpoRule::R3))
 	result = ppoRule3(hart, *instr) and result;
 
+      if (isEnabled(PpoRule::R6))
+	result = ppoRule6(hart, *instr) and result;
+
       // We commit the RTL data to memory but we check them against whisper data (in
       // checkStoreData). This is simpler than committing part of whisper instruction
       // data.
@@ -1048,6 +1051,9 @@ Mcm<URV>::bypassOp(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa,
 
       if (isEnabled(PpoRule::R3))
 	result = ppoRule3(hart, *instr) and result;
+
+      if (isEnabled(PpoRule::R6))
+	result = ppoRule6(hart, *instr) and result;
 
       if (instr->di_.extension() == RvExtension::Zicbom)
         result = checkCmo(hart, *instr) and result;
@@ -1634,6 +1640,8 @@ Mcm<URV>::mergeBufferWrite(Hart<URV>& hart, uint64_t time, uint64_t physAddr,
 	    result = ppoRule1(hart, *instr) and result;
 	  if (isEnabled(PpoRule::R3) and instr->di_.isAmo())
 	    result = ppoRule1(hart, *instr) and result;
+	  if (isEnabled(PpoRule::R6))
+	    result = ppoRule6(hart, *instr) and result;
 	}
       if (instr->retired_ and instr->di_.isSc())
 	{
@@ -4451,6 +4459,9 @@ bool
 Mcm<URV>::ppoRule6(Hart<URV>& hart, const McmInstr& instrB) const
 {
   // Rule 6: B has a release annotation
+
+  if (not instrB.complete_)
+    return true;   // Will redo when B is complete.
 
   auto hartIx = hart.sysHartIndex();
   const auto& instrVec = hartData_.at(hartIx).instrVec_;
