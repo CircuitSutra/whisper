@@ -701,6 +701,7 @@ Mcm<URV>::updateVecRegTimes(const Hart<URV>& hart, const McmInstr& instr)
       return;
     }
 
+  auto instId = di.instId();
   auto destEmul = hart.vecOpEmul(0);
 
   unsigned baseDestIx = effectiveRegIx(di, 0);
@@ -725,6 +726,10 @@ Mcm<URV>::updateVecRegTimes(const Hart<URV>& hart, const McmInstr& instr)
 	      // Scalar source operand. Affects all vec regs in dest group.
 	      auto srcIx = effectiveRegIx(di, so);
 	      auto srcTime = regTimeVec.at(srcIx);
+              if ((instId == InstId::vslide1up_vx or instId == InstId::vfslide1up_vf) and ii != 0)
+                continue;
+              if ((instId == InstId::vslide1down_vx or instId == InstId::vfslide1down_vf) and ii != destEmul - 1)
+                continue;
 	      if (srcTime > time)
 		{
 		  time = srcTime;
