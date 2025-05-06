@@ -348,24 +348,12 @@ Hart<URV>::setupVirtMemCallbacks()
   });
 
   virtMem_.setIsReadableCallback([this](uint64_t addr, PrivilegeMode pm) -> bool {
-    if (steeEnabled_)
-      {
-        if (!stee_.isValidAddress(addr))
-          return false;  
-        addr = stee_.clearSecureBits(addr);
-      }
-
     if (pmpManager_.isEnabled())
       {
         const Pmp& pmp = pmpManager_.accessPmp(addr);
         if (not pmp.isRead(pm))
           return false;
       }
-    auto pma = memory_.pmaMgr_.getPma(addr);
-    return pma.isRead();
-  });
-
-  virtMem_.setIsWritableCallback([this](uint64_t addr, PrivilegeMode pm) -> bool {
     if (steeEnabled_)
       {
         if (!stee_.isValidAddress(addr))
@@ -373,12 +361,24 @@ Hart<URV>::setupVirtMemCallbacks()
         addr = stee_.clearSecureBits(addr);
       }
 
+    auto pma = memory_.pmaMgr_.getPma(addr);
+    return pma.isRead();
+  });
+
+  virtMem_.setIsWritableCallback([this](uint64_t addr, PrivilegeMode pm) -> bool {
     if (pmpManager_.isEnabled())
       {
         const Pmp& pmp = pmpManager_.accessPmp(addr);
         if (not pmp.isWrite(pm))
           return false;
       }
+    if (steeEnabled_)
+      {
+        if (!stee_.isValidAddress(addr))
+          return false;  
+        addr = stee_.clearSecureBits(addr);
+      }
+
     auto pma = memory_.pmaMgr_.getPma(addr);
 
     // return pma.isWrite() and pma.isRsrv();  // FIX: RTL does not do this. It should.
@@ -1866,12 +1866,13 @@ Hart<URV>::determineLoadException(uint64_t& addr1, uint64_t& addr2, uint64_t& ga
   if (injectException_ != EC::NONE and injectExceptionIsLd_ and elemIx == injectExceptionElemIx_)
     {
       // Adjust ldStFaultAddr for line crossers if fault is on 2nd line.
-      if (injectAddr_ != 0 and cacheLineNum(addr1) != cacheLineNum(injectAddr_))
+      if (injectAddr_ != 0 and cacheLineNum(va1) != cacheLineNum(injectAddr_))
         {
-          if (not misal)
+          if (misal)
+            ldStFaultAddr_ = va2;
+          else
             std::cerr << "Warning: hart-id= " << hartId() << " tag=" << instCounter_
                       << " injected exception pa does not match instruction data pa.\n";
-          ldStFaultAddr_ = cacheLineAlign(ldStFaultAddr_) + cacheLineSize();
         }
       return injectException_;
     }

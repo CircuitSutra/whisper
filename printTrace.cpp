@@ -236,27 +236,28 @@ printPageTableWalk(FILE* out, const Hart<URV>& hart, const char* tag,
   for (auto& entry : entries)
     {
       fputs("  +\n", out);
-      uint64_t displayAddr = entry.addr_;
+      uint64_t addr = entry.addr_;
+      uint64_t effAddr = addr;   // Addr after clearing STEE bit
       if (steeEnabled and entry.type_ == VirtMem::WalkEntry::Type::PA)
-        displayAddr = stee.clearSecureBits(displayAddr);
+        effAddr = stee.clearSecureBits(addr);
 
       if (entry.type_ == VirtMem::WalkEntry::Type::RE)
         {
           fputs(pageTableWalkType(headType, head).data(), out);
           fputs("res:", out);
-          fprintf(out, "0x%" PRIx64, displayAddr);
+          fprintf(out, "0x%" PRIx64, addr);
           continue;
         }
 
       fputs(pageTableWalkType(entry.type_, head).data(), out);
-      fprintf(out, "0x%" PRIx64, displayAddr);
+      fprintf(out, "0x%" PRIx64, addr);
       if (entry.type_ == VirtMem::WalkEntry::Type::PA)
         {
           uint64_t pte = 0;
-          hart.peekMemory(displayAddr, pte, true);
+          hart.peekMemory(effAddr, pte, true);
           fprintf(out, "=0x%" PRIx64, pte);
 
-          Pma pma = hart.getPma(displayAddr);
+          Pma pma = hart.getPma(effAddr);
           pma = hart.overridePmaWithPbmt(pma, entry.pbmt_);
           fprintf(out, ", ma=%s", pma.attributesToString(pma.attributesToInt()).c_str());
         }

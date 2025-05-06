@@ -4052,6 +4052,10 @@ Mcm<URV>::checkFence(Hart<URV>& hart, const McmInstr& fence) const
   if (not bdi.isFencePredWrite())
     return true;
 
+  if (not bdi.isFenceSuccRead() and not bdi.isFenceSuccWrite() and
+      not bdi.isFenceSuccInput() and not bdi.isFenceSuccOutput())
+    return true;   // No successor.
+
   unsigned hartIx = hart.sysHartIndex();
   auto& undrained = hartData_.at(hartIx).undrainedStores_;
   if (undrained.empty())
@@ -4059,8 +4063,6 @@ Mcm<URV>::checkFence(Hart<URV>& hart, const McmInstr& fence) const
 
   const auto& instrVec = hartData_.at(hartIx).instrVec_;
 
-  // We may have an early bypass ops (e.g. for an amoadd that has not yet retired). These
-  // should not count as they are drained but waiting for their instruction to retire.
   for (auto tag : undrained)
     {
       const auto& instr = instrVec.at(tag);
@@ -4070,12 +4072,16 @@ Mcm<URV>::checkFence(Hart<URV>& hart, const McmInstr& fence) const
       for (auto opIx : instr.memOps_)
 	{
 	  auto& op = sysMemOps_.at(opIx);
+
+          // We may have an early bypass ops (e.g. for an amoadd that has not yet
+          // retired). These should not count as they are drained but waiting for their
+          // instruction to retire.
 	  if (op.canceled_ or op.isRead_ or op.bypass_)
 	    continue;
 
-	  cerr << "Error: PPO rule 4 failed: Hart-id=" << hart.hartId() << " fence-tag=" << fence.tag_
-	       << " fence with predecessor-write retired while write is pending for tag="
-	       << tag << " at time=" << op.insertTime_ << '\n';
+          cerr << "Error: PPO rule 4 failed: Hart-id=" << hart.hartId() << " fence-tag="
+               << fence.tag_ << " fence with predecessor-write retired while write is "
+               << "pending for tag=" << tag << " at time=" << op.insertTime_ << '\n';
 
 	  return false;
 	}
