@@ -1225,12 +1225,11 @@ InstrPac::getImplicitDestOperands(std::array<Operand, 4>& ops) const
 
   assert(di_.operandCount() <= operandCount_);
 
-  unsigned start = di_.operandCount();
-
   using OM = WdRiscv::OperandMode;
 
   unsigned explicitDests = 0;
-  for (unsigned i = start; i < di_.operandCount(); ++i)
+
+  for (unsigned i = 0; i < di_.operandCount(); ++i)
     {
       auto& op = operands_.at(i);
       if (op.mode == OM::Write or op.mode == OM::ReadWrite)
@@ -1238,6 +1237,8 @@ InstrPac::getImplicitDestOperands(std::array<Operand, 4>& ops) const
     }
 
   unsigned count = 0;  // Count of implicit destinations.
+
+  unsigned start = di_.operandCount();
 
   for (unsigned i = start; i < operandCount_; ++i)
     {
