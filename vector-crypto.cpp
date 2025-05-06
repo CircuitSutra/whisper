@@ -1311,14 +1311,13 @@ Hart<URV>::execVghsh_vv(const DecodedInst* di)
   if (start >= elems)
     return;
 
-  elems = vecRegs_.elemMax();
-  unsigned egLen = elems / egs, egStart = start / egs;
+  unsigned egLen = vecRegs_.elemMax() / egs, egStart = start / egs;
   unsigned destGroup = group*8;
 
   for (unsigned i = egStart; i < egLen; ++i)
     {
       Uint128 x{0}, y{0}, h{0}, z{0}, res{0};
-      if (vecRegs_.isGroupDestActive(vd, i, egs, destGroup, masked, res))
+      if (vecRegs_.isGroupDestActive(vd, elems, i, egs, destGroup, masked, res))
 	{
 	  vecRegs_.read(vd, i, groupx8, y);
 	  vecRegs_.read(vs2, i, groupx8, x);
@@ -1381,14 +1380,13 @@ Hart<URV>::execVgmul_vv(const DecodedInst* di)
   if (start >= elems)
     return;
 
-  elems = vecRegs_.elemMax();
-  unsigned egLen = elems / egs, egStart = start / egs;
+  unsigned egLen = vecRegs_.elemMax() / egs, egStart = start / egs;
   unsigned destGroup = group*8;
 
   for (unsigned i = egStart; i < egLen; ++i)
     {
       Uint128 y{0}, h{0}, z{0}, res{0};
-      if (vecRegs_.isGroupDestActive(vd, i, egs, destGroup, masked, res))
+      if (vecRegs_.isGroupDestActive(vd, elems, i, egs, destGroup, masked, res))
 	{
 	  vecRegs_.read(vd, i, groupx8, y);
 	  vecRegs_.read(vs1, i, groupx8, h);
@@ -1449,14 +1447,13 @@ Hart<URV>::execVaesdf_vv(const DecodedInst* di)
   if (start >= elems)
     return;
 
-  elems = vecRegs_.elemMax();
-  unsigned egLen = elems / egs, egStart = start / egs;
+  unsigned egLen = vecRegs_.elemMax() / egs, egStart = start / egs;
   unsigned destGroup = group*8;
 
   for (unsigned i = egStart; i < egLen; ++i)
     {
       Uint128 state{0}, rkey{0}, ark{0};
-      if (vecRegs_.isGroupDestActive(vd, i, egs, destGroup, masked, ark))
+      if (vecRegs_.isGroupDestActive(vd, elems, i, egs, destGroup, masked, ark))
 	{
 	  vecRegs_.read(vd, i, groupx8, state);
 	  vecRegs_.read(vs1, i, groupx8, rkey);
@@ -1508,14 +1505,13 @@ Hart<URV>::execVaesdf_vs(const DecodedInst* di)
   if (start >= elems)
     return;
 
-  elems = vecRegs_.elemMax();
-  unsigned egLen = elems / egs, egStart = start / egs;
+  unsigned egLen = vecRegs_.elemMax() / egs, egStart = start / egs;
   unsigned destGroup = group*8;
 
   for (unsigned i = egStart; i < egLen; ++i)
     {
       Uint128 state{0}, rkey{0}, ark{0};
-      if (vecRegs_.isGroupDestActive(vd, i, egs, destGroup, masked, ark))
+      if (vecRegs_.isGroupDestActive(vd, elems, i, egs, destGroup, masked, ark))
 	{
 	  vecRegs_.read(vd, i, groupx8, state);
 	  vecRegs_.read(vs2, 0, groupx8, rkey);
@@ -1567,14 +1563,13 @@ Hart<URV>::execVaesef_vv(const DecodedInst* di)
   if (start >= elems)
     return;
 
-  elems = vecRegs_.elemMax();
-  unsigned egLen = elems / egs, egStart = start / egs;
+  unsigned egLen = vecRegs_.elemMax() / egs, egStart = start / egs;
   unsigned destGroup = group*8;
 
   for (unsigned i = egStart; i < egLen; ++i)
     {
       Uint128 state{0}, rkey{0}, ark{0};
-      if (vecRegs_.isGroupDestActive(vd, i, egs, destGroup, masked, ark))
+      if (vecRegs_.isGroupDestActive(vd, elems, i, egs, destGroup, masked, ark))
 	{
 	  vecRegs_.read(vd, i, groupx8, state);
 	  vecRegs_.read(vs1, i, groupx8, rkey);
@@ -1626,14 +1621,13 @@ Hart<URV>::execVaesef_vs(const DecodedInst* di)
   if (start >= elems)
     return;
 
-  elems = vecRegs_.elemMax();
-  unsigned egLen = elems / egs, egStart = start / egs;
+  unsigned egLen = vecRegs_.elemMax() / egs, egStart = start / egs;
   unsigned destGroup = group*8;
 
   for (unsigned i = egStart; i < egLen; ++i)
     {
       Uint128 state{0}, rkey{0}, ark{0};
-      if (vecRegs_.isGroupDestActive(vd, i, egs, destGroup, masked, ark))
+      if (vecRegs_.isGroupDestActive(vd, elems, i, egs, destGroup, masked, ark))
 	{
 	  vecRegs_.read(vd, i, groupx8, state);
 	  vecRegs_.read(vs2, 0, groupx8, rkey);
@@ -1685,14 +1679,13 @@ Hart<URV>::execVaesem_vv(const DecodedInst* di)
   if (start >= elems)
     return;
 
-  elems = vecRegs_.elemMax();
-  unsigned egLen = elems / egs, egStart = start / egs;
+  unsigned egLen = vecRegs_.elemMax() / egs, egStart = start / egs;
   unsigned destGroup = group*8;
 
   for (unsigned i = egStart; i < egLen; ++i)
     {
       Uint128 state{0}, rkey{0}, ark{0};
-      if (vecRegs_.isGroupDestActive(vd, i, egs, destGroup, masked, ark))
+      if (vecRegs_.isGroupDestActive(vd, elems, i, egs, destGroup, masked, ark))
 	{
 	  vecRegs_.read(vd, i, groupx8, state);
 	  vecRegs_.read(vs1, i, groupx8, rkey);
@@ -1739,14 +1732,13 @@ Hart<URV>::execVaesem_vs(const DecodedInst* di)
   if (start >= vecRegs_.elemCount())
     return;
 
-  elems = vecRegs_.elemMax();
-  unsigned egLen = elems / egs, egStart = start / egs;
+  unsigned egLen = vecRegs_.elemMax() / egs, egStart = start / egs;
   unsigned destGroup = group*8;
 
   for (unsigned i = egStart; i < egLen; ++i)
     {
       Uint128 state{0}, rkey{0}, ark{0};
-      if (vecRegs_.isGroupDestActive(vd, i, egs, destGroup, masked, ark))
+      if (vecRegs_.isGroupDestActive(vd, elems, i, egs, destGroup, masked, ark))
 	{
 	  vecRegs_.read(vd, i, groupx8, state);
 	  vecRegs_.read(vs2, 0, groupx8, rkey);
@@ -1799,14 +1791,13 @@ Hart<URV>::execVaesdm_vv(const DecodedInst* di)
   if (start >= elems)
     return;
 
-  elems = vecRegs_.elemMax();
-  unsigned egLen = elems / egs, egStart = start / egs;
+  unsigned egLen = vecRegs_.elemMax() / egs, egStart = start / egs;
   unsigned destGroup = group*8;
 
   for (unsigned i = egStart; i < egLen; ++i)
     {
       Uint128 state{0}, rkey{0}, mix{0};
-      if (vecRegs_.isGroupDestActive(vd, i, egs, destGroup, masked, mix))
+      if (vecRegs_.isGroupDestActive(vd, elems, i, egs, destGroup, masked, mix))
 	{
 	  vecRegs_.read(vd, i, groupx8, state);
 	  vecRegs_.read(vs1, i, groupx8, rkey);
@@ -1859,14 +1850,13 @@ Hart<URV>::execVaesdm_vs(const DecodedInst* di)
   if (start >= elems)
     return;
 
-  elems = vecRegs_.elemMax();
-  unsigned egLen = elems / egs, egStart = start / egs;
+  unsigned egLen = vecRegs_.elemMax() / egs, egStart = start / egs;
   unsigned destGroup = group*8;
 
   for (unsigned i = egStart; i < egLen; ++i)
     {
       Uint128 state{0}, rkey{0}, mix{0};
-      if (vecRegs_.isGroupDestActive(vd, i, egs, destGroup, masked, mix))
+      if (vecRegs_.isGroupDestActive(vd, elems, i, egs, destGroup, masked, mix))
 	{
 	  vecRegs_.read(vd, i, groupx8, state);
 	  vecRegs_.read(vs2, 0, groupx8, rkey);
@@ -1922,14 +1912,13 @@ Hart<URV>::execVaeskf1_vi(const DecodedInst* di)
   if (start >= elems)
     return;
 
-  elems = vecRegs_.elemMax();
-  unsigned egLen = elems / egs, egStart = start / egs;
+  unsigned egLen = vecRegs_.elemMax() / egs, egStart = start / egs;
   unsigned destGroup = group*8;
 
   for (unsigned i = egStart; i < egLen; ++i)
     {
       Uint128 e1{0}, res{0};
-      if (vecRegs_.isGroupDestActive(vd, i, egs, destGroup, masked, res))
+      if (vecRegs_.isGroupDestActive(vd, elems, i, egs, destGroup, masked, res))
 	{
 	  vecRegs_.read(vs1, i, groupx8, e1);
 	  auto [crk0, crk1, crk2, crk3] = toQuarters(e1);
@@ -1985,14 +1974,13 @@ Hart<URV>::execVaeskf2_vi(const DecodedInst* di)
   if (start >= elems)
     return;
 
-  elems = vecRegs_.elemMax();
-  unsigned egLen = elems / egs, egStart = start / egs;
+  unsigned egLen = vecRegs_.elemMax() / egs, egStart = start / egs;
   unsigned destGroup = group*8;
 
   for (unsigned i = egStart; i < egLen; ++i)
     {
       Uint128 e1{0}, d{0}, res{0};
-      if (vecRegs_.isGroupDestActive(vd, i, egs, destGroup, masked, res))
+      if (vecRegs_.isGroupDestActive(vd, elems, i, egs, destGroup, masked, res))
 	{
 	  vecRegs_.read(vs1, i, groupx8, e1);
 	  uint32_t crk3 = toQuarters(e1)[3];
@@ -2052,14 +2040,13 @@ Hart<URV>::execVaesz_vs(const DecodedInst* di)
   if (start >= elems)
     return;
 
-  elems = vecRegs_.elemMax();
-  unsigned egLen = elems / egs, egStart = start / egs;
+  unsigned egLen = vecRegs_.elemMax() / egs, egStart = start / egs;
   unsigned destGroup = group*8;
 
   for (unsigned i = egStart; i < egLen; ++i)
     {
       Uint128 state{0}, rkey{0}, ark{0};
-      if (vecRegs_.isGroupDestActive(vd, i, egs, destGroup, masked, ark))
+      if (vecRegs_.isGroupDestActive(vd, elems, i, egs, destGroup, masked, ark))
 	{
 	  vecRegs_.read(vd, i, groupx8, state);
 	  vecRegs_.read(vs2, 0, groupx8, rkey);
@@ -2112,8 +2099,7 @@ Hart<URV>::execVsha2ms_vv(const DecodedInst* di)
   if (start >= elems)
     return;
 
-  elems = vecRegs_.elemMax();
-  unsigned egLen = elems / egs, egStart = start / egs;
+  unsigned egLen = vecRegs_.elemMax() / egs, egStart = start / egs;
   unsigned destGroup = group*8;
 
   if (sew == EW::Word)
@@ -2121,7 +2107,7 @@ Hart<URV>::execVsha2ms_vv(const DecodedInst* di)
       for (unsigned i = egStart; i < egLen; ++i)
 	{
 	  Uint128 dd{0}, e1{0}, e2{0};
-	  if (vecRegs_.isGroupDestActive(vd, i, egs, destGroup, masked, dd))
+	  if (vecRegs_.isGroupDestActive(vd, elems, i, egs, destGroup, masked, dd))
 	    {
 	      vecRegs_.read(vd, i, groupx8, dd);
 	      vecRegs_.read(vs1, i, groupx8, e1);
@@ -2137,7 +2123,7 @@ Hart<URV>::execVsha2ms_vv(const DecodedInst* di)
       for (unsigned i = egStart; i < egLen; ++i)
 	{
 	  Uint256 dd{0}, e1{0}, e2{0};
-	  if (vecRegs_.isGroupDestActive(vd, i, egs, destGroup, masked, dd))
+	  if (vecRegs_.isGroupDestActive(vd, elems, i, egs, destGroup, masked, dd))
 	    {
 	      vecRegs_.read(vd, i, groupx8, dd);
 	      vecRegs_.read(vs1, i, groupx8, e1);
@@ -2193,8 +2179,7 @@ Hart<URV>::execVsha2ch_vv(const DecodedInst* di)
   if (start >= elems)
     return;
 
-  elems = vecRegs_.elemMax();
-  unsigned egLen = elems / egs, egStart = start / egs;
+  unsigned egLen = vecRegs_.elemMax() / egs, egStart = start / egs;
   unsigned destGroup = group*8;
 
   switch (sew)
@@ -2203,7 +2188,7 @@ Hart<URV>::execVsha2ch_vv(const DecodedInst* di)
       for (unsigned i = egStart; i < egLen; ++i)
 	{
 	  Uint128 e1{0}, e2{0}, dd{0};
-	  if (vecRegs_.isGroupDestActive(vd, i, egs, destGroup, masked, dd))
+	  if (vecRegs_.isGroupDestActive(vd, elems, i, egs, destGroup, masked, dd))
 	    {
 	      vecRegs_.read(vd, i, groupx8, dd);
 	      vecRegs_.read(vs1, i, groupx8, e1);
@@ -2218,7 +2203,7 @@ Hart<URV>::execVsha2ch_vv(const DecodedInst* di)
       for (unsigned i = egStart; i < egLen; ++i)
 	{
 	  Uint256 e1{0}, e2{0}, dd{0};
-	  if (vecRegs_.isGroupDestActive(vd, i, egs, destGroup, masked, dd))
+	  if (vecRegs_.isGroupDestActive(vd, elems, i, egs, destGroup, masked, dd))
 	    {
 	      vecRegs_.read(vd, i, groupx8, dd);
 	      vecRegs_.read(vs1, i, groupx8, e1);
@@ -2278,8 +2263,7 @@ Hart<URV>::execVsha2cl_vv(const DecodedInst* di)
   if (start >= elems)
     return;
 
-  elems = vecRegs_.elemMax();
-  unsigned egLen = elems / egs, egStart = start / egs;
+  unsigned egLen = vecRegs_.elemMax() / egs, egStart = start / egs;
   unsigned destGroup = group*8;
 
   switch (sew)
@@ -2288,7 +2272,7 @@ Hart<URV>::execVsha2cl_vv(const DecodedInst* di)
       for (unsigned i = egStart; i < egLen; ++i)
 	{
 	  Uint128 e1{0}, e2{0}, dd{0};
-	  if (vecRegs_.isGroupDestActive(vd, i, egs, destGroup, masked, dd))
+	  if (vecRegs_.isGroupDestActive(vd, elems, i, egs, destGroup, masked, dd))
 	    {
 	      vecRegs_.read(vd, i, groupx8, dd);
 	      vecRegs_.read(vs1, i, groupx8, e1);
@@ -2303,7 +2287,7 @@ Hart<URV>::execVsha2cl_vv(const DecodedInst* di)
       for (unsigned i = egStart; i < egLen; ++i)
 	{
 	  Uint256 e1{0}, e2{0}, dd{0};
-	  if (vecRegs_.isGroupDestActive(vd, i, egs, destGroup, masked, dd))
+	  if (vecRegs_.isGroupDestActive(vd, elems, i, egs, destGroup, masked, dd))
 	    {
 	      vecRegs_.read(vd, i, groupx8, dd);
 	      vecRegs_.read(vs1, i, groupx8, e1);
@@ -2373,15 +2357,14 @@ Hart<URV>::execVsm4k_vi(const DecodedInst* di)
   if (start >= elems)
     return;
 
-  elems = vecRegs_.elemMax();
-  unsigned egLen = elems / egs, egStart = start / egs;
+  unsigned egLen = vecRegs_.elemMax() / egs, egStart = start / egs;
   uint32_t rnd = imm & 7; // Lower 3 bits
   unsigned destGroup = group*8;
 
   for (unsigned i = egStart; i < egLen; ++i)
     {
       Uint128 e1{0}, dd{0};
-      if (vecRegs_.isGroupDestActive(vd, i, egs, destGroup, masked, dd))
+      if (vecRegs_.isGroupDestActive(vd, elems, i, egs, destGroup, masked, dd))
 	{
 	  vecRegs_.read(vs1, i, groupx8, e1);
 	  auto [rk0, rk1, rk2, rk3] = toQuarters(e1);
@@ -2447,14 +2430,13 @@ Hart<URV>::execVsm4r_vv(const DecodedInst* di)
   if (start >= elems)
     return;
 
-  elems = vecRegs_.elemMax();
-  unsigned egLen = elems / egs, egStart = start / egs;
+  unsigned egLen = vecRegs_.elemMax() / egs, egStart = start / egs;
   unsigned destGroup = group*8;
 
   for (unsigned i = egStart; i < egLen; ++i)
     {
       Uint128 e1{}, dd{};
-      if (vecRegs_.isGroupDestActive(vd, i, egs, destGroup, masked, dd))
+      if (vecRegs_.isGroupDestActive(vd, elems, i, egs, destGroup, masked, dd))
 	{
 	  vecRegs_.read(vs1, i, groupx8, e1);
 	  vecRegs_.read(vd, i, groupx8, dd);
@@ -2524,14 +2506,13 @@ Hart<URV>::execVsm4r_vs(const DecodedInst* di)
   if (start >= elems)
     return;
 
-  elems = vecRegs_.elemMax();
-  unsigned egLen = elems / egs, egStart = start / egs;
+  unsigned egLen = vecRegs_.elemMax() / egs, egStart = start / egs;
   unsigned destGroup = group*8;
 
   for (unsigned i = egStart; i < egLen; ++i)
     {
       Uint128 e1{}, dd{};
-      if (vecRegs_.isGroupDestActive(vd, i, egs, destGroup, masked, dd))
+      if (vecRegs_.isGroupDestActive(vd, elems, i, egs, destGroup, masked, dd))
 	{
 	  vecRegs_.read(vs1, 0, groupx8, e1);
 	  vecRegs_.read(vd, i, groupx8, dd);
@@ -2620,14 +2601,13 @@ Hart<URV>::execVsm3me_vv(const DecodedInst* di)
   if (start >= elems)
     return;
 
-  elems = vecRegs_.elemMax();
-  unsigned egLen = elems / egs, egStart = start / egs;
+  unsigned egLen = vecRegs_.elemMax() / egs, egStart = start / egs;
   unsigned destGroup = group*8;
 
   for (unsigned i = egStart; i < egLen; ++i)
     {
       Uint256 e1{0}, e2{0}, dd{0};
-      if (vecRegs_.isGroupDestActive(vd, i, egs, destGroup, masked, dd))
+      if (vecRegs_.isGroupDestActive(vd, elems, i, egs, destGroup, masked, dd))
 	{
 	  vecRegs_.read(vs1, i, groupx8, e1);
 	  vecRegs_.read(vs2, i, groupx8, e2);
@@ -2718,14 +2698,13 @@ Hart<URV>::execVsm3c_vi(const DecodedInst* di)
   if (start >= elems)
     return;
 
-  elems = vecRegs_.elemMax();
-  unsigned egLen = elems / egs,  egStart = start / egs,  rnds = imm;
+  unsigned egLen = vecRegs_.elemMax() / egs,  egStart = start / egs,  rnds = imm;
   unsigned destGroup = group*8;
 
   for (unsigned i = egStart; i < egLen; ++i)
     {
       Uint256 el1{0}, dd{0};
-      if (vecRegs_.isGroupDestActive(vd, i, egs, destGroup, masked, dd))
+      if (vecRegs_.isGroupDestActive(vd, elems, i, egs, destGroup, masked, dd))
 	{
 	  vecRegs_.read(vd, i, groupx8, dd);
 	  vecRegs_.read(vs1, i, groupx8, el1);

@@ -730,16 +730,17 @@ namespace WdRiscv
     }
 
     /// Return true if the index ix element group of vector destination is active;
-    /// otherwise, return false. Set val to the current value of the element if
-    /// active or the expected new value if inactive (either current value or
-    /// all ones depending on the agnostic policy).
+    /// otherwise, return false. Set val to the current value of the element if active or
+    /// the expected new value if inactive (either current value or all ones depending on
+    /// the agnostic policy). This is used for the vector crypto instructions with element
+    /// group size.
     template<typename T>
-    bool isGroupDestActive(unsigned vd, unsigned ix, unsigned egs, unsigned emulx8, bool masked,
-                            T& val) const
+    bool isGroupDestActive(unsigned vd, unsigned elems, unsigned ix, unsigned egs,
+                           unsigned emulx8, bool masked, T& val) const
     {
       read(vd, ix, emulx8, val);
 
-      if (ix*egs >= elemCount())
+      if (ix*egs >= elems)
 	{
 	  if (tailAgn_ and tailAgnOnes_)
 	    setAllBits(val);
