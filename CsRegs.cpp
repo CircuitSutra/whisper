@@ -266,11 +266,12 @@ CsRegs<URV>::writeMvip(URV value)
   auto mip = getImplementedCsr(CsrNumber::MIP);
   if (mvien and mip)
     {
-      // Bit 1/9 of MVIP is an alias to bit 1/9 in MIP if bit 1/9 is not set in MVIEN.
+      // Bit 1 of MVIP is an alias to bit 1 in MIP if bit 1 is not set in MVIEN.
+      // Bit 9 aliasing applied in effectiveMip()
       URV mvienVal = mvien->read();
       URV mask = mvienVal;
-      URV b19 = URV(0x202);
-      mask ^= b19;
+      URV b1 = URV(0x2);
+      mask ^= b1;
 
       // Bit STIE (5) of MVIP is an alias to bit 5 of MIP if bit 5 of MIP is writable.
       // Othrwise, it is zero.
@@ -278,9 +279,12 @@ CsRegs<URV>::writeMvip(URV value)
       if ((mip->getWriteMask() & b5) != 0)   // Bit 5 writable in mip
 	mask |= b5;
 
-      mask &= b19 | b5;
-      mip->write((mip->read() & ~mask) | (value & mask));
-      recordWrite(CsrNumber::MIP);
+      mask &= b1 | b5;
+      if (mask)
+        {
+          mip->write((mip->read() & ~mask) | (value & mask));
+          recordWrite(CsrNumber::MIP);
+        }
     }
 
   mvip->write(value);
@@ -294,6 +298,9 @@ bool
 CsRegs<URV>::writeMvien(URV value)
 {
   auto mvien = getImplementedCsr(CsrNumber::MVIEN);
+  if (not mvien)
+    return false;
+
   mvien->write(value);
   recordWrite(CsrNumber::MVIEN);
 
@@ -302,8 +309,10 @@ CsRegs<URV>::writeMvien(URV value)
     {
       URV b9 = URV(0x200);
       URV mask = (mvien->read() ^ b9) & b9;
-      // Bit 9 is read-only when MVIEN is set.
+      // Bit 9 is read-only when MVIEN is set and should no longer
+      // include the value of the independent writable bit.
       mip->setWriteMask((mip->getWriteMask() & ~b9) | mask);
+      mip->setReadMask((mip->getReadMask() & ~b9) | mask);
     }
 
   // Bits 13-63 are read-only zero in hideleg if both
