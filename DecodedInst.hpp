@@ -442,6 +442,14 @@ namespace WdRiscv
     bool isCompressed() const
     { return entry_ and entry_->isCompressed(); }
 
+    /// Return true if this is a vsetivli instruction
+    bool isVsetivli() const
+    { return entry_ and entry_->instId() == InstId::vsetivli; }
+
+    /// Return true if this is a vsetvli instruction
+    bool isVsetvli() const
+    { return entry_ and entry_->instId() == InstId::vsetvli; }
+
     /// Return the RISCV extension of this instruction.
     RvExtension extension() const
     { return entry_? entry_->extension() : RvExtension::None; }

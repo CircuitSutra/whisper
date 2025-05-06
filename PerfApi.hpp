@@ -106,11 +106,16 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     uint64_t dataPa() const
     { return dpa_; }
 
+    /// For non-page corssing load/store return the same value as dataPa. Return 0 if
+    /// instruction is not load/store
+    uint64_t dataPa2() const
+    { return dpa2_; }
+
     /// Return a vector of pa/va/skip tripletcorresponding to the
     /// virtual-addr/physical-addr/skip of the elements of the vector load/store
     /// instruction of this packet. The skip flag will be true if the corresponding element
     /// was skipped because it was masked-off or it was a tail element.  The return
-    /// vector will be empty if the instruction is not a vector load/store or if the no
+    /// vector will be empty if the instruction is not a vector load/store or if no
     /// memory was accessed by the instruction.
     typedef std::tuple<uint64_t, uint64_t, bool> VaPaSkip;
     const std::vector<VaPaSkip>& vecDataAddrs() const
@@ -239,6 +244,9 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     /// Return true if this is a vector load instruction. Packet must be decoded.
     bool isVectorLoad() const
     { return di_.isVectorLoad(); }
+
+    bool isVector() const
+    { return di_.isVector(); }
 
     /// Return true if this is a cbo_zero instruction. Pakced must be decoed.
     bool isCbo_zero() const
