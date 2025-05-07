@@ -1905,6 +1905,27 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
       errors += trigErrors;
     }
 
+  tag = "trigger_actions";
+  if (config_ -> contains(tag))
+    {
+      std::vector<std::string> actions;
+      unsigned trigErrors = 0;
+      const auto& items = config_ -> at(tag);
+      for (const auto& item : items)
+	{
+	  if (not item.is_string())
+	    {
+	      cerr << "Error: Invalid value in config file item " << tag << " -- expecting string\n";
+	      ++trigErrors;
+	    }
+	  else
+	    actions.push_back(item.get<std::string>());
+	}
+      if (not hart.setSupportedTriggerActions(actions))
+	++trigErrors;
+      errors += trigErrors;
+    }
+
   tag = "trigger_napot_maskmax";
   if (config_ -> contains(tag))
     {
