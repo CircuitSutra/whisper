@@ -4463,6 +4463,9 @@ Mcm<URV>::ppoRule6(Hart<URV>& hart, const McmInstr& instrB) const
   if (not instrB.complete_)
     return true;   // Will redo when B is complete.
 
+  if (instrB.di_.isSc() and instrB.memOps_.empty())
+    return true;   // Failed sc instruction has no acquire/release requirements.
+
   auto hartIx = hart.sysHartIndex();
   const auto& instrVec = hartData_.at(hartIx).instrVec_;
 
