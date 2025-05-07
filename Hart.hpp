@@ -1871,6 +1871,12 @@ namespace WdRiscv
     void enableClearTinstOnCboInval(bool flag)
     { clearTinstOnCboInval_ = flag; }
 
+    /// When flag is true, align to cache line boundary the cbo/cmo instruction effective
+    /// address before doing address translation: MTVAL/STVAL value on exception will be
+    /// the aligned address.
+    void enableAlignCboAddress(bool flag)
+    { alignCboAddr_ = flag; }
+
     /// Clear MTINST/HTINST on cbo.flush if flag is true.
     void enableClearTinstOnCboFlush(bool flag)
     { clearTinstOnCboFlush_ = flag; }
@@ -5732,6 +5738,7 @@ namespace WdRiscv
 
     bool clearTinstOnCboInval_ = false;
     bool clearTinstOnCboFlush_ = false;
+    bool alignCboAddr_ = true;
 
     bool targetProgFinished_ = false;
     bool stepResult_ = false;        // Set by singleStep on caught exception (program success/fail).

@@ -2088,6 +2088,15 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
         hart.enableClearTinstOnCboFlush(flag);
     }
 
+  tag = "align_cbo_address";
+  if (config_ -> contains(tag))
+    {
+      if (not getJsonBoolean(tag, config_ -> at(tag), flag))
+        errors++;
+      else
+        hart.enableAlignCboAddress(flag);
+    }
+
   // Same as above, but this is used to apply a scaling factor
   // instead of a simple shift.
   tag = "time_down_sample";

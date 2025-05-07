@@ -674,6 +674,18 @@ the mstatus/status CSR.
 When true, causes the illegal instruction exception to clear the mtval CSR.
 Default is false.
 
+### clear_tinst_on_cbo_flush
+When true, clear the MTINST/STINST CSR when a cbo.flush entouters an exception.
+
+### clear_tinst_on_cbo_inval
+When true, clear the MTINST/STINST CSR when a cbo.inval entouters an exception.
+
+### align_cbo_address
+When true (default), align to a cahce line boundary the effective address of a cbo/cmo
+instruction before doing address translation: In case of an exception the reported value
+in MTVAL/STVAL will be the aligned address. When false, the effective address is used
+as is.
+
 ### cancel_lr_on_trap
 When true (default), causes reservations to be canceled on traps.
 
