@@ -291,8 +291,11 @@ PerfApi::execute(unsigned hartIx, uint64_t time, uint64_t tag)
 
   auto& packet = *pacPtr;
   auto& di = packet.decodedInst();
+
+#if 0
   if (di.isLr())
     return true;   // LR is executed and retired at PerApi::retire.
+#endif
 
   auto& packetMap = hartPacketMaps_.at(hartIx);
 
@@ -570,6 +573,8 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
   packet.trapCause_ = hart.lastTrapCause();
 
   auto& di = packet.decodedInst();
+
+#if 0
   if (di.isLr())
     {
       // Record PC of subsequent packet.
@@ -579,6 +584,7 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
         recordExecutionResults(hart, packet);
       packet.executed_ = true;
     }
+#endif
 
   packet.retired_ = true;
 
