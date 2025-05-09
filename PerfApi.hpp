@@ -44,6 +44,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     OperandMode mode = OperandMode::None;
     unsigned number = 0;  // Register number (0 for immediate operands).
     unsigned lmul = 0;    // Effective group multiplier. Valid for vector operand.
+    unsigned imul = 0;    // Insruction group multiplier. Valid for vector operand.
     OpVal value;          // Immediate or register value.
     OpVal prevValue;      // Used for modified registers.
   };
