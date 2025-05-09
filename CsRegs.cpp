@@ -574,10 +574,6 @@ CsRegs<URV>::read(CsrNumber num, PrivilegeMode mode, URV& value) const
 
   if (num == CN::MTOPI or num == CN::STOPI or num == CN::VSTOPI)
     return readTopi(num, value, virtMode_);
-  else if (num == CN::SIE)
-    return readSie(value);
-  else if (num == CN::SIP)
-    return readSip(value);
   else if (num == CN::MVIP)
     return readMvip(value);
 
@@ -2127,18 +2123,26 @@ template <typename URV>
 bool
 CsRegs<URV>::isWriteable(CsrNumber num, PrivilegeMode pm, bool vm) const
 {
+  if (not isReadable(num, pm, vm))
+    return false;
+
   const Csr<URV>* csr = getImplementedCsr(num, vm);
-  if (not csr or pm < csr->privilegeMode() or csr->isReadOnly())
-    return false;
+  assert(csr);
 
-  if (pm != PrivilegeMode::Machine and not isStateEnabled(num, pm, vm))
-    return false;
+  if (pm == PrivilegeMode::Supervisor and vm)
+    {    // In VS mode. See section 6.3.2 of AIA.
+      if (num == CsrNumber::STIMECMP)
+        {
+          URV hvi = 0;
+          peek(CsrNumber::HVICTL, hvi);
+          HvictlFields fields(hvi);
+          bool vti = fields.bits_.VTI;
+          if (vti)
+            return false;
+        }
+    }
 
-
-  if (csr->isDebug() and not inDebugMode())
-    return false;  // Debug-mode register.
-
-  return true;
+  return not csr->isReadOnly();
 }
 
 
@@ -2155,6 +2159,19 @@ CsRegs<URV>::isReadable(CsrNumber num, PrivilegeMode pm, bool vm) const
 
   if (csr->isDebug() and not inDebugMode())
     return false;  // Debug-mode register.
+
+  if (pm == PrivilegeMode::Supervisor and vm)
+    {    // In VS mode. See section 6.3.2 of AIA.
+      if (num == CsrNumber::SIP or num == CsrNumber::SIE)
+        {
+          URV hvi = 0;
+          peek(CsrNumber::HVICTL, hvi);
+          HvictlFields fields(hvi);
+          bool vti = fields.bits_.VTI;
+          if (vti)
+            return false;
+        }
+    }
 
   return true;
 }
