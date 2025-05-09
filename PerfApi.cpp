@@ -1646,7 +1646,7 @@ PerfApi::updatePacketDataAddress(Hart64& hart, InstrPac& packet)
         packet.vecAddrs_.push_back(InstrPac::VaPaSkip{elem.va_, elem.pa_, elem.skip_});
       packet.dsize_ = info.elemSize_;
     }
-  else if (di.isStore() or di.isAmo() or di.isVectorStore())
+  else if (di.isStore() or di.isAmo() or di.isVectorStore() or di.isCbo_zero() or di.isCmo())
     {
       uint64_t sva = 0, spa1 = 0, spa2 = 0, sval = 0;
       unsigned ssize = hart.lastStore(sva, spa1, spa2, sval);
