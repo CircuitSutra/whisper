@@ -1785,10 +1785,7 @@ PerfApi::getVecOpsLmul(Hart64& hart, InstrPac& packet)
   unsigned effWideLmul = wideX8 <= 8 ? 1 : wideX8 / 8;
 
   for (unsigned i = 0; i < 3; ++i)
-    {
-      packet.operands_.at(i).lmul = effLmul;
-      packet.operands_.at(i).imul = effLmul;
-    }
+    packet.operands_.at(i).lmul = effLmul;
 
   using InstId = WdRiscv::InstId;
 
