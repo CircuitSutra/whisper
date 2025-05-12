@@ -395,6 +395,12 @@ Hart<URV>::checkRedOpVsEmul(const DecodedInst* di)
       return false;
     }
 
+  if (di->isMasked() and (di->op1() == 0 or di->op2() == 0))
+    {
+      postVecFail(di);    // V0 used as source with differing EEWs.
+      return false;
+    }
+
   unsigned groupX8 = vecRegs_.groupMultiplierX8();
   unsigned vs1 = di->op1();
 
@@ -406,6 +412,46 @@ Hart<URV>::checkRedOpVsEmul(const DecodedInst* di)
   if ((vs1 & mask) != 0)
     {
       postVecFail(di);
+      return false;
+    }
+
+  // Track operand group for logging (vd and vs2 have an lmul of 1).
+  vecRegs_.setOpEmul(1, lmul, 1);
+  return true;
+}
+
+
+template <typename URV>
+inline
+bool
+Hart<URV>::checkWideRedOpVsEmul(const DecodedInst* di)
+{
+  // Reduction ops must have zero vstart.
+  unsigned start = csRegs_.peekVstart();
+  if (start > 0)
+    {
+      postVecFail(di);
+      return false;
+    }
+
+  unsigned gX8 = vecRegs_.groupMultiplierX8();
+  unsigned lmul = gX8 >= 8 ? gX8 / 8 : 1;
+  unsigned vs1 = di->op1();
+
+  // Vector register (vs1) must be a multiple of lmul.
+  unsigned mask = lmul - 1;   // Assumes lmul is 1, 2, 4, or 8
+
+  if ((vs1 & mask) != 0)
+    {
+      postVecFail(di);
+      return false;
+    }
+
+  // Check that source registers are not used with different EEWs
+  unsigned vs2 = di->op2();
+  if ( (di->isMasked() and (vs1 == 0 or vs2 == 0)) or (vs2 >= vs1 and vs2 < vs1 + lmul) )
+    {
+      postVecFail(di);  
       return false;
     }
 
@@ -3885,16 +3931,17 @@ Hart<URV>::execVrgatherei16_vv(const DecodedInst* di)
 
   unsigned vd = di->op0(),  vs1 = di->op1(),  vs2 = di->op2();
 
-  unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
+  unsigned g8 = vecRegs_.groupMultiplierX8();  // Group of VD and V1 times 8.
+  unsigned start = csRegs_.peekVstart();
   unsigned elems = vecRegs_.elemMax();
   ElementWidth sew = vecRegs_.elemWidth();
   unsigned widthInBytes = VecRegs::elemWidthInBytes(sew);
   bool masked = di->isMasked();
 
-  unsigned v2Group = (2*group) / widthInBytes;
+  unsigned v2g8 = (2*g8) / widthInBytes;  // Group of V2 times 8.
 
   GroupMultiplier v2gm = GroupMultiplier::One;
-  if (not VecRegs::groupNumberX8ToSymbol(v2Group, v2gm) or
+  if (not VecRegs::groupNumberX8ToSymbol(v2g8, v2gm) or
       not vecRegs_.legalConfig(ElementWidth::Half, v2gm) or
       (masked and (vd == 0 or vs1 == 0 or vs2 == 0)))
     {
@@ -3902,8 +3949,8 @@ Hart<URV>::execVrgatherei16_vv(const DecodedInst* di)
       return;
     }
 
-  unsigned eg = group >= 8 ? group / 8 : 1;
-  unsigned v2g = v2Group >= 8 ? v2Group / 8 : 1;
+  unsigned eg = g8 >= 8 ? g8 / 8 : 1;
+  unsigned v2g = v2g8 >= 8 ? v2g8 / 8 : 1;
 
   if ((vd % eg) or (vs1 % eg) or (vs2 % v2g))
     {
@@ -3911,8 +3958,12 @@ Hart<URV>::execVrgatherei16_vv(const DecodedInst* di)
       return;
     }
 
-  if (hasDestSourceOverlap(vd, group, vs1, group) or
-      hasDestSourceOverlap(vd, group, vs2, v2Group))
+  unsigned ew1 = vecRegs_.elemWidthInBits();
+  unsigned ew2 = 16;
+
+  if (hasDestSourceOverlap(vd, g8, vs1, g8) or
+      hasDestSourceOverlap(vd, g8, vs2, v2g8) or
+      not checkSourceOverlap(vs1, ew1, g8, vs2, ew2, v2g8))
     {
       postVecFail(di);  // Source/dest vecs cannot overlap
       return;
@@ -3923,10 +3974,10 @@ Hart<URV>::execVrgatherei16_vv(const DecodedInst* di)
   using EW = ElementWidth;
   switch (sew)
     {
-    case EW::Byte:  vrgatherei16_vv<uint8_t>(vd, vs1, vs2, group, start, elems, masked); break;
-    case EW::Half:  vrgatherei16_vv<uint16_t>(vd, vs1, vs2, group, start, elems, masked); break;
-    case EW::Word:  vrgatherei16_vv<uint32_t>(vd, vs1, vs2, group, start, elems, masked); break;
-    case EW::Word2: vrgatherei16_vv<uint64_t>(vd, vs1, vs2, group, start, elems, masked); break;
+    case EW::Byte:  vrgatherei16_vv<uint8_t>(vd, vs1, vs2, g8, start, elems, masked); break;
+    case EW::Half:  vrgatherei16_vv<uint16_t>(vd, vs1, vs2, g8, start, elems, masked); break;
+    case EW::Word:  vrgatherei16_vv<uint32_t>(vd, vs1, vs2, g8, start, elems, masked); break;
+    case EW::Word2: vrgatherei16_vv<uint64_t>(vd, vs1, vs2, g8, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
   postVecSuccess();
@@ -4056,12 +4107,6 @@ Hart<URV>::execVredop_vs(const DecodedInst* di, OP op)
   ElementWidth sew = vecRegs_.elemWidth();
   bool masked = di->isMasked();
 
-  if (masked and (vs1 == 0 or vs2 == 0))
-    {
-      postVecFail(di);  // v0 used with different EEWs
-      return;
-    }
-
   if (not checkRedOpVsEmul(di))
     return;
 
@@ -4103,12 +4148,6 @@ Hart<URV>::execVredopu_vs(const DecodedInst* di, OP op)
   unsigned elems = vecRegs_.elemCount();
   ElementWidth sew = vecRegs_.elemWidth();
   bool masked = di->isMasked();
-
-  if (masked and (vs1 == 0 or vs2 == 0))
-    {
-      postVecFail(di);  // v0 used with different EEWs
-      return;
-    }
 
   if (not checkRedOpVsEmul(di))
     return;
@@ -4252,27 +4291,22 @@ Hart<URV>::execVwredsumu_vs(const DecodedInst* di)
     return;
 
   ElementWidth sew = vecRegs_.elemWidth();
-  unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
+  unsigned gx8 = vecRegs_.groupMultiplierX8();
+  unsigned start = csRegs_.peekVstart();
   unsigned vd = di->op0(),  vs1 = di->op1(),  vs2 = di->op2();
 
   unsigned elems = vecRegs_.elemCount();
   bool masked = di->isMasked();
 
-  if (masked and (vs1 == 0 or vs2 == 0))
-    {
-      postVecFail(di);  // v0 used with different EEWs
-      return;
-    }
-
-  if (not checkRedOpVsEmul(di))
+  if (not checkWideRedOpVsEmul(di))
     return;
 
   using EW = ElementWidth;
   switch (sew)
     {
-    case EW::Byte:  vwredsum_vs<uint8_t> (vd, vs1, vs2, group, start, elems, masked); break;
-    case EW::Half:  vwredsum_vs<uint16_t>(vd, vs1, vs2, group, start, elems, masked); break;
-    case EW::Word:  vwredsum_vs<uint32_t>(vd, vs1, vs2, group, start, elems, masked); break;
+    case EW::Byte:  vwredsum_vs<uint8_t> (vd, vs1, vs2, gx8, start, elems, masked); break;
+    case EW::Half:  vwredsum_vs<uint16_t>(vd, vs1, vs2, gx8, start, elems, masked); break;
+    case EW::Word:  vwredsum_vs<uint32_t>(vd, vs1, vs2, gx8, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
   postVecSuccess();
@@ -4287,27 +4321,22 @@ Hart<URV>::execVwredsum_vs(const DecodedInst* di)
     return;
 
   ElementWidth sew = vecRegs_.elemWidth();
-  unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
+  unsigned gx8 = vecRegs_.groupMultiplierX8();
+  unsigned start = csRegs_.peekVstart();
   unsigned vd = di->op0(),  vs1 = di->op1(),  vs2 = di->op2();
 
   unsigned elems = vecRegs_.elemCount();
   bool masked = di->isMasked();
 
-  if (masked and (vs1 == 0 or vs2 == 0))
-    {
-      postVecFail(di);  // v0 used with different EEWs
-      return;
-    }
-
-  if (not checkRedOpVsEmul(di))
+  if (not checkWideRedOpVsEmul(di))
     return;
 
   using EW = ElementWidth;
   switch (sew)
     {
-    case EW::Byte:  vwredsum_vs<int8_t> (vd, vs1, vs2, group, start, elems, masked); break;
-    case EW::Half:  vwredsum_vs<int16_t>(vd, vs1, vs2, group, start, elems, masked); break;
-    case EW::Word:  vwredsum_vs<int32_t>(vd, vs1, vs2, group, start, elems, masked); break;
+    case EW::Byte:  vwredsum_vs<int8_t> (vd, vs1, vs2, gx8, start, elems, masked); break;
+    case EW::Half:  vwredsum_vs<int16_t>(vd, vs1, vs2, gx8, start, elems, masked); break;
+    case EW::Word:  vwredsum_vs<int32_t>(vd, vs1, vs2, gx8, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
   postVecSuccess();
@@ -19432,12 +19461,6 @@ Hart<URV>::execVfredusum_vs(const DecodedInst* di)
   ElementWidth sew = vecRegs_.elemWidth();
   bool masked = di->isMasked();
 
-  if (masked and (vs1 == 0 or vs2 == 0))
-    {
-      postVecFail(di);  // v0 used with different EEWs
-      return;
-    }
-
   if (not checkRedOpVsEmul(di))
     return;
 
@@ -19510,12 +19533,6 @@ Hart<URV>::execVfredosum_vs(const DecodedInst* di)
   unsigned elems = vecRegs_.elemCount();
   ElementWidth sew = vecRegs_.elemWidth();
   bool masked = di->isMasked();
-
-  if (masked and (vs1 == 0 or vs2 == 0))
-    {
-      postVecFail(di);  // v0 used with different EEWs
-      return;
-    }
 
   if (not checkRedOpVsEmul(di))
     return;
@@ -19591,12 +19608,6 @@ Hart<URV>::execVfredmin_vs(const DecodedInst* di)
   ElementWidth sew = vecRegs_.elemWidth();
   bool masked = di->isMasked();
 
-  if (masked and (vs1 == 0 or vs2 == 0))
-    {
-      postVecFail(di);  // v0 used with different EEWs
-      return;
-    }
-
   if (not checkRedOpVsEmul(di))
     return;
 
@@ -19669,12 +19680,6 @@ Hart<URV>::execVfredmax_vs(const DecodedInst* di)
   unsigned elems = vecRegs_.elemCount();
   ElementWidth sew = vecRegs_.elemWidth();
   bool masked = di->isMasked();
-
-  if (masked and (vs1 == 0 or vs2 == 0))
-    {
-      postVecFail(di);  // v0 used with different EEWs
-      return;
-    }
 
   if (not checkRedOpVsEmul(di))
     return;
@@ -19815,26 +19820,21 @@ Hart<URV>::execVfwredusum_vs(const DecodedInst* di)
     return;
 
   ElementWidth sew = vecRegs_.elemWidth();
-  unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
+  unsigned gx8 = vecRegs_.groupMultiplierX8();
+  unsigned start = csRegs_.peekVstart();
   unsigned vd = di->op0(),  vs1 = di->op1(),  vs2 = di->op2();
 
   unsigned elems = vecRegs_.elemCount();
   bool masked = di->isMasked();
 
-  if (masked and (vs1 == 0 or vs2 == 0))
-    {
-      postVecFail(di);  // v0 used with different EEWs
-      return;
-    }
-
-  if (not checkRedOpVsEmul(di))
+  if (not checkWideRedOpVsEmul(di))
     return;
 
   using EW = ElementWidth;
   switch (sew)
     {
-    case EW::Half:  vfwredusum_vs<Float16>(vd, vs1, vs2, group, start, elems, masked); break;
-    case EW::Word:  vfwredusum_vs<float>  (vd, vs1, vs2, group, start, elems, masked); break;
+    case EW::Half:  vfwredusum_vs<Float16>(vd, vs1, vs2, gx8, start, elems, masked); break;
+    case EW::Word:  vfwredusum_vs<float>  (vd, vs1, vs2, gx8, start, elems, masked); break;
     case EW::Byte:  // Fall-through to invalid case
     case EW::Word2: // Fall-through to invalid case
     default:        postVecFail(di); return;
@@ -19902,26 +19902,21 @@ Hart<URV>::execVfwredosum_vs(const DecodedInst* di)
     return;
 
   ElementWidth sew = vecRegs_.elemWidth();
-  unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
+  unsigned gx8 = vecRegs_.groupMultiplierX8();
+  unsigned start = csRegs_.peekVstart();
   unsigned vd = di->op0(),  vs1 = di->op1(),  vs2 = di->op2();
 
   unsigned elems = vecRegs_.elemCount();
   bool masked = di->isMasked();
 
-  if (masked and (vs1 == 0 or vs2 == 0))
-    {
-      postVecFail(di);  // v0 used with different EEWs
-      return;
-    }
-
-  if (not checkRedOpVsEmul(di))
+  if (not checkWideRedOpVsEmul(di))
     return;
 
   using EW = ElementWidth;
   switch (sew)
     {
-    case EW::Half:  vfwredosum_vs<Float16>(vd, vs1, vs2, group, start, elems, masked); break;
-    case EW::Word:  vfwredosum_vs<float>  (vd, vs1, vs2, group, start, elems, masked); break;
+    case EW::Half:  vfwredosum_vs<Float16>(vd, vs1, vs2, gx8, start, elems, masked); break;
+    case EW::Word:  vfwredosum_vs<float>  (vd, vs1, vs2, gx8, start, elems, masked); break;
     case EW::Byte:  // Fall-through to invalid case
     case EW::Word2: // Fall-through to invalid case
     default:        postVecFail(di); return;
