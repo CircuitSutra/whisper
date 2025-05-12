@@ -266,11 +266,12 @@ CsRegs<URV>::writeMvip(URV value)
   auto mip = getImplementedCsr(CsrNumber::MIP);
   if (mvien and mip)
     {
-      // Bit 1/9 of MVIP is an alias to bit 1/9 in MIP if bit 1/9 is not set in MVIEN.
+      // Bit 1 of MVIP is an alias to bit 1 in MIP if bit 1 is not set in MVIEN.
+      // Bit 9 aliasing applied in effectiveMip()
       URV mvienVal = mvien->read();
       URV mask = mvienVal;
-      URV b19 = URV(0x202);
-      mask ^= b19;
+      URV b1 = URV(0x2);
+      mask ^= b1;
 
       // Bit STIE (5) of MVIP is an alias to bit 5 of MIP if bit 5 of MIP is writable.
       // Othrwise, it is zero.
@@ -278,9 +279,12 @@ CsRegs<URV>::writeMvip(URV value)
       if ((mip->getWriteMask() & b5) != 0)   // Bit 5 writable in mip
 	mask |= b5;
 
-      mask &= b19 | b5;
-      mip->write((mip->read() & ~mask) | (value & mask));
-      recordWrite(CsrNumber::MIP);
+      mask &= b1 | b5;
+      if (mask)
+        {
+          mip->write((mip->read() & ~mask) | (value & mask));
+          recordWrite(CsrNumber::MIP);
+        }
     }
 
   mvip->write(value);
@@ -294,6 +298,9 @@ bool
 CsRegs<URV>::writeMvien(URV value)
 {
   auto mvien = getImplementedCsr(CsrNumber::MVIEN);
+  if (not mvien)
+    return false;
+
   mvien->write(value);
   recordWrite(CsrNumber::MVIEN);
 
@@ -302,8 +309,10 @@ CsRegs<URV>::writeMvien(URV value)
     {
       URV b9 = URV(0x200);
       URV mask = (mvien->read() ^ b9) & b9;
-      // Bit 9 is read-only when MVIEN is set.
+      // Bit 9 is read-only when MVIEN is set and should no longer
+      // include the value of the independent writable bit.
       mip->setWriteMask((mip->getWriteMask() & ~b9) | mask);
+      mip->setReadMask((mip->getReadMask() & ~b9) | mask);
     }
 
   // Bits 13-63 are read-only zero in hideleg if both
@@ -760,19 +769,6 @@ CsRegs<URV>::updateSstc()
       URV vstip = hvip? hvip->read() : 0;
       mip->poke((mip->read() & ~mask) | vstip);
       hyperWrite(mip);
-    }
-
-  auto hip = findCsr(CsrNumber::HIP);
-  if (hip)
-    {
-      // Update VSTIP bit in HIP. See chapter 3 of SSTC spc.
-      URV mask = hip->getReadMask();
-      URV vstBit = URV(1) << unsigned(InterruptCause::VS_TIMER);
-      if (stce and not hstce)
-	mask = mask & ~vstBit;  // Make read-only zero
-      else
-	mask = mask | vstBit;  // Make readable
-      hip->setReadMask(mask);
     }
 }
 
@@ -3248,7 +3244,7 @@ CsRegs<URV>::defineDebugRegs()
   // Debug mode registers.
   URV dcsrVal = 0x40000003;
   URV dcsrMask = 0x00008e04;
-  URV dcsrPokeMask = dcsrMask | 0x1cf; // Cause field modifiable
+  URV dcsrPokeMask = dcsrMask | 0x1ef; // Cause field modifiable
   defineCsr("dcsr", Csrn::DCSR, !mand, imp, dcsrVal, dcsrMask, dcsrPokeMask);
 
   // Least sig bit of dpc is not writeable.
@@ -3484,6 +3480,8 @@ CsRegs<URV>::defineEntropyReg()
   // Entropy source
   auto csr = defineCsr("seed", CN::SEED, mand, imp, 0, rom, pokeMask);
   csr->setHypervisor(true);
+  setCsrFields(CsrNumber::SEED, {{"ENTROPY", 16}, {"CUSTOM", 8},{"RSVD", 6},
+    {"OPST",2},{"ZERO",32}});
 }
 
 
@@ -3516,6 +3514,8 @@ CsRegs<URV>::defineSteeRegs()
   bool mand = false;
   uint64_t reset = 0, mask = 0x1, pokeMask = 0x1;
   defineCsr("c_matp", CsrNumber::C_MATP, !mand, !imp, reset, mask, pokeMask);
+  setCsrFields(CsrNumber::C_MATP,
+    {{"SWID", 1}, {"Zero", 63}});
 }
 
 
@@ -3628,6 +3628,7 @@ CsRegs<URV>::poke(CsrNumber num, URV value, bool virtMode)
     return pokeTrigger(num, value);
 
   // Poke mask of SIP/SIE is combined with that of MIE/MIP.
+#if 0
   if (num == CN::SIP or num == CN::SIE)
     {
       // Get MIP/MIE
@@ -3644,6 +3645,12 @@ CsRegs<URV>::poke(CsrNumber num, URV value, bool virtMode)
         csr->poke(value);
       return true;
     }
+#endif
+
+  if (num == CN::SIP)
+    return writeSip(value, false);
+  else if (num == CN::SIE)
+    return writeSie(value, false);
 
   if (num == CN::MISA)
     {
@@ -3672,17 +3679,11 @@ CsRegs<URV>::poke(CsrNumber num, URV value, bool virtMode)
 	return true; // New value out of bounds. Preserve old.
     }
   else if (num == CN::MTOPEI)
-    {
-      return writeMtopei();
-    }
+    return writeMtopei();
   else if (num == CN::STOPEI)
-    {
-      return writeStopei();
-    }
+    return writeStopei();
   else if (num == CN::VSTOPEI)
-    {
-      return writeVstopei();
-    }
+    return writeVstopei();
 
   csr->poke(value);
 
@@ -3879,44 +3880,51 @@ CsRegs<URV>::pokeTrigger(CsrNumber number, URV value)
 }
 
 
-// From section 5.1 of the AIA spec.
-static std::vector<unsigned> iidPrioTable =
+template <typename URV>
+unsigned
+CsRegs<URV>::highestIidPrio(uint64_t bits, PrivilegeMode mode, bool virtMode) const
 {
-47u, 23u, 46u, 45u, 22u, 44u, 43u, 21u, 42u, 41u, 20u, 40u,
-unsigned(InterruptCause::M_EXTERNAL),
-unsigned(InterruptCause::M_SOFTWARE),
-unsigned(InterruptCause::M_TIMER),
-unsigned(InterruptCause::S_EXTERNAL),
-unsigned(InterruptCause::S_SOFTWARE),
-unsigned(InterruptCause::S_TIMER),
-unsigned(InterruptCause::G_EXTERNAL),
-unsigned(InterruptCause::VS_EXTERNAL),
-unsigned(InterruptCause::VS_SOFTWARE),
-unsigned(InterruptCause::VS_TIMER),
-unsigned(InterruptCause::LCOF),
-39u, 19u, 38u, 37u, 18u, 36u, 35u, 17u, 34u, 33u, 16u, 32u
-};
+  if (not bits)
+    return 0;
 
+  const std::vector<InterruptCause>* iidPrioTable;
 
-static unsigned highestIidPrio(uint64_t bits)
-{
-  for (unsigned ic : iidPrioTable)
+  if (mode == PrivilegeMode::Machine)
+    iidPrioTable = &mInterrupts_;
+  else if (mode == PrivilegeMode::Supervisor and not virtMode)
+    iidPrioTable = &sInterrupts_;
+  else
+    iidPrioTable = &vsInterrupts_;
+
+  for (InterruptCause ic : *iidPrioTable)
     {
-      uint64_t mask = uint64_t(1) << ic;
+      uint64_t mask = uint64_t(1) << unsigned(ic);
       if (bits & mask)
         return unsigned(ic);
     }
+  assert(false);
   return 0;
 }
 
 
-[[maybe_unused]]
-static bool higherIidPrio(uint64_t prio1, uint64_t prio2)
+template <typename URV>
+bool
+CsRegs<URV>::higherIidPrio(uint32_t prio1, uint32_t prio2, PrivilegeMode mode, bool virtMode) const
 {
-  auto it1 = std::find(iidPrioTable.begin(), iidPrioTable.end(), prio1);
-  auto it2 = std::find(iidPrioTable.begin(), iidPrioTable.end(), prio2);
 
-  assert(it1 != iidPrioTable.end() and it2 != iidPrioTable.end());
+  const std::vector<InterruptCause>* iidPrioTable;
+
+  if (mode == PrivilegeMode::Machine)
+    iidPrioTable = &mInterrupts_;
+  else if (mode == PrivilegeMode::Supervisor and not virtMode)
+    iidPrioTable = &sInterrupts_;
+  else
+    iidPrioTable = &vsInterrupts_;
+
+  auto it1 = std::find(iidPrioTable->begin(), iidPrioTable->end(), InterruptCause(prio1));
+  auto it2 = std::find(iidPrioTable->begin(), iidPrioTable->end(), InterruptCause(prio2));
+
+  assert(it1 != iidPrioTable->end() and it2 != iidPrioTable->end());
 
   return it1 < it2;
 }
@@ -3926,6 +3934,7 @@ template <typename URV>
 bool
 CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode) const
 {
+  using PM = PrivilegeMode;
   using IC = InterruptCause;
 
   value = 0;
@@ -3938,7 +3947,7 @@ CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode) const
       auto mip = effectiveMip();
       auto mie = effectiveMie();
 
-      unsigned iid = highestIidPrio(mip & mie & ~midelegMask);
+      unsigned iid = highestIidPrio(mip & mie & ~midelegMask, PM::Machine, false);
       if (iid)
         value = (iid << 16) | 1;
       return true;
@@ -3960,7 +3969,7 @@ CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode) const
           auto hie = getImplementedCsr(CsrNumber::HIE);
           URV hieVal = hie? hie->read() : 0;
 
-          unsigned iid = highestIidPrio(((sip & sie) | (hipVal & hieVal)) & ~hidelegMask);
+          unsigned iid = highestIidPrio(((sip & sie) | (hipVal & hieVal)) & ~hidelegMask, PM::Supervisor, false);
           if (iid)
             value = (iid << 16) | 1;
           return true;
@@ -3976,26 +3985,6 @@ CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode) const
           HvictlFields hvf = hvictl->read();
 
           URV prio = 0;
-          if (not hvf.bits_.VTI)
-            {
-              unsigned iid = highestIidPrio(vs & ~(URV(1) << unsigned(IC::S_EXTERNAL)));
-              if (iid)
-                {
-                  value = (iid << 16) | (hvf.bits_.IPRIOM? prio : 1);
-                  if (not higherIidPrio(iid, unsigned(IC::S_EXTERNAL))) // hviprio is always 0
-                    prio = 256;
-                }
-            }
-          else if (hvf.bits_.IID != unsigned(IC::S_EXTERNAL))
-            {
-              prio = hvf.bits_.IPRIO;
-              value = (hvf.bits_.IID << 16) | (hvf.bits_.IPRIOM? prio : 1);
-              if (hvf.bits_.DPR and not prio)
-                prio = 256;
-            }
-
-          URV prio2 = 0;
-          URV value2 = 0;
           if ((vs >> unsigned(IC::S_EXTERNAL)) & 1)
             {
               unsigned id = 0;
@@ -4010,31 +3999,46 @@ CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode) const
                 }
               if (id != 0)
                 {
-                  prio2 = id;
-                  if (prio2 > 255)
-                    value2 = (unsigned(IC::S_EXTERNAL) << 16) | 255;
+                  prio = id;
+                  if (prio > 255)
+                    value = (unsigned(IC::S_EXTERNAL) << 16) | 255; // prio greater than 255
                   else
-                    value2 = (unsigned(IC::S_EXTERNAL) << 16) | prio2;
+                    value = (unsigned(IC::S_EXTERNAL) << 16) | prio; // prior always non-zero
                 }
               else if (hvf.bits_.IID == unsigned(IC::S_EXTERNAL) and hvf.bits_.IPRIO != 0)
                 {
-                  prio2 = hvf.bits_.IPRIO;
-                  value2 = (unsigned(IC::S_EXTERNAL) << 16) | prio2;
+                  prio = hvf.bits_.IPRIO; // prio always within 1 <= prio <= 255
+                  value = (unsigned(IC::S_EXTERNAL) << 16) | prio;
                 }
               else
                 {
-                  prio2 = 256;
-                  value2 = (unsigned(IC::S_EXTERNAL) << 16) | 255;
+                  prio = 256;
+                  value = (unsigned(IC::S_EXTERNAL) << 16) | 255; // prio greater than 255
                 }
-
-              URV reportedPrio = value2 & 0xff;
-              value2 &= ~URV(0xff);
-              value2 |= hvf.bits_.IPRIOM? reportedPrio : 1;
             }
 
-          if (value and value2)
+          if (not hvf.bits_.VTI)
             {
-              if (prio2 < prio)
+              URV value2 = 0;
+              URV prio2 = 0;
+              unsigned iid2 = highestIidPrio(vs & ~(URV(1) << unsigned(IC::S_EXTERNAL)), PM::Supervisor, false);
+              if (iid2)
+                {
+                  // hviprio is always 0
+                  if (not higherIidPrio(iid2, unsigned(IC::S_EXTERNAL), PM::Supervisor, false))
+                    {
+                      prio2 = 256;
+                      value2 = (iid2 << 16) | 255;
+                    }
+                  else
+                    value2 = (iid2 << 16) | 0;
+                }
+
+              if ((not value and not value2) or
+                  (value and not value2))
+                return true;
+
+              if (prio2 < prio or (not value and value2))
                 {
                   prio = prio2;
                   value = value2;
@@ -4042,42 +4046,47 @@ CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode) const
               else if (prio2 == prio)
                 {
                   // ties broken by default priority (IID)
-                  auto iid1 = value >> 16;
-                  auto iid2 = value2 >> 16;
+                  unsigned iid1 = value >> 16;
                   assert(iid1 != iid2);
-
-                  if (higherIidPrio(iid2, iid1))
+                  if (higherIidPrio(iid2, iid1, PM::Supervisor, false))
                     {
                       prio = prio2;
                       value = value2;
                     }
                 }
             }
-          else if (not value and value2)
+          else if (hvf.bits_.VTI and hvf.bits_.IID != unsigned(IC::S_EXTERNAL))
             {
-              prio = prio2;
-              value = value2;
-            }
-          else if (not value and not value2)
-            return true;
+              // Priority solely determined by DPR
+              // What's interesting is IID=0 is actually valid here.
+              URV value2 = 0;
+              URV prio2 = hvf.bits_.IPRIO; // can't be greater than 255
+              unsigned iid2 = hvf.bits_.IID;
 
-          // if prio == 0, then adjust based on relative priority
-          // compared to S_EXTERNAL
-          if ((not prio or (prio == 256)) and hvf.bits_.IPRIOM)
-            {
-              if (prio == 256)
+              if (hvf.bits_.DPR and not prio2) // lower priority
                 {
-                  value &= ~URV(0xff);
-                  value |= 255;
+                  prio2 = 256;
+                  value2 = (iid2 << 16) | 255;
                 }
               else
+                value2 = (iid2 << 16) | prio2;
+
+              if ((prio2 < prio) or (not value))
                 {
-                  unsigned iid = value >> 16;
-                  assert(iid != unsigned(IC::S_EXTERNAL));
-                  assert((value & 0xff) == 0);
-                  if (not higherIidPrio(iid, unsigned(IC::S_EXTERNAL)))
-                    value |= 255;
+                  prio = prio2;
+                  value = value2;
                 }
+              else if ((prio2 == prio) and not hvf.bits_.DPR)
+                {
+                  prio = prio2;
+                  value = value2;
+                }
+            }
+
+          if (value and not hvf.bits_.IPRIOM)
+            {
+              value &= ~URV(0xff);
+              value |= 1;
             }
         }
 
@@ -4594,7 +4603,7 @@ CsRegs<URV>::addMachineFields()
   if (rv32_)
     {
        setCsrFields(CsrNumber::MSTATEEN0, {{"C", 1}, {"FCSR", 1}, {"JVT", 1}, {"zero", 29}});
-       setCsrFields(CsrNumber::MSTATEEN0H, {{"zero", 23}, {"P1P14", 1}, {"P1P13", 1},{"CNTXT", 1}, {"IMSIC", 1}, {"AIA", 1},
+       setCsrFields(CsrNumber::MSTATEEN0H, {{"zero", 23}, {"SRMCFG", 1}, {"P1P13", 1},{"CNTXT", 1}, {"IMSIC", 1}, {"AIA", 1},
                                            {"CSRIND",1}, {"zero",  1},{"ENVCFG",1}, {"SEO", 1}});
        // no fields defined yet for mstateen1,2,3
        setCsrFields(CsrNumber::MSTATEEN1H, {{"zero", 31}, {"SEO", 1}});
@@ -4603,7 +4612,7 @@ CsRegs<URV>::addMachineFields()
     }
   else
     {
-       setCsrFields(CsrNumber::MSTATEEN0, {{"C", 1},    {"FCSR", 1}, {"JVT", 1}, {"zero",  52}, {"P1P14", 1}, {"P1P13", 1}, {"CNTXT",1},
+       setCsrFields(CsrNumber::MSTATEEN0, {{"C", 1},    {"FCSR", 1}, {"JVT", 1}, {"zero",  52}, {"SRMCFG", 1}, {"P1P13", 1}, {"CNTXT",1},
                                            {"IMSIC", 1},{"AIA",1}, {"CSRIND",1}, {"zero",1}, {"ENVCFG", 1}, {"SEO",  1}});
        setCsrFields(CsrNumber::MSTATEEN1, {{"zero", 63}, {"SEO", 1}});
        setCsrFields(CsrNumber::MSTATEEN2, {{"zero", 63}, {"SEO", 1}});
@@ -5070,7 +5079,6 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
   auto mip = getImplementedCsr(CsrNumber::MIP);
   auto vsip = getImplementedCsr(CsrNumber::VSIP);
   auto vsie = getImplementedCsr(CsrNumber::VSIE);
-  auto mideleg = getImplementedCsr(CsrNumber::MIDELEG);
   auto hideleg = getImplementedCsr(CsrNumber::HIDELEG);
   auto hvien = getImplementedCsr(CsrNumber::HVIEN);
   auto hstatus = getImplementedCsr(CsrNumber::HSTATUS);
@@ -5231,6 +5239,8 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
       // Updating HIE is reflected into MIE/VSIE.
       URV val = hie->read() & hieMask;
       URV mieVal = (mie->read() & ~hieMask) | val;
+      if (hideleg)
+        val &= hideleg->read();
       updateCsr(mie, mieVal);
       updateCsr(vsie, (vsie->read() & ~URV(0x1fff)) | vsInterruptToS(val));
     }
@@ -5242,10 +5252,8 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
       updateCsr(hie, hieVal);
 
       // Bits 13-63 may be aliasing with VSIE.
-      URV mask = ~URV(0x1fff);
-      if (mideleg and hideleg)
-        mask &= mideleg->read() & hideleg->read();
-      val = (vsie->read() & ~mask) | (mie->read() & mask) | vsInterruptToS(val);
+      URV mask = hideleg->read();
+      val = (vsie->read() & ~mask) | (vsInterruptToS(val) & mask);
       updateCsr(vsie, val);
     }
   else if (num == CsrNumber::VSIE)
@@ -5548,6 +5556,18 @@ CsRegs<URV>::isStateEnabled(CsrNumber num, PrivilegeMode pm, bool vm) const
             {
               if (select >= 0x30 and select <= 0x3f)
                 rseb.bits_.AIA = 1;  // Sections 2.5 and 5.4.1 of AIA
+              if (select >= 0x70 and select <= 0xff)
+                rseb.bits_.IMSIC = 1;
+            }
+        }
+      if ((num == CN::SIREG and vm) or
+          (num == CN::VSIREG))
+        {
+          URV select = 0;
+          if (peek(CN::VSISELECT, select))
+            {
+              if (select >= 0x70 and select <= 0xff)
+                rseb.bits_.IMSIC = 1;
             }
         }
     }

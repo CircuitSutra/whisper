@@ -156,9 +156,15 @@ namespace WdRiscv
     const InstEntry* instEntry() const
     { return entry_; }
 
-    /// Relevant for floating point instructions with rounding mode.
+    /// Relevant for floating point instructions with rounding mode. Return true
+    /// if instruction has an explcit rounding mode field.
     bool hasRoundingMode() const
     { return entry_ and entry_->hasRoundingMode(); }
+
+    /// Return true if instruction has an explicit rouning mode field that is set
+    /// to dynamic.
+    bool hasDynamicRoundingMode() const
+    { return hasRoundingMode() and roundingMode() == 7; }
 
     /// Relevant for floating point instructions.
     unsigned roundingMode() const
@@ -399,6 +405,10 @@ namespace WdRiscv
     /// Return true if this is an sc (score conditional) instruction.
     bool isSc() const
     { return entry_ and entry_->isSc(); }
+
+    /// Return true if this is an cbo.zero (cache bloc zoer) instruction.
+    bool isCbo_zero() const
+    { return entry_ and entry_->instId() == InstId::cbo_zero; }
 
     /// Return the data size in bytes of a load instruction. Return
     /// zero for a non-load instruction.

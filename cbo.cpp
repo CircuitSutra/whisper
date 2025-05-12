@@ -17,6 +17,7 @@
 
 #include "DecodedInst.hpp"
 #include "Hart.hpp"
+#include "PerfApi.hpp"
 
 using namespace WdRiscv;
 
@@ -25,9 +26,6 @@ template <typename URV>
 ExceptionCause
 Hart<URV>::determineCboException(uint64_t& addr, uint64_t& gpa, uint64_t& pa, bool isZero)
 {
-  uint64_t mask = uint64_t(cacheLineSize_) - 1;
-  addr &= ~mask;  // Make addr a multiple of cache line size.
-
   addr = URV(addr);   // Truncate to 32 bits in 32-bit mode.
 
   using EC = ExceptionCause;
@@ -37,7 +35,7 @@ Hart<URV>::determineCboException(uint64_t& addr, uint64_t& gpa, uint64_t& pa, bo
   // Address translation
   auto [pm, virt] = effLdStMode();
 
-  gpa = pa = addr = applyPointerMask(addr, false);
+  gpa = pa = addr;
 
   setMemProtAccIsFetch(false);
 
@@ -142,8 +140,8 @@ Hart<URV>::execCbo_clean(const DecodedInst* di)
     }
 
   uint64_t virtAddr = intRegs_.read(di->op0());
-  uint64_t mask = uint64_t(cacheLineSize_) - 1;
-  virtAddr = virtAddr & ~mask;  // Make address cache line aligned.
+  if (alignCboAddr_)
+    virtAddr = cacheLineAlign(virtAddr);
   uint64_t gPhysAddr = virtAddr;
   uint64_t physAddr = virtAddr;
   uint64_t pmva = applyPointerMask(virtAddr, false /*isLoad*/);
@@ -160,7 +158,7 @@ Hart<URV>::execCbo_clean(const DecodedInst* di)
 #endif
 
   bool isZero = false;
-  auto cause = determineCboException(virtAddr, gPhysAddr, physAddr, isZero);
+  auto cause = determineCboException(pmva, gPhysAddr, physAddr, isZero);
   if (cause != ExceptionCause::NONE)
     {
       initiateStoreException(di, cause, pmva, gPhysAddr);
@@ -206,8 +204,8 @@ Hart<URV>::execCbo_flush(const DecodedInst* di)
     }
 
   uint64_t virtAddr = intRegs_.read(di->op0());
-  uint64_t mask = uint64_t(cacheLineSize_) - 1;
-  virtAddr = virtAddr & ~mask;  // Make address cache line aligned.
+  if (alignCboAddr_)
+    virtAddr = cacheLineAlign(virtAddr);
   uint64_t gPhysAddr = virtAddr;
   uint64_t physAddr = virtAddr;
   uint64_t pmva = applyPointerMask(virtAddr, false /*isLoad*/);
@@ -224,7 +222,7 @@ Hart<URV>::execCbo_flush(const DecodedInst* di)
 #endif
 
   bool isZero = false;
-  auto cause = determineCboException(virtAddr, gPhysAddr, physAddr, isZero);
+  auto cause = determineCboException(pmva, gPhysAddr, physAddr, isZero);
   if (cause != ExceptionCause::NONE)
     {
       initiateStoreException(di, cause, pmva, gPhysAddr);
@@ -272,8 +270,8 @@ Hart<URV>::execCbo_inval(const DecodedInst* di)
   bool isZero = false;
 
   uint64_t virtAddr = intRegs_.read(di->op0());
-  uint64_t mask = uint64_t(cacheLineSize_) - 1;
-  virtAddr = virtAddr & ~mask;  // Make address cache line aligned.
+  if (alignCboAddr_)
+    virtAddr = cacheLineAlign(virtAddr);
   uint64_t gPhysAddr = virtAddr;
   uint64_t physAddr = virtAddr;
   uint64_t pmva = applyPointerMask(virtAddr, false /*isLoad*/);
@@ -288,7 +286,7 @@ Hart<URV>::execCbo_inval(const DecodedInst* di)
     return;
 #endif
 
-  auto cause = determineCboException(virtAddr, gPhysAddr, physAddr, isZero);
+  auto cause = determineCboException(pmva, gPhysAddr, physAddr, isZero);
   if (cause != ExceptionCause::NONE)
     {
       initiateStoreException(di, cause, pmva, gPhysAddr);
@@ -335,8 +333,8 @@ Hart<URV>::execCbo_zero(const DecodedInst* di)
 
   // Translate virtual addr and check for exception.
   uint64_t virtAddr = intRegs_.read(di->op0());
-  uint64_t mask = uint64_t(cacheLineSize_) - 1;
-  virtAddr = virtAddr & ~mask;  // Make address cache line aligned.
+  if (alignCboAddr_)
+    virtAddr = cacheLineAlign(virtAddr);
   uint64_t gPhysAddr = virtAddr;
   uint64_t physAddr = virtAddr;
   uint64_t pmva = applyPointerMask(virtAddr, false /*isLoad*/);
@@ -352,7 +350,7 @@ Hart<URV>::execCbo_zero(const DecodedInst* di)
 #endif
 
   bool isZero = true;
-  auto cause = determineCboException(virtAddr, gPhysAddr, physAddr, isZero);
+  auto cause = determineCboException(pmva, gPhysAddr, physAddr, isZero);
   if (cause != ExceptionCause::NONE)
     {
       initiateStoreException(di, cause, pmva, gPhysAddr);
@@ -362,8 +360,23 @@ Hart<URV>::execCbo_zero(const DecodedInst* di)
   ldStWrite_ = true;
   ldStPhysAddr1_ = ldStPhysAddr2_ = physAddr;
 
-  if (mcm_)
-    return;   // We update memory when we get bypass message from test bench.
+  if (ooo_)
+    {
+      if (perfApi_)
+        {
+          uint64_t val = 0;
+          unsigned size = sizeof(val);   // Chunk size.
+          for (unsigned i = 0; i < cacheLineSize_; i += size)
+            {
+              uint64_t pa = physAddr + i;
+              perfApi_->setStoreData(hartIx_, instCounter_, pa, pa, size, val);
+            }
+        }
+
+      // For MCM: We update memory when we get bypass message from test bench.
+
+      return;
+    }
 
   for (unsigned i = 0; i < cacheLineSize_; i += 8)
     {

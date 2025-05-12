@@ -115,7 +115,7 @@ GIT_SHA := $(shell git rev-parse --verify HEAD || echo unknown)
 override CPPFLAGS += -DGIT_SHA=$(GIT_SHA)
 
 # GIT_SHA is compiled into Args.cpp. If the SHA in the object file doesn't match, force a recompile.
-UNUSED := $(shell grep -q $(GIT_SHA) $(BUILD_DIR)/Args.cpp.o || touch Args.cpp)
+UNUSED := $(shell grep -q -s $(GIT_SHA) $(BUILD_DIR)/Args.cpp.o || touch Args.cpp)
 
 # Command to compile .cpp files.
 override CXXFLAGS += -MMD -MP $(ARCH_FLAGS) -std=$(CXX_STD) $(OFLAGS) $(IFLAGS)
@@ -157,7 +157,7 @@ RVCORE_SRCS := IntRegs.cpp CsRegs.cpp FpRegs.cpp instforms.cpp \
             crypto.cpp Decoder.cpp Trace.cpp cbo.cpp Uart8250.cpp \
             Uartsf.cpp hypervisor.cpp vector-crypto.cpp WhisperMessage.cpp \
             Imsic.cpp Args.cpp Session.cpp PerfApi.cpp dot-product.cpp \
-            aplic/Domain.cpp aplic/Aplic.cpp
+            aplic/Domain.cpp aplic/Aplic.cpp numa.cpp
 
 # List of All CPP Sources for the project
 SRCS_CXX += $(RVCORE_SRCS) whisper.cpp

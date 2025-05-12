@@ -223,18 +223,19 @@ namespace WdRiscv
     bool bypassOp(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa,
                   unsigned size, uint64_t rtlData, unsigned elem, unsigned field);
 
-    /// Initiate a merge buffer write.  All associated store write
-    /// transactions are marked completed. Write instructions where
-    /// all writes are complete are marked complete. Return true on
-    /// success.  The given physical address must be a multiple of the
-    /// merge buffer line size (which is also the cache line
-    /// size). The rtlData vector must be of size n or larger where n
-    /// is the merge buffer line size. The rtlData bytes will be
-    /// placed in memory in consecutive locations starting with
-    /// physAddr.
+    /// Initiate a merge buffer write.  All associated store write transactions are marked
+    /// completed. Write instructions where all writes are complete are marked
+    /// complete. Return true on success.  The given physical address must be a multiple
+    /// of the merge buffer line size (which is also the cache line size). The rtlData
+    /// vector must be of size n or larger where n is the merge buffer line size. The
+    /// rtlData bytes will be placed in memory in consecutive locations starting with
+    /// physAddr. If skipCheck is true, do not check RTL data versus Whisper data and do
+    /// not update Whisper memory (this is used by test-bench for non correctable checksum
+    /// errors).
     bool mergeBufferWrite(Hart<URV>& hart, uint64_t time, uint64_t physAddr,
 			  const std::vector<uint8_t>& rtlData,
-			  const std::vector<bool>& mask);
+			  const std::vector<bool>& mask,
+                          bool skipCheck = false);
 
     /// Insert a write operation for the given instruction into the merge buffer removing
     /// it from the store buffer. Return true on success. Size is expected to be less than
@@ -407,6 +408,8 @@ namespace WdRiscv
     /// executed by the same hart.
     bool checkSfenceWInval(Hart<URV>& hart, const McmInstr& instr) const;
 
+    bool checkCmo(Hart<URV>& bart, const McmInstr& instr) const;
+
     uint64_t latestOpTime(const McmInstr& instr) const
     {
       if (not instr.complete_)
@@ -541,6 +544,12 @@ namespace WdRiscv
 
     /// Helper to comitVecReadOps for unit stride.
     bool commitVecReadOpsUnitStride(Hart<URV>& hart, McmInstr& instr);
+
+    /// Helper to getCurrentLoadValue. For stride-zero vector loads, sometimes the
+    /// test-bench will send fewer reads than elements (worst case, it will send one read
+    /// for all the elements). Return the highest element index sent by the test-bench
+    /// that is less than or equal to the given element index.
+    unsigned effectiveStride0ElemIx(const Hart<URV>&, const McmInstr&, unsigned elemIx) const;
 
     /// Helper to commitVecReadOps: Collect the reference (Whisper) element info:
     /// address, index, field, data-reg, index-reg. Determine the number of
@@ -986,11 +995,6 @@ namespace WdRiscv
       // Set of stores that may affect (through forwarding) the currently executing load
       // instruction.
       std::set<McmInstrIx> forwardingStores_;
-
-      /// Map a store instruction index to the count of associated merge buffer insert
-      /// operations. This can be dropped once mbinsert is associated with the vector
-      /// element index and field.
-      std::unordered_map<McmInstrIx, uint16_t> storeInsertCount_;
 
       McmInstrIx currentLoadTag_ = 0;  // Currently executing load instruction.
 

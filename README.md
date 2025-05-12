@@ -674,6 +674,18 @@ the mstatus/status CSR.
 When true, causes the illegal instruction exception to clear the mtval CSR.
 Default is false.
 
+### clear_tinst_on_cbo_flush
+When true, clear the MTINST/STINST CSR when a cbo.flush entouters an exception.
+
+### clear_tinst_on_cbo_inval
+When true, clear the MTINST/STINST CSR when a cbo.inval entouters an exception.
+
+### align_cbo_address
+When true (default), align to a cahce line boundary the effective address of a cbo/cmo
+instruction before doing address translation: In case of an exception the reported value
+in MTVAL/STVAL will be the aligned address. When false, the effective address is used
+as is.
+
 ### cancel_lr_on_trap
 When true (default), causes reservations to be canceled on traps.
 
@@ -769,6 +781,7 @@ The advanced core local interrupt controller (aclint) configuration is an object
   timer interrupts and is relevant for booting a Linux image (Whisper uses the instruction
   count to fake a timer value and that is too fast for Linux which expect a much lower
   frequency for its timer). Default value is 10000.
+* timecmp_reset: reset value of mtimecmp
 
 ###  reset_vec
 Defines the program counter (PC) value after reset. The ELF file
@@ -854,6 +867,15 @@ can be included with in "trigger_types" are:
    "tmexttriger", and "disabled"
 ```
 
+### trigger_actions
+Define the supported trigger actions (action field in tdata1). Example:
+
+The action "raisebreak" cannot be excluded. Possible values that can be included with in "trigger_actions" are:
+```
+   "raisebreak", "enterdebug", "starttrace", "stoptrace", "emittrace", "external0",
+   and "external1"
+```
+
 ### trigger_napot_maskmax
 Define the number of maximum bits that the NAPOT mask can support. The maximum
 possible value of this number is 63 for an RV64 configuration.
@@ -891,6 +913,14 @@ Example:
     },
 
 ```
+
+### APLIC
+
+Place holder for APLIC configuration.
+
+### IOMMU
+
+Place holder for IOMMU configuration.
 
 <a name="Consistency"/>
 

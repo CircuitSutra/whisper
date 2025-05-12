@@ -26,6 +26,7 @@
 #include "pci/Pci.hpp"
 #include "pci/virtio/Blk.hpp"
 #include "aplic/Aplic.hpp"
+#include "Uart8250.hpp"
 
 
 namespace TT_PERF
@@ -238,6 +239,14 @@ namespace WdRiscv
     /// contents of accessed pages.
     bool writeAccessedMemory(const std::string& path) const;
 
+
+    /// Set whether APLIC automatically forwards MSIs
+    void setAplicAutoForwardViaMsi(bool autoForward)
+    {
+      if (!aplic_) return;
+      aplic_->autoForwardViaMsi = autoForward;
+    }
+
     /// Special target program symbol writing to which stops the
     /// simulated program or performs console io.
     void setTohostSymbol(const std::string& sym)
@@ -258,6 +267,14 @@ namespace WdRiscv
     /// types: uartsf, uart8250).
     bool defineUart(const std::string& type, uint64_t addr, uint64_t size,
 		    uint32_t iid, const std::string& channel);
+
+    /// Enable UART input. This is useful in non-interactive mode.
+    void enableUartInput()
+    {
+      for (auto& dev : ioDevs_)
+        if (dev->type() == "uart8250")
+          static_cast<Uart8250*>(dev.get())->enableInput();
+    }
 
     /// Return the memory page size.
     size_t pageSize() const
@@ -347,7 +364,8 @@ namespace WdRiscv
     /// is set for each byte of rtlData that is written by the RTL.
     bool mcmMbWrite(Hart<URV>& hart, uint64_t time, uint64_t pysAddr,
 		    const std::vector<uint8_t>& rtlData,
-		    const std::vector<bool>& mask);
+		    const std::vector<bool>& mask,
+                    bool skipCheck = false);
 
     bool mcmMbInsert(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t addr,
                      unsigned size, uint64_t data, unsigned elem, unsigned field);

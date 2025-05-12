@@ -26,12 +26,13 @@ privilegeModeToStr(const Hart<URV>& hart)
 {
   bool vm = hart.lastVirtMode();
   auto pm = hart.lastPrivMode();
+  bool dm = hart.lastDebugMode();
 
   bool hyper = hart.extensionIsEnabled(RvExtension::H);
 
   if (not vm)
     {
-      if (pm == PrivilegeMode::Machine)    return "M";
+      if (pm == PrivilegeMode::Machine)    return dm? "D" : "M";
       if (pm == PrivilegeMode::Supervisor) return hyper ? "HS" : "S";
       if (pm == PrivilegeMode::User)       return "U";
     }
@@ -235,27 +236,28 @@ printPageTableWalk(FILE* out, const Hart<URV>& hart, const char* tag,
   for (auto& entry : entries)
     {
       fputs("  +\n", out);
-      uint64_t displayAddr = entry.addr_;
+      uint64_t addr = entry.addr_;
+      uint64_t effAddr = addr;   // Addr after clearing STEE bit
       if (steeEnabled and entry.type_ == VirtMem::WalkEntry::Type::PA)
-        displayAddr = stee.clearSecureBits(displayAddr);
+        effAddr = stee.clearSecureBits(addr);
 
       if (entry.type_ == VirtMem::WalkEntry::Type::RE)
         {
           fputs(pageTableWalkType(headType, head).data(), out);
           fputs("res:", out);
-          fprintf(out, "0x%" PRIx64, displayAddr);
+          fprintf(out, "0x%" PRIx64, addr);
           continue;
         }
 
       fputs(pageTableWalkType(entry.type_, head).data(), out);
-      fprintf(out, "0x%" PRIx64, displayAddr);
+      fprintf(out, "0x%" PRIx64, addr);
       if (entry.type_ == VirtMem::WalkEntry::Type::PA)
         {
           uint64_t pte = 0;
-          hart.peekMemory(displayAddr, pte, true);
+          hart.peekMemory(effAddr, pte, true);
           fprintf(out, "=0x%" PRIx64, pte);
 
-          Pma pma = hart.getPma(displayAddr);
+          Pma pma = hart.getPma(effAddr);
           pma = hart.overridePmaWithPbmt(pma, entry.pbmt_);
           fprintf(out, ", ma=%s", pma.attributesToString(pma.attributesToInt()).c_str());
         }
@@ -770,7 +772,7 @@ Hart<URV>::printInstCsvTrace(const DecodedInst& di, FILE* out)
     buffer.printChar('v');
 
   // Privilege mode.
-  if      (lastPriv_ == PrivilegeMode::Machine)    buffer.print(",m,");
+  if      (lastPriv_ == PrivilegeMode::Machine)    buffer.print((lastDm_)? ",d," : ",m,");
   else if (lastPriv_ == PrivilegeMode::Supervisor) buffer.print((lastVirt_)? ",vs," : ",s,");
   else if (lastPriv_ == PrivilegeMode::User)       buffer.print((lastVirt_)? ",vu," : ",u,");
   else                                             buffer.print(",,");

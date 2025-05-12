@@ -14,6 +14,7 @@
 
 #include <iostream>
 #include <span>
+#include "numa.hpp"
 #include "HartConfig.hpp"
 #include "Args.hpp"
 #include "Session.hpp"
@@ -57,6 +58,24 @@ main(int argc, char* argv[])
       if (not args.configFile.empty())
         if (not config.loadConfigFile(args.configFile))
           return 1;
+
+      // Try to use numactl to improve performance
+      // If this succeeds, we'll call exec() and never return
+      // If this function returns, it's because numactl could not be used for
+      // some reason and we must proceed as normal
+      if (args.use_numactl)
+        {
+          unsigned hartsPerCore = 1;
+          unsigned coreCount = 1;
+          config.getHartsPerCore(hartsPerCore);
+          if (args.harts)
+            hartsPerCore = *args.harts;
+          config.getCoreCount(coreCount);
+          if (args.cores)
+            coreCount = *args.cores;
+          unsigned numa_cores = hartsPerCore * coreCount;
+          attempt_numactl(argc, argv, numa_cores);
+        }
 
       TerminalStateRAII term;  // Save/restore terminal state.
 

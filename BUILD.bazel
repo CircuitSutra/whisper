@@ -14,7 +14,8 @@ hdrs = [
     "InstId.hpp",
     "Isa.hpp",
     "IoDevice.hpp",
-    "Uart8250.hpp"
+    "Uart8250.hpp",
+    "numa.hpp"
 ]
 
 cc_library(
@@ -23,7 +24,7 @@ cc_library(
     hdrs          = hdrs,
     local_defines = ["SOFT_FLOAT", "MEM_CALLBACKS", "LZ4_COMPRESS"],
     deps          = ["//third_party:nlohmann", "//third_party:elfio", "//third_party:softfloat", "//third_party:linenoise", "//pci:pci", "//virtual_memory:virtual_memory", "//aplic:aplic"],
-    linkopts      = ["-lpthread", "-lz", "-ldl", "-lrt", "-llz4", "-lutil", "-lboost_program_options", "-rdynamic"],
+    linkopts      = ["-lpthread", "-lz", "-ldl", "-lrt", "-llz4", "-lutil"],
     visibility    = ["//visibility:public"],
 )
 

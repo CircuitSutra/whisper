@@ -9,7 +9,7 @@ using namespace WdRiscv;
 
 
 Uartsf::Uartsf(uint64_t addr, uint64_t size)
-  : IoDevice(addr, size), regs_(RegId::N)
+  : IoDevice("uartsf", addr, size), regs_(RegId::N)
 {
   auto func = [this]() { this->monitorInput(); };
   stdinThread_ = std::thread(func);

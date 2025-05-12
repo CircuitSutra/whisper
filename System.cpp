@@ -17,6 +17,9 @@
 #include <fstream>
 #include <sstream>
 #include <boost/algorithm/string.hpp>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
 #include "Filesystem.hpp"
 #include "Hart.hpp"
 #include "Core.hpp"
@@ -91,7 +94,6 @@ System<URV>::System(unsigned coreCount, unsigned hartsPerCore,
 #endif
 }
 
-
 template <typename URV>
 bool
 System<URV>::defineUart(const std::string& type, uint64_t addr, uint64_t size,
@@ -99,34 +101,108 @@ System<URV>::defineUart(const std::string& type, uint64_t addr, uint64_t size,
 {
   std::shared_ptr<IoDevice> dev;
 
+
+  auto createChannel = [](std::string_view channel_type) -> std::unique_ptr<UartChannel> {
+    auto createChannelImpl = [](std::string_view channel_type, auto &createChannelImpl) -> std::unique_ptr<UartChannel> {
+      constexpr std::string_view unixPrefix = "unix:";
+
+      auto pos = channel_type.find(';');
+      if (pos != std::string::npos)
+      {
+        std::string_view readWriteChannelType = channel_type.substr(0, pos);
+        std::string_view writeOnlyChannelType = channel_type.substr(pos + 1);
+
+        std::unique_ptr<UartChannel> readWriteChannel = createChannelImpl(readWriteChannelType, createChannelImpl);
+        std::unique_ptr<UartChannel> writeOnlyChannel = createChannelImpl(writeOnlyChannelType, createChannelImpl);
+
+        return std::make_unique<ForkChannel>(std::move(readWriteChannel), std::move(writeOnlyChannel));
+      }
+      else if (channel_type == "stdio")
+        return std::make_unique<FDChannel>(fileno(stdin), fileno(stdout));
+      else if (channel_type == "pty")
+        return std::make_unique<PTYChannel>();
+      else if (channel_type.find(unixPrefix, 0) == 0)
+      {
+        std::string filename(channel_type.substr(unixPrefix.length()));
+        if (filename.empty()) {
+          std::cerr << "System::defineUart: Missing filename for unix socket channel\n";
+          return nullptr;
+        }
+
+        int server_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+        if (server_fd < 0) {
+          perror("System::defineUart: Failed to create unix socket");
+          return nullptr;
+        }
+
+        struct sockaddr_un addr;
+        memset(&addr, 0, sizeof(addr));
+        addr.sun_family = AF_UNIX;
+        strncpy(addr.sun_path, filename.c_str(), sizeof(addr.sun_path) - 1);
+
+        // Remove existing socket file if present before binding
+        unlink(filename.c_str());
+
+        if (bind(server_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+          perror("System::defineUart: Failed to bind unix socket");
+          close(server_fd);
+          return nullptr;
+        }
+
+        if (listen(server_fd, 1) < 0) {
+          perror("System::defineUart: Failed to listen on unix socket");
+          close(server_fd);
+          return nullptr;
+        }
+
+        std::cerr << "System::defineUart: Listening on unix socket: " << filename << "\n";
+        std::unique_ptr<SocketChannel> channel;
+        try {
+          channel = std::make_unique<SocketChannel>(server_fd);
+        } catch (const std::runtime_error& e) {
+          std::cerr << "System::defineUart: Failed to create SocketChannel: " << e.what() << "\n";
+          close(server_fd);
+          unlink(filename.c_str());
+          return nullptr;
+        }
+
+        // SocketChannel constructor called accept(), server fd no longer needed here.
+        close(server_fd);
+        unlink(filename.c_str());
+
+        return channel;
+      }
+      else
+      {
+        std::cerr << "System::defineUart: Invalid channel type: " << channel_type << "\n"
+          << "Valid channels: stdio, pty, unix:<server socket path>, or a"
+          << "semicolon separated list of those.\n";
+        return nullptr;
+      }
+    };
+    return createChannelImpl(channel_type, createChannelImpl);
+  };
+
   if (type == "uartsf")
     dev = std::make_shared<Uartsf>(addr, size);
   else if (type == "uart8250")
-    {
-      std::unique_ptr<UartChannel> channel;
-      if (channel_type == "stdio")
-        channel = std::make_unique<FDChannel>(fileno(stdin), fileno(stdout));
-      else if (channel_type == "pty")
-        channel = std::make_unique<PTYChannel>();
-      else
-        {
-          std::cerr << "System::defineUart: Invalid channel: " << channel_type << "\n";
-          return false;
-        }
-      dev = std::make_shared<Uart8250>(addr, size, aplic_, iid, std::move(channel));
-    }
-  else
-    {
-      std::cerr << "System::defineUart: Invalid uadrt type: " << type << "\n";
+  {
+    std::unique_ptr<UartChannel> channel = createChannel(channel_type);
+    if (!channel)
       return false;
-    }
+    dev = std::make_shared<Uart8250>(addr, size, aplic_, iid, std::move(channel), false);
+  }
+  else
+  {
+    std::cerr << "System::defineUart: Invalid uart type: " << type << "\n";
+    return false;
+  }
 
   memory_->registerIoDevice(dev);
   ioDevs_.push_back(std::move(dev));
 
   return true;
 }
-
 
 template <typename URV>
 System<URV>::~System()
@@ -730,9 +806,9 @@ System<URV>::configAplic(unsigned num_sources, std::span<const TT_APLIC::DomainP
               << " interrupt-state=" << (interState? "on" : "off") << '\n';
     // if an IMSIC is present, then interrupt should only be delivery if its eidelivery is 0x40000000
     auto& hart = *ithHart(hartIx);
-    if (hart.csRegs().aiaEnabled())
+    auto imsic = hart.imsic();
+    if (imsic)
       {
-        auto imsic = imsicMgr_.ithImsic(hartIx);
         unsigned eidelivery = is_machine ? imsic->machineDelivery() : imsic->supervisorDelivery();
         if (eidelivery != 0x40000000)
           {
@@ -1007,11 +1083,11 @@ template <typename URV>
 bool
 System<URV>::mcmMbWrite(Hart<URV>& hart, uint64_t time, uint64_t addr,
 			const std::vector<uint8_t>& data,
-			const std::vector<bool>& mask)
+			const std::vector<bool>& mask, bool skipCheck)
 {
   if (not mcm_)
     return false;
-  return mcm_->mergeBufferWrite(hart, time, addr, data, mask);
+  return mcm_->mergeBufferWrite(hart, time, addr, data, mask, skipCheck);
 }
 
 

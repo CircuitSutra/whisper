@@ -8,6 +8,8 @@
 #else
 #include <pty.h>
 #endif
+#include <sys/socket.h>
+#include <netinet/in.h>
 #include "Uart8250.hpp"
 
 
@@ -34,40 +36,44 @@ FDChannel::FDChannel(int in_fd, int out_fd)
 }
 
 size_t FDChannel::read(uint8_t *arr, size_t n) {
-  int code = poll(pollfds_, 2, 10);
+  while (true) {
+    int code = poll(pollfds_, 2, 10);
 
-  if (code == 0)
-    return 0;
-
-  if (code > 0)
-  {
-    // Terminated
-    if ((pollfds_[1].revents & POLLIN))
-      return 0;
-
-    if ((pollfds_[0].revents & POLLIN) != 0)
+    if (code > 0)
     {
-      ssize_t count = ::read(in_fd_, arr, n);
-      if (count < 0)
-        throw std::runtime_error("FDChannel: Failed to read from in_fd_\n");
+      // Terminated
+      if ((pollfds_[1].revents & POLLIN))
+        return 0;
 
-      if (isatty(in_fd_))
-        for (size_t i = 0; i < static_cast<size_t>(count); i++) {
-          static uint8_t prev = 0;
-          const uint8_t c = arr[i];
+      if ((pollfds_[0].revents & POLLIN) != 0)
+      {
+        ssize_t count = ::read(in_fd_, arr, n);
+        // std::cout << "Read " << count << " bytes from in_fd_\n";
+        if (count < 0)
+          throw std::runtime_error("FDChannel: Failed to read from in_fd_\n");
 
-          // Force a stop if control-a x is seen.
-          if (prev == 1 and c == 'x')
-            throw std::runtime_error("Keyboard stop");
-          prev = c;
-        }
+        if (isatty(in_fd_))
+          for (size_t i = 0; i < static_cast<size_t>(count); i++) {
+            static uint8_t prev = 0;
+            const uint8_t c = arr[i];
 
-      return count;
+            // Force a stop if control-a x is seen.
+            if (prev == 1 and c == 'x')
+              throw std::runtime_error("Keyboard stop");
+            prev = c;
+          }
+
+        return count;
+      }
     }
-  }
 
-  // TODO: handle error return codes from poll.
-  return 0;
+    if (code == 0)
+      // Timeout
+      continue;
+
+    // TODO: handle error return codes from poll.
+    return 0;
+  }
 }
 
 void FDChannel::write(uint8_t byte) {
@@ -115,20 +121,63 @@ PTYChannelBase::~PTYChannelBase()
 PTYChannel::PTYChannel() : PTYChannelBase(), FDChannel(master_, master_)
 { }
 
+
+SocketChannelBase::SocketChannelBase(int server_fd) {
+  struct sockaddr_in client_addr;
+  socklen_t client_len = sizeof(client_addr);
+  conn_fd_ = accept(server_fd, (struct sockaddr *)&client_addr, &client_len);
+  if (conn_fd_ < 0)
+    throw std::runtime_error("Failed to accept socket connection\n");
+}
+
+SocketChannelBase::~SocketChannelBase() {
+  if (conn_fd_ != -1) {
+    shutdown(conn_fd_, SHUT_RDWR);
+    close(conn_fd_);
+  }
+}
+
+SocketChannel::SocketChannel(int server_fd) : SocketChannelBase(server_fd), FDChannel(conn_fd_, conn_fd_)
+{ }
+
+
+ForkChannel::ForkChannel(std::unique_ptr<UartChannel> readWriteChannel, std::unique_ptr<UartChannel> writeOnlyChannel)
+  : readWriteChannel_(std::move(readWriteChannel)), writeOnlyChannel_(std::move(writeOnlyChannel)) {}
+
+size_t ForkChannel::read(uint8_t *buf, size_t size) {
+  return readWriteChannel_->read(buf, size);
+}
+
+void ForkChannel::write(uint8_t byte) {
+  readWriteChannel_->write(byte);
+  writeOnlyChannel_->write(byte);
+}
+
+void ForkChannel::terminate() {
+  readWriteChannel_->terminate();
+  writeOnlyChannel_->terminate();
+}
+
 Uart8250::Uart8250(uint64_t addr, uint64_t size,
     std::shared_ptr<TT_APLIC::Aplic> aplic, uint32_t iid,
-    std::unique_ptr<UartChannel> channel)
-  : IoDevice(addr, size, aplic, iid), channel_(std::move(channel))
+    std::unique_ptr<UartChannel> channel, bool enableInput)
+  : IoDevice("uart8250", addr, size, aplic, iid), channel_(std::move(channel))
 {
-  auto func = [this]() { this->monitorInput(); };
-  inThread_ = std::thread(func);
+  if (enableInput)
+    this->enableInput();
 }
 
 Uart8250::~Uart8250()
 {
   terminate_ = true;
   channel_->terminate();
-  inThread_.join();
+  if (inThread_.joinable())
+    inThread_.join();
+}
+
+void Uart8250::enableInput() {
+  auto func = [this]() { this->monitorInput(); };
+  inThread_ = std::thread(func);
 }
 
 void Uart8250::interruptUpdate() {
@@ -171,7 +220,7 @@ uint32_t Uart8250::read(uint64_t addr) {
 	uint32_t iir = iir_;
 	interruptUpdate();
 	return iir;
-      } 
+      }
       case 3: return lcr_;
       case 4: return mcr_;
       case 5: return lsr_;
@@ -203,7 +252,7 @@ void Uart8250::write(uint64_t addr, uint32_t value) {
         interruptUpdate();
       }
       break;
-      case 1: { 
+      case 1: {
         ier_ = value;
         interruptUpdate();
       } break;
@@ -239,26 +288,27 @@ void Uart8250::monitorInput() {
 
     std::array<uint8_t, FIFO_SIZE> arr;
     size_t count = channel_->read(arr.data(), FIFO_SIZE);
+    if (count == 0)
+      // EOF
+      return;
 
-    if (count != 0) {
-      std::unique_lock<std::mutex> lock(mutex_);
+    std::unique_lock<std::mutex> lock(mutex_);
 
-      size_t i = 0;
-      do {
-        if (terminate_)
-          return;
+    size_t i = 0;
+    do {
+      if (terminate_)
+        return;
 
-        for (; i < count && rx_fifo.size() < FIFO_SIZE; i++) {
-          rx_fifo.push(arr[i]);
-        }
+      for (; i < count && rx_fifo.size() < FIFO_SIZE; i++) {
+        rx_fifo.push(arr[i]);
+      }
 
-        lsr_ |= 1;  // Set receiver data ready
-        interruptUpdate();
+      lsr_ |= 1;  // Set receiver data ready
+      interruptUpdate();
 
-        if (rx_fifo.size() >= FIFO_SIZE)
-          // Block until rx_fifo has space
-          cv_.wait(lock);
-      } while (i != count);
-    }
+      if (rx_fifo.size() >= FIFO_SIZE)
+        // Block until rx_fifo has space
+        cv_.wait(lock);
+    } while (i != count);
   }
 }

@@ -414,6 +414,12 @@ namespace WdRiscv
     bool nextVirtualMode() const
     { return hart_->virtMode();  }
 
+    bool debugMode() const
+    { return hart_->lastDebugMode(); }
+
+    bool nextDebugMode() const
+    { return hart_->inDebugMode(); }
+
     const Hart<URV>* hart_ = nullptr;
     const DecodedInst& di_;
   };

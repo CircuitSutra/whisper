@@ -42,6 +42,17 @@ Triggers<URV>::Triggers(unsigned count)
   supportedTypes_.at(unsigned(TT::Custom1)) = false;
   supportedTypes_.at(unsigned(TT::Custom2)) = false;
 
+
+  using TA = TriggerAction;
+  supportedActions_.resize(unsigned(TA::Limit) + 1, false);
+  supportedActions_.at(unsigned(TA::RaiseBreak)) = true;
+  supportedActions_.at(unsigned(TA::EnterDebug)) = true;
+  supportedActions_.at(unsigned(TA::StartTrace)) = true;
+  supportedActions_.at(unsigned(TA::StopTrace)) = true;
+  supportedActions_.at(unsigned(TA::EmitTrace)) = true;
+  supportedActions_.at(unsigned(TA::External0)) = true;
+  supportedActions_.at(unsigned(TA::External1)) = true;
+
   // By default read masks allow reading of all bits.
   for (auto& mask : data1ReadMasks_)
     mask = ~URV(0);
@@ -169,22 +180,29 @@ Triggers<URV>::writeData1(URV trigIx, bool debugMode, URV value)
 
   // If new type is not supported, preserve old type.
   Data1Bits<URV> valBits{value};
-  bool preserve = not isSupportedType(valBits.type());
+  bool preserveType = not isSupportedType(valBits.type());
 
-  if (valBits.type() != TriggerType::None and not preserve)
+  if (valBits.type() != TriggerType::None and not preserveType)
     {
       // If new type is not supported by this trigger, preserve old type.
       unsigned typeNumber = unsigned(valBits.type());
       unsigned mask = 1 << typeNumber;
       TinfoBits tinfo(trig.readInfo());
-      preserve = not (tinfo.info() & mask);
+      preserveType = not (tinfo.info() & mask);
     }
 
-  if (preserve)
+  if (preserveType)
      {
        valBits.setType(trig.data1_.type());
        value = valBits.value_;
      }
+
+  // If new action is not supported, preserve old action.
+  if (not isSupportedAction(valBits.action()))
+    {
+      valBits.setAction(trig.data1_.action());
+      value = valBits.value_;
+    }
 
   if (not trig.writeData1(debugMode, value))
     return false;
@@ -269,7 +287,7 @@ Triggers<URV>::ldStAddrTriggerHit(URV address, unsigned size, TriggerTiming timi
 {
   // Check if we should skip tripping because we are running in machine mode and
   // interrupts are disabled.
-  bool skip = mode == PrivilegeMode::Machine and not interruptEnabled;
+  bool skip = not interruptEnabled;
   if (tcontrolEnabled_)
     skip = mode == PrivilegeMode::Machine and not mmodeEnabled_;
 
@@ -296,9 +314,8 @@ bool
 Triggers<URV>::ldStDataTriggerHit(URV value, TriggerTiming timing, bool isLoad,
 				  PrivilegeMode mode, bool virtMode, bool interruptEnabled)
 {
-  // Check if we should skip tripping because we are running in machine mode and
-  // interrupts are enabled.
-  bool skip = mode == PrivilegeMode::Machine and not interruptEnabled;
+  // Check if we should skip tripping because of reentrant behavior.
+  bool skip = not interruptEnabled;
   if (tcontrolEnabled_)
     skip = mode == PrivilegeMode::Machine and not mmodeEnabled_;
 
@@ -326,9 +343,8 @@ bool
 Triggers<URV>::instAddrTriggerHit(URV address, unsigned size, TriggerTiming timing,
                                   PrivilegeMode mode, bool virtMode, bool interruptEnabled)
 {
-  // Check if we should skip tripping because we are running in machine mode and
-  // interrupts are enabled.
-  bool skip = mode == PrivilegeMode::Machine and not interruptEnabled;
+  // Check if we should skip tripping because of reentrant behavior
+  bool skip = not interruptEnabled;
   if (tcontrolEnabled_)
     skip = mode == PrivilegeMode::Machine and not mmodeEnabled_;
 
@@ -357,9 +373,8 @@ Triggers<URV>::instOpcodeTriggerHit(URV opcode, TriggerTiming timing,
                                     PrivilegeMode mode, bool virtMode,
 				    bool interruptEnabled)
 {
-  // Check if we should skip tripping because we are running in machine mode and
-  // interrupts are enabled.
-  bool skip = mode == PrivilegeMode::Machine and not interruptEnabled;
+  // Check if we should skip tripping because of reentrant behavior. 
+  bool skip = not interruptEnabled;
   if (tcontrolEnabled_)
     skip = mode == PrivilegeMode::Machine and not mmodeEnabled_;
 
@@ -386,9 +401,8 @@ template <typename URV>
 bool
 Triggers<URV>::icountTriggerFired(PrivilegeMode mode, bool virtMode, bool interruptEnabled)
 {
-  // Check if we should skip tripping because we are running in machine mode and
-  // interrupts are enabled.
-  bool skip = mode == PrivilegeMode::Machine and not interruptEnabled;
+  // Check if we should skip tripping because of reentrant behavior. 
+  bool skip = not interruptEnabled;
   if (tcontrolEnabled_)
     skip = mode == PrivilegeMode::Machine and not mmodeEnabled_;
 
@@ -416,9 +430,8 @@ template <typename URV>
 void
 Triggers<URV>::evaluateIcount(PrivilegeMode mode, bool virtMode, bool interruptEnabled)
 {
-  // Check if we should skip tripping because we are running in machine mode and
-  // interrupts are enabled.
-  bool skip = mode == PrivilegeMode::Machine and not interruptEnabled;
+  // Check if we should skip tripping because of reentrant behavior. 
+  bool skip = not interruptEnabled;
   if (tcontrolEnabled_)
     skip = mode == PrivilegeMode::Machine and not mmodeEnabled_;
 
@@ -446,9 +459,8 @@ template <typename URV>
 bool
 Triggers<URV>::expTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool interruptEnabled)
 {
-  // Check if we should skip tripping because we are running in machine mode and
-  // interrupts are enabled.
-  bool skip = mode == PrivilegeMode::Machine and not interruptEnabled;
+  // Check if we should skip tripping because of reentrant behavior. 
+  bool skip = not interruptEnabled;
   if (tcontrolEnabled_)
     skip = mode == PrivilegeMode::Machine and not mmodeEnabled_;
 
@@ -496,9 +508,8 @@ template <typename URV>
 bool
 Triggers<URV>::intTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool interruptEnabled)
 {
-  // Check if we should skip tripping because we are running in machine mode and
-  // interrupts are enabled.
-  bool skip = mode == PrivilegeMode::Machine and not interruptEnabled;
+  // Check if we should skip tripping because of reentrant behavior. 
+  bool skip = not interruptEnabled;
   if (tcontrolEnabled_)
     skip = mode == PrivilegeMode::Machine and not mmodeEnabled_;
 
@@ -660,6 +671,70 @@ Triggers<URV>::setSupportedTypes(const std::vector<std::string>& strings)
     }
 
   if (not setSupportedTypes(types))
+    errors++;
+
+  return errors == 0;
+}
+
+
+template <typename URV>
+bool
+Triggers<URV>::setSupportedActions(const std::vector<TriggerAction>& actions)
+{
+  std::fill(supportedActions_.begin(), supportedActions_.end(), false);
+
+  supportedActions_.at(unsigned(TriggerAction::RaiseBreak)) = true;
+
+  bool hasRaiseBreak = false;
+
+  for (auto action : actions)
+    {
+      unsigned ix = unsigned(action);
+      if (action == TriggerAction::RaiseBreak)
+        hasRaiseBreak = true;
+      supportedActions_.at(ix) = true;
+    }
+
+  if (not hasRaiseBreak)
+    std::cerr << "Error: Triggers::SetSupportedActions: Missing action \"raisebreak\"\n";
+
+  return hasRaiseBreak;
+}
+
+
+template <typename URV>
+bool
+Triggers<URV>::setSupportedActions(const std::vector<std::string>& strings)
+{
+  using TA = TriggerAction;
+  std::vector<TA> actions;
+
+  unsigned errors = 0;
+
+  for (const auto& str : strings)
+    {
+      if (str == "raisebreak")
+	actions.push_back(TA::RaiseBreak);
+      else if (str == "enterdebug")
+	actions.push_back(TA::EnterDebug);
+      else if (str == "starttrace")
+	actions.push_back(TA::StartTrace);
+      else if (str == "stoptrace")
+	actions.push_back(TA::StopTrace);
+      else if (str == "emittrace")
+	actions.push_back(TA::EmitTrace);
+      else if (str == "external0")
+	actions.push_back(TA::External0);
+      else if (str == "external1")
+	actions.push_back(TA::External1);
+      else
+	{
+	  std::cerr << "No such trigger action: " << str << '\n';
+	  errors++;
+	}
+    }
+
+  if (not setSupportedActions(actions))
     errors++;
 
   return errors == 0;

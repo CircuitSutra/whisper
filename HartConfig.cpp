@@ -1905,6 +1905,27 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
       errors += trigErrors;
     }
 
+  tag = "trigger_actions";
+  if (config_ -> contains(tag))
+    {
+      std::vector<std::string> actions;
+      unsigned trigErrors = 0;
+      const auto& items = config_ -> at(tag);
+      for (const auto& item : items)
+	{
+	  if (not item.is_string())
+	    {
+	      cerr << "Error: Invalid value in config file item " << tag << " -- expecting string\n";
+	      ++trigErrors;
+	    }
+	  else
+	    actions.push_back(item.get<std::string>());
+	}
+      if (not hart.setSupportedTriggerActions(actions))
+	++trigErrors;
+      errors += trigErrors;
+    }
+
   tag = "trigger_napot_maskmax";
   if (config_ -> contains(tag))
     {
@@ -2088,21 +2109,13 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
         hart.enableClearTinstOnCboFlush(flag);
     }
 
-  // This is used to reduce the frequency of timer interupts. By
-  // default the timer runs at the frequence of the instruction
-  // counter. By adding a time shift, we put additional delay before
-  // the timer expires (reaches timecmp).
-  tag = "time_shift";
-  if (config_ ->contains(tag))
+  tag = "align_cbo_address";
+  if (config_ -> contains(tag))
     {
-      if (hart.sysHartIndex() == 0)
-	cerr << "Warning: Config tag time_shift may overflow timecmp and have "
-	     << "unintended consequences.\n";
-      unsigned shift = 0;
-      if (not getJsonUnsigned(tag, config_ -> at(tag), shift))
-	errors++;
+      if (not getJsonBoolean(tag, config_ -> at(tag), flag))
+        errors++;
       else
-	hart.setTimeShift(shift);
+        hart.enableAlignCboAddress(flag);
     }
 
   // Same as above, but this is used to apply a scaling factor
@@ -2568,6 +2581,15 @@ HartConfig::applyAclintConfig(System<URV>& system, Hart<URV>& hart) const
       hart.setAclintAdjustTimeCompare(offset);
     }
 
+  tag = "timecmp_reset";
+  if (aclint.contains(tag))
+    {
+      uint64_t reset = 0;
+      if (not getJsonUnsigned("aclint.timecmp_reset", aclint.at(tag), reset))
+        return false;
+      hart.setAclintAlarm(reset);
+    }
+
   return configAclint(system, hart, base, size, swOffset, hasMswi, mtimeCmpOffset,
                       timeOffset, hasMtimer, siOnReset, deliverInterrupts);
 }
@@ -2785,7 +2807,7 @@ HartConfig::configHarts(System<URV>& system, bool userMode, bool verbose) const
 	}
 		
       uint32_t iid = 0;
-      std::string channel = "stdio";
+      std::string channel = "pty";
       if (type == "uart8250")
         {
           if (uart.contains("iid") &&
@@ -2793,18 +2815,11 @@ HartConfig::configHarts(System<URV>& system, bool userMode, bool verbose) const
             return false;
 
           if (not uart.contains("channel"))
-            {
-              std::cerr << "Missing uart channel. Using " << channel << ". Valid channels: stdio, pty.\n";
-            }
+              std::cerr << "Missing uart channel. Using " << channel << ". "
+                << "Valid channels: stdio, pty, unix:<server socket path>, or a"
+                << "semicolon separated list of those.\n";
           else
-            {
-              channel = uart.at("channel").get<std::string>();
-              if (channel != "stdio" && channel != "pty")
-                {
-                  std::cerr << "Invalid uart channel: " << channel << ". Valid channels: stdio, pty.\n";
-                  return false;
-                }
-            }
+            channel = uart.at("channel").get<std::string>();
         }
 
       if (not system.defineUart(type, addr, size, iid, channel))

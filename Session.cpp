@@ -184,6 +184,10 @@ Session<URV>::configureSystem(const Args& args, const HartConfig& config)
     if (not system.loadSnapshot(args.loadFrom, args.loadFromTrace))
       return false;
 
+  // Enable uart input (if exists)
+  if (not args.interactive)
+    system.enableUartInput();
+
 #if 0
   if (linux and checkForOpenMp(args))
     {
@@ -240,8 +244,8 @@ Session<URV>::getPrimaryConfigParameters(const Args& args, const HartConfig& con
 					 size_t& pageSize, size_t& memorySize)
 {
   config.getHartsPerCore(hartsPerCore);
-  if (args.hasHarts)
-    hartsPerCore = args.harts;
+  if (args.harts)
+    hartsPerCore = *args.harts;
   if (hartsPerCore == 0 or hartsPerCore > 32)
     {
       std::cerr << "Unsupported hart count: " << hartsPerCore;
@@ -250,8 +254,8 @@ Session<URV>::getPrimaryConfigParameters(const Args& args, const HartConfig& con
     }
 
   config.getCoreCount(coreCount);
-  if (args.hasCores)
-    coreCount = args.cores;
+  if (args.cores)
+    coreCount = *args.cores;
   if (coreCount == 0 or coreCount > 32)
     {
       std::cerr << "Unsupported core count: " << coreCount;
@@ -547,15 +551,15 @@ Session<URV>::determineIsa(const HartConfig& config, const Args& args, bool clib
   if (isa.empty() and clib)
     {
       if (args.verbose)
-	std::cerr << "No ISA specified, using i/m/a/c/f/d/v extensions for newlib/linux\n";
-      isa = "imcafdv";
+	std::cerr << "No ISA specified, using imacfdv_zicsr extensions for newlib/linux\n";
+      isa = "imacfdv_zicsr";
     }
 
   if (isa.empty() and not args.raw)
     {
       if (args.verbose)
-	std::cerr << "No ISA specified: Defaulting to imac\n";
-      isa = "imacfd";
+	std::cerr << "No ISA specified: Defaulting to imacfd_zicsr\n";
+      isa = "imacfd_zicsr";
     }
 
   return true;
@@ -1315,6 +1319,8 @@ unsigned
 Session<URV>::determineRegisterWidth(const Args& args, const HartConfig& config)
 {
   unsigned isaLen = 0;
+
+  // If --isa specifies xlen, go with that.
   if (not args.isa.empty())
     {
       if (args.isa.starts_with("rv32"))
@@ -1325,7 +1331,6 @@ Session<URV>::determineRegisterWidth(const Args& args, const HartConfig& config)
 	std::cerr << "Command line --isa tag does not start with rv32/rv64\n";
     }
 
-  // 1. If --isa specifies xlen, go with that.
   if (isaLen)
     {
       if (args.verbose)
@@ -1333,7 +1338,15 @@ Session<URV>::determineRegisterWidth(const Args& args, const HartConfig& config)
       return isaLen;
     }
 
-  // 2. If config file has isa tag, go with that.
+  // If --xlen is present, go with that.
+  if (args.xlen)
+    {
+      if (args.verbose)
+        std::cerr << "Setting xlen from --xlen: " << *args.xlen << "\n";
+      return *args.xlen;
+    }
+
+  // If config file has isa tag, go with that.
   unsigned xlen = 32;
   if (config.getXlen(xlen))
     {
@@ -1342,7 +1355,7 @@ Session<URV>::determineRegisterWidth(const Args& args, const HartConfig& config)
       return xlen;
     }
 
-  // 3. Get xlen from ELF file.
+  // Get xlen from ELF file.
   if (getXlenFromElfFile(args, xlen))
     {
       if (args.verbose)
@@ -1404,8 +1417,66 @@ Session<URV>::cleanup(const Args& args)
       std::cerr << "Used blocks: 0x" << std::hex << bytes << std::endl;
     }
 
+  if (not args.eorMemDump.empty())
+    result = eorMemDump(args.eorMemDump, args.eorMemDumpRanges) and result;
+
   closeUserFiles();
   return result;
+}
+
+
+template <typename URV>
+bool
+Session<URV>::eorMemDump(const std::string& file, const std::vector<uint64_t>& addrs)
+{
+  if (file.empty())
+    return true;
+
+  const auto& memory = system_->memory();
+
+  std::ofstream ofs(file);
+  if (not ofs)
+    {
+      std::cerr << "Error: Failed to open " << file << " for writing\n";
+      return false;
+    }
+
+  ofs << std::hex;
+
+  assert((addrs.size() % 2) == 0);
+  for (size_t i = 0; i < addrs.size(); i += 2)
+    {
+      auto start = addrs.at(i);
+      auto end = addrs.at(i+1);
+      if (start > end)
+        continue;
+
+      ofs << "@" << start << '\n';
+
+      while (start < end)
+        {
+          uint64_t chunk = end - start;
+          chunk = std::min(uint64_t(16), chunk);
+
+          const char* sep = "";
+
+          for (uint64_t bi = 0; bi < chunk; ++bi)
+            {
+              uint8_t byte = 0;
+              memory->peek(start++, byte, false);
+
+              ofs << sep;
+              sep = " ";
+
+              if (byte <= 0xf)
+                ofs << '0';
+              ofs << unsigned(byte);
+            }
+          ofs << '\n';
+        }
+    }
+
+  return true;
 }
 
 

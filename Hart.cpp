@@ -348,24 +348,12 @@ Hart<URV>::setupVirtMemCallbacks()
   });
 
   virtMem_.setIsReadableCallback([this](uint64_t addr, PrivilegeMode pm) -> bool {
-    if (steeEnabled_)
-      {
-        if (!stee_.isValidAddress(addr))
-          return false;  
-        addr = stee_.clearSecureBits(addr);
-      }
-
     if (pmpManager_.isEnabled())
       {
         const Pmp& pmp = pmpManager_.accessPmp(addr);
         if (not pmp.isRead(pm))
           return false;
       }
-    auto pma = memory_.pmaMgr_.getPma(addr);
-    return pma.isRead();
-  });
-
-  virtMem_.setIsWritableCallback([this](uint64_t addr, PrivilegeMode pm) -> bool {
     if (steeEnabled_)
       {
         if (!stee_.isValidAddress(addr))
@@ -373,12 +361,24 @@ Hart<URV>::setupVirtMemCallbacks()
         addr = stee_.clearSecureBits(addr);
       }
 
+    auto pma = memory_.pmaMgr_.getPma(addr);
+    return pma.isRead();
+  });
+
+  virtMem_.setIsWritableCallback([this](uint64_t addr, PrivilegeMode pm) -> bool {
     if (pmpManager_.isEnabled())
       {
         const Pmp& pmp = pmpManager_.accessPmp(addr);
         if (not pmp.isWrite(pm))
           return false;
       }
+    if (steeEnabled_)
+      {
+        if (!stee_.isValidAddress(addr))
+          return false;  
+        addr = stee_.clearSecureBits(addr);
+      }
+
     auto pma = memory_.pmaMgr_.getPma(addr);
 
     // return pma.isWrite() and pma.isRsrv();  // FIX: RTL does not do this. It should.
@@ -550,7 +550,7 @@ Hart<URV>::processExtensions(bool verbose)
   enableExtension(RvExtension::Zvbc,     isa_.isEnabled(RvExtension::Zvbc));
   enableExtension(RvExtension::Zvfbfmin, isa_.isEnabled(RvExtension::Zvfbfmin));
   enableExtension(RvExtension::Zvfbfwma, isa_.isEnabled(RvExtension::Zvfbfwma));
-  enableExtension(RvExtension::Zvqdot,   true /*isa_.isEnabled(RvExtension::Zvqdot*/);
+  enableExtension(RvExtension::Zvqdot,   isa_.isEnabled(RvExtension::Zvqdot));
   enableExtension(RvExtension::Zvfh,     isa_.isEnabled(RvExtension::Zvfh));
   enableExtension(RvExtension::Zvfhmin,  isa_.isEnabled(RvExtension::Zvfhmin));
   enableExtension(RvExtension::Zvkg,     isa_.isEnabled(RvExtension::Zvkg));
@@ -570,8 +570,8 @@ Hart<URV>::processExtensions(bool verbose)
   enableExtension(RvExtension::Zcmop,    isa_.isEnabled(RvExtension::Zcmop));
   enableExtension(RvExtension::Smaia,    isa_.isEnabled(RvExtension::Smaia));
   enableExtension(RvExtension::Ssaia,    isa_.isEnabled(RvExtension::Ssaia));
-  enableExtension(RvExtension::Zicsr,    true /*isa_.isEnabled(RvExtension::Zicsr)*/);
-  enableExtension(RvExtension::Zifencei, true /*isa_.isEnabled(RvExtension::Zifencei)*/);
+  enableExtension(RvExtension::Zicsr,    true /*isa_.isEnabled(RvExtension::Zicsr)*/); // Default true until we fix riscof
+  enableExtension(RvExtension::Zifencei, true /*isa_.isEnabled(RvExtension::Zifencei)*/); // Default true until RTL catches up
 
   if (isa_.isEnabled(RvExtension::Sstc))
     enableRvsstc(true);
@@ -902,6 +902,9 @@ Hart<URV>::reset(bool resetMemoryMappedRegs)
       memory_.pmaMgr_.clearDefaultPma();  // No access.
       memory_.pmaMgr_.enableInDefaultPma(Pma::Attrib::MisalAccFault); // Access fault on misal.
     }
+
+  // Update IID priority for benefit of *topi registers.
+  csRegs_.updateIidPrio(mInterrupts_, sInterrupts_, vsInterrupts_);
 }
 
 
@@ -1132,7 +1135,7 @@ template <typename URV>
 bool
 Hart<URV>::pokeMemory(uint64_t addr, uint8_t val, bool usePma, bool skipFetch)
 {
-  std::lock_guard<SpinLock> lock(memory_.lrMutex_);
+  std::unique_lock lock(memory_.amoMutex_);
 
   memory_.invalidateOtherHartLr(hartIx_, addr, sizeof(val));
   invalidateDecodeCache(addr, sizeof(val));
@@ -1148,7 +1151,7 @@ template <typename URV>
 bool
 Hart<URV>::pokeMemory(uint64_t addr, uint16_t val, bool usePma, bool skipFetch)
 {
-  std::lock_guard<SpinLock> lock(memory_.lrMutex_);
+  std::unique_lock lock(memory_.amoMutex_);
 
   memory_.invalidateOtherHartLr(hartIx_, addr, sizeof(val));
   invalidateDecodeCache(addr, sizeof(val));
@@ -1177,7 +1180,7 @@ Hart<URV>::pokeMemory(uint64_t addr, uint32_t val, bool usePma, bool skipFetch)
   // otherwise, there is no way for external driver to clear bits that
   // are read-only to this hart.
 
-  std::lock_guard<SpinLock> lock(memory_.lrMutex_);
+  std::unique_lock lock(memory_.amoMutex_);
 
   memory_.invalidateOtherHartLr(hartIx_, addr, sizeof(val));
   invalidateDecodeCache(addr, sizeof(val));
@@ -1200,7 +1203,7 @@ template <typename URV>
 bool
 Hart<URV>::pokeMemory(uint64_t addr, uint64_t val, bool usePma, bool skipFetch)
 {
-  std::lock_guard<SpinLock> lock(memory_.lrMutex_);
+  std::unique_lock lock(memory_.amoMutex_);
 
   memory_.invalidateOtherHartLr(hartIx_, addr, sizeof(val));
   invalidateDecodeCache(addr, sizeof(val));
@@ -1851,19 +1854,33 @@ Hart<URV>::determineLoadException(uint64_t& addr1, uint64_t& addr2, uint64_t& ga
     {
       uint64_t aligned = addr1 & ~alignMask;
       uint64_t next = addr1 == addr2? aligned + ldSize : addr2;
-      ldStFaultAddr_ = va2;
       pma = accessPma(next);
       pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt());
       if (not pma.isRead()  or  (virtMem_.isExecForRead() and not pma.isExec()))
-	return EC::LOAD_ACC_FAULT;
+        {
+          ldStFaultAddr_ = va2;
+          return EC::LOAD_ACC_FAULT;
+        }
       if (not pma.isMisalignedOk())
-	return pma.misalOnMisal()? EC::LOAD_ADDR_MISAL : EC::LOAD_ACC_FAULT;
+        {
+          ldStFaultAddr_ = va2;
+          return pma.misalOnMisal()? EC::LOAD_ADDR_MISAL : EC::LOAD_ACC_FAULT;
+        }
     }
 
-  if (injectException_ != EC::NONE and
-      injectExceptionIsLd_ and
-      elemIx == injectExceptionElemIx_)
-    return injectException_;
+  if (injectException_ != EC::NONE and injectExceptionIsLd_ and elemIx == injectExceptionElemIx_)
+    {
+      // Adjust ldStFaultAddr for line crossers if fault is on 2nd line.
+      if (injectAddr_ != 0 and cacheLineNum(va1) != cacheLineNum(injectAddr_))
+        {
+          if (misal)
+            ldStFaultAddr_ = va2;
+          else
+            std::cerr << "Warning: hart-id= " << hartId() << " tag=" << instCounter_
+                      << " injected exception pa does not match instruction data pa.\n";
+        }
+      return injectException_;
+    }
 
   return EC::NONE;
 }
@@ -2137,8 +2154,12 @@ Hart<URV>::deviceRead(uint64_t pa, unsigned size, uint64_t& val)
 
   if (isAplicAddr(pa))
     {
-      uint32_t val32;
-      aplic_->read(pa, size, val32);
+      uint32_t val32 = 0;
+      if (not aplic_->read(pa, size, val32))
+        {
+          std::cerr << "Warning: unsupported APLIC read: address = 0x" <<
+            std::hex << pa << std::dec << ", size = " << size << " bytes\n";
+        }
       val = val32;
       return;
     }
@@ -2176,7 +2197,12 @@ Hart<URV>::deviceWrite(uint64_t pa, STORE_TYPE storeVal)
   if (isAplicAddr(pa))
     {
       uint32_t val32 = storeVal;
-      aplic_->write(pa, sizeof(storeVal), val32);
+      if (not aplic_->write(pa, sizeof(storeVal), val32))
+        {
+          std::cerr << "Warning: unsupported APLIC write: address = 0x" <<
+            std::hex << pa << std::dec << ", size = " << sizeof(storeVal) <<
+            " bytes, data = 0x" << std::hex << uint64_t(storeVal) << std::dec << "\n";
+        }
       return;
     }
 
@@ -2378,9 +2404,8 @@ Hart<URV>::store(const DecodedInst* di, URV virtAddr, [[maybe_unused]] bool hype
   return fastStore(di, virtAddr, storeVal);
 #else
 
-  auto lock = (amoLock)? std::shared_lock<std::shared_mutex>(memory_.amoMutex_) :
-                         std::shared_lock<std::shared_mutex>();
-  std::lock_guard<SpinLock> lock2(memory_.lrMutex_);
+  auto lock = (amoLock)? std::unique_lock(memory_.amoMutex_) :
+                         std::unique_lock<std::shared_mutex>();
 
   // ld/st-address or instruction-address triggers have priority over
   // ld/st access or misaligned exceptions.
@@ -3333,12 +3358,12 @@ Hart<URV>::initiateTrap(const DecodedInst* di, bool interrupt,
     {
       if (interrupt)
 	{
-	  if (csRegs_.intTriggerHit(cause, privMode_, virtMode_, isInterruptEnabled()))
+	  if (csRegs_.intTriggerHit(cause, privMode_, virtMode_, isBreakpInterruptEnabled()))
             initiateException(ExceptionCause::BREAKP, pc_, 0, 0, di);
 	}
       else if (cause != URV(ExceptionCause::BREAKP))
 	{
-	  if (csRegs_.expTriggerHit(cause, privMode_, virtMode_, isInterruptEnabled()))
+	  if (csRegs_.expTriggerHit(cause, privMode_, virtMode_, isBreakpInterruptEnabled()))
             initiateException(ExceptionCause::BREAKP, pc_, 0, 0, di);
 	}
     }
@@ -3897,7 +3922,7 @@ Hart<URV>::peekVecReg(unsigned ix, std::vector<uint8_t>& value) const
   if (not isRvv())
     return false;
 
-  if (ix > vecRegs_.size())
+  if (ix >= vecRegs_.size())
     return false;
 
   const uint8_t* data = vecRegs_.getVecData(ix);
@@ -3915,7 +3940,7 @@ template <typename URV>
 bool
 Hart<URV>::pokeVecReg(unsigned ix, const std::vector<uint8_t>& val)
 {
-  if (not isRvv() or ix > vecRegs_.size() or val.empty())
+  if (not isRvv() or ix >= vecRegs_.size() or val.empty())
     return false;
 
   uint8_t* regData = vecRegs_.getVecData(ix);
@@ -3944,7 +3969,7 @@ Hart<URV>::peekVecRegLsb(unsigned ix, std::vector<uint8_t>& value) const
   if (not isRvv())
     return false;
 
-  if (ix > vecRegs_.size())
+  if (ix >= vecRegs_.size())
     return false;
 
   const uint8_t* data = vecRegs_.getVecData(ix);
@@ -3962,7 +3987,7 @@ template <typename URV>
 bool
 Hart<URV>::pokeVecRegLsb(unsigned ix, const std::vector<uint8_t>& val)
 {
-  if (not isRvv() or ix > vecRegs_.size() or val.empty())
+  if (not isRvv() or ix >= vecRegs_.size() or val.empty())
     return false;
 
   uint8_t* regData = vecRegs_.getVecData(ix);
@@ -5160,14 +5185,16 @@ Hart<URV>::fetchInstWithTrigger(URV addr, uint64_t& physAddr, uint32_t& inst, FI
 
       // Fetch was successful, but injected exception.
       if (fetch)
-        initiateException(injectException_, pc_, pc_);
+        {
+          uint64_t tval = pc_;  // For MTVAL/STVAL
+          // Adjust MTVAL/STVAL for line crossers if fault is on 2nd line.
+          if (injectAddr_ != 0 and cacheLineNum(pc_) != cacheLineNum(injectAddr_))
+            tval = cacheLineAlign(tval) + cacheLineSize();
+          initiateException(injectException_, pc_, tval);
+        }
 
       std::string instStr;
       printInstTrace(inst, instCounter_, instStr, file);
-
-      if (dcsrStep_)
-        enterDebugMode_(DebugModeCause::STEP, pc_);
-
       return false;  // Next instruction in trap handler.
     }
 
@@ -5256,21 +5283,35 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
 	    ++cycleCount_;
 
           if (processExternalInterrupt(traceFile, instStr))
-	    continue;  // Next instruction in trap handler.
+            {
+              if (sdtrigOn_)
+                {
+                  evaluateIcountTrigger();
+                  evaluateDebugStep();
+                }
+              continue;  // Next instruction in trap handler.
+            }
 
           if (sdtrigOn_ and icountTriggerFired())
-            {            
+            {
               if (takeTriggerAction(traceFile, currPc_, 0, instCounter_, nullptr /*di*/))
-                return true;
+                {
+                  evaluateDebugStep();
+                  return true;
+                }
               continue;
             }
 
-	  if (sdtrigOn_)
-            evaluateIcountTrigger();
-
 	  uint64_t physPc = 0;
           if (not fetchInstWithTrigger(pc_, physPc, inst, traceFile))
-	    continue;  // Next instruction in trap handler.
+            {
+              if (sdtrigOn_)
+                {
+                  evaluateIcountTrigger();
+                  evaluateDebugStep();
+                }
+              continue;  // Next instruction in trap handler.
+            }
 
 	  // Decode unless match in decode cache.
 	  uint32_t ix = (physPc >> 1) & decodeCacheMask_;
@@ -5283,11 +5324,15 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
 	  pc_ += di->instSize();
 	  execute(di);
 
+          if (sdtrigOn_)
+            evaluateIcountTrigger();
+
 	  if (hasException_)
 	    {
               if (doStats)
                 accumulateInstructionStats(*di);
 	      printDecodedInstTrace(*di, instCounter_, instStr, traceFile);
+              evaluateDebugStep();
 	      continue;
 	    }
 
@@ -5307,7 +5352,10 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
 	    {
 	      URV tval = ldStFaultAddr_;
 	      if (takeTriggerAction(traceFile, currPc_, tval, instCounter_, di))
-		return true;
+                {
+                  evaluateDebugStep();
+                  return true;
+                }
 	      continue;
 	    }
 
@@ -5329,6 +5377,9 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
 	  if (doStats)
 	    accumulateInstructionStats(*di);
 	  printDecodedInstTrace(*di, instCounter_, instStr, traceFile);
+
+          if (sdtrigOn_)
+            evaluateDebugStep();
 
           prevPerfControl_ = perfControl_;
 
@@ -6070,7 +6121,7 @@ Hart<URV>::processTimerInterrupt()
   if (hasAclint() and aclintDeliverInterrupts_)
     {
       // Deliver/clear machine timer interrupt from clint.
-      if (time_ >= aclintAlarm_ + timeShift_)
+      if (time_ >= aclintAlarm_)
         mipVal = mipVal | (URV(1) << URV(IC::M_TIMER));
       else
         mipVal = mipVal & ~(URV(1) << URV(IC::M_TIMER));
@@ -6107,7 +6158,7 @@ Hart<URV>::processTimerInterrupt()
   // Deliver/clear supervisor timer from stimecmp CSR.
   if (stimecmpActive_)
     {
-      if (time_ >= stimecmp_ + timeShift_)
+      if (time_ >= stimecmp_)
         mipVal = mipVal | (URV(1) << URV(IC::S_TIMER));
       else
         mipVal = mipVal & ~(URV(1) << URV(IC::S_TIMER));
@@ -6116,7 +6167,7 @@ Hart<URV>::processTimerInterrupt()
   // Deliver/clear virtual supervisor timer from vstimecmp CSR.
   if (vstimecmpActive_)
     {
-      if ((time_ + htimedelta_) >= (vstimecmp_ + timeShift_))
+      if ((time_ + htimedelta_) >= vstimecmp_)
         mipVal = mipVal | (URV(1) << URV(IC::VS_TIMER));
       else
         {
@@ -6200,20 +6251,32 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
 	++cycleCount_;
 
       if (processExternalInterrupt(traceFile, instStr))
-	return;  // Next instruction in interrupt handler.
+        {
+          if (sdtrigOn_)
+            {
+              evaluateIcountTrigger();
+              evaluateDebugStep();
+            }
+          return;  // Next instruction in interrupt handler.
+        }
 
       if (sdtrigOn_ and icountTriggerFired())
-        {            
+        {
           takeTriggerAction(traceFile, currPc_, 0, instCounter_, nullptr /*di*/);
+          evaluateDebugStep();
           return;
         }
 
-      if (sdtrigOn_)
-        evaluateIcountTrigger();
-
       uint64_t physPc = 0;
       if (not fetchInstWithTrigger(pc_, physPc, inst, traceFile))
-        return;
+        {
+          if (sdtrigOn_)
+            {
+              evaluateIcountTrigger();
+              evaluateDebugStep();
+            }
+          return;
+        }
 
       decode(pc_, physPc, inst, di);
 
@@ -6221,13 +6284,15 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
       pc_ += di.instSize();
       execute(&di);
 
+      if (sdtrigOn_)
+        evaluateIcountTrigger();
+
       if (lastInstructionTrapped())
 	{
 	  if (doStats)
 	    accumulateInstructionStats(di);
 	  printDecodedInstTrace(di, instCounter_, instStr, traceFile);
-	  if (dcsrStep_ and not debugMode_ and not ebreakInstDebug_)
-	    enterDebugMode_(DebugModeCause::STEP, pc_);
+          evaluateDebugStep();
 	  return;
 	}
 
@@ -6235,6 +6300,7 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
 	{
           URV tval = ldStFaultAddr_;
 	  takeTriggerAction(traceFile, currPc_, tval, instCounter_, &di);
+          evaluateDebugStep();
 	  return;
 	}
 
@@ -6245,18 +6311,14 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
 	accumulateInstructionStats(di);
       printInstTrace(inst, instCounter_, instStr, traceFile);
 
-      // If step bit set in dcsr then enter debug mode unless already there.
-      if (dcsrStep_ and not debugMode_ and not ebreakInstDebug_)
-	enterDebugMode_(DebugModeCause::STEP, pc_);
+      if (sdtrigOn_)
+        evaluateDebugStep();
 
       prevPerfControl_ = perfControl_;
     }
   catch (const CoreException& ce)
     {
-      // If step bit set in dcsr then enter debug mode unless already there.
-      // This is for the benefit of the test bench.
-      if (dcsrStep_ and not debugMode_ and not ebreakInstDebug_)
-	enterDebugMode_(DebugModeCause::STEP, pc_);
+      evaluateDebugStep();
 
       stepResult_ = logStop(ce, instCounter_, traceFile);
       if (ce.type() == CoreException::Type::Snapshot or
@@ -9959,6 +10021,7 @@ Hart<URV>::enterDebugMode_(DebugModeCause cause, URV pc)
 
   csRegs_.poke(CsrNumber::DPC, pc);
   setPrivilegeMode(PrivilegeMode::Machine);
+  setVirtualMode(false);
 
   // If hart is configured to jump to a special target on enetering debug mode, then set
   // the pc to that target.
@@ -10495,18 +10558,25 @@ Hart<URV>::execEbreak(const DecodedInst* di)
 	}
     }
 
-  // If in machine/supervisor/user mode and DCSR bit ebreakm/s/u is set, then enter debug
-  // mode.
+  // If in M/S/U privilege mode and DCSR bit ebreakm/s/u is set, then enter debug
+  // mode. Same if in VS/VU mode and DCSR bit ebreakvs/vu set.
   if (hasDcsr)
     {
       DcsrFields<URV> fields{dcsrVal};
-      bool ebm = fields.bits_.EBREAKM;  // Break in M-privilege enabled.
-      bool ebs = fields.bits_.EBREAKS;  // Break in S-privilege enabled.
-      bool ebu = fields.bits_.EBREAKU;  // Break in U-privilege enabled.
+      bool ebm  = fields.bits_.EBREAKM;  // Ebreak in M-privilege enabled.
+      bool ebs  = fields.bits_.EBREAKS;
+      bool ebu  = fields.bits_.EBREAKU;
+      bool ebvs = fields.bits_.EBREAKVS;
+      bool ebvu = fields.bits_.EBREAKVU;
 
-      bool hit = ( (ebm and privMode_ == PrivilegeMode::Machine) or
-		   (ebs and privMode_ == PrivilegeMode::Supervisor) or
-		   (ebu and privMode_ == PrivilegeMode::User) );
+      using PM = PrivilegeMode;
+
+      bool hit = ( (ebm and privMode_ == PM::Machine) or
+		   (ebs and privMode_ == PM::Supervisor) or
+		   (ebu and privMode_ == PM::User) );
+
+      hit = hit or ( virtMode_ and ( (ebvs and privMode_ == PM::Supervisor) or
+                                     (ebvu and privMode_ == PM::User) ) );
 
       // Should we do if we are debug-mode single stepping?
       if (hit)

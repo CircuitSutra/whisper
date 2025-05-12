@@ -1318,14 +1318,18 @@ Server<URV>::interact(const WhisperMessage& msg, WhisperMessage& reply, FILE* tr
         else
           {
             std::vector<bool> mask;
-            if (msg.flags)
-              mask.resize(msg.size);
+            mask.resize(msg.size);
+
+            bool hasMask = msg.flags & 1;
+            assert(hasMask);
+
+            bool skipCheck = msg.flags & 2;
 
             std::vector<uint8_t> data(msg.size);
             for (size_t i = 0; i < msg.size; ++i)
               {
                 data.at(i) = msg.buffer.at(i);
-                if (msg.flags)
+                if (hasMask)
                   mask.at(i) = msg.tag.at(i/8) & (1 << (i%8));
               }
 
@@ -1335,17 +1339,17 @@ Server<URV>::interact(const WhisperMessage& msg, WhisperMessage& reply, FILE* tr
                         hartId, msg.time, msg.address);
                 for (unsigned i = data.size(); i > 0; --i)
                   fprintf(commandLog, "%02x", data.at(i-1));
-                if (msg.flags)
-                  {    // Print mask with least sig digit on the right
-                    fprintf(commandLog, " 0x");
-		    unsigned n = msg.size / 8;
-                    for (unsigned i = 0; i < n; ++i)
-                      fprintf(commandLog, "%02x", unsigned(msg.tag.at(n-1-i)) & 0xff);
-                  }
+                // Print mask with least sig digit on the right
+                fprintf(commandLog, " 0x");
+                unsigned n = msg.size / 8;
+                for (unsigned i = 0; i < n; ++i)
+                  fprintf(commandLog, "%02x", unsigned(msg.tag.at(n-1-i)) & 0xff);
+                if (skipCheck)
+                  fprintf(commandLog, skipCheck? " 1" : " 0");
                 fprintf(commandLog, "\n");
               }
 
-            if (not system_.mcmMbWrite(hart, msg.time, msg.address, data, mask))
+            if (not system_.mcmMbWrite(hart, msg.time, msg.address, data, mask, skipCheck))
               reply.type = Invalid;
           }
         break;
@@ -1451,10 +1455,11 @@ Server<URV>::interact(const WhisperMessage& msg, WhisperMessage& reply, FILE* tr
         {
           // This won't work correctly for segmented vector loads with partial segment
           // completion.
-          hart.injectException(WhisperFlags(msg.flags).bits.load, msg.address, msg.resource);
+          hart.injectException(WhisperFlags(msg.flags).bits.load, msg.address, msg.resource,
+                               msg.value);
           if (commandLog)
-            fprintf(commandLog, "hart=%" PRIu32 " inject_exception 0x%" PRIxMAX " 0x%" PRIxMAX " 0x%" PRIxMAX "\n", hartId,
-                                uintmax_t(WhisperFlags(msg.flags).bits.load), uintmax_t(msg.address), uintmax_t(msg.resource));
+            fprintf(commandLog, "hart=%" PRIu32 " inject_exception 0x%" PRIxMAX " 0x%" PRIxMAX " 0x%" PRIxMAX " 0x%" PRIxMAX "\n", hartId,
+              uintmax_t(WhisperFlags(msg.flags).bits.load), uintmax_t(msg.address), uintmax_t(msg.resource), msg.value);
           break;
         }
 

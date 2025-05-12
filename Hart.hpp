@@ -356,6 +356,11 @@ namespace WdRiscv
     bool setSupportedTriggerTypes(const std::vector<std::string>& types)
     { return csRegs_.triggers_.setSupportedTypes(types); }
 
+
+    /// Define the set of supported trigger actions.
+    bool setSupportedTriggerActions(const std::vector<std::string>& actions)
+    { return csRegs_.triggers_.setSupportedActions(actions); }
+
     /// Enable the extensions defined by the given string. If
     /// updateMisa is true then the MISA CSR reset value is updated to
     /// enable the extensions defined by the given string (this is done
@@ -596,7 +601,7 @@ namespace WdRiscv
           if (mstatusMprv() and not nmieOverridesMprv() and not debugModeOverridesMprv())
             {
               pm = mstatusMpp();
-              virt = mstatus_.bits_.MPV;
+              virt = pm == PM::Machine? false : mstatus_.bits_.MPV;
             }
 
           if (hyper)
@@ -951,13 +956,13 @@ namespace WdRiscv
     /// Set/clear low priorty exception for fetch/ld scenarios. For vector
     /// loads, we use the element index to determine the exception. This is
     /// useful for TB to inject errors.
-    void injectException(bool isLoad, URV code, unsigned elemIx)
+    void injectException(bool isLoad, URV cause, unsigned elemIx, URV addr)
     {
-      injectException_ = static_cast<ExceptionCause>(code);
       injectExceptionIsLd_ = isLoad;
+      injectException_ = static_cast<ExceptionCause>(cause);
       injectExceptionElemIx_ = elemIx;
+      injectAddr_ = addr;
     }
-
 
     /// Define address to which a write will stop the simulator. An
     /// sb, sh, or sw instruction will stop the simulator if the write
@@ -1117,6 +1122,24 @@ namespace WdRiscv
     /// Return the cache line size.
     unsigned cacheLineSize() const
     { return cacheLineSize_; }
+
+    /// Return the cache line number (address divided by line-size) of the given address.
+    uint64_t cacheLineNum(uint64_t addr) const
+    { return addr >> cacheLineShift_; }
+
+    /// Set the cache line size to n which must be a power of 2.
+    void setCacheLineSize(unsigned n)
+    {
+      assert(n > 0);
+      assert((n & (n-1)) == 0);
+      cacheLineSize_ = n;
+      cacheLineShift_ = std::countr_zero(n);
+      assert((unsigned(1) << cacheLineShift_) == n);
+    }
+
+    /// Align the given address to the closest smaller cache line boundary.
+    uint64_t cacheLineAlign(uint64_t addr) const
+    { return (addr >> cacheLineShift_) << cacheLineShift_; }
 
     const VecLdStInfo& getLastVectorMemory() const
     { return vecRegs_.getLastMemory(); }
@@ -1339,6 +1362,16 @@ namespace WdRiscv
     /// True if DCSR.step is on.
     bool hasDcsrStep() const
     { return dcsrStep_; }
+
+    /// Enter debug mode if dcsr step unless already there.
+    void evaluateDebugStep()
+    {
+      // If step bit set in dcsr then enter debug mode unless already there.
+      // From section 4.5.1, if a trigger fires we write TRIGGER instead of STEP to
+      // dcsr.
+      if (dcsrStep_ and not debugMode_ and not ebreakInstDebug_)
+	enterDebugMode_(triggerTripped_?DebugModeCause::TRIGGER : DebugModeCause::STEP, pc_);
+    }
 
     /// Take this hart out of debug mode.
     void exitDebugMode();
@@ -1843,6 +1876,12 @@ namespace WdRiscv
     void enableClearTinstOnCboInval(bool flag)
     { clearTinstOnCboInval_ = flag; }
 
+    /// When flag is true, align to cache line boundary the cbo/cmo instruction effective
+    /// address before doing address translation: MTVAL/STVAL value on exception will be
+    /// the aligned address.
+    void enableAlignCboAddress(bool flag)
+    { alignCboAddr_ = flag; }
+
     /// Clear MTINST/HTINST on cbo.flush if flag is true.
     void enableClearTinstOnCboFlush(bool flag)
     { clearTinstOnCboFlush_ = flag; }
@@ -1965,6 +2004,10 @@ namespace WdRiscv
     /// Return the virtual mode before last executed instruction.
     bool lastVirtMode() const
     { return lastVirt_; }
+
+    /// Return true if in debug mode.
+    bool lastDebugMode() const
+    { return lastDm_; }
 
     /// Return the number of page table walks of the last
     /// executed instruction
@@ -2179,11 +2222,6 @@ namespace WdRiscv
     // Load snapshot of registers (PC, integer, floating point, CSR) into file
     bool loadSnapshotRegs(const std::string& path);
 
-    // Define the additional delay to add to the timecmp register
-    // before the timer expires. This is relevant to the clint.
-    void setTimeShift(unsigned shift)
-    { timeShift_ = shift; }
-
     // Define time scaling factor such that the time value increment period
     // is scaled down by 2^N.
     void setTimeDownSample(unsigned n)
@@ -2342,8 +2380,8 @@ namespace WdRiscv
     { vecRegs_.configVectorLegalizeVsetvliAvl(flag); }
 
     /// If flag is true, make VL/VSTART value a multiple of EGS in vector-crypto
-    /// instructions that have EGS. Otherwise, trigger an exceptio if VL/VSTART is not a
-    /// mulitple of EGS for such instrucions.
+    /// instructions that have EGS. Otherwise, trigger an exception if VL/VSTART is not a
+    /// multiple of EGS for such instructions.
     void configVectorLegalizeForEgs(bool flag)
     { vecRegs_.configLegalizeForEgs(flag); }
 
@@ -2423,10 +2461,7 @@ namespace WdRiscv
 
     /// Set the CLINT alarm to the given value.
     void setAclintAlarm(uint64_t value)
-    {
-      if (hasAclint())
-	aclintAlarm_ = value;
-    }
+    { aclintAlarm_ = value; }
 
     /// Fetch an instruction from the given virtual address. Return ExceptionCause::None
     /// on success. Return exception cause on fail. If successful set pysAddr to the
@@ -2666,7 +2701,7 @@ namespace WdRiscv
     {
       bool virt = virtMode_;
       if (mstatusMprv() and not nmieOverridesMprv())
-	virt = mstatus_.bits_.MPV;
+	virt = mstatusMpp() == PrivilegeMode::Machine? false : mstatus_.bits_.MPV;
       return virt;
     }
 
@@ -3045,9 +3080,26 @@ namespace WdRiscv
     // commit load/store values if a trigger is fired (so no need to restore here).
     void undoForTrigger();
 
-    /// Return true if the mie bit of the mstatus register is on.
-    bool isInterruptEnabled() const
-    { return csRegs_.isInterruptEnabled(); }
+    /// Return true if configuration would allow/disallow reentrant behavior
+    /// for breakpoints.
+    bool isBreakpInterruptEnabled() const
+    {
+      if (privMode_ == PrivilegeMode::Machine)
+        return mstatus_.bits_.MIE;
+
+      URV medeleg = 0, hedeleg = 0;
+      if (peekCsr(CsrNumber::MEDELEG, medeleg))
+        medeleg &= (1 << URV(ExceptionCause::BREAKP));
+      if (privMode_ == PrivilegeMode::Supervisor and not virtMode_)
+        return medeleg? mstatus_.bits_.SIE : true;
+
+      if (peekCsr(CsrNumber::HEDELEG, hedeleg))
+        hedeleg &= (1 << URV(ExceptionCause::BREAKP));
+      if (privMode_ == PrivilegeMode::Supervisor and virtMode_)
+        return (medeleg & hedeleg)? vsstatus_.bits_.SIE : true;
+
+      return true; // Never reentrant in user mode.
+    }
 
     /// Based on current trigger configurations, either take an exception returning false
     /// or enter debug mode returning true. If we take an exception epc goes into the
@@ -3187,7 +3239,7 @@ namespace WdRiscv
     bool ldStAddrTriggerHit(URV addr, unsigned size, TriggerTiming t, bool isLoad)
     {
       bool hit = csRegs_.ldStAddrTriggerHit(addr, size, t, isLoad, privilegeMode(), virtMode(),
-                                            isInterruptEnabled());
+                                            isBreakpInterruptEnabled());
       if (hit)
         {
           dataAddrTrig_ = true;
@@ -3203,7 +3255,7 @@ namespace WdRiscv
     bool ldStDataTriggerHit(URV value, TriggerTiming t, bool isLoad)
     {
       bool hit = csRegs_.ldStDataTriggerHit(value, t, isLoad, privilegeMode(), virtMode(),
-                                            isInterruptEnabled());
+                                            isBreakpInterruptEnabled());
       if (hit)
         {
           dataAddrTrig_ = true;
@@ -3217,7 +3269,7 @@ namespace WdRiscv
     bool instAddrTriggerHit(URV addr, unsigned size, TriggerTiming t)
     {
       return csRegs_.instAddrTriggerHit(addr, size, t, privilegeMode(), virtMode(),
-					isInterruptEnabled());
+					isBreakpInterruptEnabled());
     }
 
     /// Return true if one or more execution trigger has a hit on the given opcode value
@@ -3225,20 +3277,23 @@ namespace WdRiscv
     bool instOpcodeTriggerHit(URV opcode, TriggerTiming t)
     {
       return csRegs_.instOpcodeTriggerHit(opcode, t, privilegeMode(), virtMode(),
-					  isInterruptEnabled());
+					  isBreakpInterruptEnabled());
     }
 
     /// Make all active icount triggers count down if possible marking pending
-    /// the ones that reach zero.
+    /// the ones that reach zero. We use last values because privMode/virtMode may
+    /// be modified by execution and we can't decrement icount before the instruction
+    /// because tdata1 may be read. Reentrancy detection using option 1 in the spec
+    /// has unspecified behavior when relevant CSRs are modified.
     void evaluateIcountTrigger()
     {
-      return csRegs_.evaluateIcountTrigger(privilegeMode(), virtMode(), isInterruptEnabled());
+      return csRegs_.evaluateIcountTrigger(lastPriv_, lastVirt_, lastBreakpInterruptEnabled_);
     }
 
     /// Return true if a pending icount triger can fire clearning its pending status.
     bool icountTriggerFired()
     {
-      return csRegs_.icountTriggerFired(privilegeMode(), virtMode(), isInterruptEnabled());
+      return csRegs_.icountTriggerFired(privilegeMode(), virtMode(), isBreakpInterruptEnabled());
     }
 
     /// Return true if this hart has one or more active debug triggers.
@@ -3525,9 +3580,13 @@ namespace WdRiscv
                                   unsigned offsetWidth, unsigned offsetGroupX8,
                                   unsigned fieldCount);
 
-    /// Check reduction vector operand against the group multiplier. Record operands
+    /// Check reduction vector operands against the group multiplier. Record operands
     /// group multiplier for tracing.
     bool checkRedOpVsEmul(const DecodedInst* di);
+
+    /// Check wideining reduction vector operands against the group multiplier. Record
+    /// operands group multiplier for tracing.
+    bool checkWideRedOpVsEmul(const DecodedInst* di);
 
     /// Check destination and index operands against the group multipliers. Return
     /// true if operand is a multiple of multiplier and false otherwise. Record
@@ -5490,6 +5549,8 @@ namespace WdRiscv
       ldStSize_ = 0;
       lastPriv_ = privMode_;
       lastVirt_ = virtMode_;
+      lastDm_ = debugMode_;
+      lastBreakpInterruptEnabled_ = sdtrigOn_? isBreakpInterruptEnabled() : false;
       ldStWrite_ = false;
       ldStAtomic_ = false;
       lastPageMode_ = virtMem_.mode();
@@ -5587,6 +5648,7 @@ namespace WdRiscv
     bool indexedNmi_ = false;  // NMI handler is at a cause-scaled offset when true.
 
     unsigned cacheLineSize_ = 64;
+    unsigned cacheLineShift_ = 6;
 
     uint64_t& time_;             // Only hart 0 increments this value.
     uint64_t timeDownSample_ = 0;
@@ -5646,6 +5708,8 @@ namespace WdRiscv
     bool lastHyer_ = false;         // Hypervisor extension state before current inst.
     bool hyperLs_ = false;          // True if last instr is hypervisor load/store.
 
+    bool lastBreakpInterruptEnabled_ = false; // Before current inst
+
     // These are used to get fast access to the FS and VS bits.
     Emstatus<URV> mstatus_;         // Cached value of mstatus CSR or mstatush/mstatus.
     MstatusFields<URV> vsstatus_;   // Cached value of vsstatus CSR
@@ -5673,6 +5737,7 @@ namespace WdRiscv
     URV debugParkLoop_ = ~URV(0);    // Jump to this address on entering debug mode.
     URV debugTrapAddr_ = ~URV(0);    // Jump to this address on exception in debug mode.
     bool enteredDebugMode_ = false;  // True if entered debug mode because of trigger or ebreak.
+    bool lastDm_ = false;     // Before current inst
 
     bool inDebugParkLoop_ = false;    // True if BREAKP exception goes to DPL.
 
@@ -5682,6 +5747,7 @@ namespace WdRiscv
 
     bool clearTinstOnCboInval_ = false;
     bool clearTinstOnCboFlush_ = false;
+    bool alignCboAddr_ = true;
 
     bool targetProgFinished_ = false;
     bool stepResult_ = false;        // Set by singleStep on caught exception (program success/fail).
@@ -5741,6 +5807,7 @@ namespace WdRiscv
 
     // Exceptions injected by user.
     ExceptionCause injectException_ = ExceptionCause::NONE;
+    uint64_t injectAddr_ = 0;
     bool injectExceptionIsLd_ = false;
     unsigned injectExceptionElemIx_ = 0;
 
@@ -5821,12 +5888,6 @@ namespace WdRiscv
     FILE* initStateFile_ = nullptr;
     std::unordered_set<uint64_t> initInstrLines_;
     std::unordered_set<uint64_t> initDataLines_;
-
-    // Shift executed instruction counter by this amount to produce a
-    // fake timer value. For example, if shift amount is 3, we are
-    // dividing instruction count by 8 (2 to power 3) to produce a
-    // timer value.
-    unsigned timeShift_ = 0;
 
     bool traceHeaderPrinted_ = false;
     bool ownTrace_ = false;
