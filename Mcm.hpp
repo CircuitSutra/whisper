@@ -884,6 +884,18 @@ namespace WdRiscv
     unsigned offsetToNextLine(uint64_t addr) const
     { return lineSize_ - (addr & (lineSize_ - 1)); }
 
+    /// Return true if given memory operation belong to a cbo.clean instruction.
+    bool isCboCleanOp(const MemoryOp& op) const
+    {
+      if (op.size_ != 0)
+        return false;
+      auto& instrVec = hartData_.at(op.hartIx_).instrVec_;
+      if (op.tag_ >= instrVec.size())
+        return false;
+      auto& instr = instrVec.at(op.tag_);
+      return instr.di_.instId() == InstId::cbo_clean;
+    }
+
   private:
 
     const unsigned intRegOffset_ = 0;

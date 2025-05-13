@@ -1198,6 +1198,12 @@ Mcm<URV>::checkCmo(Hart<URV>& hart, const McmInstr& instrB) const
       return true;
     }
 
+  // The checks below may have to be relaxed to check against completion time instead
+  // of retire time. Test-bench would have to give us the bypass op at completion time.
+
+  // FIX : This check must be perfromed on all harts and not just on the local hart.
+
+
   // For cbo.flush/clean/inval, all preceding (in program order) overlapping stores/AMOs
   // must have drained.
   const auto& instrVec = hartData_.at(hartIx).instrVec_;
@@ -4282,8 +4288,10 @@ Mcm<URV>::ppoRule4(Hart<URV>& hart, const McmInstr& instrB) const
 	      for (auto iter = low; iter != high and not fail; ++iter)
 		{
 		  auto& op = *iter;
+                  if (op.hartIx_ == hartIx or isCboCleanOp(op))
+                    continue;
 		  fail = (not op.isRead_ and op.time_ >= succTime and op.time_ <= predTime
-			  and op.hartIx_ != hartIx and lineNum(op.pa_) == predLine);
+			  and lineNum(op.pa_) == predLine);
 		}
 	      if (not fail)
 		continue;
@@ -4338,11 +4346,13 @@ Mcm<URV>::ppoRule5(Hart<URV>& hart, const McmInstr& instrA, const McmInstr& inst
   for (size_t ix = sysMemOps_.size(); ix != 0; ix--)
     {
       const auto& op = sysMemOps_.at(ix-1);
-      if (op.isCanceled() or op.time_ > timeA or op.isRead_)
+      if (op.isCanceled() or op.time_ > timeA or op.isRead_ or op.hartIx_ == hartIx)
 	continue;
 
       if (op.time_ < timeB)
 	break;
+      if (isCboCleanOp(op))
+        continue;
 
       for (auto bopIx : instrB.memOps_)
         {
@@ -4350,7 +4360,7 @@ Mcm<URV>::ppoRule5(Hart<URV>& hart, const McmInstr& instrA, const McmInstr& inst
           auto bopTime = bop.maxForwardTime();
           if (bopTime > timeA or op.time_ < bopTime or op.time_ > timeA)
             continue;
-          if (lineNum(op.pa_) == lineNum(bop.pa_) and op.hartIx_ != hartIx)
+          if (lineNum(op.pa_) == lineNum(bop.pa_))
             return false;
         }
     }
@@ -4557,14 +4567,18 @@ Mcm<URV>::ppoRule7(const McmInstr& instrA, const McmInstr& instrB) const
   if (not instrB.di_.isLoad() or instrB.di_.isVectorLoad())
     return false;
 
+  unsigned hartIx = sysMemOps_.at(instrB.memOps_.at(0)).hartIx_;
+
   for (size_t ix = sysMemOps_.size(); ix != 0; ix--)
     {
       const auto& op = sysMemOps_.at(ix-1);
-      if (op.isCanceled() or op.time_ > atime or op.isRead_)
+      if (op.isCanceled() or op.time_ > atime or op.isRead_ or op.hartIx_ == hartIx)
 	continue;
 
       if (op.time_ < btime)
 	break;
+      if (isCboCleanOp(op))
+        continue;
 
       for (auto bopIx : instrB.memOps_)
         {
@@ -4572,7 +4586,7 @@ Mcm<URV>::ppoRule7(const McmInstr& instrA, const McmInstr& instrB) const
           auto bopTime = bop.maxForwardTime();
           if (bopTime > atime or op.time_ < btime or op.time_ > atime)
             continue;
-          if (lineNum(op.pa_) == lineNum(bop.pa_) and op.hartIx_ != bop.hartIx_)
+          if (lineNum(op.pa_) == lineNum(bop.pa_))
             return false;
         }
     }
