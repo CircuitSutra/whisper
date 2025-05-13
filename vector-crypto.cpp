@@ -1719,6 +1719,12 @@ Hart<URV>::execVaesem_vs(const DecodedInst* di)
   EW sew = vecRegs_.elemWidth();
   unsigned vd = di->op0(),  vs2 = di->op1();
 
+  if (not vecRegs_.validateForEgs(egs, elems, start))
+    {
+      illegalInst(di);
+      return;
+    }
+
   if (not isRvzvkned() or groupx8*vecRegs_.bitsPerRegister()/8 < egw or sew != EW::Word or
       (vd <= vs2 and vd + group > vs2))
     {
@@ -1729,7 +1735,7 @@ Hart<URV>::execVaesem_vs(const DecodedInst* di)
   if (not checkVecOpsVsEmul(di, vd, groupx8))
     return;
 
-  if (start >= vecRegs_.elemCount())
+  if (start >= elems)  // Use floored elems value
     return;
 
   unsigned egLen = vecRegs_.elemMax() / egs, egStart = start / egs;
