@@ -5261,8 +5261,8 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
 
       // Bits 13-63 may be aliasing with VSIE.
       URV mask = hideleg->read();
-      val = (vsie->read() & ~mask) | (vsInterruptToS(val) & mask);
-      updateCsr(vsie, val);
+      val = (sInterruptToVs(vsie->read()) & ~mask) | (val & mask);
+      updateCsr(vsie, vsInterruptToS(val));
     }
   else if (num == CsrNumber::VSIE)
     {
