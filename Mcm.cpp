@@ -2992,6 +2992,8 @@ Mcm<URV>::effectiveStride0ElemIx(const Hart<URV>& hart, const McmInstr& instr, u
   unsigned vstart = elems.front().ix_;
 
   // Find highest read op with highest elem ix that is <= the current index.
+  unsigned activeCount = 0;
+  unsigned activeIx = 0;
   unsigned high = 0;
   for (auto opIx : instr.memOps_)
     {
@@ -3000,12 +3002,21 @@ Mcm<URV>::effectiveStride0ElemIx(const Hart<URV>& hart, const McmInstr& instr, u
           unsigned opElemIx = op.elemIx_;
           if (opElemIx < vstart)
             continue;
+
           unsigned offset = opElemIx - vstart;
-          if (opElemIx <= elemIx and opElemIx > high and
-              offset < elems.size() and not elems.at(offset).skip_)
+          if (offset >= elems.size() or elems.at(offset).skip_)
+            continue;
+
+          activeCount++;
+          activeIx = opElemIx;
+
+          if (opElemIx <= elemIx and opElemIx > high)
             high = opElemIx;
         }
     }
+
+  if (activeCount == 1)
+    return activeIx;     // Test bench sent 1 read for all elements. Use it.
 
   return high;
 }
