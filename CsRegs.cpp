@@ -5033,6 +5033,14 @@ CsRegs<URV>::addAiaFields()
   setCsrFields(Csrn::MVIEN,
       {{"zero", 1}, {"ssip", 1}, {"zero", 7}, {"seip", 1},
        {"zero", 3}, {"lcof", 1}, {"interrupts", xlen - 14}});
+  setCsrFields(Csrn::MISELECT,
+      {{"select", xlen}});
+  setCsrFields(Csrn::SISELECT,
+      {{"select", xlen}});
+  setCsrFields(Csrn::VSISELECT,
+      {{"select", xlen}});
+  setCsrFields(Csrn::HVICTL,
+      {{"iprio", 8}, {"ipriom", 1}, {"dpr", 1}, {"zero", 8}, {"iid", 12}, {"vti", 1}, {"zero", xlen - 31}});
 }
 
 template <typename URV>
