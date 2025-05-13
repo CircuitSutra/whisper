@@ -1201,9 +1201,6 @@ Mcm<URV>::checkCmo(Hart<URV>& hart, const McmInstr& instrB) const
   // The checks below may have to be relaxed to check against completion time instead
   // of retire time. Test-bench would have to give us the bypass op at completion time.
 
-  // FIX : This check must be perfromed on all harts and not just on the local hart.
-
-
   // For cbo.flush/clean/inval, all preceding (in program order) overlapping stores/AMOs
   // must have drained.
   const auto& instrVec = hartData_.at(hartIx).instrVec_;
