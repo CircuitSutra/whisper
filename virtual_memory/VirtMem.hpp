@@ -215,8 +215,6 @@ namespace WdRiscv
       Pbmt pbmt_ = Pbmt::None; // Only applicable for leaf entries
       bool aUpdated_ = false;  // True if A bit updated by this walk (for leaf entries)
       bool dUpdated_ = false;  // True if D bit updated by this walk (for leaf entries)
-      bool accessed_ = false;  // temporary, remove asap
-      bool dirty_ = false;     // temporary, remove asap
     };
 
     /// Return the addresses of the instruction page table entries
