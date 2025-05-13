@@ -1263,6 +1263,32 @@ InstrPac::getImplicitDestOperands(std::array<Operand, 4>& ops) const
 
 
 unsigned
+InstrPac::getImplicitSrcOperands(std::array<Operand, 4>& impOps) const
+{
+  assert(decoded_);
+  if (not decoded_)
+    return 0;
+
+  assert(di_.operandCount() <= operandCount_);
+
+  using OM = WdRiscv::OperandMode;
+
+  unsigned count = 0;  // Count of implicit sources.
+
+  unsigned start = di_.operandCount();
+
+  for (unsigned i = start; i < operandCount_; ++i)
+    {
+      auto& op = operands_.at(i);
+      if (op.mode == OM::Read or op.mode == OM::ReadWrite)
+        impOps.at(count++) = op;
+    }
+
+  return count;
+}
+
+
+unsigned
 InstrPac::getChangedCsrs(std::array<Operand, 8>& ops) const
 {
   for (unsigned i = 0; i < changedCsrCount_; ++i)

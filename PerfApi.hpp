@@ -303,6 +303,11 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     /// is executed. Return the number of operands written into the array.
     unsigned getImplicitDestOperands(std::array<Operand, 4>& ops) const;
 
+    /// Fill the given array with the implicit source operands of this instruction (which
+    /// must be decoded). Value of each operand will be zero unless the instruction is
+    /// executed. Return the number of operands written into the array.
+    unsigned getImplicitSrcOperands(std::array<Operand, 4>& ops) const;
+
     /// FILL THE GIVEN ARRAY WITH THE CSRS THAT CHANGED AS A SIDE EFFECT TO A TRAP OR TO
     /// AN MRET/SRET INSTRUCTION. RETURN THE COUNT OF SUCH CSRS.
     unsigned getChangedCsrs(std::array<Operand, 8>& ops) const;
