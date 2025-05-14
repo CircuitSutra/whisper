@@ -1352,9 +1352,16 @@ namespace WdRiscv
 	}
     }
 
-    /// MIP is OR-ed when mvien does not exist or is set to zero. Otherwise,
-    /// the value of SEIP is solely the value of the pin.
-    URV overrideWithSeiPinAndMvip(URV ip) const
+    /// The value of SEIP is solely the value of the pin.
+    URV overrideWithSeiPin(URV ip) const
+    {
+      if (not superEnabled_)
+        return ip;
+      return ip |= seiPin_ << URV(InterruptCause::S_EXTERNAL);
+    }
+
+    /// MIP is OR-ed with MVIP when MVIEN does not exist or is set to zero.
+    URV overrideWithMvip(URV ip) const
     {
       if (not superEnabled_)
         return ip;
@@ -1370,7 +1377,13 @@ namespace WdRiscv
               ip |= mvip & URV(1 << URV(InterruptCause::S_EXTERNAL));
             }
         }
-      return ip |= seiPin_ << URV(InterruptCause::S_EXTERNAL);
+      return ip;
+    }
+
+    /// Combines both effects of MVIP and SEI pin.
+    URV overrideWithSeiPinAndMvip(URV ip) const
+    {
+      return overrideWithSeiPin(overrideWithMvip(ip));
     }
 
     /// Fast peek method for MIP.
