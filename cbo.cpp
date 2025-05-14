@@ -69,18 +69,6 @@ Hart<URV>::determineCboException(uint64_t& addr, uint64_t& gpa, uint64_t& pa, bo
         }
     }
 
-  for (uint64_t offset = 0; offset < cacheLineSize_; offset += 8)
-    {
-      Pma pma = accessPma(pa + offset);
-      if (isZero)
-        {
-          if (not pma.isWrite())
-            return EC::STORE_ACC_FAULT;
-        }
-      else if (not pma.isRead() and not pma.isWrite())
-        return EC::STORE_ACC_FAULT;
-    }
-
   // Physical memory protection.
   if (pmpEnabled_)
     {
@@ -99,6 +87,28 @@ Hart<URV>::determineCboException(uint64_t& addr, uint64_t& gpa, uint64_t& pa, bo
 	  else if (not pmp.isRead(ep) and not pmp.isWrite(ep))
 	    return EC::STORE_ACC_FAULT;
 	}
+    }
+
+  steeInsec1_ = false;
+  steeInsec2_ = false;
+
+  if (steeEnabled_)
+    {
+      if (not stee_.isValidAddress(pa))
+	return EC::STORE_ACC_FAULT;
+      pa = stee_.clearSecureBits(pa);
+    }
+
+  for (uint64_t offset = 0; offset < cacheLineSize_; offset += 8)
+    {
+      Pma pma = accessPma(pa + offset);
+      if (isZero)
+        {
+          if (not pma.isWrite())
+            return EC::STORE_ACC_FAULT;
+        }
+      else if (not pma.isRead() and not pma.isWrite())
+        return EC::STORE_ACC_FAULT;
     }
 
   return EC::NONE;
