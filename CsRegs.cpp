@@ -879,13 +879,14 @@ CsRegs<URV>::enableHypervisorMode(bool flag)
       csr->setReadMask(flag ? (mask | bits) : (mask & ~bits));
     }
 
-  // Bit MIP.VSSIP is writeable if hypervisor is enabled, otherwise it is not
+  // Bit MIP.VSSIP is writeable if hypervisor is enabled, otherwise it is read-only-zero.
   csr = findCsr(CN::MIP);
   if (csr)
     {
-      URV bit = 4;
+      URV bit = 0x4;
       auto mask = csr->getWriteMask();
       csr->setWriteMask(flag ? (mask | bit) : (mask & ~bit));
+      csr->setReadMask(flag ? (mask | bit) : (mask & ~bit));
     }
 
   // In MIE, bits VSEIE, VSTIE, VSSIE, and SGEIE become read-only-zero if no hypervisor.
