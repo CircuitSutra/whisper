@@ -397,6 +397,9 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
   if (di.isCsr())
     saveImsicTopei(hart, CSRN(di.ithOperand(2)), imsicId, imsicGuest);
 
+  packet.privMode_ = hart.privilegeMode();
+  packet.virtMode_ = hart.virtMode();
+
   // Execute
   skipIoLoad_ = true;   // Load from IO space takes effect at retire.
   hart.singleStep();

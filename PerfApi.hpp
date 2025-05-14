@@ -245,6 +245,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     bool isVectorLoad() const
     { return di_.isVectorLoad(); }
 
+    /// Return true if this is a vector instruction.
     bool isVector() const
     { return di_.isVector(); }
 
@@ -285,6 +286,19 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
         }
       return false;
     }
+
+    /// Return the privilege mode right before this instruction was instruction. Valid
+    /// only after instruction is executed. This will return Machine, Supervisor, or
+    /// User (M, S, or U). You need to look at virtMode to determine whether the effective
+    /// mode is VS or VU.
+    WdRiscv::PrivilegeMode privlegeMode() const
+    { return privMode_; }
+
+    /// Return the virtual mode right before this instruction was executed. Valid only
+    /// after instruction is executed. Returned value is true if machine was in virtual
+    /// mode.
+    bool virtMode() const
+    { return virtMode_; }
 
     /// Fill the given array with the source operands of this instruction (which must be
     /// decoded). Value of each operand will be zero unless the instruction is executed.
@@ -370,6 +384,8 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
 
     uint32_t opcode_ = 0;
 
+    WdRiscv::PrivilegeMode privMode_ = WdRiscv::PrivilegeMode::Machine;  // Privilege mode before execution
+
     // Following applicable if instruction is a branch
     bool predicted_    : 1 = false;  // true if predicted to be a branch
     bool prTaken_      : 1 = false;  // true if predicted branch/jump is taken
@@ -384,6 +400,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     bool drained_      : 1 = false;  // true if a store that has been drained
     bool trap_         : 1 = false;  // true if instruction trapped
     bool interrupt_    : 1 = false;  // true if instruction interrupted
+    bool virtMode_     : 1 = false;  // Virtual mode before execution
 
     bool deviceAccess_ : 1 = false;  // true if access is to device
   };
