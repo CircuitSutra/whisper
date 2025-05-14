@@ -2153,19 +2153,13 @@ PerfApi::determineImplicitOperands(InstrPac& packet)
 
       auto& vtOp = packet.operands_.at(packet.operandCount_++);
       vtOp.type = OT::CsReg;
-      vtOp.mode = OM::Read;
+      vtOp.mode = isVset? OM::Write : OM::Read;
       vtOp.number = unsigned(CSRN::VTYPE);
       
       auto& vlOp = packet.operands_.at(packet.operandCount_++);
       vlOp.type = OT::CsReg;
-      vlOp.mode = OM::Read;
+      vlOp.mode = isVset? OM::Write : OM::Read;
       vlOp.number = unsigned(CSRN::VL);
-
-      if (isVset)
-        {
-          vtOp.mode = OM::Write;
-          vlOp.mode = OM::Write;
-        }
 
       auto& vsOp = packet.operands_.at(packet.operandCount_++);
       vsOp.type = OT::CsReg;
