@@ -886,6 +886,7 @@ CsRegs<URV>::enableHypervisorMode(bool flag)
       URV bit = 0x4;
       auto mask = csr->getWriteMask();
       csr->setWriteMask(flag ? (mask | bit) : (mask & ~bit));
+      mask = csr->getReadMask();
       csr->setReadMask(flag ? (mask | bit) : (mask & ~bit));
     }
 
