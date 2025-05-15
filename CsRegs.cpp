@@ -767,7 +767,7 @@ CsRegs<URV>::updateSstc()
       URV mask = URV(1) << URV(InterruptCause::VS_TIMER);
       auto hvip = findCsr(CsrNumber::HVIP);
       URV vstip = hvip? hvip->read() : 0;
-      mip->poke((mip->read() & ~mask) | vstip);
+      mip->poke((mip->read() & ~mask) | (vstip & mask));
       hyperWrite(mip);
     }
 }
@@ -5123,7 +5123,7 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
       // Updating MIP is reflected into HIP/VSIP.
       URV val = mip->read() & hieMask;
       hip->poke(val | (hip->read() & ~hieMask));
-      updateCsr(vsip, vsInterruptToS(val));
+      updateCsr(vsip, (val >> 1) | (vsip->read() & ~(hieMask >> 1)) );
 
       // FIXME: could reflect bits 13-63
     }
@@ -5132,7 +5132,7 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
       // Updating HIP is reflected into MIP/VSIP.
       URV val = hip->read() & hieMask;
       updateCsr(mip, val | (mip->read() & ~hieMask));
-      updateCsr(vsip, vsInterruptToS(val));
+      updateCsr(vsip, (val >> 1) | (vsip->read() & ~(hieMask >> 1)) );
     }
   else if (num == CsrNumber::HVIP)
     {
@@ -5152,7 +5152,7 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
       if (hideleg and hvien)
         {
           URV mask = ~hideleg->read() & hvien->read() & ~URV(0x1fff);
-          updateCsr(vsip, (vsip->read() & ~mask) | (value & mask));
+          updateCsr(vsip, (value & mask) | (vsip->read() & ~mask) );
         }
     }
   else if (num == CsrNumber::HSTATUS or num == CsrNumber::HGEIE)
