@@ -3201,8 +3201,6 @@ Hart<URV>::initiateTrap(const DecodedInst* di, bool interrupt,
   if (cancelLrOnTrap_)
     cancelLr(CancelLrCause::TRAP);
 
-  injectException_ = ExceptionCause::NONE;
-
   bool origVirtMode = virtMode_;
   bool gvaVirtMode = effectiveVirtualMode();
 
@@ -3254,9 +3252,13 @@ Hart<URV>::initiateTrap(const DecodedInst* di, bool interrupt,
 
   uint32_t tinst = isRvh()? createTrapInst(di, interrupt, cause, info, info2) : 0;
 
-  bool gva = ( isRvh() and not interrupt and
-	       (hyperLs_ or isGvaTrap(gvaVirtMode, cause)));
-  if (lastEbreak_ and clearMtvalOnEbreak_)
+  using EC = ExceptionCause;
+  injectException_ = EC::NONE;
+
+  bool gva = isRvh() and not interrupt and (hyperLs_ or isGvaTrap(gvaVirtMode, cause));
+  if (origVirtMode  and  cause == unsigned(EC::HARDWARE_ERROR)  and not  interrupt)
+    gva = true;
+  else if (lastEbreak_ and clearMtvalOnEbreak_)
     gva = false;
 
   // Update status register saving xIE in xPIE and previous privilege
