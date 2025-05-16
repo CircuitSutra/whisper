@@ -304,17 +304,6 @@ CsRegs<URV>::writeMvien(URV value)
   mvien->write(value);
   recordWrite(CsrNumber::MVIEN);
 
-  auto mip = getImplementedCsr(CsrNumber::MIP);
-  if (mip)
-    {
-      URV b9 = URV(0x200);
-      URV mask = (mvien->read() ^ b9) & b9;
-      // Bit 9 is read-only when MVIEN is set and should no longer
-      // include the value of the independent writable bit.
-      mip->setWriteMask((mip->getWriteMask() & ~b9) | mask);
-      mip->setReadMask((mip->getReadMask() & ~b9) | mask);
-    }
-
   // Bits 13-63 are read-only zero in hideleg if both
   // mideleg/mvien are not set.
   auto mideleg = getImplementedCsr(CsrNumber::MIDELEG);
@@ -1242,7 +1231,12 @@ CsRegs<URV>::enableAia(bool flag)
 	}
     }
 
-  
+  // We sit the software-writable SEIP bit in MVIP.
+  if (flag)
+    {
+      auto mip = findCsr(CN::MIP);
+      mip->setWriteMask(mip->getWriteMask() & ~URV(1 << 9));
+    }
   updateLcofMask();
 }
 
@@ -1478,9 +1472,8 @@ CsRegs<URV>::writeSip(URV value, bool recordWr)
     }
 
   // Write to sip may alias mvip when mideleg is 1 and mvien is 0.
-  // In this case, we write sip/mip and mvip is not a separate
-  // writable bit.
-  updateVirtInterrupt();
+  if (mideleg and mvien)
+    updateVirtInterrupt(mideleg->read() & ~mvien->read() & value);
   return true;
 }
 
@@ -2117,7 +2110,7 @@ CsRegs<URV>::write(CsrNumber csrn, PrivilegeMode mode, URV value)
     updateSstc();
   else if (num == CN::MIP)
     {
-      if (updateVirtInterrupt())
+      if (updateVirtInterrupt(value))
         recordWrite(CN::MVIP);
     }
 
@@ -3739,7 +3732,7 @@ CsRegs<URV>::poke(CsrNumber num, URV value, bool virtMode)
   if (num == CN::MENVCFG or num == CN::HENVCFG)
     updateSstc();
   else if (num == CN::MIP)
-    updateVirtInterrupt();
+    updateVirtInterrupt(value);
 
   return true;
 }
@@ -4472,13 +4465,12 @@ CsRegs<URV>::updateVirtInterruptCtl()
 
 template <typename URV>
 bool
-CsRegs<URV>::updateVirtInterrupt()
+CsRegs<URV>::updateVirtInterrupt(URV value)
 {
   auto mip = getImplementedCsr(CsrNumber::MIP);
   if (not mip)
     return false;
 
-  URV value = mip->read();
   auto mvien = getImplementedCsr(CsrNumber::MVIEN);
   auto mvip = getImplementedCsr(CsrNumber::MVIP);
   if (mvien and mvip)
