@@ -5259,6 +5259,24 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
 	}
     }
 
+  // Changing HIDELEG/HVIEN may make some bits of vsip/vsie readbale. Update their values.
+  if ((num == CsrNumber::HIDELEG or num == CsrNumber::HVIEN))
+    {
+      if (vsip)
+        {
+          URV mask = 0x222;
+          URV newVal = (vsip->read() & ~mask) | vsInterruptToS(hip->read() & sInterruptToVs(mask));  // Clear bit 12 (SGEIP)
+          updateCsr(vsip, newVal);
+        }
+      if (vsie)
+        {
+          auto hie = getImplementedCsr(CsrNumber::HIE);
+          URV val = hie->read() & hieMask;
+          updateCsr(vsie, (vsie->read() & ~URV(0x1fff)) | vsInterruptToS(val));
+        }
+      return;
+    }
+
   auto hie = getImplementedCsr(CsrNumber::HIE);
   auto mie = getImplementedCsr(CsrNumber::MIE);
   if (num == CsrNumber::HIE)

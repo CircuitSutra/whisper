@@ -562,9 +562,15 @@ namespace WdRiscv
     bool isShared() const
     { return shared_; }
 
-    /// Return the current value of this register.
+    /// Return the current value of this register masked by the read mask.  The read mask
+    /// is used to reflect the effective value of fields that are currently read-only-zero
+    /// but may become readable/writable later in the run.
     URV read() const
     { return *valuePtr_ & readMask_; }
+
+    /// Return the current value of the register. This is not affected by the read mask.
+    URV value() const
+    { return *valuePtr_; }
 
     /// Return the write-mask associated with this register. A
     /// register value bit is writable by the write method if and only
