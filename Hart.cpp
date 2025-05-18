@@ -2940,12 +2940,18 @@ Hart<URV>::initiateInterrupt(InterruptCause cause, PrivilegeMode nextMode,
   bool interrupt = true;
   URV info = 0;  // This goes into mtval.
 
-  // Remap the cause to non-VS cause (e.g. VSTIME becomes STIME).
+  // Remap the cause to non-VS cause (e.g. VSTIME becomes STIME) if the interrupt was
+  // delegated as opposed to injected by hvictl.
   using IC = InterruptCause;
   URV causeNum = URV(cause);
   if (nextVirt and (cause == IC::VS_EXTERNAL or cause == IC::VS_TIMER or
                     cause == IC::VS_SOFTWARE))
-    causeNum--;
+    {
+      auto hideleg = csRegs_.getImplementedCsr(CsrNumber::HIDELEG);
+      bool delegated = hideleg and ((URV(1) << causeNum) & hideleg->read());
+      if (delegated)
+        causeNum--;
+    }
 
   initiateTrap(nullptr, interrupt, causeNum, nextMode, nextVirt, pc, info);
 

@@ -5516,7 +5516,7 @@ CsRegs<URV>::hyperPoke(Csr<URV>* csr)
     }
   else if (num == CsrNumber::VSIE)
     {
-      // Bits 0-12 are aliasing with MIE/HIE.
+      // Bits 0-12 are aliasing with MIE/HIE where VSIE is writable.
       URV mask = URV(0x1fff);
       if (hideleg)
         mask &= hideleg->read();

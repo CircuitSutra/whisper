@@ -1517,8 +1517,10 @@ namespace WdRiscv
       const auto& mideleg = regs_.at(size_t(CsrNumber::MIDELEG));
       const auto& hideleg = regs_.at(size_t(CsrNumber::HIDELEG));
       const auto& hvien = regs_.at(size_t(CsrNumber::HVIEN));
-      return ((mie.read() | (shadowSie_ & mvien.read() & ~mideleg.read())) & hideleg.read()) |
-              (sInterruptToVs(csr.read()) & ~hideleg.read() & hvien.read());
+      URV value = ((mie.read() | (shadowSie_ & mvien.read() & ~mideleg.read())) & hideleg.read());
+      // HVIEN affects interrupt ids 13 to 63 (see section 6.3.2 of interrupt spec).
+      value |= csr.read() & ~hideleg.read() & hvien.read() & ((~URV(0)) << 13);
+      return value;
     }
 
     /// Fast peek method for MSTATUS
