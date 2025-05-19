@@ -5359,7 +5359,7 @@ CsRegs<URV>::hyperPoke(Csr<URV>* csr)
 	{
 	  if (hideleg)
 	    val &= hideleg->read();
-	  vsip->poke(vsInterruptToS(val));
+          vsip->poke((val >> 1) | (vsip->read() & ~(hieMask >> 1)));
 	}
     }
   else if (num == CsrNumber::HIP)
