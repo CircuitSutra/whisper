@@ -373,14 +373,14 @@ namespace WdRiscv
 
       if (data1_.isAddrData())
 	{
-	  if (not data1_.dmodeOnly())
+	  if (not data1_.dmodeOnly() and (data1_.mcontrol_.action_ == 1))
 	    data1_.mcontrol_.action_ = 0;
           if (data1_.isMcontrol())
             data1_.mcontrol_.maskMax_ = std::countr_zero(napotMask_) + 1;
         }
       else if (data1_.isInstCount())
 	{
-	  if (not data1_.dmodeOnly())
+	  if (not data1_.dmodeOnly() and (data1_.mcontrol_.action_ == 1))
 	    data1_.icount_.action_ = 0;
 	}
 
