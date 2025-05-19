@@ -2113,7 +2113,7 @@ Mcm<URV>::checkStoreComplete(unsigned hartIx, const McmInstr& instr) const
 
   if (instr.di_.extension() == RvExtension::Zicbom)
     {
-      // Cbo.flush/clean/inval are not marked store to disabled forwarding.
+      // Cbo.flush/clean/inval are not marked store to disable forwarding.
       // For cbo.flush/clean/inval test-bench sends 1 zero-size bypass operation.
       if (instr.memOps_.size() == 1)
         {

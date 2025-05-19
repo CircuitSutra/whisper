@@ -374,6 +374,13 @@ namespace WdRiscv
     bool enableTrace(bool flag)
     { bool prev = trace_; trace_ = flag; return prev; }
 
+    ExceptionCause stage2Translate(uint64_t va, PrivilegeMode priv, bool r, bool w,
+				   bool x, bool isPteAddr, uint64_t& pa);
+
+    ExceptionCause stage1Translate(uint64_t va, PrivilegeMode priv, bool read, bool write,
+                                   bool exec, uint64_t& gpa);
+
+
   protected:
     // Callback member variables.
     std::function<bool(uint64_t, bool, uint64_t&)> memReadCallback64_ = nullptr;
@@ -479,14 +486,9 @@ namespace WdRiscv
     ExceptionCause stage2TranslateNoTlb(uint64_t va, PrivilegeMode pm, bool r,
 					bool w, bool x, bool isPteAddr, uint64_t& pa, TlbEntry& entry);
 
-    ExceptionCause stage2Translate(uint64_t va, PrivilegeMode priv, bool r, bool w,
-				   bool x, bool isPteAddr, uint64_t& pa);
 
     ExceptionCause stage1TranslateNoTlb(uint64_t va, PrivilegeMode priv, bool r, bool w,
 					bool x, uint64_t& pa, TlbEntry& entry);
-
-    ExceptionCause stage1Translate(uint64_t va, PrivilegeMode priv, bool read, bool write,
-                                   bool exec, uint64_t& gpa);
 
     ExceptionCause twoStageTranslate(uint64_t va, PrivilegeMode priv, bool r, bool w,
 				     bool x, uint64_t& gpa, uint64_t& pa);
