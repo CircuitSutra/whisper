@@ -1174,9 +1174,10 @@ Mcm<URV>::retireCmo(Hart<URV>& hart, McmInstr& instrB)
     }
   else
     {
-      instrB.complete_ = checkStoreComplete(hartIx, instrB);
-      if (instrB.complete_)
-        return checkCmo(hart, instrB);
+      // cbo.clean/flush/inval must complete before retire.
+      if (not instrB.complete_)
+        std::cerr << "Warning: hart-id=" << hart.hartId() << " tag=" << instrB.tag_
+                  << " CMO instruction retires before it is complete (no bypass op seen)\n";
     }
 
   return true;
@@ -1198,11 +1199,8 @@ Mcm<URV>::checkCmo(Hart<URV>& hart, const McmInstr& instrB) const
       return true;
     }
 
-  // The checks below may have to be relaxed to check against completion time instead
-  // of retire time. Test-bench would have to give us the bypass op at completion time.
-
   // For cbo.flush/clean/inval, all preceding (in program order) overlapping stores/AMOs
-  // must have drained.
+  // must have drained. This method (checkCmo) is called at completion time.
   const auto& instrVec = hartData_.at(hartIx).instrVec_;
   auto& undrained = hartData_.at(hartIx).undrainedStores_;
 
@@ -4285,7 +4283,7 @@ Mcm<URV>::ppoRule4(Hart<URV>& hart, const McmInstr& instrB) const
 	      for (auto iter = low; iter != high and not fail; ++iter)
 		{
 		  auto& op = *iter;
-                  if (op.hartIx_ == hartIx or isCboCleanOp(op))
+                  if (op.hartIx_ == hartIx or isCbomOp(op))
                     continue;
 		  fail = (not op.isRead_ and op.time_ >= succTime and op.time_ <= predTime
 			  and lineNum(op.pa_) == predLine);
@@ -4348,7 +4346,7 @@ Mcm<URV>::ppoRule5(Hart<URV>& hart, const McmInstr& instrA, const McmInstr& inst
 
       if (op.time_ < timeB)
 	break;
-      if (isCboCleanOp(op))
+      if (isCbomOp(op))
         continue;
 
       for (auto bopIx : instrB.memOps_)
@@ -4574,7 +4572,7 @@ Mcm<URV>::ppoRule7(const McmInstr& instrA, const McmInstr& instrB) const
 
       if (op.time_ < btime)
 	break;
-      if (isCboCleanOp(op))
+      if (isCbomOp(op))
         continue;
 
       for (auto bopIx : instrB.memOps_)
