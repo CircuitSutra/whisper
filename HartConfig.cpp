@@ -2639,7 +2639,6 @@ HartConfig::applyImsicConfig(System<URV>& system) const
     if (not getJsonUnsigned("imsic.guests", imsic.at(tag), guests))
       return false;
 
-
   std::vector<unsigned> idVec = { 64, 64, 64}; // For M, S, and VS privs.
   tag = "ids";
   if (imsic.contains(tag))
@@ -2688,13 +2687,32 @@ HartConfig::applyImsicConfig(System<URV>& system) const
       std::fill(tmVec.begin(), tmVec.end(), tm);
     }
 
+  bool maplic = false;    // Machine file supports aplic
+  tag = "maplic";
+  if (imsic.contains(tag))
+    if (not getJsonBoolean("imsic.maplic", imsic.at(tag), maplic))
+      return false;
+
+  bool saplic = false;   // Supervisor file supports applic
+  tag = "saplic";
+  if (imsic.contains(tag))
+    if (not getJsonBoolean("imsic.saplic", imsic.at(tag), saplic))
+      return false;
+
+  bool gaplic = false;   // Guest file(s) support aplic
+  tag = "gaplic";
+  if (imsic.contains(tag))
+    if (not getJsonBoolean("imsic.gaplic", imsic.at(tag), gaplic))
+      return false;
+
   bool trace = false;
   tag = "trace";
   if (imsic.contains(tag))
     if (not getJsonBoolean("imsic.trace", imsic.at(tag), trace))
       return false;
 
-  return system.configImsic(mbase, mstride, sbase, sstride, guests, idVec, tmVec, trace);
+  return system.configImsic(mbase, mstride, sbase, sstride, guests, idVec, tmVec, maplic,
+                            saplic, gaplic, trace);
 }
 
 

@@ -65,7 +65,16 @@ File::iregWrite(unsigned sel, URV val)
     selects_.emplace_back(sel, sizeof(URV));
 
   if (sel == EIC::DELIVERY)
-    delivery_ = val;
+    {
+      if (aplic_)
+        {
+          if (val != 0 and val != 1 and val != 0x40000000)
+            return true;  // New val not legal: Keep previous value.
+        }
+      else if (val != 0 and val != 1)
+        return true;  // New val not legal: Keep previous value
+      delivery_ = val;
+    }
   else if (sel == EIC::THRESHOLD)
     threshold_ = val & thresholdMask_;
   else if ((sel == EIC::SRES0) or
@@ -187,7 +196,7 @@ ImsicMgr::ImsicMgr(unsigned hartCount, unsigned pageSize)
 
 bool
 ImsicMgr::configureMachine(uint64_t addr, uint64_t stride, unsigned ids,
-                           unsigned thresholdMax)
+                           unsigned thresholdMax, bool aplic)
 {
   if ((addr % pageSize_) != 0 or (stride % pageSize_) != 0 or stride == 0)
     return false;
@@ -199,7 +208,7 @@ ImsicMgr::configureMachine(uint64_t addr, uint64_t stride, unsigned ids,
   mstride_ = stride;
   for (auto imsic : imsics_)
     {
-      imsic->configureMachine(addr, ids, pageSize_, thresholdMax);
+      imsic->configureMachine(addr, ids, pageSize_, thresholdMax, aplic);
       addr += stride;
     }
   return true;
@@ -208,7 +217,7 @@ ImsicMgr::configureMachine(uint64_t addr, uint64_t stride, unsigned ids,
 
 bool
 ImsicMgr::configureSupervisor(uint64_t addr, uint64_t stride, unsigned ids,
-                              unsigned thresholdMax)
+                              unsigned thresholdMax, bool aplic)
 {
   if ((addr % pageSize_) != 0 or (stride % pageSize_) != 0 or stride == 0)
     return false;
@@ -220,7 +229,7 @@ ImsicMgr::configureSupervisor(uint64_t addr, uint64_t stride, unsigned ids,
   sstride_ = stride;
   for (auto imsic : imsics_)
     {
-      imsic->configureSupervisor(addr, ids, pageSize_, thresholdMax);
+      imsic->configureSupervisor(addr, ids, pageSize_, thresholdMax, aplic);
       addr += stride;
     }
   return true;
@@ -228,13 +237,13 @@ ImsicMgr::configureSupervisor(uint64_t addr, uint64_t stride, unsigned ids,
 
 
 bool
-ImsicMgr::configureGuests(unsigned n, unsigned ids, unsigned thresholdMax)
+ImsicMgr::configureGuests(unsigned n, unsigned ids, unsigned thresholdMax, bool aplic)
 {
   if (sstride_ < (n+1) * pageSize_)
     return false;  // No enough space.
 
   for (auto imsic : imsics_)
-    imsic->configureGuests(n, ids, pageSize_, thresholdMax);
+    imsic->configureGuests(n, ids, pageSize_, thresholdMax, aplic);
 
   return true;
 }
