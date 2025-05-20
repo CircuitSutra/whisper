@@ -1014,23 +1014,6 @@ namespace WdRiscv
       return false;
     }
 
-    /// Return true if there is one or more tripped trigger action set
-    /// to "take breakpoint". 
-    bool hasBreakpTripped() const
-    {
-      for (const auto& trig : triggers_)
-	if (trig.hasTripped())
-          {
-            // If chained, use action of last trigger in chain.
-            size_t start = 0, end = 0;
-            trig.getChainBounds(start, end);
-            auto& last = triggers_.at(end - 1);
-            if (last.getAction() == TriggerAction::RaiseBreak)
-              return true;
-          }
-      return false;
-    }
-
     /// Enable all ld/st address matching [address, address+size-1].
     void enableAllLdStAddrMatch(bool flag)
     { for ( auto& trig : triggers_) trig.enableAllLdStAddrMatch(flag); }

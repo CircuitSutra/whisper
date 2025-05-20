@@ -5026,7 +5026,7 @@ Hart<URV>::takeTriggerAction(FILE* traceFile, URV pc, URV info,
 			     uint64_t instrTag, const DecodedInst* di)
 {
   // Check triggers configuration to determine action: take breakpoint
-  // exception or enter debugger (or nothing).
+  // exception or enter debugger.
 
   bool enteredDebug = false;
 
@@ -5035,7 +5035,7 @@ Hart<URV>::takeTriggerAction(FILE* traceFile, URV pc, URV info,
       enterDebugMode_(DebugModeCause::TRIGGER, pc);
       enteredDebug = true;
     }
-  else if (csRegs_.hasBreakpTripped())
+  else
     {
       initiateException(ExceptionCause::BREAKP, pc, info);
       if (dcsrStep_)
