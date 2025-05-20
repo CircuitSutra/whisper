@@ -434,10 +434,19 @@ Hart<URV>::countImplementedPmpRegisters() const
       num = unsigned(CsrNumber::PMPCFG0);
       for (unsigned ix = 0; ix < 16; ++ix, ++num)
         if (csRegs_.isImplemented(CsrNumber(num)))
-          cfgCount++;
-      if (count and cfgCount != 2 and cfgCount != 8 and hartIx_ == 0)  // Only even numbered implemented.
-        cerr << "Warning: Physical memory protection enabled but only "
-	     << cfgCount << "/8" << " PMPCFG CSRs implemented.\n";
+          {
+            if ((ix & 1) == 1)
+              cerr << "Error: Odd numbered PMPCFG" << ix << " CSR should not be implemented.\n";
+            cfgCount++;
+          }
+
+      // Count should be 0, 16, or 14. cfgCount should be count/8.
+      if (cfgCount != count / 8)
+        {
+          cerr << "Error: The number of implemented PMPADDR CSRs is " << count
+               << ", but the number of implemented PMPCFG CSRs is " << cfgCount
+               << " (should be " << count << "/8 = " << (count/8) << ")\n";
+        }
     }
 
   return count;
