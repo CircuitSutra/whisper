@@ -1182,6 +1182,11 @@ namespace WdRiscv
     bool hasEnterDebugModeTripped() const
     { return triggers_.hasEnterDebugModeTripped(); }
 
+    /// Return true if there is one or more tripped trigger action set
+    /// to "enter debug mode".
+    bool hasBreakpTripped() const
+    { return triggers_.hasBreakpTripped(); }
+
     /// Set value to the value of the given register returning true on
     /// success and false if number is out of bound. Peeks register assuming
     /// virtMode.

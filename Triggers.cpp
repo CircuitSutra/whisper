@@ -417,7 +417,12 @@ Triggers<URV>::icountTriggerFired(PrivilegeMode mode, bool virtMode, bool interr
 	continue;  // Cannot fire in machine mode.
 
       if (trig.data1_.icount_.pending_)
-        hit = true;
+        {
+          hit = true;
+          // Icount doesn't have a chain bit, we just use it to indicate
+          // this trigger is tripped.
+          trig.setTripped(hit);
+        }
 
       trig.data1_.icount_.pending_ = false;
     }
