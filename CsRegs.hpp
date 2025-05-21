@@ -1316,8 +1316,8 @@ namespace WdRiscv
     void updateVirtInterruptCtl();
 
     /// Update MVIP aliasing bits. This is called after a write/poke to
-    /// MIP. Returns true if MVIP was updated.
-    bool updateVirtInterrupt();
+    /// MIP/SIP. Returns true if MVIP was updated.
+    bool updateVirtInterrupt(URV value);
 
     /// Enter/exit debug mode based given a flag value of true/false.
     void enterDebug(bool flag)
