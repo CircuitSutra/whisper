@@ -2295,7 +2295,7 @@ namespace WdRiscv
     }
 
     /// Returns true if CSR is defined as part of a STATEEN and enabled, or
-    /// not part of STATEEN. Returns false otherwise.
+    /// not part of STATEEN. Returns false otherwise. 
     bool isStateEnabled(CsrNumber num, PrivilegeMode mode, bool virtMode) const;
 
     /// Update the mask of the LCOF bit in MVIP/MVIEN based on extensions mcdeleg,

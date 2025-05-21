@@ -181,7 +181,6 @@ CsRegs<URV>::readSip(URV& value) const
 
   // Bits SGEIP, VSEIP, VSTIP, VSSIP are read-only zero in SIE/SIP.
   value &= ~ URV(0x1444);
-
   return true;
 }
 
@@ -2120,7 +2119,7 @@ CsRegs<URV>::isWriteable(CsrNumber num, PrivilegeMode pm, bool vm) const
   if (not isReadable(num, pm, vm))
     return false;
 
-  const Csr<URV>* csr = getImplementedCsr(num, vm);
+  const Csr<URV>* csr = getImplementedCsr(num, virtMode_);
   assert(csr);
 
   if (pm == PrivilegeMode::Supervisor and vm)
@@ -2144,7 +2143,7 @@ template <typename URV>
 bool
 CsRegs<URV>::isReadable(CsrNumber num, PrivilegeMode pm, bool vm) const
 {
-  const Csr<URV>* csr = getImplementedCsr(num, vm);
+  const Csr<URV>* csr = getImplementedCsr(num, virtMode_);
   if (not csr or pm < csr->privilegeMode())
     return false;
 
@@ -5588,7 +5587,7 @@ CsRegs<URV>::isStateEnabled(CsrNumber num, PrivilegeMode pm, bool vm) const
       if (num == CN::SIREG and not vm)
         {
           URV select = 0;
-          if (peek(CN::SISELECT, select))
+          if (peek(CN::SISELECT, select, false))
             {
               if (select >= 0x30 and select <= 0x3f)
                 rseb.bits_.AIA = 1;  // Sections 2.5 and 5.4.1 of AIA
@@ -5600,7 +5599,7 @@ CsRegs<URV>::isStateEnabled(CsrNumber num, PrivilegeMode pm, bool vm) const
           (num == CN::VSIREG))
         {
           URV select = 0;
-          if (peek(CN::VSISELECT, select))
+          if (peek(CN::VSISELECT, select, false))
             {
               if (select >= 0x70 and select <= 0xff)
                 rseb.bits_.IMSIC = 1;
