@@ -66,13 +66,9 @@ File::iregWrite(unsigned sel, URV val)
 
   if (sel == EIC::DELIVERY)
     {
-      if (aplic_)
-        {
-          if (val != 0 and val != 1 and val != 0x40000000)
-            return true;  // New val not legal: Keep previous value.
-        }
-      else if (val != 0 and val != 1)
-        return true;  // New val not legal: Keep previous value
+      // Legalize value.
+      if ((aplic_ and val != 0x40000000) or not aplic_)
+        val = val & 1;
       delivery_ = val;
     }
   else if (sel == EIC::THRESHOLD)
