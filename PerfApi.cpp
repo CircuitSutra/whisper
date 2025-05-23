@@ -532,7 +532,7 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
   hart.singleStep(traceFiles_.at(hartIx));
 
   // Sanity check. Results at execute and retire must match.
-#if 0
+#if 1
   if (not checkExecVsRetire(hart, packet))
     assert(0);
 #endif
@@ -591,7 +591,9 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
 
   packet.retired_ = true;
 
-  if (packet.isAmo() or packet.isSc())
+  // AMOs drain at retire. Same for SC if more than one hart.
+  bool drainAtRetire = packet.isAmo() or (packet.isSc() and system_.hartCount() > 1);
+  if (drainAtRetire)
     {
       uint64_t sva = 0, spa1 = 0, spa2 = 0, sval = 0;
       unsigned size = hart.lastStore(sva, spa1, spa2, sval);
@@ -798,8 +800,11 @@ PerfApi::drainStore(unsigned hartIx, uint64_t time, uint64_t tag)
       return false;
     }
 
-  if (packet.isAmo() or packet.isSc())
-    assert(packet.drained());   // AMO/SC drained at retire.
+  // AMOs drained at retire. Same of SC if more than 1 hart.
+  bool skipDrain = packet.isAmo() or (packet.isSc() and system_.hartCount() > 1);
+
+  if (skipDrain)
+    assert(packet.drained());   // AMO/SC must be already retired.
   else
     {
       if (packet.drained())
@@ -811,6 +816,9 @@ PerfApi::drainStore(unsigned hartIx, uint64_t time, uint64_t tag)
 
       if (packet.dsize_ and not commitMemoryWrite(hart, packet))
 	assert(0);
+
+      if (packet.isSc())
+	hart.cancelLr(WdRiscv::CancelLrCause::SC);
 
       packet.drained_ = true;
     }
