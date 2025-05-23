@@ -11377,7 +11377,10 @@ Hart<URV>::imsicAccessible(const DecodedInst* di, CsrNumber csr, PrivilegeMode m
 
           if (TT_IMSIC::Imsic::isFileSelReserved(sel))
             {
-              illegalInst(di);
+              if (not virtMode or not guestFile)
+                illegalInst(di);
+              else
+                virtualInst(di);
               return false;
             }
 
