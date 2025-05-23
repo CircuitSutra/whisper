@@ -630,8 +630,15 @@ PerfApi::checkExecVsRetire(const Hart64& hart, const InstrPac& packet) const
       return false;
     }
 
-  if (packet.trap_ or packet.di_.isLr())
-    return true;
+  if (packet.nextPc() != hart.peekPc())
+    {
+      cerr << "Hart=" << hartIx << " tag=" << tag << " execute and retire PCs differ:"
+           << " 0x" << std::hex << packet.nextPc() << " & 0x" << hart.peekPc() << std::dec << '\n';
+      return false;
+    }
+
+  if (packet.trap_)
+     return true;
 
   if (int reg = hart.lastIntReg(); reg > 0)
     {
