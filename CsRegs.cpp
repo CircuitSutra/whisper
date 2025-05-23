@@ -1226,14 +1226,6 @@ CsRegs<URV>::enableAia(bool flag)
 	}
     }
 
-  // We sit the software-writable SEIP bit in MVIP.
-  if (flag)
-    {
-      auto mip = findCsr(CN::MIP);
-      mip->setWriteMask(mip->getWriteMask() & ~URV(1 << 9));
-      // Compensate for TB attempting to trigger SEIP.
-      mip->setPokeMask(mip->getPokeMask() & ~URV(1 << 9));
-    }
   updateLcofMask();
 }
 
@@ -1994,6 +1986,15 @@ CsRegs<URV>::write(CsrNumber csrn, PrivilegeMode mode, URV value)
     return writeMvip(value);
   if (num == CN::MVIEN)
     return writeMvien(value);
+  if (aiaEnabled_ and num == CN::MIP)
+    {
+      if (updateVirtInterrupt(value, false))
+        {
+          recordWrite(CN::MVIP);
+          return true;
+        }
+      return false;;
+    }
 
   if (num >= CN::SSTATEEN0 and num <= CN::SSTATEEN3)
     return writeSstateen(num, value);
@@ -2104,11 +2105,6 @@ CsRegs<URV>::write(CsrNumber csrn, PrivilegeMode mode, URV value)
 
   if (num == CN::MENVCFG or num == CN::HENVCFG)
     updateSstc();
-  else if (num == CN::MIP)
-    {
-      if (updateVirtInterrupt(value))
-        recordWrite(CN::MVIP);
-    }
 
   return true;
 }
@@ -3663,6 +3659,8 @@ CsRegs<URV>::poke(CsrNumber num, URV value, bool virtMode)
     return writeSip(value, false);
   else if (num == CN::SIE)
     return writeSie(value, false);
+  else if (aiaEnabled_ and num == CN::MIP)
+    return updateVirtInterrupt(value, true);
 
   if (num == CN::MISA)
     {
@@ -3748,8 +3746,6 @@ CsRegs<URV>::poke(CsrNumber num, URV value, bool virtMode)
 
   if (num == CN::MENVCFG or num == CN::HENVCFG)
     updateSstc();
-  else if (num == CN::MIP)
-    updateVirtInterrupt(value);
 
   return true;
 }
@@ -4482,11 +4478,17 @@ CsRegs<URV>::updateVirtInterruptCtl()
 
 template <typename URV>
 bool
-CsRegs<URV>::updateVirtInterrupt(URV value)
+CsRegs<URV>::updateVirtInterrupt(URV value, bool poke)
 {
   auto mip = getImplementedCsr(CsrNumber::MIP);
   if (not mip)
     return false;
+
+  // We sit SEIP in MVIP.
+  if (poke)
+    mip->poke(value & ~URV(1 << 9));
+  else
+    mip->write(value & ~URV(1 << 9));
 
   auto mvien = getImplementedCsr(CsrNumber::MVIEN);
   auto mvip = getImplementedCsr(CsrNumber::MVIP);
@@ -4507,9 +4509,8 @@ CsRegs<URV>::updateVirtInterrupt(URV value)
       mask &= b9 | b5;
       // Write aliasing bits.
       mvip->write((mvip->read() & ~mask) | (value & mask));
-      return true;
     }
-  return false;
+  return true;
 }
 
 
