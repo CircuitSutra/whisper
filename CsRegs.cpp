@@ -1231,6 +1231,8 @@ CsRegs<URV>::enableAia(bool flag)
     {
       auto mip = findCsr(CN::MIP);
       mip->setWriteMask(mip->getWriteMask() & ~URV(1 << 9));
+      // Compensate for TB attempting to trigger SEIP.
+      mip->setPokeMask(mip->getPokeMask() & ~URV(1 << 9));
     }
   updateLcofMask();
 }
