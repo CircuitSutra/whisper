@@ -5071,6 +5071,10 @@ CsRegs<URV>::addDebugFields()
   setCsrFields(Csrn::TCONTROL,
       {{"zero", 3}, {"mte", 1}, {"zero", 3}, {"mpte", 1}, {"zero", xlen - 8}});
 
+  setCsrFields(Csrn::DCSR,
+      {{"prv", 2}, {"step", 1}, {"nmip", 1}, {"mprven", 1}, {"v", 1}, {"cause", 3}, {"stoptime", 1}, {"stopcount", 1}, {"stepie", 1}, {"ebreaku", 1},{"ebreaks", 1}, {"zero", 1}, {"ebreakm", 1}, {"ebreakvu", 1}, {"ebreakvs", 1}, {"zero", 1},{"cetrig", 1}, {"zero", 4}, {"extcause", 3}, {"zero", 1}, {"debugver", 4}});
+
+
   if (rv32_)
     {
       setCsrFields(Csrn::TINFO,
