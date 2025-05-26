@@ -1952,11 +1952,21 @@ namespace WdRiscv
 
     /// Return true if given CSR is a hypervisor CSR.
     bool isHypervisor(CsrNumber csrn) const
-    { auto csr = getImplementedCsr(csrn); return csr and csr->isHypervisor(); }
+    {
+      size_t ix = size_t(csrn);
+      if (ix < regs_.size())
+        return regs_.at(ix).isHypervisor();
+      return false;
+    }
 
     /// Return true if given CSR is an AIA CSR.
     bool isAia(CsrNumber csrn) const
-    { auto csr = getImplementedCsr(csrn); return csr and csr->isAia(); }
+    {
+      size_t ix = size_t(csrn);
+      if (ix < regs_.size())
+        return regs_.at(ix).isAia();
+      return false;
+    }
 
     /// If flag is false, bit HENVCFG.STCE becomes read-only-zero;
     /// otherwise, bit is readable.

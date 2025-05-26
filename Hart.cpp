@@ -11154,16 +11154,25 @@ Hart<URV>::checkCsrAccess(const DecodedInst* di, CsrNumber csr, bool isWrite)
   using PM = PrivilegeMode;
   using CN = CsrNumber;
 
-  // Section 2.5 of AIA. Check if MSTATEN disallows access.
-  if (privMode_ != PM::Machine and csRegs_.isAia(csr))
+  if (csRegs_.isAia(csr))
     {
-      auto mappedCsr = csRegs_.getImplementedCsr(csr, virtMode_);
-      auto csrn = mappedCsr? mappedCsr->getNumber() : csr;
-
-      if (not csRegs_.isStateEnabled(csrn, PM::Machine, false /*virtMode_*/))
+      if (csRegs_.isHypervisor(csr) and not isRvh())
         {
           illegalInst(di);
           return false;
+        }
+
+      // Section 2.5 of AIA. Check if MSTATEN disallows access.
+      if (privMode_ != PM::Machine)
+        {
+          auto mappedCsr = csRegs_.getImplementedCsr(csr, virtMode_);
+          auto csrn = mappedCsr? mappedCsr->getNumber() : csr;
+
+          if (not csRegs_.isStateEnabled(csrn, PM::Machine, false /*virtMode_*/))
+            {
+              illegalInst(di);
+              return false;
+            }
         }
     }
 
