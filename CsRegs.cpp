@@ -1990,7 +1990,6 @@ CsRegs<URV>::write(CsrNumber csrn, PrivilegeMode mode, URV value)
     {
       if (updateVirtInterrupt(value, false))
         {
-          recordWrite(CN::MVIP);
           hyperWrite(csr);  // Reflect MIP on HIP
           return true;
         }
@@ -4494,11 +4493,17 @@ CsRegs<URV>::updateVirtInterrupt(URV value, bool poke)
   if (not mip)
     return false;
 
+  auto prevMip = mip->read();
+
   // We set SEIP in MVIP.
   if (poke)
     mip->poke(value & ~URV(1 << 9));
   else
-    mip->write(value & ~URV(1 << 9));
+    {
+      mip->write(value & ~URV(1 << 9));
+      if (mip->read() != prevMip)
+        recordWrite(mip->getNumber());
+    }
 
   auto mvien = getImplementedCsr(CsrNumber::MVIEN);
   auto mvip = getImplementedCsr(CsrNumber::MVIP);
@@ -4518,7 +4523,11 @@ CsRegs<URV>::updateVirtInterrupt(URV value, bool poke)
 
       mask &= b9 | b5;
       // Write aliasing bits.
+      auto prev = mvip->read();
       mvip->write((mvip->read() & ~mask) | (value & mask));
+      
+      if (mvip->read() != prev)
+        recordWrite(mvip->getNumber());
     }
   return true;
 }
@@ -5126,8 +5135,10 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
   auto updateCsr = [this](Csr<URV>* csr, URV val) {
     if (csr and csr->read() != val)
       {
+        auto prev = csr->read();
 	csr->poke(val);
-	recordWrite(csr->getNumber());
+        if (prev != csr->read())
+          recordWrite(csr->getNumber());
       }
   };
 
