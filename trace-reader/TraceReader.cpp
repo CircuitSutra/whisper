@@ -77,7 +77,7 @@ TraceReader::TraceReader(const std::string& inputPath, const std::string& initPa
 }
 
 
-bool
+void
 TraceReader::readInitialState(const std::string& path)
 {
   using std::cerr;
@@ -85,12 +85,12 @@ TraceReader::readInitialState(const std::string& path)
   if (not in)
     {
       cerr << "Failed to open file '" << path << "' for input\n";
-      return false;
+      return;
     }
 
   std::string prefix = "File " + path + " line ";
 
-  unsigned lineNum = 0, errors = 0;
+  unsigned lineNum = 0;
   std::string line;
   while (std::getline(in, line))
     {
@@ -102,19 +102,17 @@ TraceReader::readInitialState(const std::string& path)
       std::string type, numStr, valStr;
       iss >> type >> numStr >> valStr;
 
-      if (type == "pm" or type == "vm" or type == "po" or type == "pb" or type == "pc")
+      if (type == "pm" or type == "vm" or type == "po" or type == "pb" or type == "pc" or type == "pr" or type == "elp")
 	continue;
 
       if (type != "x" and type != "f" and type != "c" and type != "v")
 	{
 	  cerr << prefix << lineNum << ": Bad register type: " << type << '\n';
-	  errors++;
 	  continue;
 	}
       if (numStr.empty() or valStr.empty())
 	{
 	  cerr << prefix << lineNum << ": Fewer than 3 tokens in line: " << line << '\n';
-	  errors++;
 	  continue;
 	}
 
@@ -123,7 +121,6 @@ TraceReader::readInitialState(const std::string& path)
       if (l < numStr.size())
 	{
 	  cerr << prefix << lineNum << ": Bad register number: " << numStr << '\n';
-	  errors++;
 	  continue;
 	}
 
@@ -144,7 +141,6 @@ TraceReader::readInitialState(const std::string& path)
 	  if (not ok)
 	    {
 	      cerr << prefix << lineNum << ": Bad vector register value: " << valStr << '\n';
-	      errors++;
 	      continue;
 	    }
 	}
@@ -154,7 +150,6 @@ TraceReader::readInitialState(const std::string& path)
 	  if (l < valStr.size())
 	    {
 	      std::cerr << prefix << lineNum << ": Bad value: " << valStr << '\n';
-	      errors++;
 	      continue;
 	    }
 	}
@@ -166,7 +161,6 @@ TraceReader::readInitialState(const std::string& path)
       if (num >= limit)
 	{
 	  std::cerr << prefix << lineNum << ": Reg number out of bounds: " << num << '\n';
-	  errors++;
 	  continue;
 	}
 
@@ -179,8 +173,6 @@ TraceReader::readInitialState(const std::string& path)
       else if (type == "v")
 	vecRegs_.at(num) = vecValue;
     }
-
-  return errors == 0;
 }
 
 
