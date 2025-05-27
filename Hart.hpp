@@ -2646,6 +2646,10 @@ namespace WdRiscv
       return pma;
     }
 
+    /// Return MVIP-overriden interrupt pending.
+    bool overrideWithMvip(URV ip) const
+    { return csRegs_.overrideWithMvip(ip); }
+
     /// This is for the test-bench which in some run wants to take control over timer
     /// values.
     void autoIncrementTimer(bool flag)

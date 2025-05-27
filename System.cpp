@@ -816,8 +816,8 @@ System<URV>::configAplic(unsigned num_sources, std::span<const TT_APLIC::DomainP
             return false;
           }
       }
-    // FIXME: this needs to override with MVIP value.
     auto mip = hart.peekCsr(CsrNumber::MIP);
+    mip = hart.overrideWithMvip(mip);
     int xeip = is_machine ? 11 : 9;
     if (interState)
       mip |= 1 << xeip;
