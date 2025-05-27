@@ -347,6 +347,12 @@ ExceptionCause
 VirtMem::stage2TranslateNoTlb(uint64_t va, PrivilegeMode priv, bool read,
 			      bool write, bool exec, bool isPteAddr, uint64_t& pa, TlbEntry& entry)
 {
+  if (stage2Mode_ == Mode::Bare)
+    {
+      pa = va;
+      return ExceptionCause::NONE;
+    }
+
   // Perform a page table walk.
   ExceptionCause (VirtMem::*stage2PageTableWalk)(uint64_t, PrivilegeMode, bool, bool, bool, bool, uint64_t&, TlbEntry&);
   unsigned lowerMaskBitIndex = 0;
@@ -504,6 +510,16 @@ ExceptionCause
 VirtMem::stage1TranslateNoTlb(uint64_t va, PrivilegeMode priv, bool read, bool write,
 			      bool exec, uint64_t& pa, TlbEntry& entry)
 {
+  s1ImplAccTrap_ = false;
+
+  if (vsMode_ == Mode::Bare)
+    {
+      pa = va;
+      return ExceptionCause::NONE;
+    }
+
+  ExceptionCause (VirtMem::*walkFn)(uint64_t, PrivilegeMode, bool, bool, bool, uint64_t&, TlbEntry&);
+
   if (vsMode_ == Mode::Sv32)
     {
       auto cause =  stage1PageTableWalk<Pte32, Va32>(va, priv, read, write, exec, pa, entry);
@@ -511,7 +527,6 @@ VirtMem::stage1TranslateNoTlb(uint64_t va, PrivilegeMode priv, bool read, bool w
       return cause;
     }
 
-  ExceptionCause (VirtMem::*walkFn)(uint64_t, PrivilegeMode, bool, bool, bool, uint64_t&, TlbEntry&);
   unsigned vaMsb = 0;  // Most significant bit of va
 
   if (vsMode_ == Mode::Sv39)
