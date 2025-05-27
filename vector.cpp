@@ -5128,7 +5128,6 @@ Hart<URV>::execVslide1down_vx(const DecodedInst* di)
 
   if (start < vecRegs_.elemCount())
     {
-
       URV amount = 1;
 
       // Sign extend scalar value
@@ -5190,60 +5189,62 @@ Hart<URV>::execVfslide1up_vf(const DecodedInst* di)
 
   if (not checkVecOpsVsEmul(di, vd, vs1, group))
     return;
-  if (vecRegs_.elemCount() == 0)
-    return;
 
-  URV amount = 1;
-
-  switch (sew)
+  if (start < vecRegs_.elemCount())
     {
-    case ElementWidth::Byte:
-      postVecFail(di);
-      return;
+      URV amount = 1;
 
-    case ElementWidth::Half:
-      {
-	vslideup<uint16_t>(vd, vs1, amount, group, start, elems, masked);
-	if (not start)
+      switch (sew)
+        {
+        case ElementWidth::Byte:
+          postVecFail(di);
+          return;
+
+        case ElementWidth::Half:
           {
-            Float16 f;
-            if (vecRegs_.isDestActive(vd, 0, group, masked, f))
-              f = fpRegs_.readHalf(rs2);
-            vecRegs_.write(vd, 0, group, std::bit_cast<uint16_t>(f));
+            vslideup<uint16_t>(vd, vs1, amount, group, start, elems, masked);
+            if (not start)
+              {
+                Float16 f;
+                if (vecRegs_.isDestActive(vd, 0, group, masked, f))
+                  f = fpRegs_.readHalf(rs2);
+                vecRegs_.write(vd, 0, group, std::bit_cast<uint16_t>(f));
+              }
           }
-      }
-      break;
+          break;
 
-    case ElementWidth::Word:
-      {
-	vslideup<uint32_t>(vd, vs1, amount, group, start, elems, masked);
-	if (not start)
-	  {
-            float f;
-            if (vecRegs_.isDestActive(vd, 0, group, masked, f))
-              f = fpRegs_.readSingle(rs2);
-            vecRegs_.write(vd, 0, group, std::bit_cast<uint32_t>(f));
-	  }
-      }
-      break;
+        case ElementWidth::Word:
+          {
+            vslideup<uint32_t>(vd, vs1, amount, group, start, elems, masked);
+            if (not start)
+              {
+                float f;
+                if (vecRegs_.isDestActive(vd, 0, group, masked, f))
+                  f = fpRegs_.readSingle(rs2);
+                vecRegs_.write(vd, 0, group, std::bit_cast<uint32_t>(f));
+              }
+          }
+          break;
 
-    case ElementWidth::Word2:
-      {
-	vslideup<uint64_t>(vd, vs1, amount, group, start, elems, masked);
-	if (not start)
-	  {
-            double d;
-            if (vecRegs_.isDestActive(vd, 0, group, masked, d))
-              d = fpRegs_.readDouble(rs2);
-            vecRegs_.write(vd, 0, group, std::bit_cast<uint64_t>(d));
-	  }
-      }
-      break;
+        case ElementWidth::Word2:
+          {
+            vslideup<uint64_t>(vd, vs1, amount, group, start, elems, masked);
+            if (not start)
+              {
+                double d;
+                if (vecRegs_.isDestActive(vd, 0, group, masked, d))
+                  d = fpRegs_.readDouble(rs2);
+                vecRegs_.write(vd, 0, group, std::bit_cast<uint64_t>(d));
+              }
+          }
+          break;
 
-    default:
-      postVecFail(di);
-      return;
+        default:
+          postVecFail(di);
+          return;
+        }
     }
+
   postVecSuccess();
 }
 
@@ -5263,56 +5264,58 @@ Hart<URV>::execVfslide1down_vf(const DecodedInst* di)
 
   if (not checkVecOpsVsEmul(di, vd, vs1, group))
     return;
-  if (vecRegs_.elemCount() == 0)
-    return;
 
-  URV amount = 1;
-
-  unsigned slot = vecRegs_.elemCount() - 1;
-
-  switch (sew)
+  if (start < vecRegs_.elemCount())
     {
-    case ElementWidth::Byte:
-      postVecFail(di);
-      return;
+      URV amount = 1;
 
-    case ElementWidth::Half:
-      {
-	vslidedown<uint16_t>(vd, vs1, amount, group, start, elems, masked);
-        if (not masked or vecRegs_.isActive(0, slot))
+      unsigned slot = vecRegs_.elemCount() - 1;
+
+      switch (sew)
+        {
+        case ElementWidth::Byte:
+          postVecFail(di);
+          return;
+
+        case ElementWidth::Half:
           {
-            Float16 f = fpRegs_.readHalf(rs2);
-            vecRegs_.write(vd, slot, group, std::bit_cast<uint16_t>(f));
+            vslidedown<uint16_t>(vd, vs1, amount, group, start, elems, masked);
+            if (not masked or vecRegs_.isActive(0, slot))
+              {
+                Float16 f = fpRegs_.readHalf(rs2);
+                vecRegs_.write(vd, slot, group, std::bit_cast<uint16_t>(f));
+              }
           }
-      }
-      break;
+          break;
 
-    case ElementWidth::Word:
-      {
-	vslidedown<uint32_t>(vd, vs1, amount, group, start, elems, masked);
-	if (not masked or vecRegs_.isActive(0, slot))
-	  {
-            float f = fpRegs_.readSingle(rs2);
-            vecRegs_.write(vd, slot, group, std::bit_cast<uint32_t>(f));
-	  }
-      }
-      break;
+        case ElementWidth::Word:
+          {
+            vslidedown<uint32_t>(vd, vs1, amount, group, start, elems, masked);
+            if (not masked or vecRegs_.isActive(0, slot))
+              {
+                float f = fpRegs_.readSingle(rs2);
+                vecRegs_.write(vd, slot, group, std::bit_cast<uint32_t>(f));
+              }
+          }
+          break;
 
-    case ElementWidth::Word2:
-      {
-	vslidedown<uint64_t>(vd, vs1, amount, group, start, elems, masked);
-	if (not masked or vecRegs_.isActive(0, slot))
-	  {
-            double d = fpRegs_.readDouble(rs2);
-            vecRegs_.write(vd, slot, group, std::bit_cast<uint64_t>(d));
-	  }
-      }
-      break;
+        case ElementWidth::Word2:
+          {
+            vslidedown<uint64_t>(vd, vs1, amount, group, start, elems, masked);
+            if (not masked or vecRegs_.isActive(0, slot))
+              {
+                double d = fpRegs_.readDouble(rs2);
+                vecRegs_.write(vd, slot, group, std::bit_cast<uint64_t>(d));
+              }
+          }
+          break;
 
-    default:
-      postVecFail(di);
-      return;
+        default:
+          postVecFail(di);
+          return;
+        }
     }
+
   postVecSuccess();
 }
 
