@@ -8950,6 +8950,7 @@ Hart<URV>::execVfmv_f_s(const DecodedInst* di)
 	  Float16 val{};
 	  vecRegs_.read(vs1, 0, groupX8, val);
 	  fpRegs_.writeHalf(rd, val);
+          markFsDirty();
 	}
       break;
 
@@ -8961,6 +8962,7 @@ Hart<URV>::execVfmv_f_s(const DecodedInst* di)
 	  float val{};
 	  vecRegs_.read(vs1, 0, groupX8, val);
 	  fpRegs_.writeSingle(rd, val);
+          markFsDirty();
 	}
       break;
 
@@ -8972,6 +8974,7 @@ Hart<URV>::execVfmv_f_s(const DecodedInst* di)
 	  double val{};
 	  vecRegs_.read(vs1, 0, groupX8, val);
 	  fpRegs_.writeDouble(rd, val);
+          markFsDirty();
 	}
       break;
 
