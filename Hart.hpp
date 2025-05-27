@@ -2285,7 +2285,7 @@ namespace WdRiscv
 
       using IC = InterruptCause;
       imsic_->attachMInterrupt([this] (bool flag) {
-          URV mipVal = csRegs_.peekMip();
+          URV mipVal = csRegs_.overrideWithMvip(csRegs_.peekMip());
           URV prev = mipVal;
 
           if (flag)
