@@ -5072,6 +5072,8 @@ CsRegs<URV>::addAiaFields()
       {{"select", xlen}});
   setCsrFields(Csrn::HVICTL,
       {{"iprio", 8}, {"ipriom", 1}, {"dpr", 1}, {"zero", 8}, {"iid", 12}, {"vti", 1}, {"zero", xlen - 31}});
+  setCsrFields(Csrn::HVIEN,
+      {{"zero", 13}, {"lcofip", 1}, {"zero", xlen - 14}});
 }
 
 template <typename URV>
