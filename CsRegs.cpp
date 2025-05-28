@@ -235,9 +235,9 @@ CsRegs<URV>::readMvip(URV& value) const
   auto mvien = getImplementedCsr(CsrNumber::MVIEN);
   if (mip and mvien)
     {
-      // Bit 1 is an alias of mip when MVIEN is not set.
+      // Bit 1 is an alias of mip when MVIEN is zero; otherwise, it is its own value.
       URV b1 = URV(0x2);
-      URV mask = mvien->read() ^ b1;
+      URV mask = mvien->read() ^ b1;  // Get MIP if set and own value otherwise.
       mask &= b1;
       value = (value & ~mask) | (mip->read() & mask);
 
@@ -269,6 +269,8 @@ CsRegs<URV>::writeMvip(URV value)
       // Bit 9 aliasing applied in effectiveMip()
       URV mvienVal = mvien->read();
       URV mask = mvienVal;
+
+      // When MVIEN is 0, do not write MVIP. Keep original value.
       URV b1 = URV(0x2);
       mask ^= b1;
 
@@ -284,6 +286,11 @@ CsRegs<URV>::writeMvip(URV value)
           mip->write((mip->read() & ~mask) | (value & mask));
           recordWrite(CsrNumber::MIP);
         }
+
+      // If bit 1 is aliased to MIP (bit 1 of MVIEN is 0), preserve its value in MVIP.
+      // This matches current implementation. Spec says value is unsecified.
+      if (b1 & ~mvien->read())
+        value = (value & ~b1) | (mvip->read() & b1);
     }
 
   mvip->write(value);
@@ -4496,23 +4503,25 @@ CsRegs<URV>::updateVirtInterrupt(URV value, bool poke)
   auto prevMip = mip->read();
 
   // We set SEIP in MVIP.
+  URV b9 = 0x200;
   if (poke)
-    mip->poke(value & ~URV(1 << 9));
+    mip->poke(value & ~b9);
   else
     {
-      mip->write(value & ~URV(1 << 9));
+      mip->write(value & ~b9);
       if (mip->read() != prevMip)
         recordWrite(mip->getNumber());
     }
+
+  // All bits from new value of MIP except bit 9.
+  value = mip->read() | (value & b9);
 
   auto mvien = getImplementedCsr(CsrNumber::MVIEN);
   auto mvip = getImplementedCsr(CsrNumber::MVIP);
   if (mvien and mvip)
     {
       // Bit 9 of MVIP is an alias to bit 9 in MIP if bit 9 is not set in MVIEN.
-      // Special hack for RTL which does not alias bit 1.
       URV mask = mvien->read();
-      URV b9 = URV(0x200);
       mask ^= b9;
 
       // Bit STIE (5) of MVIP is an alias to bit 5 of MIP if bit 5 of MIP is writable.
