@@ -195,9 +195,9 @@ namespace WdRiscv
     unsigned vu_      : 1;
     unsigned vs_      : 1;
     uint64_t          : 8*sizeof(URV) - 19; // Reserved -- zero.
-    unsigned hit      : 1;
-    unsigned dmode    : 1;
-    unsigned type     : 4;
+    unsigned hit_     : 1;
+    unsigned dmode_   : 1;
+    unsigned type_    : 4;
   } __attribute((packed));
 
 
@@ -214,9 +214,9 @@ namespace WdRiscv
     unsigned vu_      : 1;
     unsigned vs_      : 1;
     uint64_t          : sizeof(URV)*8 - 19; // Reserved -- zero.
-    unsigned hit      : 1;
-    unsigned dmode    : 1;
-    unsigned type     : 4;
+    unsigned hit_     : 1;
+    unsigned dmode_   : 1;
+    unsigned type_    : 4;
   } __attribute((packed));
 
 
@@ -611,6 +611,20 @@ namespace WdRiscv
 	  data1_.icount_.hit_ = flag;
 	  modifiedT1_ = true;
 	}
+      if (data1_.isItrigger())
+        {
+          if (not modifiedT1_)
+            prevData1_ = data1_.value_;
+          data1_.itrigger_.hit_ = flag;
+          modifiedT1_ = true;
+        }
+      if (data1_.isEtrigger())
+        {
+          if (not modifiedT1_)
+            prevData1_ = data1_.value_;
+          data1_.etrigger_.hit_ = flag;
+          modifiedT1_ = true;
+        }
     }
 
     /// Return the hit bit of this trigger.
@@ -620,6 +634,10 @@ namespace WdRiscv
         return data1_.isMcontrol()? data1_.mcontrol_.hit_ : data1_.mcontrol6_.hit0_;
       if (data1_.isInstCount())
 	return data1_.icount_.hit_;
+      if (data1_.isItrigger())
+        return data1_.itrigger_.hit_;
+      if (data1_.isEtrigger())
+        return data1_.etrigger_.hit_;
       return false;
     }
 

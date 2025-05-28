@@ -501,6 +501,7 @@ Triggers<URV>::expTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool 
       if (data2 & mask)
 	{
 	  trigger.setLocalHit(true);
+          trigger.setHit(true);
 	  hit = true;
 	}
     }
