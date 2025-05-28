@@ -6132,7 +6132,7 @@ Hart<URV>::processTimerInterrupt()
 {
   using IC = InterruptCause;
 
-  URV mipVal = csRegs_.peekMip();
+  URV mipVal = csRegs_.overrideWithMvip(csRegs_.peekMip());
   URV prev = mipVal;
 
   if (hasAclint() and aclintDeliverInterrupts_)
