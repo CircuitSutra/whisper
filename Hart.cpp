@@ -11377,7 +11377,12 @@ Hart<URV>::imsicAccessible(const DecodedInst* di, CsrNumber csr, PrivilegeMode m
 
           if (TT_IMSIC::Imsic::isFileSelReserved(sel))
             {
-              if (not virtMode or not guestFile)
+              // Sec 2.3 of interrupt spec: attempts from M-mode or HS-mode to access
+              // vsireg, or from VS-mode to access sireg (really vsireg), should
+              // preferably raise an illegal instruction exception.
+              bool isVs = (privMode_ == PM::Supervisor and virtMode_);
+              bool isMhs = (privMode_ != PM::User and not virtMode_);
+              if ((isMhs and csr == CN::VSIREG) or (isVs and csr == CN::SIREG))
                 illegalInst(di);
               else
                 virtualInst(di);
@@ -11396,7 +11401,7 @@ Hart<URV>::imsicAccessible(const DecodedInst* di, CsrNumber csr, PrivilegeMode m
 
         // From section 5.3, When mvien.SEIP is set, 0x70-0xFF are reserved and stopei
         // are reserved from S-mode.
-        bool isS = privMode_ == PrivilegeMode::Supervisor and not virtMode_;
+        bool isS = privMode_ == PM::Supervisor and not virtMode_;
         if (isS and (csr == CN::STOPEI or csr == CN::SIREG))
           {
             URV mvien = csRegs_.peekMvien();
