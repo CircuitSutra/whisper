@@ -37,7 +37,7 @@ namespace msix {
     cap_entry = reinterpret_cast<cap*>(dev.template ask_header_blocks<uint32_t>(sizeof(cap), cap_offset));
     if (not cap_entry)
       {
-        std::cerr << "No more space for MSIX cap entry" << std::endl;
+        std::cerr << "Error: No more space for MSIX cap entry" << std::endl;
         return false;
       }
 
@@ -49,7 +49,7 @@ namespace msix {
     msix_table = reinterpret_cast<msix_table_entry*>(dev.template ask_bar_blocks<uint64_t>(2, num*sizeof(msix_table_entry), msix_table_offset));
     if (not msix_table)
       {
-        std::cerr << "No more space for MSIX table" << std::endl;
+        std::cerr << "Error: No more space for MSIX table" << std::endl;
         return false;
       }
 
@@ -60,7 +60,7 @@ namespace msix {
     pba_table = reinterpret_cast<pba_table_entry*>(dev.template ask_bar_blocks<uint64_t>(2, num_pba_entries*sizeof(pba_table_entry), pba_table_offset));
     if (not pba_table)
       {
-        std::cerr << "No more space for MSIX PBA table" << std::endl;
+        std::cerr << "Error: No more space for MSIX PBA table" << std::endl;
         return false;
       }
 
@@ -106,6 +106,6 @@ namespace msix {
     if (not dev.bar_size(2))
       dev.set_bar_size(2, 0x1000);
     else
-      std::cerr << "Bar 2 size already set" << std::endl;
+      std::cerr << "Error: Bar 2 size already set" << std::endl;
   }
 }

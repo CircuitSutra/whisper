@@ -90,7 +90,7 @@ void FDChannel::write(uint8_t byte) {
 void FDChannel::terminate() {
   const uint8_t byte = 0;
   if (::write(terminate_pipe_[1], &byte, 1) != 1)
-    std::cerr << "Info: FDChannel::terminate: write failed\n";
+    std::cerr << "Error: Info: FDChannel::terminate: write failed\n";
 }
 
 FDChannel::~FDChannel() {
@@ -105,7 +105,7 @@ PTYChannelBase::PTYChannelBase() {
   if (openpty(&master_, &slave_, name, nullptr, nullptr) < 0)
     throw std::runtime_error("Failed to open a PTY\n");
 
-  std::cerr << "Got PTY " << name << "\n";
+  std::cerr << "Error: Got PTY " << name << "\n";
 }
 
 PTYChannelBase::~PTYChannelBase()
@@ -234,7 +234,7 @@ uint32_t Uart8250::read(uint64_t addr) {
     }
   }
 
-  assert(0);
+  assert(0 && "Error: Assertion failed");
   return 0;
 }
 
@@ -263,8 +263,8 @@ void Uart8250::write(uint64_t addr, uint32_t value) {
       case 6: break;
       case 7: scr_ = value; break;
       default:
-        /* std::cerr << "Uart writing addr 0x" << std::hex << addr << std::dec << '\n'; */
-        assert(0);
+        /* std::cerr << "Error: Uart writing addr 0x" << std::hex << addr << std::dec << '\n'; */
+        assert(0 && "Error: Assertion failed");
     }
   } else {
     switch (offset) {
@@ -273,8 +273,8 @@ void Uart8250::write(uint64_t addr, uint32_t value) {
       case 3: lcr_ = value; break;
       case 5: psd_ = value; break;
       default:
-        /* std::cerr << "Uart writing addr 0x" << std::hex << addr << std::dec << '\n'; */
-        assert(0);
+        /* std::cerr << "Error: Uart writing addr 0x" << std::hex << addr << std::dec << '\n'; */
+        assert(0 && "Error: Assertion failed");
     }
   }
 }

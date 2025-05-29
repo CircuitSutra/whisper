@@ -35,7 +35,7 @@ stage1PageFaultType(bool read, bool write, bool exec)
   if (exec)  return ExceptionCause::INST_PAGE_FAULT;
   if (read)  return ExceptionCause::LOAD_PAGE_FAULT;
   if (write) return ExceptionCause::STORE_PAGE_FAULT;
-  assert(0);
+  assert(0 && "Error: Assertion failed");
   return ExceptionCause::STORE_PAGE_FAULT;
 }
 
@@ -49,7 +49,7 @@ stage2PageFaultType(bool read, bool write, bool exec)
   if (exec)  return ExceptionCause::INST_GUEST_PAGE_FAULT;
   if (read)  return ExceptionCause::LOAD_GUEST_PAGE_FAULT;
   if (write) return ExceptionCause::STORE_GUEST_PAGE_FAULT;
-  assert(0);
+  assert(0 && "Error: Assertion failed");
   return ExceptionCause::STORE_GUEST_PAGE_FAULT;
 }
 
@@ -61,7 +61,7 @@ accessFaultType(bool read, bool write, bool exec)
   if (exec)  return ExceptionCause::INST_ACC_FAULT;
   if (read)  return ExceptionCause::LOAD_ACC_FAULT;
   if (write) return ExceptionCause::STORE_ACC_FAULT;
-  assert(0);
+  assert(0 && "Error: Assertion failed");
   return ExceptionCause::LOAD_ACC_FAULT;
 }
 
@@ -671,7 +671,7 @@ VirtMem::pageTableWalk(uint64_t address, PrivilegeMode privMode, bool read, bool
 	    // B2. Compare pte to memory.
 	    PTE pte2(0);
 	    if (!memRead(pteAddr, bigEnd_, pte2.data_))
-              assert(0);
+              assert(0 && "Error: Assertion failed");
 
             // Preserve the original pte.ppn (no NAPOT fixup).
             PTE orig = pte2;
@@ -853,7 +853,7 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 	    // B2. Compare pte to memory.
 	    PTE pte2(0);
 	    if (!memRead(pteAddr, bigEnd_, pte2.data_))
-              assert(0);
+              assert(0 && "Error: Assertion failed");
 
             // Preserve the original pte.ppn (no NAPOT fixup).
             PTE orig = pte2;
@@ -1048,7 +1048,7 @@ VirtMem::stage1PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 	    // B2. Compare pte to memory.
 	    PTE pte2(0);
 	    if (!memRead(pteAddr, bigEnd_, pte2.data_))
-              assert(0);
+              assert(0 && "Error: Assertion failed");
 
             // Preserve the original pte.ppn (no NAPOT fixup).
             PTE orig = pte2;

@@ -45,7 +45,7 @@ PerfApi::checkHart(const char* caller, unsigned hartIx)
   if (not hart)
     {
       std::cerr << caller << ": Bad hart index: " << hartIx << '\n';
-      assert(0);
+      assert(0 && "Error: Assertion failed");
     }
   return hart;
 }
@@ -59,7 +59,7 @@ PerfApi::checkTag(const char* caller, unsigned hartIx, uint64_t tag)
   if (iter != packetMap.end())
     return iter->second;
   std::cerr << caller << ": Unknown tag (never fetched): " << tag << '\n';
-  assert(0);
+  assert(0 && "Error: Assertion failed");
   return nullptr;
 }
 
@@ -70,7 +70,7 @@ PerfApi::checkTime(const char* caller, uint64_t time)
   if (time < time_)
     {
       std::cerr << caller << ": Bad time: " << time << '\n';
-      assert(0);
+      assert(0 && "Error: Assertion failed");
       return false;
     }
   time_ = time;
@@ -95,25 +95,25 @@ PerfApi::fetch(unsigned hartIx, uint64_t time, uint64_t tag, uint64_t vpc,
 
   if (tag == 0)
     {
-      std::cerr << "Error in PerfApi::fetch: Hart-ix=" << hartIx << "tag=" << tag
+      std::cerr << "Error: Error in PerfApi::fetch: Hart-ix=" << hartIx << "tag=" << tag
 		<< " zero tag is reserved.\n";
-      assert(0);
+      assert(0 && "Error: Assertion failed");
       return false;
     }
 
   auto& packetMap = hartPacketMaps_.at(hartIx);
   if (not packetMap.empty() and packetMap.rbegin()->first >= tag)
     {
-      std::cerr << "Error in PerfApi::fetch: Hart-ix=" << hartIx << "tag=" << tag
+      std::cerr << "Error: Error in PerfApi::fetch: Hart-ix=" << hartIx << "tag=" << tag
 		<< " tag is not in increasing order.\n";
-      assert(0);
+      assert(0 && "Error: Assertion failed");
       return false;
     }
 
   auto packet = getInstructionPacket(hartIx, tag);
   if (packet)
     {
-      std::cerr << "Error in PerfApi::fetch: Hart-ix=" << hartIx << "tag=" << tag
+      std::cerr << "Error: Error in PerfApi::fetch: Hart-ix=" << hartIx << "tag=" << tag
 		<< " tag is already fetched.\n";
       return false;   // Tag already fetched.
     }
@@ -145,7 +145,7 @@ PerfApi::fetch(unsigned hartIx, uint64_t time, uint64_t tag, uint64_t vpc,
   packet->opcode_= opcode;
   insertPacket(hartIx, tag, packet);
   if (not decode(hartIx, time, tag))
-    assert(0);
+    assert(0 && "Error: Assertion failed");
   prevFetch_ = packet;
 
   packet->trap_ = trap = cause != ExceptionCause::NONE;
@@ -299,7 +299,7 @@ PerfApi::execute(unsigned hartIx, uint64_t time, uint64_t tag)
       // Instruction is being re-executed. Must be load/store. Every instruction that
       // depends on it must be re-executed.
       if (not di.isLoad() and not di.isStore())
-	assert(0);
+	assert(0 && "Error: Assertion failed");
       auto iter = packetMap.find(packet.tag());
       assert(iter != packetMap.end());
       for ( ; iter != packetMap.end(); ++iter)
@@ -317,7 +317,7 @@ PerfApi::execute(unsigned hartIx, uint64_t time, uint64_t tag)
   // Execute the instruction: Poke source register values, execute, recover destination
   // register values.
   if (not execute(hartIx, packet))
-    assert(0);
+    assert(0 && "Error: Assertion failed");
 
   // We should not fail to read an operand value unless there is an exception.
   if (not peekOk)
@@ -370,7 +370,7 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
 
   uint64_t prevMstatus = 0;
   if (not hart.peekCsr(CSRN::MSTATUS, prevMstatus))
-    assert(0);
+    assert(0 && "Error: Assertion failed");
 
   // Save hart register values corresponding to packet operands in prevVal.
   std::array<OpVal, 8> prevVal;
@@ -433,7 +433,7 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
     {
       uint64_t value = hart.lastCsrValue(csrn);
       if (not hart.pokeCsr(csrn, value))
-        assert(0);
+        assert(0 && "Error: Assertion failed");
     }
 
   if (trap)
@@ -447,7 +447,7 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
 
   uint64_t mstatus = 0;
   if (not hart.peekCsr(CSRN::MSTATUS, mstatus))
-    assert(0);
+    assert(0 && "Error: Assertion failed");
   if (mstatus != prevMstatus)
     hart.pokeCsr(CSRN::MSTATUS, prevMstatus);
 
@@ -487,7 +487,7 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
 
   if (hartLastRetired_.at(hartIx) != initHartLastRetired && tag <= hartLastRetired_.at(hartIx))
     {
-      std::cerr << "Hart=" << hartIx << " time=" << time << " tag=" << tag
+      std::cerr << "Error: Hart=" << hartIx << " time=" << time << " tag=" << tag
 		<< " Out of order retire\n";
       return false;
     }
@@ -495,14 +495,14 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
 
   if (packet.retired())
     {
-      std::cerr << "Hart=" << hartIx << " time=" << time << " tag=" << tag
+      std::cerr << "Error: Hart=" << hartIx << " time=" << time << " tag=" << tag
 		<< " Tag retired more than once\n";
       return false;
     }
 
   if (packet.instrVa() != hart.peekPc())
     {
-      std::cerr << "Hart=" << hartIx << " time=" << time << " tag=" << tag << std::hex
+      std::cerr << "Error: Hart=" << hartIx << " time=" << time << " tag=" << tag << std::hex
 		<< " Wrong pc at retire: 0x" << packet.instrVa() << " expecting 0x"
 		<< hart.peekPc() << '\n' << std::dec;
       return false;
@@ -514,7 +514,7 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
   // Sanity check. Results at execute and retire must match.
 #if 0
   if (not checkExecVsRetire(hart, packet))
-    assert(0);
+    assert(0 && "Error: Assertion failed");
 #endif
 
   // Undo renaming of destination registers.
@@ -572,7 +572,7 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
       unsigned size = hart.lastStore(sva, spa1, spa2, sval);
       if (size != 0)   // Could be zero for a failed sc
 	if (not commitMemoryWrite(hart, spa1, spa2, size, packet.stData_))
-	  assert(0);
+	  assert(0 && "Error: Assertion failed");
       if (packet.isSc())
 	hart.cancelLr(WdRiscv::CancelLrCause::SC);
       auto& storeMap = hartStoreMaps_.at(hartIx);
@@ -601,7 +601,7 @@ PerfApi::checkExecVsRetire(const Hart64& hart, const InstrPac& packet) const
 
   if (packet.trap_ != hart.lastInstructionTrapped())
     {
-      cerr << "Hart=" << hartIx << " tag=" << tag << " execute and retire differ on trap\n";
+      cerr << "Error: Hart=" << hartIx << " tag=" << tag << " execute and retire differ on trap\n";
       return false;
     }
 
@@ -613,7 +613,7 @@ PerfApi::checkExecVsRetire(const Hart64& hart, const InstrPac& packet) const
       uint64_t val = hart.peekIntReg(reg);
       uint64_t execVal = packet.destValues_.at(0).second.scalar;
       if (val != execVal)
-        cerr << "Hart=" << hartIx << " tag=" << tag << " retire & exec vals differ:"
+        cerr << "Error: Hart=" << hartIx << " tag=" << tag << " retire & exec vals differ:"
              << " 0x" << std::hex << val << " & 0x" << execVal << std::dec << '\n';
       return val == execVal;
     }
@@ -622,10 +622,10 @@ PerfApi::checkExecVsRetire(const Hart64& hart, const InstrPac& packet) const
     {
       uint64_t val = 0;
       if (not hart.peekFpReg(reg, val))
-        assert(0);
+        assert(0 && "Error: Assertion failed");
       uint64_t execVal = packet.destValues_.at(0).second.scalar;
       if (val != execVal)
-        cerr << "Hart=" << hartIx << " tag=" << tag << " exec & retire vals differ:"
+        cerr << "Error: Hart=" << hartIx << " tag=" << tag << " exec & retire vals differ:"
              << " 0x" << std::hex << val << " & 0x" << execVal << std::dec << '\n';
       return val == execVal;
     }
@@ -642,17 +642,17 @@ PerfApi::checkExecVsRetire(const Hart64& hart, const InstrPac& packet) const
       for (unsigned i = 0; i < retire.size(); ++i)
         if (retire.at(i) != exec.at(i))
           {
-            cerr << "Hart=" << hartIx << " tag=" << tag << " exec & retire vec vals differ\n";
+            cerr << "Error: Hart=" << hartIx << " tag=" << tag << " exec & retire vec vals differ\n";
             cerr << std::hex;
-            cerr << " retire: 0x";
+            cerr << "Error:  retire: 0x";
             unsigned count = retire.size();
             for (unsigned j = 0; j < count; ++j)
               cerr << cerr.width(2) << std::setfill('0') << unsigned(retire.at(count-1-j));
-            cerr << '\n';
-            cerr << " exec:   0x";
+            cerr << "Error: \n";
+            cerr << "Error:  exec:   0x";
             for (unsigned j = 0; j < count; ++j)
               cerr << cerr.width(2) << std::setfill('0') << unsigned(exec.at(count-1-j));
-            cerr << '\n';
+            cerr << "Error: \n";
             return false;
           }
     }
@@ -751,7 +751,7 @@ PerfApi::drainStore(unsigned hartIx, uint64_t time, uint64_t tag)
 
   if (not hartPtr or not pacPtr or not pacPtr->retired())
     {
-      assert(0);
+      assert(0 && "Error: Assertion failed");
       return false;
     }
 
@@ -761,7 +761,7 @@ PerfApi::drainStore(unsigned hartIx, uint64_t time, uint64_t tag)
   auto& di = packet.di_;
   if (not di.isStore() and not di.isVectorStore() and not di.isCbo_zero())
     {
-      std::cerr << "Hart=" << hartIx << " time=" << time << " tag=" << tag
+      std::cerr << "Error: Hart=" << hartIx << " time=" << time << " tag=" << tag
 		<< " Draining a non-store instruction\n";
       return false;
     }
@@ -772,13 +772,13 @@ PerfApi::drainStore(unsigned hartIx, uint64_t time, uint64_t tag)
     {
       if (packet.drained())
 	{
-	  std::cerr << "Hart=" << hartIx << " time=" << time << " tag=" << tag
+	  std::cerr << "Error: Hart=" << hartIx << " time=" << time << " tag=" << tag
 		    << " Instruction drained more than once\n";
-	  assert(0);
+	  assert(0 && "Error: Assertion failed");
 	}
 
       if (packet.dsize_ and not commitMemoryWrite(hart, packet))
-	assert(0);
+	assert(0 && "Error: Assertion failed");
 
       packet.drained_ = true;
     }
@@ -810,7 +810,7 @@ PerfApi::getLoadData(unsigned hartIx, uint64_t tag, uint64_t va, uint64_t pa1,
 
   if (not hart or not packet or not isLoad or packet->trapped())
     {
-      assert(0);
+      assert(0 && "Error: Assertion failed");
       return false;
     }
 
@@ -891,7 +891,7 @@ PerfApi::getLoadData(unsigned hartIx, uint64_t tag, uint64_t va, uint64_t pa1,
 	uint8_t byte = 0;
         uint64_t pa = i < size1 ? pa1 + i : pa2 + (i - size1);
         if (not hart->peekMemory(pa, byte, true))
-          assert(0);
+          assert(0 && "Error: Assertion failed");
 	data |= uint64_t(byte) << (i*8);
       }
 
@@ -907,14 +907,14 @@ PerfApi::setStoreData(unsigned hartIx, uint64_t tag, uint64_t pa1, uint64_t pa2,
   auto packetPtr = checkTag("Set-store-Data", hartIx, tag);
   if (not packetPtr or not hartPtr)
     {
-      assert(0);
+      assert(0 && "Error: Assertion failed");
       return false;
     }
 
   auto& packet = *packetPtr;
   if (not (packet.isStore() or packet.isAmo() or packet.isVectorStore() or packet.isCbo_zero()))
     {
-      assert(0);
+      assert(0 && "Error: Assertion failed");
       return false;
     }
 
@@ -924,11 +924,11 @@ PerfApi::setStoreData(unsigned hartIx, uint64_t tag, uint64_t pa1, uint64_t pa2,
     {
       bool isDev = hart.isAclintAddr(pa1) or hart.isImsicAddr(pa1) or hart.isPciAddr(pa1);
       if (isDev)
-        assert(0);
+        assert(0 && "Error: Assertion failed");
 
       isDev = hart.isAclintAddr(pa2) or hart.isImsicAddr(pa2) or hart.isPciAddr(pa2);
       if (isDev)
-        assert(0);
+        assert(0 && "Error: Assertion failed");
     }
 
   packet.dpa_ = pa1;
@@ -1034,7 +1034,7 @@ PerfApi::flush(unsigned hartIx, uint64_t time, uint64_t tag)
 
       if (not pacPtr or pacPtr->retired())
         {
-          assert(0);
+          assert(0 && "Error: Assertion failed");
           return false;
         }
 
@@ -1291,7 +1291,7 @@ PerfApi::saveHartValues(Hart64& hart, const InstrPac& packet,
 	{
 	case OT::IntReg:
 	  if (not hart.peekIntReg(number, prevVal.at(i).scalar))
-	    assert(0);
+	    assert(0 && "Error: Assertion failed");
 	  break;
 
 	case OT::FpReg:
@@ -1310,7 +1310,7 @@ PerfApi::saveHartValues(Hart64& hart, const InstrPac& packet,
 	  break;
 
 	default:
-	  assert(0);
+	  assert(0 && "Error: Assertion failed");
 	  break;
 	}
     }
@@ -1403,12 +1403,12 @@ PerfApi::restoreHartValues(Hart64& hart, const InstrPac& packet,
 	{
 	case OT::IntReg:
 	  if (not hart.pokeIntReg(number, prev))
-	    assert(0);
+	    assert(0 && "Error: Assertion failed");
 	  break;
 
 	case OT::FpReg:
 	  if (not hart.pokeFpReg(number, prev))
-	    assert(0);
+	    assert(0 && "Error: Assertion failed");
 	  break;
 
 	case OT::CsReg:
@@ -1427,13 +1427,13 @@ PerfApi::restoreHartValues(Hart64& hart, const InstrPac& packet,
               {
                 auto pokeData = vec.data() + i*bytesPerReg;
                 if (not hart.pokeVecRegLsb(number + i, std::span(pokeData, bytesPerReg)))
-                  assert(0);
+                  assert(0 && "Error: Assertion failed");
               }
           }
 	  break;
 
 	default:
-	  assert(0);
+	  assert(0 && "Error: Assertion failed");
 	  break;
 	}
     }
@@ -1472,7 +1472,7 @@ PerfApi::peekRegister(Hart64& hart, WdRiscv::OperandType type, unsigned regNum,
     case OT::CsReg:  return hart.peekCsr(WdRiscv::CsrNumber(regNum), value.scalar);
     case OT::VecReg: return hart.peekVecRegLsb(regNum, value.vec);
     case OT::Imm:
-    case OT::None:   assert(0); return false;
+    case OT::None:   assert(0 && "Error: Assertion failed"); return false;
     }
   return false;
 }
@@ -1492,7 +1492,7 @@ PerfApi::pokeRegister(Hart64& hart, WdRiscv::OperandType type, unsigned regNum,
     case OT::IntReg:
       if (hart.pokeIntReg(regNum, scalar))
         return true;
-      assert(0);
+      assert(0 && "Error: Assertion failed");
       return false;
 
     case OT::FpReg:
@@ -1523,7 +1523,7 @@ PerfApi::pokeRegister(Hart64& hart, WdRiscv::OperandType type, unsigned regNum,
       break;
     }
 
-  assert(0);
+  assert(0 && "Error: Assertion failed");
   return false;
 }
 
@@ -1567,9 +1567,9 @@ PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
       unsigned ssize = hart.lastStore(sva, spa1, spa2, sval);
       if (ssize == 0 and (di.isStore() or di.isAmo()) and not di.isSc())
 	{    // sc or vec-store may have 0 size
-	  std::cerr << "Hart=" << hartIx << " tag=" << packet.tag_
+	  std::cerr << "Error: Hart=" << hartIx << " tag=" << packet.tag_
 		    << " store/AMO with zero size\n";
-	  assert(0);
+	  assert(0 && "Error: Assertion failed");
 	}
 
       packet.dva_ = sva;
@@ -1620,12 +1620,12 @@ PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
           if (op.type != OT::VecReg)
             {
               if (not peekRegister(hart, op.type, regNum, destVal))
-                assert(0);
+                assert(0 && "Error: Assertion failed");
             }
           else
             {
               if (not peekVecRegGroup(hart, regNum, op.lmul, destVal))
-                assert(0);
+                assert(0 && "Error: Assertion failed");
             }
 	  packet.destValues_.at(destIx) = InstrPac::DestValue(gri, destVal);
 	  destIx++;
@@ -1656,7 +1656,7 @@ PerfApi::getVectorOperandsLmul(Hart64& hart, InstrPac& packet)
   if (producer)
     {
       if (not hart.peekCsr(CN::VTYPE, prevVal))
-        assert(0);
+        assert(0 && "Error: Assertion failed");
 
       OpVal vtypeVal;
       getDestValue(*producer, vtypeGri, vtypeVal);
@@ -1931,7 +1931,7 @@ PerfApi::collectOperandValues(Hart64& hart, InstrPac& packet)
                 {
                   std::cerr << "Error: PerfApi::execute: Hart-ix=" << hartIx << "tag=" << tag
                             << " depends on tag=" << producer->tag_ << " which is not yet executed.\n";
-                  assert(0);
+                  assert(0 && "Error: Assertion failed");
                   return false;
                 }
               getDestValue(*producer, gri, opVal);
@@ -1951,7 +1951,7 @@ PerfApi::collectOperandValues(Hart64& hart, InstrPac& packet)
                     {
                       std::cerr << "Error: PerfApi::execute: Hart-ix=" << hartIx << "tag=" << tag
                                 << " depends on tag=" << producer->tag_ << " which is not yet executed.\n";
-                      assert(0);
+                      assert(0 && "Error: Assertion failed");
                       return false;
                     }
                   getVecDestValue(*producer, gri + n, vecRegSize, val);

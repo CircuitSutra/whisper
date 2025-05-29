@@ -129,7 +129,7 @@ SparseMem::writeHexFile(const std::string& path) const
   FILE* out = fopen(path.c_str(), "w");
   if (not out)
     {
-      std::cerr << "SparseMem::writeHexFile failed - cannot open "
+      std::cerr << "Error: SparseMem::writeHexFile failed - cannot open "
                 << path << " for write\n";
       return false;
     }

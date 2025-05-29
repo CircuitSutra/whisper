@@ -344,7 +344,7 @@ parseIsa(const std::string_view& token, std::string_view& extension,
 {
   if (token.empty() or std::isdigit(token.at(0)))
     {
-      std::cerr << "Invalid ISA extension: " << token << '\n';
+      std::cerr << "Error: Invalid ISA extension: " << token << '\n';
       return false;
     }
 
@@ -363,7 +363,7 @@ parseIsa(const std::string_view& token, std::string_view& extension,
 
   if (token.at(ix - 1) != 'p')    // Trailing digits but no 'p'
     {
-      std::cerr << "Invalid ISA extension: " << token << '\n';
+      std::cerr << "Error: Invalid ISA extension: " << token << '\n';
       return false;
     }
 
@@ -376,7 +376,7 @@ parseIsa(const std::string_view& token, std::string_view& extension,
 
   if (ix == 0 or ix == pIx)      // Token is:  <digits>p<digits>  or <string>p<digits>
     {
-      std::cerr << "Invalid ISA extension: " << token << '\n';
+      std::cerr << "Error: Invalid ISA extension: " << token << '\n';
       return false;
     }
 
@@ -482,7 +482,7 @@ Isa::applyIsaString(std::string_view isaStr)
     isa = isa.substr(4);
   else if (isa.starts_with("rv") and isa.size() > 2 and std::isdigit(isa.at(2)))
     {
-      std::cerr << "Unsupported ISA: " << isaStr << '\n';
+      std::cerr << "Error: Unsupported ISA: " << isaStr << '\n';
       return false;
     }
 
@@ -491,7 +491,7 @@ Isa::applyIsaString(std::string_view isaStr)
   boost::split(tokens, isa, boost::is_any_of("_"));
   if (tokens.empty() or (tokens.size() == 1 and tokens[0].empty()))
     {
-      std::cerr << "Invalid ISA string: " << isaStr << '\n';
+      std::cerr << "Error: Invalid ISA string: " << isaStr << '\n';
       return false;
     }
 
@@ -521,7 +521,7 @@ Isa::applyIsaString(std::string_view isaStr)
 	hasLong = true;
       else if (hasLong and (not isLongExtension(token)))
 	{
-	  std::cerr << "Misordered ISA: Z/S multi-char extensions must "
+	  std::cerr << "Error: Misordered ISA: Z/S multi-char extensions must "
 		    << "be at end: " << isaStr << '\n';
 	  return false;
 	}
@@ -532,7 +532,7 @@ Isa::applyIsaString(std::string_view isaStr)
       RVE ext = stringToExtension(extension);
       if (ext == RVE::None)
 	{
-	  std::cerr << "Unknown extension: " << extension << " -- ignored\n";
+	  std::cerr << "Error: Unknown extension: " << extension << " -- ignored\n";
 	  continue;
 	}
 
@@ -555,7 +555,7 @@ Isa::applyIsaString(std::string_view isaStr)
 	{
 	  getDefaultVersion(ext, v, s);
 	  selectVersion(ext, v, s);
-	  std::cerr << "Version " << version << "." << subversion
+	  std::cerr << "Error: Version " << version << "." << subversion
 		    << " of extension " << extension << " is not "
 		    << "supported -- using default\n";
 	}
@@ -563,7 +563,7 @@ Isa::applyIsaString(std::string_view isaStr)
 
   if (isEnabled(RvExtension::S) and not isEnabled(RvExtension::U))
     {
-      std::cerr << "Having supervisor mode without user mode is not a legal architectural state."
+      std::cerr << "Error: Having supervisor mode without user mode is not a legal architectural state."
                 << "Therefore, if 's' is included in the ISA string, 'u' must be as well.\n";
       return false;
     }

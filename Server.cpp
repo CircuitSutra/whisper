@@ -48,7 +48,7 @@ receiveMessage(int soc, WhisperMessage& msg)
 	{
 	  if (errno == EINTR)
 	    continue;
-	  std::cerr << "Failed to receive socket message\n";
+	  std::cerr << "Error: Failed to receive socket message\n";
 	  return false;
 	}
       if (l == 0)
@@ -83,7 +83,7 @@ sendMessage(int soc, const WhisperMessage& msg)
 	{
 	  if (errno == EINTR)
 	    continue;
-	  std::cerr << "Failed to send socket command\n";
+	  std::cerr << "Error: Failed to send socket command\n";
 	  return false;
 	}
       remain -= l;
@@ -516,7 +516,7 @@ Server<URV>::processStepChanges(Hart<URV>& hart,
 	{
 	  std::vector<uint8_t> vecData;
 	  if (not hart.peekVecReg(vecReg, vecData))
-	    assert(0 && "Failed to peek vec register");
+	    assert(0 && "Error: Failed to peek vec register");
 
 	  // Reverse bytes since peekVecReg returns most significant
 	  // byte first.
@@ -1464,7 +1464,7 @@ Server<URV>::interact(const WhisperMessage& msg, WhisperMessage& reply, FILE* tr
         }
 
       default:
-        std::cerr << "Unknown command\n";
+        std::cerr << "Error: Unknown command\n";
         reply.type = Invalid;
     }
 

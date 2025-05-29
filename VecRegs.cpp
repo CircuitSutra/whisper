@@ -64,14 +64,14 @@ VecRegs::config(unsigned bytesPerReg, unsigned minBytesPerElem,
 {
   if (bytesPerReg > 4096)
     {
-      std::cerr << "VecRegs::configure: bytes-per-register too large (" << bytesPerReg
+      std::cerr << "Error: VecRegs::configure: bytes-per-register too large (" << bytesPerReg
                 << ") -- using 4096\n";
       bytesPerReg = 4096;
     }
 
   if (bytesPerReg <= 4)
     {
-      std::cerr << "VecRegs::configure: bytes-per-register too small (" << bytesPerReg
+      std::cerr << "Error: VecRegs::configure: bytes-per-register too small (" << bytesPerReg
                 << ") -- using 4\n";
       bytesPerReg = 4;
     }
@@ -80,26 +80,26 @@ VecRegs::config(unsigned bytesPerReg, unsigned minBytesPerElem,
   unsigned p2BytesPerReg = uint32_t(1) << l2BytesPerReg;
   if (p2BytesPerReg != bytesPerReg)
     {
-      std::cerr << "VecRegs::configure: bytes-per-register (" << bytesPerReg
+      std::cerr << "Error: VecRegs::configure: bytes-per-register (" << bytesPerReg
                 << ") not a power of 2 -- using " << p2BytesPerReg << "\n";
       bytesPerReg = p2BytesPerReg;
     }
 
   if (minBytesPerElem < 1)
     {
-      std:: cerr << "VecRegd::configure: zero min-bytes-per-element -- using 1\n";
+      std:: cerr << "Error: VecRegd::configure: zero min-bytes-per-element -- using 1\n";
       minBytesPerElem = 1;
     }
 
   if (maxBytesPerElem < 1)
     {
-      std:: cerr << "VecRegd::configure: zero max-bytes-per-element -- using 1\n";
+      std:: cerr << "Error: VecRegd::configure: zero max-bytes-per-element -- using 1\n";
       maxBytesPerElem = 1;
     }
 
   if (minBytesPerElem > maxBytesPerElem)
     {
-      std:: cerr << "VecRegd::configure: min-bytes-per-elem larger than max -- using max\n";
+      std:: cerr << "Error: VecRegd::configure: min-bytes-per-elem larger than max -- using max\n";
       minBytesPerElem = maxBytesPerElem;
     }
 
@@ -107,14 +107,14 @@ VecRegs::config(unsigned bytesPerReg, unsigned minBytesPerElem,
   unsigned p2BytesPerElem = uint32_t(1) << l2BytesPerElem;
   if (p2BytesPerElem != maxBytesPerElem)
     {
-      std::cerr << "VecRegs::configure: max-bytes-per-element (" << maxBytesPerElem
+      std::cerr << "Error: VecRegs::configure: max-bytes-per-element (" << maxBytesPerElem
                 << ") not a power of 2 -- using " << p2BytesPerElem << "\n";
       maxBytesPerElem = p2BytesPerElem;
     }
 
   if (maxBytesPerElem > bytesPerReg)
     {
-      std::cerr << "VecRegs::configure: max-bytes-per-element (" << maxBytesPerElem
+      std::cerr << "Error: VecRegs::configure: max-bytes-per-element (" << maxBytesPerElem
                 << ") is greater than the bytes-per-register (" << bytesPerReg
                 << " -- using " << bytesPerReg << "\n";
       maxBytesPerElem = bytesPerReg;
@@ -124,14 +124,14 @@ VecRegs::config(unsigned bytesPerReg, unsigned minBytesPerElem,
   p2BytesPerElem = uint32_t(1) << l2BytesPerElem;
   if (p2BytesPerElem != minBytesPerElem)
     {
-      std::cerr << "VecRegs::configure: min-bytes-per-element (" << minBytesPerElem
+      std::cerr << "Error: VecRegs::configure: min-bytes-per-element (" << minBytesPerElem
                 << ") not a power of 2 -- using " << p2BytesPerElem << "\n";
       minBytesPerElem = p2BytesPerElem;
     }
 
   if (minBytesPerElem > bytesPerReg)
     {
-      std::cerr << "VecRegs::configure: min-bytes-per-element (" << minBytesPerElem
+      std::cerr << "Error: VecRegs::configure: min-bytes-per-element (" << minBytesPerElem
                 << ") is greater than the bytes-per-register (" << bytesPerReg
                 << " -- using " << bytesPerReg << "\n";
       minBytesPerElem = bytesPerReg;
@@ -163,7 +163,7 @@ VecRegs::config(unsigned bytesPerReg, unsigned minBytesPerElem,
 	{
 	  GroupMultiplier group = GroupMultiplier::One;
 	  if (not groupNumberX8ToSymbol(lmulx8, group))
-	    assert(0);
+	    assert(0 && "Error: Assertion failed");
 	  groupFlags.at(size_t(group)) = false;
 	}
 
@@ -278,7 +278,7 @@ VecRegs::readIndexReg(uint32_t vecReg, uint32_t elemIx, ElementWidth eew, uint32
         return  temp;
       }
     default:
-      assert(0);
+      assert(0 && "Error: Assertion failed");
     }
 
   return 0;

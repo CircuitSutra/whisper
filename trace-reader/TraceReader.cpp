@@ -84,7 +84,7 @@ TraceReader::readInitialState(const std::string& path)
   std::ifstream in(path);
   if (not in)
     {
-      cerr << "Failed to open file '" << path << "' for input\n";
+      cerr << "Error: Failed to open file '" << path << "' for input\n";
       return;
     }
 
@@ -419,7 +419,7 @@ TraceReader::extractAddressPair(uint64_t lineNum, const char* tag,
 	return true;
     }
 
-  std::cerr << "Line " << lineNum << ": Bad " << tag << " address field: "
+  std::cerr << "Error: Line " << lineNum << ": Bad " << tag << " address field: "
 	    << pairStr << '\n';
   return false;
 }
@@ -431,7 +431,7 @@ TraceReader::parseRegValue(uint64_t lineNum, char* regName,
 {
   if (strlen(regName) < 2)
    {
-     std::cerr << "Line " << lineNum << ": Empty reg name\n";
+     std::cerr << "Error: Line " << lineNum << ": Empty reg name\n";
      return false;
    }
 
@@ -487,7 +487,7 @@ TraceReader::parseRegValue(uint64_t lineNum, char* regName,
  if (good)
    return true;
 
-  std::cerr << "Line " << lineNum << ": Bad reg name: " << regName << '\n';
+  std::cerr << "Error: Line " << lineNum << ": Bad reg name: " << regName << '\n';
   return false;
 }
 
@@ -553,7 +553,7 @@ TraceReader::parseOperand(uint64_t lineNum, char* opStr, Operand& operand)
   if (good)
     return true;
 
-  std::cerr << "Line " << lineNum << ": Bad reg name: " << opStr << '\n';
+  std::cerr << "Error: Line " << lineNum << ": Bad reg name: " << opStr << '\n';
   return false;
 }
 
@@ -629,14 +629,14 @@ TraceReader::parseMem(uint64_t lineNum, char* memStr, TraceRecord& rec)
 	}
       else
 	{
-	  std::cerr << "Line " << lineNum << ": Bad memory filed: " << memStr << '\n';
+	  std::cerr << "Error: Line " << lineNum << ": Bad memory filed: " << memStr << '\n';
 	  return false;
 	}
     }
 
   if (rec.memVals.size() > rec.virtAddrs.size())
     {
-      std::cerr << "Line " << lineNum << ": Memory value count greater than address count\n";
+      std::cerr << "Error: Line " << lineNum << ": Memory value count greater than address count\n";
       return false;
     }
 
@@ -673,7 +673,7 @@ TraceReader::splitLine(std::string& line, uint64_t lineNum)
 
   if (cc != colCount_)
     {
-      std::cerr << "Line " << lineNum << ": Col count (" << cc
+      std::cerr << "Error: Line " << lineNum << ": Col count (" << cc
 		<< ") different from that of header (" << colCount_ << ")\n";
       return false;
     }
@@ -847,7 +847,7 @@ TraceReader::parseLine(std::string& line, uint64_t lineNum, TraceRecord& record)
 	      mySplit(keyvals_, reg, '=');
 	      if (keyvals_.size() != 2)
 		{
-		  std::cerr << "Line " << lineNum << ": Bad register change field: " << reg
+		  std::cerr << "Error: Line " << lineNum << ": Bad register change field: " << reg
 			    << ", expecting: <reg>=<value>\n";
 		  return false;
 		}
@@ -953,7 +953,7 @@ TraceReader::parseLine(std::string& line, uint64_t lineNum, TraceRecord& record)
                 continue;
               if (keyvals_.size() > 2)
                 {
-		  std::cerr << "Line " << lineNum << ": Bad ptw field: " << addr
+		  std::cerr << "Error: Line " << lineNum << ": Bad ptw field: " << addr
 			    << ", expecting: <addr>=<pte> or <addr>\n";
                   return false;
                 }
@@ -988,7 +988,7 @@ TraceReader::parseLine(std::string& line, uint64_t lineNum, TraceRecord& record)
                 continue;
               if (keyvals_.size() > 2)
                 {
-		  std::cerr << "Line " << lineNum << ": Bad ptw field: " << addr
+		  std::cerr << "Error: Line " << lineNum << ": Bad ptw field: " << addr
 			    << ", expecting: <addr>=<pte> or <addr>\n";
                   return false;
                 }
@@ -1019,7 +1019,7 @@ TraceReader::extractHeaderIndices(const std::string& line, uint64_t lineNum)
       auto iter = headerMap.find(tag);
       if (iter == headerMap.end())
 	{
-	  std::cerr << "Line " << lineNum << ": Unknown tag: " << tag << '\n';
+	  std::cerr << "Error: Line " << lineNum << ": Unknown tag: " << tag << '\n';
 	  continue;
 	}
       size_t ix = size_t(iter->second);
@@ -1029,12 +1029,12 @@ TraceReader::extractHeaderIndices(const std::string& line, uint64_t lineNum)
 
   if (colCount_ == 0)
     {
-      std::cerr << "Line " << lineNum << ": Empty header line.\n";
+      std::cerr << "Error: Line " << lineNum << ": Empty header line.\n";
       return false;
     }
   if (colCount_ > 512)
     {
-      std::cerr << "Line " << lineNum << ": Too many columns in header line: " << colCount_ << '\n';
+      std::cerr << "Error: Line " << lineNum << ": Too many columns in header line: " << colCount_ << '\n';
       return false;
     }
 

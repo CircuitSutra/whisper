@@ -908,7 +908,7 @@ CsRegs<URV>::enableRvf(bool flag)
         {
           std::cerr << "Error: enableRvf: CSR number 0x"
                     << std::hex << URV(csrn) << std::dec << " undefined\n";
-          assert(0);
+          assert(0 && "Error: Assertion failed");
         }
       else if (not csr->isImplemented())
         csr->setImplemented(flag);
@@ -941,7 +941,7 @@ CsRegs<URV>::enableSscofpmf(bool flag)
     {
       std::cerr << "Error: enableSscofpmf: CSR number 0x"
 		<< std::hex << URV(csrn) << std::dec << " is not defined\n";
-      assert(0);
+      assert(0 && "Error: Assertion failed");
     }
   else
     csr->setImplemented(flag & superEnabled_);
@@ -997,7 +997,7 @@ CsRegs<URV>::enableSscofpmf(bool flag)
 	auto event = this->findCsr(evnum);
 	if (not event)
 	  {
-	    assert(0);
+	    assert(0 && "Error: Assertion failed");
 	    return;
 	  }
 
@@ -1158,7 +1158,7 @@ CsRegs<URV>::enableSmrnmi(bool flag)
     {
       auto csr = findCsr(csrn);
       if (not csr)
-	assert(0 && "Undefined CSR in SMRNMI extension");
+	assert(0 && "Error: Undefined CSR in SMRNMI extension");
       else
 	csr->setImplemented(flag);
     }
@@ -1178,7 +1178,7 @@ CsRegs<URV>::enableVector(bool flag)
         {
           std::cerr << "Error: CsRegs::enableVector: CSR number 0x"
                     << std::hex << URV(csrn) << std::dec << " undefined\n";
-          assert(0);
+          assert(0 && "Error: Assertion failed");
         }
       else
         csr->setImplemented(flag);
@@ -1301,7 +1301,7 @@ CsRegs<URV>::enableZkr(bool flag)
     {
       std::cerr << "Error: enableZkr: CSR number 0x"
 		<< std::hex << URV(CN::SEED) << std::dec << " is not defined\n";
-      assert(0);
+      assert(0 && "Error: Assertion failed");
     }
   else
     csr->setImplemented(flag);
@@ -2263,7 +2263,7 @@ CsRegs<URV>::configCsr(CsrNumber csrNum, bool implemented, URV resetValue,
 {
   if (size_t(csrNum) >= regs_.size())
     {
-      std::cerr << "ConfigCsr: CSR number " << size_t(csrNum)
+      std::cerr << "Error: ConfigCsr: CSR number " << size_t(csrNum)
 		<< " out of bound\n";
       return false;
     }
@@ -2271,7 +2271,7 @@ CsRegs<URV>::configCsr(CsrNumber csrNum, bool implemented, URV resetValue,
   auto& csr = regs_.at(size_t(csrNum));
   if (csr.isMandatory() and not implemented)
     {
-      std::cerr << "CSR " << csr.getName() << " is mandatory and is being "
+      std::cerr << "Error: CSR " << csr.getName() << " is mandatory and is being "
 		<< "configured as not-implemented -- configuration ignored.\n";
       return false;
     }
@@ -2305,7 +2305,7 @@ CsRegs<URV>::configMachineModePerfCounters(unsigned numCounters, bool cof)
 {
   if (numCounters > 29)
     {
-      std::cerr << "No more than 29 machine mode performance counters "
+      std::cerr << "Error: No more than 29 machine mode performance counters "
 		<< "can be defined\n";
       return false;
     }
@@ -2365,7 +2365,7 @@ CsRegs<URV>::configUserModePerfCounters(unsigned numCounters)
 {
   if (numCounters > mPerfRegs_.size())
     {
-      std::cerr << "User mode number of performance counters (" << numCounters
+      std::cerr << "Error: User mode number of performance counters (" << numCounters
                 << ") cannot exceed that of machine mode ("
                 << mPerfRegs_.size() << '\n';
       return false;
@@ -4306,14 +4306,14 @@ CsRegs<URV>::updateScountovfValue(CsrNumber mhpmNum)
   auto scountovf = getImplementedCsr(CN::SCOUNTOVF);
   if (not scountovf)
     {
-      assert(0);
+      assert(0 && "Error: Assertion failed");
       return;
     }
 
   auto mhpm = getImplementedCsr(mhpmNum);
   if (not mhpm)
     {
-      assert(0);
+      assert(0 && "Error: Assertion failed");
       return;
     }
 
@@ -4540,7 +4540,7 @@ CsRegs<URV>::updateCounterControl(CsrNumber csrn)
   unsigned counterIx = 0;
   if (not getIndexOfMhpmevent(csrn, counterIx))
     {
-      assert(0);
+      assert(0 && "Error: Assertion failed");
       return;
     }
 
@@ -4548,7 +4548,7 @@ CsRegs<URV>::updateCounterControl(CsrNumber csrn)
   uint64_t value = 0;
   if (not getMhpmeventValue(counterIx, value))
     {
-      assert(0);
+      assert(0 && "Error: Assertion failed");
       return;
     }
 

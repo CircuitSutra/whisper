@@ -59,7 +59,7 @@ Memory::Memory(uint64_t size, uint64_t pageSize)
 		   MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
   if (mem == (void*) -1)
     {
-      std::cerr << "Failed to map " << size_ << " bytes using mmap.\n";
+      std::cerr << "Error: Failed to map " << size_ << " bytes using mmap.\n";
       throw std::runtime_error("Out of memory");
     }
 
@@ -93,7 +93,7 @@ Memory::loadHexFile(const std::string& fileName)
 
   if (not input.good())
     {
-      std::cerr << "Failed to open hex-file '" << fileName << "' for input\n";
+      std::cerr << "Error: Failed to open hex-file '" << fileName << "' for input\n";
       return false;
     }
 
@@ -112,7 +112,7 @@ Memory::loadHexFile(const std::string& fileName)
 	{
 	  if (line.size() == 1)
 	    {
-	      std::cerr << "File " << fileName << ", Line " << lineNum << ": "
+	      std::cerr << "Error: File " << fileName << ", Line " << lineNum << ": "
 			<< "Invalid hexadecimal address: " << line << '\n';
 	      errors++;
 	      continue;
@@ -121,7 +121,7 @@ Memory::loadHexFile(const std::string& fileName)
 	  addr = std::strtoull(line.c_str() + 1, &end, 16);
 	  if (end and *end and not isspace(*end))
 	    {
-	      std::cerr << "File " << fileName << ", Line " << lineNum << ": "
+	      std::cerr << "Error: File " << fileName << ", Line " << lineNum << ": "
 			<< "Invalid hexadecimal address: " << line << '\n';
 	      errors++;
 	    }
@@ -135,14 +135,14 @@ Memory::loadHexFile(const std::string& fileName)
 	  iss >> std::hex >> value;
 	  if (iss.fail())
 	    {
-	      std::cerr << "File " << fileName << ", Line " << lineNum << ": "
+	      std::cerr << "Error: File " << fileName << ", Line " << lineNum << ": "
 			<< "Invalid data: " << line << '\n';
 	      errors++;
 	      break;
 	    }
 	  if (value > 0xff)
 	    {
-	      std::cerr << "File " << fileName << ", Line " << lineNum << ": "
+	      std::cerr << "Error: File " << fileName << ", Line " << lineNum << ": "
 			<< "Invalid value: " << std::hex << value << '\n'
 			<< std::dec;
 	      errors++;
@@ -154,7 +154,7 @@ Memory::loadHexFile(const std::string& fileName)
                   if (not initializeByte(addr, value & 0xff))
                     {
                       if (unmappedCount == 0)
-                        std::cerr << "Failed to copy HEX file byte at address 0x"
+                        std::cerr << "Error: Failed to copy HEX file byte at address 0x"
                                   << std::hex << addr << std::dec
                                   << ": corresponding location is not mapped\n";
                       unmappedCount++;
@@ -167,8 +167,8 @@ Memory::loadHexFile(const std::string& fileName)
 	  else
 	    {
               if (not oob)
-                std::cerr << "File " << fileName << ", Line " << lineNum << ": "
-                          << "Warning: Address out of bounds: "
+                std::cerr << "Error: File " << fileName << ", Line " << lineNum << ": "
+                          << " Address out of bounds: "
                           << std::hex << addr << '\n' << std::dec;
 	      oob++;
 	    }
@@ -178,14 +178,14 @@ Memory::loadHexFile(const std::string& fileName)
 
       if (iss.bad())
 	{
-	  std::cerr << "File " << fileName << ", Line " << lineNum << ": "
+	  std::cerr << "Error: File " << fileName << ", Line " << lineNum << ": "
 		    << "Failed to parse data line: " << line << '\n';
 	  errors++;
 	}
     }
 
   if (oob > 1)
-    std::cerr << "File " << fileName << ": Warning: File contained "
+    std::cerr << "Error: File " << fileName << ":  File contained "
               << oob << " out of bounds addresses.\n";
 
   // In case writing ELF data modified last-written-data associated
@@ -204,7 +204,7 @@ Memory::loadBinaryFile(const std::string& fileName, uint64_t addr)
 
   if (not input.good())
     {
-      std::cerr << "Failed to open binary file '" << fileName << "' for input\n";
+      std::cerr << "Error: Failed to open binary file '" << fileName << "' for input\n";
       return false;
     }
 
@@ -219,7 +219,7 @@ Memory::loadBinaryFile(const std::string& fileName, uint64_t addr)
           if (not initializeByte(addr, b))
             {
               if (unmappedCount == 0)
-                std::cerr << "Failed to copy binary file byte at address 0x"
+                std::cerr << "Error: Failed to copy binary file byte at address 0x"
                           << std::hex << addr << std::dec
                           << ": corresponding location is not mapped\n";
               unmappedCount++;
@@ -231,8 +231,8 @@ Memory::loadBinaryFile(const std::string& fileName, uint64_t addr)
       else
         {
           if (not oob)
-            std::cerr << "File " << fileName << ", Byte " << num << ": "
-                      << "Warning: Address out of bounds: "
+            std::cerr << "Error: File " << fileName << ", Byte " << num << ": "
+                      << " Address out of bounds: "
                       << std::hex << addr << '\n' << std::dec;
           oob++;
         }
@@ -241,7 +241,7 @@ Memory::loadBinaryFile(const std::string& fileName, uint64_t addr)
 
 
   if (oob > 1)
-    std::cerr << "File " << fileName << ": Warning: File contained "
+    std::cerr << "Error: File " << fileName << ":  File contained "
               << oob << " out of bounds addresses.\n";
 
   // In case writing ELF data modified last-written-data associated
@@ -316,7 +316,7 @@ Memory::loadLz4File(const std::string& fileName, uint64_t addr)
                   bool allZero = *data == 0 && memcmp(data, data + 1, pageSize_ - 1) == 0;
                   if (not allZero)
                     if (not initializePage(addr, std::span(data, pageSize_)))
-                      assert(0);
+                      assert(0 && "Error: Assertion failed");
                   addr += pageSize_ - 1;
                   n += pageSize_ - 1;
                   num += pageSize_ - 1;
@@ -331,8 +331,8 @@ Memory::loadLz4File(const std::string& fileName, uint64_t addr)
 	      if (b and not initializeByte(addr, b))
 		{
 		  if (unmappedCount == 0)
-		    cerr << "File " << fileName << ", Byte " << num << ": "
-                         << "Warning: Address is not mapped: "
+		    cerr << "Error: File " << fileName << ", Byte " << num << ": "
+                         << " Address is not mapped: "
                          << std::hex << addr << std::dec << '\n';
 		  unmappedCount++;
 		  if (checkUnmappedElf_)
@@ -341,8 +341,8 @@ Memory::loadLz4File(const std::string& fileName, uint64_t addr)
 	    }
 	  else
 	    {
-              cerr << "File " << fileName << ", Byte " << num << ": "
-                   << "Warning: Address out of bounds: "
+              cerr << "Error: File " << fileName << ", Byte " << num << ": "
+                   << " Address out of bounds: "
                    << std::hex << addr << std::dec << '\n';
               break;
 	    }
@@ -370,7 +370,7 @@ Memory::loadElfSegment(ELFIO::elfio& reader, int segIx, uint64_t& end)
 
   if (paddr + seg->get_memory_size() > size_)
     {
-      std::cerr << "End of ELF segment " << segIx << " (0x"
+      std::cerr << "Error: End of ELF segment " << segIx << " (0x"
                 << std::hex << (paddr+segSize)
                 << ") is beyond end of simulated memory (0x"
                 << size_ << ")\n" << std::dec;
@@ -387,7 +387,7 @@ Memory::loadElfSegment(ELFIO::elfio& reader, int segIx, uint64_t& end)
       if (not initializeByte(paddr + i, segData[i]))
         {
           if (unmappedCount == 0)
-            std::cerr << "Failed to copy ELF byte at address 0x"
+            std::cerr << "Error: Failed to copy ELF byte at address 0x"
                       << std::hex << (paddr + i) << std::dec
                       << ": corresponding location is not mapped\n";
           unmappedCount++;
@@ -457,7 +457,7 @@ Memory::collectElfRiscvTags(const std::string& fileName,
       iss.read(&version, 1);
       if (not iss or version != 'A')
         {
-          std::cerr << "Unknown ELF RISCV section format: '" << version << "'\n";
+          std::cerr << "Error: Unknown ELF RISCV section format: '" << version << "'\n";
           return false;
         }
 
@@ -474,7 +474,7 @@ Memory::collectElfRiscvTags(const std::string& fileName,
       iss.read((char*) &tag, sizeof(tag));
       if (not iss or tag != 1)
         {
-          std::cerr << "Unexpected ELF RISCV section tag: " << tag << "(expecting 1)\n";
+          std::cerr << "Error: Unexpected ELF RISCV section tag: " << tag << "(expecting 1)\n";
           return false;
         }
 
@@ -484,7 +484,7 @@ Memory::collectElfRiscvTags(const std::string& fileName,
       iss.read((char*) &attribsSize, sizeof(attribsSize));
       if (not iss)
         {
-          std::cerr << "Corrupted ELF RISCV file attributes subsection\n";
+          std::cerr << "Error: Corrupted ELF RISCV file attributes subsection\n";
           return false;
         }
 
@@ -493,7 +493,7 @@ Memory::collectElfRiscvTags(const std::string& fileName,
 
       if (attribsSize <= sizeof(tag) + sizeof(attribsSize))
         {
-          std::cerr << "Corrupted ELF RISCV file attributes subsection: Invalid size\n";
+          std::cerr << "Error: Corrupted ELF RISCV file attributes subsection: Invalid size\n";
           return true;
         }
 
@@ -507,7 +507,7 @@ Memory::collectElfRiscvTags(const std::string& fileName,
           Uint128 tag = 0;
           if (not extractUleb128(iss, tag))
             {
-              std::cerr << "Empty/corrupted ELF RISCV file attributes subsection: Invalid tag\n";
+              std::cerr << "Error: Empty/corrupted ELF RISCV file attributes subsection: Invalid tag\n";
               return false;
             }
 
@@ -518,7 +518,7 @@ Memory::collectElfRiscvTags(const std::string& fileName,
               Uint128 value = 0;
               if (not extractUleb128(iss, value))
                 {
-                  std::cerr << "Empty/corrupted ELF RISCV file attributes subsection: Invalid tag value\n";
+                  std::cerr << "Error: Empty/corrupted ELF RISCV file attributes subsection: Invalid tag value\n";
                   return false;
                 }
             }
@@ -528,7 +528,7 @@ Memory::collectElfRiscvTags(const std::string& fileName,
               std::getline(iss, value, '\0');
               if (not iss)
                 {
-                  std::cerr << "Corrupted ELF RISCV file attributes subsection: Missing architeture tag string\n";
+                  std::cerr << "Error: Corrupted ELF RISCV file attributes subsection: Missing architeture tag string\n";
                   return false;
                 }
               if (tag == 5)
@@ -638,7 +638,7 @@ Memory::loadElfFile(const std::string& fileName, unsigned regWidth,
 
   if (reader.get_machine() != EM_RISCV)
     {
-      std::cerr << "Warning: non-riscv ELF file\n";
+      std::cerr << "Error: non-riscv ELF file\n";
     }
 
   // Copy loadable ELF segments into memory.
@@ -656,7 +656,7 @@ Memory::loadElfFile(const std::string& fileName, unsigned regWidth,
 
   if (maxEnd == 0)
     {
-      std::cerr << "No loadable segment in ELF file\n";
+      std::cerr << "Error: No loadable segment in ELF file\n";
       errors++;
     }
 
@@ -743,7 +743,7 @@ Memory::getElfFileAddressBounds(const std::string& fileName, uint64_t& minAddr,
 
   if (not reader.load(fileName))
     {
-      std::cerr << "Failed to load ELF file " << fileName << '\n';
+      std::cerr << "Error: Failed to load ELF file " << fileName << '\n';
       return false;
     }
 
@@ -766,7 +766,7 @@ Memory::getElfFileAddressBounds(const std::string& fileName, uint64_t& minAddr,
 
   if (validSegs == 0)
     {
-      std::cerr << "No loadable segment in ELF file\n";
+      std::cerr << "Error: No loadable segment in ELF file\n";
       return false;
     }
 
@@ -841,11 +841,11 @@ Memory::saveSnapshot(const std::string& filename,
   constexpr size_t maxChunk = size_t(1) << 28;
 
   // Open binary file for write (compressed) and check success.
-  std::cerr << "saveSnapshot starts..\n";
+  std::cerr << "Error: saveSnapshot starts..\n";
   gzFile gzout = gzopen(filename.c_str(), "wb2");
   if (not gzout)
     {
-      std::cerr << "Memory::saveSnapshot failed - cannot open " << filename
+      std::cerr << "Error: Memory::saveSnapshot failed - cannot open " << filename
                 << " for write\n";
       return false;
     }
@@ -861,7 +861,7 @@ Memory::saveSnapshot(const std::string& filename,
 #ifndef MEM_CALLBACKS
       if (blk.first >= size_)
 	{
-	  std::cerr << "Memory::saveSnapshot: Block address (0x" << std::hex << blk.first
+	  std::cerr << "Error: Memory::saveSnapshot: Block address (0x" << std::hex << blk.first
 		    << ") out of bounds (0x" << size_ << ")\n" << std::dec;
 	  success = false;
 	  break;
@@ -872,7 +872,7 @@ Memory::saveSnapshot(const std::string& filename,
 #ifndef MEM_CALLBACKS
       if (remainingSize > size_ or size_ - remainingSize < blk.first)
 	{
-	  std::cerr << "Memory::saveSnapshot: Block at (0x" << std::hex << blk.first
+	  std::cerr << "Error: Memory::saveSnapshot: Block at (0x" << std::hex << blk.first
 		    << std::dec << ") extends beyond memory bound\n";
 	  success = false;
 	  break;
@@ -898,10 +898,10 @@ Memory::saveSnapshot(const std::string& filename,
 #else
       uint8_t* buffer = data_ + blk.first;
 #endif
-      std::cerr << "*";
+      std::cerr << "Error: *";
       while (remainingSize)  // write in chunk due to limitation of gzwrite
         {
-          std::cerr << "-";
+          std::cerr << "Error: -";
           fflush(stdout);
           size_t currentChunk = std::min(remainingSize, maxChunk);
           int resp = gzwrite(gzout, buffer, currentChunk);
@@ -916,10 +916,10 @@ Memory::saveSnapshot(const std::string& filename,
     }
 
   if (not success)
-    std::cerr << "Memory::saveSnapshot failed - write into " << filename
+    std::cerr << "Error: Memory::saveSnapshot failed - write into " << filename
               << " failed with errno " << strerror(errno) << "\n";
   gzclose(gzout);
-  std::cerr << "\nsaveSnapshot finished\n";
+  std::cerr << "Error: \nsaveSnapshot finished\n";
   return success;
 }
 
@@ -929,13 +929,13 @@ Memory::loadSnapshot(const std::string & filename,
                      const std::vector<std::pair<uint64_t,uint64_t>>& usedBlocks)
 {
   constexpr size_t maxChunk = size_t(1) << 28;  // This must match saveSnapshot
-  std::cerr << "loadSnapshot starts..\n";
+  std::cerr << "Error: loadSnapshot starts..\n";
 
   // open binary file for read (decompress) and check success
   gzFile gzin = gzopen(filename.c_str(), "rb");
   if (not gzin or gzeof(gzin))
     {
-      std::cerr << "Memory::loadSnapshot failed - cannot open "
+      std::cerr << "Error: Memory::loadSnapshot failed - cannot open "
                 << filename << " for read\n";
       return false;
     }
@@ -952,7 +952,7 @@ Memory::loadSnapshot(const std::string & filename,
 #ifndef MEM_CALLBACKS
       if (blk.first >= size_)
 	{
-	  std::cerr << "Memory::loadSnapshot: Block address (0x" << std::hex << blk.first
+	  std::cerr << "Error: Memory::loadSnapshot: Block address (0x" << std::hex << blk.first
 		    << ") out of bounds (0x" << size_ << ")\n" << std::dec;
 	  success = false;
 	  break;
@@ -962,7 +962,7 @@ Memory::loadSnapshot(const std::string & filename,
 #ifndef MEM_CALLBACKS
       if (remainingSize > size_ or size_ - remainingSize < blk.first)
 	{
-	  std::cerr << "Memory::loadSnapshot: Block at (0x" << std::hex << blk.first
+	  std::cerr << "Error: Memory::loadSnapshot: Block at (0x" << std::hex << blk.first
 		    << ") extends beyond memory bound\n" << std::dec;
 	  success = false;
 	  break;
@@ -976,10 +976,10 @@ Memory::loadSnapshot(const std::string & filename,
       prevAddr = blk.first + blk.second;
       uint64_t addr = blk.first;
 
-      std::cerr << "*";
+      std::cerr << "Error: *";
       while (remainingSize) // read in chunk due to gzread limitation
         {
-          std::cerr << "-";
+          std::cerr << "Error: -";
           fflush(stdout);
           size_t currentChunk = std::min(remainingSize, maxChunk);
           int resp = gzread(gzin, temp.data(), currentChunk);
@@ -1005,13 +1005,13 @@ Memory::loadSnapshot(const std::string & filename,
     }
 
   if (not success)
-    std::cerr << "Memory::loadSnapshot failed - read from " << filename
+    std::cerr << "Error: Memory::loadSnapshot failed - read from " << filename
               << " failed: " << gzerror(gzin, nullptr) << "\n";
   else if (remainingSize > 0)
-    std::cerr << "Memory::loadSnapshot: Warning: Snapshot data size smaller than memory size\n";
+    std::cerr << "Error: Memory::loadSnapshot: Snapshot data size smaller than memory size\n";
 
   gzclose(gzin);
-  std::cerr << "\nloadSnapshot finished\n";
+  std::cerr << "Error: \nloadSnapshot finished\n";
   return success;
 }
 
@@ -1024,11 +1024,11 @@ Memory::saveAddressTrace(std::string_view tag, const LineMap& lineMap,
   std::ofstream out(path, std::ios::trunc);
   if (not out)
     {
-      std::cerr << "Memory::saveAddressTrace: Failed to open " << path << " for write\n";
+      std::cerr << "Error: Memory::saveAddressTrace: Failed to open " << path << " for write\n";
       return false;
     }
 
-  std::cerr << "Trace map size for " << tag << ": " << lineMap.size() << '\n';
+  std::cerr << "Error: Trace map size for " << tag << ": " << lineMap.size() << '\n';
 
   std::vector<uint64_t> addrVec;
   addrVec.reserve(lineMap.size());
@@ -1082,7 +1082,7 @@ Memory::loadAddressTrace(LineMap& lineMap, uint64_t& refCount, const std::string
 
   if (not ifs.good())
     {
-      std::cerr << "Failed to open lines file " << path << "' for input.\n";
+      std::cerr << "Error: Failed to open lines file " << path << "' for input.\n";
       return false;
     }
 

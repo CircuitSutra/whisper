@@ -671,7 +671,7 @@ Triggers<URV>::setSupportedTypes(const std::vector<std::string>& strings)
 	types.push_back(TT::Disabled);
       else
 	{
-	  std::cerr << "No such trigger type: " << str << '\n';
+	  std::cerr << "Error: No such trigger type: " << str << '\n';
 	  errors++;
 	}
     }
@@ -735,7 +735,7 @@ Triggers<URV>::setSupportedActions(const std::vector<std::string>& strings)
 	actions.push_back(TA::External1);
       else
 	{
-	  std::cerr << "No such trigger action: " << str << '\n';
+	  std::cerr << "Error: No such trigger action: " << str << '\n';
 	  errors++;
 	}
     }
@@ -1011,7 +1011,7 @@ Trigger<URV>::matchLdStAddr(URV address, unsigned size, TriggerTiming timing, bo
 	      break;
 
 	    case 4:  // 6-byte access
-	      assert(0);  // Not supported
+	      assert(0 && "Error: Assertion failed");  // Not supported
 	      break;
 
 	    case 5:  // double word access
@@ -1020,7 +1020,7 @@ Trigger<URV>::matchLdStAddr(URV address, unsigned size, TriggerTiming timing, bo
 	      break;
 
 	    default:
-	      assert(0);
+	      assert(0 && "Error: Assertion failed");
 	      break;
 	    }
 	}
@@ -1229,7 +1229,7 @@ Trigger<URV>::matchInstAddr(URV address, unsigned size, TriggerTiming timing, Pr
 	      break;
 
 	    case 4:  // 6-byte access
-	      assert(0);  // Not supported
+	      assert(0 && "Error: Assertion failed");  // Not supported
 	      break;
 
 	    case 5:  // double word access
@@ -1238,7 +1238,7 @@ Trigger<URV>::matchInstAddr(URV address, unsigned size, TriggerTiming timing, Pr
 	      break;
 
 	    default:
-	      assert(0);
+	      assert(0 && "Error: Assertion failed");
 	      break;
 	    }
 	}

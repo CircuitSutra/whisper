@@ -108,7 +108,7 @@ namespace util
       return __builtin_bswap32(x);
     if constexpr (sizeof(x) == 8)
       return __builtin_bswap64(x);
-    assert(0);
+    assert(0 && "Error: Assertion failed");
     return 0;
   }
 

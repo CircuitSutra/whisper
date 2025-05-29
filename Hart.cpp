@@ -73,7 +73,7 @@ parseNumber(std::string_view numberStr, TYPE& number)
         number = strtoull(numberStr.data(), &end, 0);
       else
 	{
-	  std::cerr << "parseNumber: Only 32/64-bit RISCV harts supported\n";
+	  std::cerr << "Error: parseNumber: Only 32/64-bit RISCV harts supported\n";
 	  return false;
 	}
       if (end and *end)
@@ -174,7 +174,7 @@ void Hart<URV>::filterMachineInterrupts(bool verbose) {
     for (unsigned bitPos = 0; bitPos < sizeof(URV) * 8; ++bitPos) {
       if (combinedMask & (URV(1) << bitPos)) {
         if (userCauses.find(bitPos) == userCauses.end()) {
-          std::cerr << "Warning: Interrupt cause " << bitPos
+          std::cerr << "Error: Interrupt cause " << bitPos
                     << " is allowed by hardware mask but not provided in configuration.\n";
         }
       }
@@ -218,7 +218,7 @@ void Hart<URV>::filterSupervisorInterrupts(bool verbose) {
     for (unsigned bitPos = 0; bitPos < sizeof(URV) * 8; ++bitPos) {
       if (combinedMask & (URV(1) << bitPos)) {
         if (userCauses.find(bitPos) == userCauses.end())
-          std::cerr << "Warning: Supervisor interrupt cause " << bitPos
+          std::cerr << "Error: Supervisor interrupt cause " << bitPos
                     << " allowed by hardware but missing in configuration.\n";
       }
     }
@@ -416,7 +416,7 @@ Hart<URV>::countImplementedPmpRegisters() const
       count++;
 
   if (count and count != 16 and count != 64 and hartIx_ == 0)
-    cerr << "Warning: Some but not all PMPADDR CSRs are implemented\n";
+    cerr << "Error: Some but not all PMPADDR CSRs are implemented\n";
 
   unsigned cfgCount = 0;
   if (mxlen_ == 32)
@@ -426,7 +426,7 @@ Hart<URV>::countImplementedPmpRegisters() const
         if (csRegs_.isImplemented(CsrNumber(num)))
           cfgCount++;
       if (count and cfgCount != 4 and cfgCount != 16 and hartIx_ == 0)
-        cerr << "Warning: Physical memory protection enabled but only "
+        cerr << "Error: Physical memory protection enabled but only "
 	     << cfgCount << "/16" << " PMPCFG CSRs implemented\n";
     }
   else
@@ -459,7 +459,7 @@ Hart<URV>::processExtensions(bool verbose)
 {
   URV value = 0;
   if (not peekCsr(CsrNumber::MISA, value))
-    std::cerr << "CSR MISA is not defined\n";
+    std::cerr << "Error: CSR MISA is not defined\n";
 
   bool flag = value & (URV(1) << ('s' - 'a'));  // Supervisor-mode option.
   flag = flag and isa_.isEnabled(RvExtension::S);
@@ -494,7 +494,7 @@ Hart<URV>::processExtensions(bool verbose)
     {
       flag = false;
       if (verbose and hartIx_ == 0)
-	std::cerr << "Bit 3 (d) is set in the MISA register but f "
+	std::cerr << "Error: Bit 3 (d) is set in the MISA register but f "
 		  << "extension (bit 5) is not enabled -- ignored\n";
     }
   enableRvd(flag);
@@ -507,7 +507,7 @@ Hart<URV>::processExtensions(bool verbose)
 
   flag = value & (URV(1) << ('i' - 'a'));
   if (not flag and not extensionIsEnabled(RvExtension::E) and verbose and hartIx_ == 0)
-    std::cerr << "Bit 8 (i extension) is cleared in the MISA register "
+    std::cerr << "Error: Bit 8 (i extension) is cleared in the MISA register "
 	      << " but extension is mandatory -- assuming bit 8 set\n";
 
   flag = value & (URV(1) << ('m' - 'a'));
@@ -519,7 +519,7 @@ Hart<URV>::processExtensions(bool verbose)
     {
       flag = false;
       if (verbose and hartIx_ == 0)
-	std::cerr << "Bit 21 (v) is set in the MISA register but the d/f "
+	std::cerr << "Error: Bit 21 (v) is set in the MISA register but the d/f "
 		  << "extensions are not enabled -- ignored\n";
     }
   flag = flag and isa_.isEnabled(RvExtension::V);
@@ -531,7 +531,7 @@ Hart<URV>::processExtensions(bool verbose)
       {
 	unsigned bit = ec - 'a';
 	if (value & (URV(1) << bit))
-	  std::cerr << "Bit " << bit << " (" << ec << ") set in the MISA "
+	  std::cerr << "Error: Bit " << bit << " (" << ec << ") set in the MISA "
 		    << "register but extension is not supported "
 		    << "-- ignored\n";
       }
@@ -612,15 +612,15 @@ Hart<URV>::processExtensions(bool verbose)
   if (isa_.isEnabled(RvExtension::Zvknha) and
       isa_.isEnabled(RvExtension::Zvknhb))
     {
-      std::cerr << "Warning: Both Zvknha/b enabled.";
+      std::cerr << "Error: Both Zvknha/b enabled.";
       if (rv64_)
         {
-          std::cerr << " Using Zvknhb.\n";
+          std::cerr << "Error:  Using Zvknhb.\n";
           enableExtension(RvExtension::Zvknha, false);
         }
       else
         {
-          std::cerr << " Using Zvknha.\n";
+          std::cerr << "Error:  Using Zvknha.\n";
           enableExtension(RvExtension::Zvknhb, false);
         }
     }
@@ -943,7 +943,7 @@ Hart<URV>::resetVector()
       if (not csr or csr->getWriteMask() != vstartMask)
 	{
 	  if (hartIx_ == 0 and configured)
-	    std::cerr << "Warning: Write mask of CSR VSTART changed to 0x" << std::hex
+	    std::cerr << "Error: Write mask of CSR VSTART changed to 0x" << std::hex
 		      << vstartMask << " to be compatible with VLEN=" << std::dec
 		      << (bytesPerReg*8) << '\n';
 	  csRegs_.configCsr(CsrNumber::VSTART, true, 0, vstartMask, vstartMask, false);
@@ -1353,7 +1353,7 @@ Hart<URV>::execAddi(const DecodedInst* di)
       if (di->op0() == 0 and di->op1() == 29)
         throw CoreException(CoreException::SnapshotAndStop, "Taking snapshot and stopping run from HINT.");
       if (di->op0() == 0 and di->op1() == 26)
-        std::cerr << "Executed instructions: " << instCounter_ << "\n";
+        std::cerr << "Error: Executed instructions: " << instCounter_ << "\n";
     }
 }
 
@@ -1885,7 +1885,7 @@ Hart<URV>::determineLoadException(uint64_t& addr1, uint64_t& addr2, uint64_t& ga
           if (misal)
             ldStFaultAddr_ = va2;
           else
-            std::cerr << "Warning: hart-id= " << hartId() << " tag=" << instCounter_
+            std::cerr << "Error: hart-id= " << hartId() << " tag=" << instCounter_
                       << " injected exception pa does not match instruction data pa.\n";
         }
       return injectException_;
@@ -2013,7 +2013,7 @@ readCharNonBlocking(int fd)
     return 0;
 
   if (code == -1)
-    std::cerr << "readCharNonBlocking: unexpected fail on read\n";
+    std::cerr << "Error: readCharNonBlocking: unexpected fail on read\n";
 
   return -1;
 }
@@ -2032,7 +2032,7 @@ Hart<URV>::getOooLoadValue(uint64_t va, uint64_t pa1, uint64_t pa2, unsigned siz
   if (perfApi_)
     return perfApi_->getLoadData(hartIx_, instCounter_, va, pa1, pa2, size, value,
                                  elemIx, field);
-  assert(0);
+  assert(0 && "Error: Assertion failed");
   return false;
 }
 
@@ -2108,7 +2108,7 @@ Hart<URV>::deviceRead(uint64_t pa, unsigned size, uint64_t& val)
       else if (size == 8)
 	memRead(pa, pa, val);
       else
-	assert(0);
+	assert(0 && "Error: Assertion failed");
       return;
     }
 
@@ -2156,7 +2156,7 @@ Hart<URV>::deviceRead(uint64_t pa, unsigned size, uint64_t& val)
 	  break;
 
 	default:
-	  assert(0);
+	  assert(0 && "Error: Assertion failed");
 	}
       return;
     }
@@ -2166,14 +2166,14 @@ Hart<URV>::deviceRead(uint64_t pa, unsigned size, uint64_t& val)
       uint32_t val32 = 0;
       if (not aplic_->read(pa, size, val32))
         {
-          std::cerr << "Warning: unsupported APLIC read: address = 0x" <<
+          std::cerr << "Error: unsupported APLIC read: address = 0x" <<
             std::hex << pa << std::dec << ", size = " << size << " bytes\n";
         }
       val = val32;
       return;
     }
 
-  assert(0);  // No device contains given address.
+  assert(0 && "Error: Assertion failed");  // No device contains given address.
 }
 
 
@@ -2208,14 +2208,14 @@ Hart<URV>::deviceWrite(uint64_t pa, STORE_TYPE storeVal)
       uint32_t val32 = storeVal;
       if (not aplic_->write(pa, sizeof(storeVal), val32))
         {
-          std::cerr << "Warning: unsupported APLIC write: address = 0x" <<
+          std::cerr << "Error: unsupported APLIC write: address = 0x" <<
             std::hex << pa << std::dec << ", size = " << sizeof(storeVal) <<
             " bytes, data = 0x" << std::hex << uint64_t(storeVal) << std::dec << "\n";
         }
       return;
     }
 
-  assert(0);
+  assert(0 && "Error: Assertion failed");
 }
 
 
@@ -2380,7 +2380,7 @@ Hart<URV>::handleStoreToHost(URV physAddr, STORE_TYPE storeVal)
 	  if (c)
 	    {
 	      if (::write(syscall_.effectiveFd(STDOUT_FILENO), &c, 1) != 1)
-		std::cerr << "Hart::handleStoreToHost: write failed\n";
+		std::cerr << "Error: Hart::handleStoreToHost: write failed\n";
 	    }
 	}
       else if (cmd == 0 and fromHostValid_)
@@ -3600,7 +3600,7 @@ Hart<URV>::peekCsr(CsrNumber csrn, bool quiet) const
 
   if (not peekCsr(csrn, value))
     if (not quiet)
-      std::cerr << "Invalid CSR number in peekCsr: 0x" << std::hex
+      std::cerr << "Error: Invalid CSR number in peekCsr: 0x" << std::hex
 		<<  unsigned(csrn) << std::dec << '\n';
   return value;
 }
@@ -3805,7 +3805,7 @@ Hart<URV>::postCsrUpdate(CsrNumber csr, URV val, URV lastVal)
   if (csr >= CN::PMACFG0 and csr <= CN::PMACFG15)
     {
       if (not processPmaChange(csr))
-	assert(0);
+	assert(0 && "Error: Assertion failed");
       return;
     }
 
@@ -4234,7 +4234,7 @@ Hart<URV>::configMemoryProtectionGrain(uint64_t size)
   if (size < 4)
     {
       if (hartIx_ == 0)
-	std::cerr << "Memory protection grain size (" << size << ") is "
+	std::cerr << "Error: Memory protection grain size (" << size << ") is "
 		  << "smaller than 4. Using 4.\n";
       size = 4;
       ok = false;
@@ -4245,7 +4245,7 @@ Hart<URV>::configMemoryProtectionGrain(uint64_t size)
   if (size != powerOf2)
     {
       if (hartIx_ == 0)
-	std::cerr << "Memory protection grain size (0x" << std::hex
+	std::cerr << "Error: Memory protection grain size (0x" << std::hex
 		  << size << ") is not a power of 2. Using: 0x"
 		  << powerOf2 << std::dec << '\n';
       size = powerOf2;
@@ -4256,7 +4256,7 @@ Hart<URV>::configMemoryProtectionGrain(uint64_t size)
   if (log2Size > limit)  // This can only happen in RV32.
     {
       if (hartIx_ == 0)
-	std::cerr << "Memory protection grain size (0x" << std::hex
+	std::cerr << "Error: Memory protection grain size (0x" << std::hex
 		  << size << ") is larger than 2 to the power "
 		  << std::dec << limit << ". "
 		  << "Using 2 to the power " << limit << ".\n";
@@ -5436,9 +5436,9 @@ Hart<URV>::runUntilAddress(uint64_t address, FILE* traceFile)
 
   if (instCounter_ >= instLim or
       retInstCounter_ >= retInstLim)
-    std::cerr << "Stopped -- Reached instruction limit hart=" << hartIx_ << "\n";
+    std::cerr << "Error: Stopped -- Reached instruction limit hart=" << hartIx_ << "\n";
   else if (pc_ == address)
-    std::cerr << "Stopped -- Reached end address hart=" << hartIx_ << "\n";
+    std::cerr << "Error: Stopped -- Reached end address hart=" << hartIx_ << "\n";
 
   // Simulator stats.
   struct timeval t1;
@@ -5472,13 +5472,13 @@ Hart<URV>::runSteps(uint64_t steps, bool& stop, FILE* traceFile)
           retInstCounter_ >= retInstLim)
         {
           stop = true;
-          std::cerr << "Stopped -- Reached instruction limit\n";
+          std::cerr << "Error: Stopped -- Reached instruction limit\n";
           return true;
         }
       else if (pc_ == stopAddr)
         {
           stop = true;
-          std::cerr << "Stopped -- Reached end address\n";
+          std::cerr << "Error: Stopped -- Reached end address\n";
           return true;
         }
 
@@ -5518,12 +5518,12 @@ Hart<URV>::simpleRun()
 
           if (userStop)
             {
-              std::cerr << "Stopped -- interrupted\n";
+              std::cerr << "Error: Stopped -- interrupted\n";
               break;
             }
 
           if (hasLim)
-            std::cerr << "Stopped -- Reached instruction limit\n";
+            std::cerr << "Error: Stopped -- Reached instruction limit\n";
           break;
         }
     }
@@ -5718,7 +5718,7 @@ Hart<URV>::saveBranchTrace(const std::string& path)
   FILE* file = fopen(path.c_str(), "w");
   if (not file)
     {
-      std::cerr << "Failed to open branch-trace output file '" << path << "' for writing\n";
+      std::cerr << "Error: Failed to open branch-trace output file '" << path << "' for writing\n";
       return false;
     }
 
@@ -5745,7 +5745,7 @@ Hart<URV>::loadBranchTrace(const std::string& path)
 
   if (not ifs.good())
     {
-      std::cerr << "Failed to open branch trace file " << path << "' for input.\n";
+      std::cerr << "Error: Failed to open branch trace file " << path << "' for input.\n";
       return false;
     }
 
@@ -5823,7 +5823,7 @@ Hart<URV>::openTcpForGdb()
   int gdbFd = socket(AF_INET, SOCK_STREAM, 0);
   if (gdbFd < 0)
     {
-      std::cerr << "Failed to create gdb socket at port " << gdbTcpPort_ << '\n';
+      std::cerr << "Error: Failed to create gdb socket at port " << gdbTcpPort_ << '\n';
       return false;
     }
 
@@ -5833,27 +5833,27 @@ Hart<URV>::openTcpForGdb()
 		 SO_REUSEADDR | SO_REUSEPORT, &opt,
 		 sizeof(opt)) != 0)
     {
-      std::cerr << "Failed to set socket option for gdb socket\n";
+      std::cerr << "Error: Failed to set socket option for gdb socket\n";
       return false;
     }
 #endif
 
   if (bind(gdbFd, reinterpret_cast<sockaddr*>(&address), addrlen) < 0)
     {
-      std::cerr << "Failed to bind gdb socket\n";
+      std::cerr << "Error: Failed to bind gdb socket\n";
       return false;
     }
 
   if (listen(gdbFd, 3) < 0)
     {
-      std::cerr << "Failed to listen to gdb socket\n";
+      std::cerr << "Error: Failed to listen to gdb socket\n";
       return false;
     }
 
   gdbInputFd_ = accept(gdbFd, (sockaddr*) &address, &addrlen);
   if (gdbInputFd_ < 0)
     {
-      std::cerr << "Failed to accept from gdb socket\n";
+      std::cerr << "Error: Failed to accept from gdb socket\n";
       return false;
     }
 
@@ -5925,7 +5925,7 @@ void
 Hart<URV>::setPerfApi(std::shared_ptr<TT_PERF::PerfApi> perfApi)
 {
   if constexpr (sizeof(URV) == 4)
-    assert(0 && "Perf-api not supported in RV32");
+    assert(0 && "Error: Perf-api not supported in RV32");
   else
     {
       perfApi_ = std::move(perfApi);
@@ -9988,7 +9988,7 @@ Hart<URV>::execute(const DecodedInst* di)
       return;
     }
 
-  assert(0 && "Shouldn't be able to get here if all cases above returned");
+  assert(0 && "Error: Shouldn't be able to get here if all cases above returned");
 }
 
 
@@ -10010,7 +10010,7 @@ Hart<URV>::enterDebugMode_(DebugModeCause cause, URV pc)
     cancelLr(CancelLrCause::ENTER_DEBUG);  // Lose LR reservation.
 
   if (debugMode_)
-    std::cerr << "Warning: Entering debug-mode while in debug-mode\n";
+    std::cerr << "Error: Entering debug-mode while in debug-mode\n";
   debugMode_ = true;
   csRegs_.enterDebug(true);
   enteredDebugMode_ = (cause == DebugModeCause::EBREAK) or
@@ -10814,7 +10814,7 @@ namespace WdRiscv
     // 2. Restore program counter from MEPC.
     uint64_t epc;
     if (not csRegs_.readSignExtend(CsrNumber::MEPC, privMode_, epc))
-      assert(0);
+      assert(0 && "Error: Assertion failed");
     setPc(epc);
 
     // 3. Update virtual mode.
@@ -10969,7 +10969,7 @@ Hart<URV>::execSret(const DecodedInst* di)
 
   // ... and putting it back
   if (not csRegs_.write(CsrNumber::SSTATUS, privMode_, fields.value_))
-    assert(0);
+    assert(0 && "Error: Assertion failed");
   updateCachedSstatus();
 
   // Clear hstatus.spv if sret executed in M/S modes.
@@ -10977,7 +10977,7 @@ Hart<URV>::execSret(const DecodedInst* di)
     {
       hstatus_.bits_.SPV = 0;
       if (not csRegs_.write(CsrNumber::HSTATUS, privMode_, hstatus_.value_))
-	assert(0);
+	assert(0 && "Error: Assertion failed");
     }
 
   // Restore program counter from SEPC.
@@ -11188,7 +11188,7 @@ Hart<URV>::checkCsrAccess(const DecodedInst* di, CsrNumber csr, bool isWrite)
 	  URV hcounteren = 0, mcounteren = 0, scounteren = 0;
 	  if (not peekCsr(CN::MCOUNTEREN, mcounteren) or not peekCsr(CN::HCOUNTEREN, hcounteren) or
 	      not peekCsr(CN::SCOUNTEREN, scounteren))
-	    assert(0);
+	    assert(0 && "Error: Assertion failed");
 	  unsigned bitIx = unsigned(csr) - unsigned(CN::CYCLE);
 	  URV mask = URV(1) << bitIx;
           if ((mcounteren & mask) == 0)
@@ -11371,7 +11371,7 @@ Hart<URV>::imsicAccessible(const DecodedInst* di, CsrNumber csr, PrivilegeMode m
           URV sel = 0;
           if (not peekCsr(iselect, sel))
             {
-              std::cerr << "Failed to peek AIA select csr\n";
+              std::cerr << "Error: Failed to peek AIA select csr\n";
               return false;
             }
 
@@ -11424,7 +11424,7 @@ Hart<URV>::imsicAccessible(const DecodedInst* di, CsrNumber csr, PrivilegeMode m
                     URV sel = 0;
                     if (not peekCsr(iselect, sel))
                       {
-                        std::cerr << "Failed to peek AIA select csr\n";
+                        std::cerr << "Error: Failed to peek AIA select csr\n";
                         return false;
                       }
 
