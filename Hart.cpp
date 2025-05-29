@@ -11380,28 +11380,46 @@ Hart<URV>::imsicAccessible(const DecodedInst* di, CsrNumber csr, PrivilegeMode m
 
           if (TT_IMSIC::Imsic::isFileSelReserved(sel))
             {
-              // Sec 2.3 of interrupt spec: attempts from M-mode or HS-mode to access
-              // vsireg, or from VS-mode to access sireg (really vsireg), should
-              // preferably raise an illegal instruction exception.
-              if ((isMhs and csr == CN::VSIREG) or (isVs and csr == CN::SIREG))
-                illegalInst(di);
+              if (iselect == CN::SISELECT or iselect == CN::MISELECT)
+                {
+                  illegalInst(di);
+                }
+              else if (iselect == CN::VSISELECT)
+                {
+                  // Sec 2.3 of interrupt spec: attempts from M-mode or HS-mode to access
+                  // vsireg, or from VS-mode to access sireg (really vsireg), should
+                  // preferably raise an illegal instruction exception.
+                  if ((isMhs and csr == CN::VSIREG) or (isVs and csr == CN::SIREG))
+                    illegalInst(di);
+                  else
+                    virtualInst(di);
+                  return false;
+                }
               else
-                virtualInst(di);
-              return false;
+                assert(0 && "Error: Assertion failed");
             }
 
           if (not TT_IMSIC::Imsic::isFileSelAccessible<URV>(sel, guestFile))
             {
-              // Sec 2.3 of interrupt spec: attempts from M-mode or HS-mode to access
-              // vsireg raise an illegal instruction exception, and attempts from VS-mode
-              // to access sireg (really vsireg) raise a virtual instruction exception.
-              if (isMhs and csr == CN::VSIREG)
-                illegalInst(di);
-              else if (isVs and csr == CN::SIREG)
-                virtualInst(di);
+              if (iselect == CN::SISELECT or iselect == CN::MISELECT)
+                {
+                  illegalInst(di);
+                }
+              else if (iselect == CN::VSISELECT)
+                {
+                  // Sec 2.3 of interrupt spec: attempts from M-mode or HS-mode to access
+                  // vsireg raise an illegal instruction exception, and attempts from VS-mode
+                  // to access sireg (really vsireg) raise a virtual instruction exception.
+                  if (isMhs and csr == CN::VSIREG)
+                    illegalInst(di);
+                  else if (isVs and csr == CN::SIREG)
+                    virtualInst(di);
+                  else
+                    illegalInst(di);
+                  return false;
+                }
               else
-                illegalInst(di);
-              return false;
+                assert(0 && "Error: Assertio failed");
             }
         }
 
