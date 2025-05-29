@@ -37,6 +37,8 @@ namespace WhisperUtil  {
       if (this->type != rhs.type) return false;
       if (this->number != rhs.number) return false;
       if (this->emul != rhs.emul) return false;
+      if (number != 256)
+        if (this->value != rhs.value) return false;
 
       return true;
     }
@@ -45,6 +47,8 @@ namespace WhisperUtil  {
       if (this->type != rhs.type) return true;
       if (this->number != rhs.number) return true;
       if (this->emul != rhs.emul) return true;
+      if (number != 256)
+        if (this->value != rhs.value) return true;
 
       return false;
     }
@@ -184,7 +188,7 @@ namespace WhisperUtil  {
         if (rhsit == rhs.dpteAddrs.end()) return true;
       }
 
-      if (ipteAddrs != rhs.ipteAddrs) return true;
+//       if (ipteAddrs != rhs.ipteAddrs) return true;
       if (priv != rhs.priv) return true;
       if (virt != rhs.virt) return true;
       if (hasTrap != rhs.hasTrap) return true;

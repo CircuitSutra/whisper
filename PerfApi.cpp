@@ -1281,7 +1281,7 @@ InstrPac::getImplicitDestOperands(std::array<Operand, 4>& ops) const
 
 
 unsigned
-InstrPac::getImplicitSrcOperands(std::array<Operand, 4>& impOps) const
+InstrPac::getImplicitSrcOperands(std::array<Operand, 8>& impOps) const
 {
   assert(decoded_);
   if (not decoded_)
@@ -1710,6 +1710,8 @@ PerfApi::updatePacketDataAddress(Hart64& hart, InstrPac& packet)
       auto& storeMap =  hartStoreMaps_.at(hartIx);
       auto tag = packet.tag();
 
+      bool skipStoreMap = packet.isAmo() or (packet.isSc() and system_.hartCount() > 1);
+
       if (di.isCbo_zero())
         {
           storeMap[tag] = getInstructionPacket(hartIx, tag);
@@ -1726,7 +1728,7 @@ PerfApi::updatePacketDataAddress(Hart64& hart, InstrPac& packet)
           // FIX What to do about device access? Do we allow mixed device/non-device
           // access?
         }
-      else if (di.isStore() and not di.isSc())
+      else if (di.isStore() and not skipStoreMap)
 	{
 	  storeMap[tag] = getInstructionPacket(hartIx, tag);
           uint64_t dpa = packet.dpa_;

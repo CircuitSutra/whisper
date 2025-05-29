@@ -450,6 +450,10 @@ namespace WdRiscv
     bool isVsetvli() const
     { return entry_ and entry_->instId() == InstId::vsetvli; }
 
+    /// Return true if this is a vsetvl
+    bool isVsetvl() const
+    { return entry_ and entry_->instId() == InstId::vsetvl; }
+
     /// Return the RISCV extension of this instruction.
     RvExtension extension() const
     { return entry_? entry_->extension() : RvExtension::None; }
