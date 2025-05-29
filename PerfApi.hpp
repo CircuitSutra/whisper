@@ -111,6 +111,10 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     uint64_t dataPa2() const
     { return dpa2_; }
 
+    /// Return the scalar store value
+    uint64_t stData() const
+    { return stData_; }
+
     /// Return a vector of pa/va/skip tripletcorresponding to the
     /// virtual-addr/physical-addr/skip of the elements of the vector load/store
     /// instruction of this packet. The skip flag will be true if the corresponding element
@@ -266,8 +270,15 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     bool isLr() const
     { return di_.isLr(); }
 
+    /// Return true if this is a fence instruction. Packet must be decoded
+    bool isFence() const
+    { return di_.isFence(); }
+
     bool isDeviceLdSt()
     { return deviceAccess_; }
+
+    bool isVset()
+    { return di_.isVsetvli() || di_.isVsetivli() || di_.isVsetvl(); }
 
     /// Return true if this is a privileged instruction (ebreak/ecall/mret)
     bool isPrivileged() const
@@ -320,7 +331,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     /// Fill the given array with the implicit source operands of this instruction (which
     /// must be decoded). Value of each operand will be zero unless the instruction is
     /// executed. Return the number of operands written into the array.
-    unsigned getImplicitSrcOperands(std::array<Operand, 4>& ops) const;
+    unsigned getImplicitSrcOperands(std::array<Operand, 8>& ops) const;
 
     /// FILL THE GIVEN ARRAY WITH THE CSRS THAT CHANGED AS A SIDE EFFECT TO A TRAP OR TO
     /// AN MRET/SRET INSTRUCTION. RETURN THE COUNT OF SUCH CSRS.
