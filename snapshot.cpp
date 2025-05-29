@@ -317,7 +317,7 @@ Hart<URV>::loadSnapshotRegs(const std::string & filename)
               pokeCsr(csrNum, val);
             }
 	  else
-	    cerr << "Error: Warning: Register snapshot loader: Line " << lineNum
+	    cerr << "Error: Register snapshot loader: Line " << lineNum
 		 << ": No such CSR: " << line << '\n';
         }
       else if (type == "x")   // Integer register
@@ -328,7 +328,7 @@ Hart<URV>::loadSnapshotRegs(const std::string & filename)
 	      continue;
 	    }
           if (not pokeIntReg(num, val))
-	    cerr << "Error: Warning: Register snapshot loader: Line " << lineNum
+	    cerr << "Error: Register snapshot loader: Line " << lineNum
 		 << ": No such register: " << line << '\n';
         }
       else if (type == "f")   // FP register
@@ -341,7 +341,7 @@ Hart<URV>::loadSnapshotRegs(const std::string & filename)
 		  continue;
 		}
               if (not pokeFpReg(num, val))
-		cerr << "Error: Warning: Register snapshot loader: Line " << lineNum
+		cerr << "Error: Register snapshot loader: Line " << lineNum
 		     << ": No such FP register: " << line << '\n';
             }
         }
@@ -356,13 +356,13 @@ Hart<URV>::loadSnapshotRegs(const std::string & filename)
 		  continue;
 		}
 	      if (not pokeVecReg(num, vecBytes))
-		cerr << "Error: Warning: Register snapshot loader: Line " << lineNum
+		cerr << "Error: Register snapshot loader: Line " << lineNum
 		     << ": No such vector register: " << line << '\n';
 	    }
 	}
       else
 	{
-	  cerr << "Error: Warning: Register snapshot loader: Line " << lineNum
+	  cerr << "Error: Register snapshot loader: Line " << lineNum
 	       << ": Ignoring unexpected line: " << line << '\n';
 	}
     }

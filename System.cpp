@@ -372,7 +372,7 @@ binaryFileParams(std::string spec, uint64_t defOffset, std::string& filename, ui
     {
       std::string offsStr = parts.at(1);
       if (offsStr.empty())
-	cerr << "Error: Warning: Empty binary file offset: " << spec << '\n';
+	cerr << "Error: Empty binary file offset: " << spec << '\n';
       else
 	{
 	  char* tail = nullptr;

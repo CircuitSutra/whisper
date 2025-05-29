@@ -168,7 +168,7 @@ Memory::loadHexFile(const std::string& fileName)
 	    {
               if (not oob)
                 std::cerr << "Error: File " << fileName << ", Line " << lineNum << ": "
-                          << "Warning: Address out of bounds: "
+                          << " Address out of bounds: "
                           << std::hex << addr << '\n' << std::dec;
 	      oob++;
 	    }
@@ -185,7 +185,7 @@ Memory::loadHexFile(const std::string& fileName)
     }
 
   if (oob > 1)
-    std::cerr << "Error: File " << fileName << ": Warning: File contained "
+    std::cerr << "Error: File " << fileName << ":  File contained "
               << oob << " out of bounds addresses.\n";
 
   // In case writing ELF data modified last-written-data associated
@@ -232,7 +232,7 @@ Memory::loadBinaryFile(const std::string& fileName, uint64_t addr)
         {
           if (not oob)
             std::cerr << "Error: File " << fileName << ", Byte " << num << ": "
-                      << "Warning: Address out of bounds: "
+                      << " Address out of bounds: "
                       << std::hex << addr << '\n' << std::dec;
           oob++;
         }
@@ -241,7 +241,7 @@ Memory::loadBinaryFile(const std::string& fileName, uint64_t addr)
 
 
   if (oob > 1)
-    std::cerr << "Error: File " << fileName << ": Warning: File contained "
+    std::cerr << "Error: File " << fileName << ":  File contained "
               << oob << " out of bounds addresses.\n";
 
   // In case writing ELF data modified last-written-data associated
@@ -332,7 +332,7 @@ Memory::loadLz4File(const std::string& fileName, uint64_t addr)
 		{
 		  if (unmappedCount == 0)
 		    cerr << "Error: File " << fileName << ", Byte " << num << ": "
-                         << "Warning: Address is not mapped: "
+                         << " Address is not mapped: "
                          << std::hex << addr << std::dec << '\n';
 		  unmappedCount++;
 		  if (checkUnmappedElf_)
@@ -342,7 +342,7 @@ Memory::loadLz4File(const std::string& fileName, uint64_t addr)
 	  else
 	    {
               cerr << "Error: File " << fileName << ", Byte " << num << ": "
-                   << "Warning: Address out of bounds: "
+                   << " Address out of bounds: "
                    << std::hex << addr << std::dec << '\n';
               break;
 	    }
@@ -638,7 +638,7 @@ Memory::loadElfFile(const std::string& fileName, unsigned regWidth,
 
   if (reader.get_machine() != EM_RISCV)
     {
-      std::cerr << "Error: Warning: non-riscv ELF file\n";
+      std::cerr << "Error: non-riscv ELF file\n";
     }
 
   // Copy loadable ELF segments into memory.
@@ -1008,7 +1008,7 @@ Memory::loadSnapshot(const std::string & filename,
     std::cerr << "Error: Memory::loadSnapshot failed - read from " << filename
               << " failed: " << gzerror(gzin, nullptr) << "\n";
   else if (remainingSize > 0)
-    std::cerr << "Error: Memory::loadSnapshot: Warning: Snapshot data size smaller than memory size\n";
+    std::cerr << "Error: Memory::loadSnapshot: Snapshot data size smaller than memory size\n";
 
   gzclose(gzin);
   std::cerr << "Error: \nloadSnapshot finished\n";

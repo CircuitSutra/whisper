@@ -676,7 +676,7 @@ Syscall<URV>::emulateSemihost(unsigned hartIx, URV a0, URV a1)
       return SRV(-1);
     }
 
-  std::cerr << "Error: Warning: Unimplemented semi-hosting syscall \"" << names[op]
+  std::cerr << "Error: Unimplemented semi-hosting syscall \"" << names[op]
             << "\" number " << a0 << '\n';
 
   return SRV(-1);
@@ -1448,7 +1448,7 @@ Syscall<URV>::emulate(unsigned hartIx, unsigned syscallIx, URV a0, URV a1, URV a
             return count;
           }
 
-        std::cerr << "Error: Warning: unimplemented futex operation " << a1 << std::endl;
+        std::cerr << "Error: unimplemented futex operation " << a1 << std::endl;
         return 0;
       }
 #endif
@@ -1832,7 +1832,7 @@ Syscall<URV>::emulate(unsigned hartIx, unsigned syscallIx, URV a0, URV a1, URV a
   if (syscallIx < reportedCalls.size() and reportedCalls.at(syscallIx))
     return -1;
 
-  std::cerr << "Error: Warning: Unimplemented syscall \"" << names[syscallIx] << "\" number "
+  std::cerr << "Error: Unimplemented syscall \"" << names[syscallIx] << "\" number "
             << syscallIx << "\n";
 
    if (syscallIx < reportedCalls.size())

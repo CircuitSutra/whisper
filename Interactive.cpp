@@ -192,7 +192,7 @@ Interactive<URV>::untilCommand(Hart<URV>& hart, const std::string& line,
     return false;
 
   if (addr >= hart.memorySize())
-    cerr << "Error: Warning: Address outside memory range: " << line << ".\n";
+    cerr << "Error: Address outside memory range: " << line << ".\n";
 
   if (hart.inDebugMode())
     {
@@ -1780,7 +1780,7 @@ Interactive<URV>::executeLine(const std::string& inLine, FILE* traceFile,
   if (command == "cancel_div")
     {
       if (not hart.cancelLastDiv())
-        cerr << "Error: Warning: Unexpected cancel_div\n";
+        cerr << "Error: Unexpected cancel_div\n";
       if (commandLog)
 	fprintf(commandLog, "%s\n", line.c_str());
       return true;

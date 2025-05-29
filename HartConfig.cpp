@@ -349,7 +349,7 @@ applyCsrConfig(Hart<URV>& hart, std::string_view nm, const nlohmann::json& conf,
 
   if ((mask & pokeMask) != mask and hart.sysHartIndex() == 0)
     {
-      std::cerr << "Error: Warning: For CSR " << name << " poke mask (0x" << std::hex << pokeMask
+      std::cerr << "Error: For CSR " << name << " poke mask (0x" << std::hex << pokeMask
 		<< ") is not a superset of write\n  mask (0x" << mask << std::dec << ")."
 		<< " Only bits set in both masks will be writable by CSR instructions.\n";
     }
@@ -360,11 +360,11 @@ applyCsrConfig(Hart<URV>& hart, std::string_view nm, const nlohmann::json& conf,
       URV extBits = (URV(1) << 26) - 1;
       URV writeable = extBits & mask, writeableReset = extBits & mask & reset;
       if (writeable != writeableReset and hart.sysHartIndex() == 0)
-	std::cerr << "Error: Warning: Reset value of MISA should be 0x"
+	std::cerr << "Error: Reset value of MISA should be 0x"
 		  << std::hex << (reset | writeable) << std::dec
 		  << " to be compatible with write mask.\n";
       if ((writeable & (URV(1) << ('E' - 'A'))) and hart.sysHartIndex() == 0)
-	std::cerr << "Error: Warning: Bit E of MISA cannot be writebale.\n";
+	std::cerr << "Error: Bit E of MISA cannot be writebale.\n";
       if ((reset & (1 << ('S' - 'A'))) and not (reset & (1 << ('U' - 'A'))))
         {
           std::cerr << "Error: Invalid MISA in config file: cannot have S=1 and U=0.\n";
@@ -1132,13 +1132,13 @@ applySteeConfig(Hart<URV>& hart, const nlohmann::json& config)
 		  high -= high % hart.pageSize();
 		  if (complain)
 		    {
-		      cerr << "Error: Warning: STEE secure region bounds are not page aligned\n";
-		      cerr << "Error: Warning: STEE secure region bounds changed to: [0x"
+		      cerr << "Error: STEE secure region bounds are not page aligned\n";
+		      cerr << "Error: STEE secure region bounds changed to: [0x"
 			   << std::hex << low << ", " << high << "]\n" << std::dec;
 		    }
 		}
 	      if (((low & secMask) or (high & secMask)) and complain)
-		cerr << "Error: Warning: STEE secure region bounds have secure bit(s) set.\n";
+		cerr << "Error: STEE secure region bounds have secure bit(s) set.\n";
 
 	      if (not errors)
 		hart.configSteeSecureRegion(low, high);
@@ -1418,7 +1418,7 @@ applyPmaConfig(Hart<URV>& hart, const nlohmann::json& config, bool hasPmacfgCsr)
 
   if (memMappedCount != config.size() and hasPmacfgCsr)
     if (hart.sysHartIndex() == 0)
-      cerr << "Error: Warning: Configuration file has both memmap pma "
+      cerr << "Error: Configuration file has both memmap pma "
 	   << "and a pmacfg CSR. CSRs will override memmap.\n";
 
   return errors == 0;
@@ -2015,7 +2015,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
   if (config_ -> contains(tag))
     {
       if (hart.sysHartIndex() == 0)
-	cerr << "Error: Warning: Config tag " << tag << " is deprecated -- "
+	cerr << "Error: Config tag " << tag << " is deprecated -- "
 	     << "feature is now controlled by bit 61 of the MENVCFG/HENVCFG CSR.\n";
       getJsonBoolean(tag, config_ -> at(tag), flag) or errors++;
       // hart.setFaultOnFirstAccess(flag);
@@ -2291,7 +2291,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
   if (config_ -> contains(tag))
     {
       if (hart.sysHartIndex() == 0)
-	cerr << "Error: Warning: Config tag " << tag << " is deprecated. "
+	cerr << "Error: Config tag " << tag << " is deprecated. "
 	     << "Use svnapot with --isa instead.\n";
       getJsonBoolean(tag, config_ ->at(tag), flag) or errors++;
       hart.enableTranslationNapot(flag);
@@ -2301,7 +2301,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
   if (config_ -> contains(tag))
     {
       if (hart.sysHartIndex() == 0)
-	cerr << "Error: Warning: Config tag " << tag << " is deprecated. "
+	cerr << "Error: Config tag " << tag << " is deprecated. "
 	     << "Use svinval with --isa instead.\n";
       getJsonBoolean(tag, config_ ->at(tag), flag) or errors++;
       hart.enableSvinval(flag);
@@ -2311,7 +2311,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
   if (config_ -> contains(tag))
     {
       if (hart.sysHartIndex() == 0)
-	cerr << "Error: Warning: Config tag " << tag << " is deprecated. "
+	cerr << "Error: Config tag " << tag << " is deprecated. "
 	     << "Use sstc with --isa instead.\n";
       getJsonBoolean(tag, config_ ->at(tag), flag) or errors++;
       hart.enableRvsstc(flag);
@@ -2321,7 +2321,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
   if (config_ ->contains(tag))
     {
       if (hart.sysHartIndex() == 0)
-	cerr << "Error: Warning: Config tag " << tag << " is deprecated. "
+	cerr << "Error: Config tag " << tag << " is deprecated. "
 	     << "Use smaia with --isa instead.\n";
       getJsonBoolean(tag, config_ ->at(tag), flag) or errors++;
       hart.enableAiaExtension(flag);
@@ -2331,7 +2331,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
   if (config_ ->contains(tag))
     {
       if (hart.sysHartIndex() == 0)
-	cerr << "Error: Warning: Config tag " << tag << " is deprecated. "
+	cerr << "Error: Config tag " << tag << " is deprecated. "
 	     << "Use smstateen with --isa instead.\n";
       getJsonBoolean(tag, config_ ->at(tag), flag) or errors++;
       hart.enableSmstateen(flag);

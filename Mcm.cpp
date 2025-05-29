@@ -44,7 +44,7 @@ Mcm<URV>::updateTime(const char* method, uint64_t time)
 {
   if (time < time_)
     {
-      cerr << "Error: Warning: " << method << ": Backward time: "
+      cerr << "Error: " << method << ": Backward time: "
 	   << time << " < " << time_ << "\n";
       return true;
     }
@@ -159,7 +159,7 @@ Mcm<URV>::readOp_(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa, uns
     return true;
 
   if (instr->isRetired() and not hart.getPma(pa).isIo())
-    cerr << "Error: Warning: hart-id=" << hart.hartId() << " time=" << time <<
+    cerr << "Error: hart-id=" << hart.hartId() << " time=" << time <<
          " tag=" << tag << " read-op seen after instruction retires\n";
 
   pa = hart.clearSecureAddressSteeBits(pa);
@@ -1176,7 +1176,7 @@ Mcm<URV>::retireCmo(Hart<URV>& hart, McmInstr& instrB)
     {
       // cbo.clean/flush/inval must complete before retire.
       if (not instrB.complete_)
-        std::cerr << "Error: Warning: hart-id=" << hart.hartId() << " tag=" << instrB.tag_
+        std::cerr << "Error: hart-id=" << hart.hartId() << " tag=" << instrB.tag_
                   << " CMO instruction retires before it is complete (no bypass op seen)\n";
     }
 
@@ -1404,7 +1404,7 @@ checkBufferWriteParams(unsigned hartId, uint64_t time, unsigned lineSize,
 
   if ((physAddr % lineSize) + rtlLineSize > lineSize)
     {
-      cerr << "Error: Warning: Hart-id=" << hartId << " time=" << time
+      cerr << "Error: Hart-id=" << hartId << " time=" << time
 	   << " RTL merge buffer write data at address 0x"
 	   << std::hex << physAddr << " crosses buffer boundary" << std::dec
 	   << " -- truncating RTL data\n";
@@ -1794,7 +1794,7 @@ Mcm<URV>::checkRtlRead(Hart<URV>& hart, const McmInstr& instr,
 {
   if (op.size_ > instr.size_)
     {
-      cerr << "Error: Warning: Read operation size (" << unsigned(op.size_) << ") larger than "
+      cerr << "Error: Read operation size (" << unsigned(op.size_) << ") larger than "
 	   << "instruction data size (" << unsigned(instr.size_) << "): Hart-id="
 	   << hart.hartId() << " time=" << op.time_ << " tag=" << instr.tag_ << '\n';
     }
@@ -2059,7 +2059,7 @@ Mcm<URV>::checkVecStoreData(Hart<URV>& hart, const McmInstr& store) const
 
   if (rtlDataIx < rtlData.size())
     {
-      cerr << "Error: Warning: hart-id=" << hartId << " tag=" << store.tag_
+      cerr << "Error: hart-id=" << hartId << " tag=" << store.tag_
 	   << " RTL has extra write-operation data for vector store instruction.\n";
     }
 
@@ -2637,7 +2637,7 @@ Mcm<URV>::commitVecReadOps(Hart<URV>& hart, McmInstr& instr)
 
   if (activeCount > 0 and instr.memOps_.empty()) //  and not hart.inDebugMode())
     {
-      cerr << "Error: Warning: hart-id=" << hart.hartId() << " time=" << time_ << " tag="
+      cerr << "Error: hart-id=" << hart.hartId() << " time=" << time_ << " tag="
 	   << instr.tag_ << " vector load instruction retires without any memory "
 	   << "read operation.\n";
       return true;
@@ -2766,7 +2766,7 @@ Mcm<URV>::commitReadOps(Hart<URV>& hart, McmInstr& instr)
 
       if (not hart.inDebugMode())
 	{
-	  cerr << "Error: Warning: hart-id=" << hart.hartId() << " time=" << time_ << " tag="
+	  cerr << "Error: hart-id=" << hart.hartId() << " time=" << time_ << " tag="
 	       << instr.tag_ << " load/amo instruction retires witout any memory "
 	       << "read operation.\n";
 	  return true;
@@ -3902,7 +3902,7 @@ Mcm<URV>::finalChecks(Hart<URV>& hart)
 
   const auto& pendingWrites = hartData_.at(hartIx).pendingWrites_;
   if (not pendingWrites.empty())
-    cerr << "Error: Warning: Merge buffer is not empty at end of run\n";
+    cerr << "Error: Merge buffer is not empty at end of run\n";
 
   uint64_t toHost = 0;
   bool hasToHost = hart.getToHostAddress(toHost);
@@ -3913,7 +3913,7 @@ Mcm<URV>::finalChecks(Hart<URV>& hart)
     {
       const auto& instr = instrVec.at(tag);
       if (not hasToHost or toHost != instr.virtAddr_)
-	cerr << "Error: Warning: Hart-id=" << hart.hartId() << " tag=" << instr.tag_
+	cerr << "Error: Hart-id=" << hart.hartId() << " tag=" << instr.tag_
 	     << " Store instruction is not drained at end of run\n";
     }
 
@@ -4709,7 +4709,7 @@ Mcm<URV>::ppoRule9(Hart<URV>& hart, const McmInstr& instrB) const
     {
       if (opIx < sysMemOps_.size() and sysMemOps_.at(opIx).time_ <= addrTime)
 	{
-	  cerr << "Error: Warning: PPO rule 9 failed: hart-id=" << hart.hartId() << " tag1="
+	  cerr << "Error: PPO rule 9 failed: hart-id=" << hart.hartId() << " tag1="
 	       << instrB.addrProducer_ << " tag2=" << instrB.tag_
                << " time1=" << addrTime << " time2=" << sysMemOps_.at(opIx).time_ << '\n';
 	  return true;
@@ -4724,7 +4724,7 @@ Mcm<URV>::ppoRule9(Hart<URV>& hart, const McmInstr& instrB) const
   unsigned ixReg = 0;   // Vector index register.
   if (isVecIndexOutOfOrder(hart, instrB, ixReg, ixTag, ixTime, dataTime))
     {
-      cerr << "Error: Warning: PPO rule 9 failed: hart-id=" << hart.hartId() << " tag1="
+      cerr << "Error: PPO rule 9 failed: hart-id=" << hart.hartId() << " tag1="
 	   << ixTag << " tag2=" << instrB.tag_ << " time1=" << ixTime
 	   << " time2=" << dataTime << " vec-ix-reg=" << ixReg << '\n';
       return true;
@@ -5594,7 +5594,7 @@ template <typename URV>
 void
 Mcm<URV>::reportMissingFetch(const Hart<URV>& hart, uint64_t tag, uint64_t pa) const
 {
-  cerr << "Error: Warning: Hart-id=" << hart.hartId() << " time=" << time_ << " tag=" << tag
+  cerr << "Error: Hart-id=" << hart.hartId() << " time=" << time_ << " tag=" << tag
        << " pa=0x" << std::hex << pa << std::dec << " opcode missing in instruction cache"
        << " (not brought in with mcm_ifetch)\n";
 }

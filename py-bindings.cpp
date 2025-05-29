@@ -60,7 +60,7 @@ static void defineFile(M m)
   m_file.def("open", [](const std::filesystem::path& file) {
         FILE* f = fopen(file.c_str(), "w");
         if (not f)
-          std::cerr << "Error: Warning: file::open: failed to open file" << std::endl;
+          std::cerr << "Error: file::open: failed to open file" << std::endl;
         return File(f);
       }, py::arg("Path to file to open."), py::doc("Opens a file for whisper use."));
 

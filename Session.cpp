@@ -534,7 +534,7 @@ Session<URV>::determineIsa(const HartConfig& config, const Args& args, bool clib
   isa.clear();
 
   if (not args.isa.empty() and args.elfisa)
-    std::cerr << "Error: Warning: Both --isa and --elfisa present: Using --isa\n";
+    std::cerr << "Error: Both --isa and --elfisa present: Using --isa\n";
 
   isa = args.isa;
 
@@ -589,7 +589,7 @@ Session<URV>::getElfFilesIsaString(const Args& args, std::string& isaString)
 
   for (const auto& tag : archTags)
     if (tag != ref)
-      std::cerr << "Error: Warning different ELF files have different ISA strings: "
+      std::cerr << "Error: different ELF files have different ISA strings: "
 		<< tag << " and " << ref << '\n';
 
   isaString = ref;
@@ -872,7 +872,7 @@ Session<URV>::applyCmdLineArgs(const Args& args, Hart<URV>& hart,
 	}
       else if (args.expandedTargets.front().size() > 1 or not args.envVars.empty())
 	{
-	  std::cerr << "Error: Warning: Target program options or env vars present which requires\n"
+	  std::cerr << "Error: Target program options or env vars present which requires\n"
 		    << "         the use of --newlib/--linux. Options ignored.\n";
 	}
     }
@@ -914,10 +914,10 @@ Session<URV>::applyCmdLineArgs(const Args& args, Hart<URV>& hart,
       uint64_t low = args.steesr.at(0), high = args.steesr.at(1);
       if ((low % hart.pageSize()) != 0 or (high % hart.pageSize()) != 0)
 	{
-	  std::cerr << "Error: Warning: STEE secure region bounds are not page aligned\n";
+	  std::cerr << "Error: STEE secure region bounds are not page aligned\n";
 	  low -= low % hart.pageSize();	  
 	  high -= high % hart.pageSize();
-	  std::cerr << "Error: Warning: STEE secure region bounds changed to: [0x" << std::hex
+	  std::cerr << "Error: STEE secure region bounds changed to: [0x" << std::hex
 		    << low << ", " << high << "]\n" << std::dec;
 	}
       hart.configSteeSecureRegion(args.steesr.at(0), args.steesr.at(1));

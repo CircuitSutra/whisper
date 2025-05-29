@@ -174,7 +174,7 @@ void Hart<URV>::filterMachineInterrupts(bool verbose) {
     for (unsigned bitPos = 0; bitPos < sizeof(URV) * 8; ++bitPos) {
       if (combinedMask & (URV(1) << bitPos)) {
         if (userCauses.find(bitPos) == userCauses.end()) {
-          std::cerr << "Error: Warning: Interrupt cause " << bitPos
+          std::cerr << "Error: Interrupt cause " << bitPos
                     << " is allowed by hardware mask but not provided in configuration.\n";
         }
       }
@@ -218,7 +218,7 @@ void Hart<URV>::filterSupervisorInterrupts(bool verbose) {
     for (unsigned bitPos = 0; bitPos < sizeof(URV) * 8; ++bitPos) {
       if (combinedMask & (URV(1) << bitPos)) {
         if (userCauses.find(bitPos) == userCauses.end())
-          std::cerr << "Error: Warning: Supervisor interrupt cause " << bitPos
+          std::cerr << "Error: Supervisor interrupt cause " << bitPos
                     << " allowed by hardware but missing in configuration.\n";
       }
     }
@@ -416,7 +416,7 @@ Hart<URV>::countImplementedPmpRegisters() const
       count++;
 
   if (count and count != 16 and count != 64 and hartIx_ == 0)
-    cerr << "Error: Warning: Some but not all PMPADDR CSRs are implemented\n";
+    cerr << "Error: Some but not all PMPADDR CSRs are implemented\n";
 
   unsigned cfgCount = 0;
   if (mxlen_ == 32)
@@ -426,7 +426,7 @@ Hart<URV>::countImplementedPmpRegisters() const
         if (csRegs_.isImplemented(CsrNumber(num)))
           cfgCount++;
       if (count and cfgCount != 4 and cfgCount != 16 and hartIx_ == 0)
-        cerr << "Error: Warning: Physical memory protection enabled but only "
+        cerr << "Error: Physical memory protection enabled but only "
 	     << cfgCount << "/16" << " PMPCFG CSRs implemented\n";
     }
   else
@@ -612,7 +612,7 @@ Hart<URV>::processExtensions(bool verbose)
   if (isa_.isEnabled(RvExtension::Zvknha) and
       isa_.isEnabled(RvExtension::Zvknhb))
     {
-      std::cerr << "Error: Warning: Both Zvknha/b enabled.";
+      std::cerr << "Error: Both Zvknha/b enabled.";
       if (rv64_)
         {
           std::cerr << "Error:  Using Zvknhb.\n";
@@ -943,7 +943,7 @@ Hart<URV>::resetVector()
       if (not csr or csr->getWriteMask() != vstartMask)
 	{
 	  if (hartIx_ == 0 and configured)
-	    std::cerr << "Error: Warning: Write mask of CSR VSTART changed to 0x" << std::hex
+	    std::cerr << "Error: Write mask of CSR VSTART changed to 0x" << std::hex
 		      << vstartMask << " to be compatible with VLEN=" << std::dec
 		      << (bytesPerReg*8) << '\n';
 	  csRegs_.configCsr(CsrNumber::VSTART, true, 0, vstartMask, vstartMask, false);
@@ -1885,7 +1885,7 @@ Hart<URV>::determineLoadException(uint64_t& addr1, uint64_t& addr2, uint64_t& ga
           if (misal)
             ldStFaultAddr_ = va2;
           else
-            std::cerr << "Error: Warning: hart-id= " << hartId() << " tag=" << instCounter_
+            std::cerr << "Error: hart-id= " << hartId() << " tag=" << instCounter_
                       << " injected exception pa does not match instruction data pa.\n";
         }
       return injectException_;
@@ -2166,7 +2166,7 @@ Hart<URV>::deviceRead(uint64_t pa, unsigned size, uint64_t& val)
       uint32_t val32 = 0;
       if (not aplic_->read(pa, size, val32))
         {
-          std::cerr << "Error: Warning: unsupported APLIC read: address = 0x" <<
+          std::cerr << "Error: unsupported APLIC read: address = 0x" <<
             std::hex << pa << std::dec << ", size = " << size << " bytes\n";
         }
       val = val32;
@@ -2208,7 +2208,7 @@ Hart<URV>::deviceWrite(uint64_t pa, STORE_TYPE storeVal)
       uint32_t val32 = storeVal;
       if (not aplic_->write(pa, sizeof(storeVal), val32))
         {
-          std::cerr << "Error: Warning: unsupported APLIC write: address = 0x" <<
+          std::cerr << "Error: unsupported APLIC write: address = 0x" <<
             std::hex << pa << std::dec << ", size = " << sizeof(storeVal) <<
             " bytes, data = 0x" << std::hex << uint64_t(storeVal) << std::dec << "\n";
         }
@@ -10010,7 +10010,7 @@ Hart<URV>::enterDebugMode_(DebugModeCause cause, URV pc)
     cancelLr(CancelLrCause::ENTER_DEBUG);  // Lose LR reservation.
 
   if (debugMode_)
-    std::cerr << "Error: Warning: Entering debug-mode while in debug-mode\n";
+    std::cerr << "Error: Entering debug-mode while in debug-mode\n";
   debugMode_ = true;
   csRegs_.enterDebug(true);
   enteredDebugMode_ = (cause == DebugModeCause::EBREAK) or
