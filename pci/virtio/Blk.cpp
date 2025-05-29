@@ -50,7 +50,7 @@ Blk::operator()(unsigned vq)
       // order of descriptors is header, buffer, status
       if ((reads.size() + writes.size()) != 3)
         {
-          std::cerr << "Unexpected descriptors for virtio-blk (expected 3): " << reads.size() + writes.size() << std::endl;
+          std::cerr << "Error: Unexpected descriptors for virtio-blk (expected 3): " << reads.size() + writes.size() << std::endl;
           break;
         }
 

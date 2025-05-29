@@ -52,11 +52,11 @@ Cache::Cache(uint64_t totalSize, unsigned lineSize, unsigned setSize)
 
 Cache::~Cache()
 {
-  std::cerr << "Cache access: " << accesses_ << '\n';
-  std::cerr << "Cache hits: " << hits_ << '\n';
+  std::cerr << "Error: Cache access: " << accesses_ << '\n';
+  std::cerr << "Error: Cache hits: " << hits_ << '\n';
 
   double ratio = accesses_ == 0? 0. : double(hits_)/double(accesses_);
-  std::cerr << "Hit ratio: " << ratio << '\n';
+  std::cerr << "Error: Hit ratio: " << ratio << '\n';
 }
 
 
@@ -90,7 +90,7 @@ Cache::saveSnapshot(const std::string& path) const
 
   if (not ofs)
     {
-      std::cerr << "Cache::saveSnapshot failed - cannot open " << path << " for write\n";
+      std::cerr << "Error: Cache::saveSnapshot failed - cannot open " << path << " for write\n";
       return false;
     }
 
@@ -106,7 +106,7 @@ Cache::saveSnapshot(const std::string& path) const
 
   if (not ofs)
     {
-      std::cerr << "Cache::saveSnapshot failed to write all line addresses\n";
+      std::cerr << "Error: Cache::saveSnapshot failed to write all line addresses\n";
       return false;
     }
 
@@ -120,7 +120,7 @@ Cache::loadSnapshot(const std::string& path)
   std::ifstream ifs(path);
   if (not ifs)
     {
-      std::cerr << "Cache::loadSnapshot failed - cannot open " << path << " for read\n";
+      std::cerr << "Error: Cache::loadSnapshot failed - cannot open " << path << " for read\n";
       return false;
     }
 
@@ -133,7 +133,7 @@ Cache::loadSnapshot(const std::string& path)
         break;
       else
         {
-          std::cerr << "Cache::loadSnapshot failed to load " << path << "\n";
+          std::cerr << "Error: Cache::loadSnapshot failed to load " << path << "\n";
           return false;
         }
     }

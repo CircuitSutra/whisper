@@ -525,9 +525,9 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
 	case OT::CsReg:  return regNum + csRegOffset_;
 	case OT::VecReg: return regNum + vecRegOffset_;
 	case OT::Imm:
-	case OT::None:   assert(0); return ~unsigned(0);
+	case OT::None:   assert(0 && "Error: Assertion failed"); return ~unsigned(0);
 	}
-      assert(0);
+      assert(0 && "Error: Assertion failed");
       return ~unsigned(0);
     }
 
@@ -550,7 +550,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
             val = p.second;
             return;
           }
-      assert(0);
+      assert(0 && "Error: Assertion failed");
     }
 
     /// Get from the producing packet, the value of the vector register with the given
@@ -580,7 +580,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
             }
         }
       
-      assert(0);
+      assert(0 && "Error: Assertion failed");
     }
 
     /// Save hart register values corresponding to packet operands in prevVal.  Return

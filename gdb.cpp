@@ -169,7 +169,7 @@ receivePacketFromGdb(int fd, std::string& packet)
 
       if (sum != pacSum)
         {
-          std::cerr << "Bad checksum form gdb: "
+          std::cerr << "Error: Bad checksum form gdb: "
                     << (boost::format("%02x v %02x") % unsigned(sum) %
                         unsigned(pacSum))
                     << '\n';
@@ -435,7 +435,7 @@ processXferQuery(const std::string& packet, WdRiscv::Hart<URV>& hart,
   unsigned offset = 0, length = 0;
   if (sscanf(ol.c_str(), "%x,%x", &offset, &length) != 2)
     {
-      std::cerr << "Malformed qXfer request: " << packet << '\n';
+      std::cerr << "Error: Malformed qXfer request: " << packet << '\n';
       reply << "";
       return;
     }
@@ -728,7 +728,7 @@ handleExceptionForGdb(WdRiscv::Hart<URV>& hart, int fd)
             processXferQuery(packet, hart, reply);
           else
             {
-              std::cerr << "Unhandled gdb request: " << packet << '\n';
+              std::cerr << "Error: Unhandled gdb request: " << packet << '\n';
               reply << ""; // Unsupported: Empty response.
             }
           break;
@@ -743,13 +743,13 @@ handleExceptionForGdb(WdRiscv::Hart<URV>& hart, int fd)
 	    }
 	  else
 	    {
-	      std::cerr << "Unhandled gdb request: " << packet << '\n';
+	      std::cerr << "Error: Unhandled gdb request: " << packet << '\n';
 	      reply << ""; // Unsupported: Empty response.
 	    }
 	  break;
 
 	default:
-	  std::cerr << "Unhandled gdb request: " << packet << '\n';
+	  std::cerr << "Error: Unhandled gdb request: " << packet << '\n';
 	  reply << "";   // Unsupported comand: Empty response.
 	}
 

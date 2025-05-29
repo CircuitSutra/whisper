@@ -256,7 +256,7 @@ namespace TT_IMSIC      // TensTorrent Incoming Message Signaled Interrupt Contr
       std::ofstream ofs(filename, std::ios::trunc);
       if (not ofs)
         {
-          std::cerr << "Imsic::saveSnapshot failed - canot open " << filename << " for write\n";
+          std::cerr << "Error: Imsic::saveSnapshot failed - canot open " << filename << " for write\n";
           return false;
         }
 
@@ -309,7 +309,7 @@ namespace TT_IMSIC      // TensTorrent Incoming Message Signaled Interrupt Contr
           if (reg == "p")
             {
               if (val.size() != pending_.size())
-                std::cerr << "Warning: Imsic snapshot loader: Line " << lineNum
+                std::cerr << "Error: Warning: Imsic snapshot loader: Line " << lineNum
                           << ": Mismatched number of interrupt ids specified\n";
 
               unsigned num = std::min(val.size(), pending_.size());
@@ -320,7 +320,7 @@ namespace TT_IMSIC      // TensTorrent Incoming Message Signaled Interrupt Contr
           if (reg == "e")
             {
               if (val.size() != enabled_.size())
-                std::cerr << "Warning: Imsic snapshot loader: Line " << lineNum
+                std::cerr << "Error: Warning: Imsic snapshot loader: Line " << lineNum
                           << ": Mismatched number of interrupt ids specified\n";
 
               unsigned num = std::min(val.size(), pending_.size());

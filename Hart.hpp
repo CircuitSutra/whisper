@@ -2720,7 +2720,7 @@ namespace WdRiscv
       if (pa1 == pa2)
 	{
 	  if (not memory_.read(pa1, value))
-	    assert(0);
+	    assert(0 && "Error: Assertion failed");
 	  if (steeInsec1_)
 	    value = 0;
 	  if (bigEnd_)
@@ -2743,7 +2743,7 @@ namespace WdRiscv
 	      byte = 0;
 	    value |= LOAD_TYPE(byte) << 8*destIx;
 	  }
-	else assert(0);
+	else assert(0 && "Error: Assertion failed");
       for (unsigned i = 0; i < size2; ++i, ++destIx)
 	if (memory_.read(pa2 + i, byte))
 	  {
@@ -2751,7 +2751,7 @@ namespace WdRiscv
 	      byte = 0;
 	    value |= LOAD_TYPE(byte) << 8*destIx;
 	  }
-	else assert(0);
+	else assert(0 && "Error: Assertion failed");
 
       if (bigEnd_)
 	value = util::byteswap(value);
@@ -2768,7 +2768,7 @@ namespace WdRiscv
 	{
 	  if (not steeInsec1_)
 	    if (not memory_.write(hartIx_, pa1, value))
-	      assert(0);
+	      assert(0 && "Error: Assertion failed");
 	  return;
 	}
       unsigned size = sizeof(value);
@@ -2780,11 +2780,11 @@ namespace WdRiscv
 	  if (not steeInsec1_)
 	    for (unsigned i = 0; i < size1; ++i, value >>= 8)
 	      if (not memory_.write(hartIx_, pa1 + i, uint8_t(value & 0xff)))
-	      assert(0);
+	      assert(0 && "Error: Assertion failed");
 	  if (not steeInsec2_)
 	    for (unsigned i = 0; i < size2; ++i, value >>= 8)
 	      if (not memory_.write(hartIx_, pa2 + i, uint8_t(value & 0xff)))
-		assert(0);
+		assert(0 && "Error: Assertion failed");
 	}
     }
 

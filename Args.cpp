@@ -165,7 +165,7 @@ Args::collectCommandLineValues(const boost::program_options::variables_map& varM
       if (not parseCmdLineNumber("alarm", numStr, this->alarmInterval))
         ok = false;
       else if (this->alarmInterval.has_value() and *this->alarmInterval == 0)
-        std::cerr << "Warning: Zero alarm period ignored.\n";
+        std::cerr << "Error: Warning: Zero alarm period ignored.\n";
     }
 
   if (varMap.count("branchwindow"))
@@ -213,7 +213,7 @@ Args::collectCommandLineValues(const boost::program_options::variables_map& varM
       auto numStr = varMap["xlen"].as<std::string>();
       if (not parseCmdLineNumber("xlen", numStr, this->xlen))
         ok = false;
-      std::cerr << "Command line option --xlen is deprecated.\n";
+      std::cerr << "Error: Command line option --xlen is deprecated.\n";
     }
 
   if (varMap.count("noppo"))
@@ -629,7 +629,7 @@ Args::parseCmdLineArgs(std::span<char*> argv)
 
   catch (std::exception& exp)
     {
-      std::cerr << "Failed to parse command line args: " << exp.what() << '\n';
+      std::cerr << "Error: Failed to parse command line args: " << exp.what() << '\n';
       return false;
     }
 
@@ -687,7 +687,7 @@ Args::parseCmdLineNumber(const std::string& option, const std::string& numberStr
 
       if (bad)
 	{
-	  std::cerr << "parseCmdLineNumber: Number too large: " << numberStr
+	  std::cerr << "Error: parseCmdLineNumber: Number too large: " << numberStr
 		    << '\n';
 	  return false;
 	}
@@ -696,7 +696,7 @@ Args::parseCmdLineNumber(const std::string& option, const std::string& numberStr
     }
 
   if (not good)
-    std::cerr << "Invalid command line " << option << " value: " << numberStr
+    std::cerr << "Error: Invalid command line " << option << " value: " << numberStr
 	      << '\n';
   return good;
 }

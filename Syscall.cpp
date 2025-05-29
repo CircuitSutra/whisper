@@ -676,7 +676,7 @@ Syscall<URV>::emulateSemihost(unsigned hartIx, URV a0, URV a1)
       return SRV(-1);
     }
 
-  std::cerr << "Warning: Unimplemented semi-hosting syscall \"" << names[op]
+  std::cerr << "Error: Warning: Unimplemented semi-hosting syscall \"" << names[op]
             << "\" number " << a0 << '\n';
 
   return SRV(-1);
@@ -1448,7 +1448,7 @@ Syscall<URV>::emulate(unsigned hartIx, unsigned syscallIx, URV a0, URV a1, URV a
             return count;
           }
 
-        std::cerr << "Warning: unimplemented futex operation " << a1 << std::endl;
+        std::cerr << "Error: Warning: unimplemented futex operation " << a1 << std::endl;
         return 0;
       }
 #endif
@@ -1832,7 +1832,7 @@ Syscall<URV>::emulate(unsigned hartIx, unsigned syscallIx, URV a0, URV a1, URV a
   if (syscallIx < reportedCalls.size() and reportedCalls.at(syscallIx))
     return -1;
 
-  std::cerr << "Warning: Unimplemented syscall \"" << names[syscallIx] << "\" number "
+  std::cerr << "Error: Warning: Unimplemented syscall \"" << names[syscallIx] << "\" number "
             << syscallIx << "\n";
 
    if (syscallIx < reportedCalls.size())
@@ -1848,7 +1848,7 @@ Syscall<URV>::saveFileDescriptors(const std::string& path)
   std::ofstream ofs(path, std::ios::trunc);
   if (not ofs)
     {
-      std::cerr << "Syscall::saveFileDescriptors: Failed to open " << path << " for write\n";
+      std::cerr << "Error: Syscall::saveFileDescriptors: Failed to open " << path << " for write\n";
       return false;
     }
 
@@ -1873,7 +1873,7 @@ Syscall<URV>::loadFileDescriptors(const std::string& path)
   std::ifstream ifs(path);
   if (not ifs)
     {
-      std::cerr << "Syscall::loadFileDescriptors: Failed to open "
+      std::cerr << "Error: Syscall::loadFileDescriptors: Failed to open "
                 << path << " for read\n";
       return false;
     }
@@ -1892,7 +1892,7 @@ Syscall<URV>::loadFileDescriptors(const std::string& path)
       bool isRead = false;
       if (not (iss >> fdPath >> fd >> position >> isRead))
         {
-          std::cerr << "File " << path << ", Line " << lineNum << ": "
+          std::cerr << "Error: File " << path << ", Line " << lineNum << ": "
                     << "Failed to parse line\n";
           return false;
         }
@@ -1902,14 +1902,14 @@ Syscall<URV>::loadFileDescriptors(const std::string& path)
           int newFd = open(fdPath.c_str(), O_RDONLY);
           if (newFd < 0)
             {
-              std::cerr << "Hart::loadFileDecriptors: Failed to open file "
+              std::cerr << "Error: Hart::loadFileDecriptors: Failed to open file "
                         << fdPath << " for read\n";
               errors++;
               continue;
             }
           if (lseek(newFd, position, SEEK_SET) == off_t(-1))
             {
-              std::cerr << "Hart::loadFileDecriptors: Failed to seek on file "
+              std::cerr << "Error: Hart::loadFileDecriptors: Failed to seek on file "
                         << fdPath << '\n';
               errors++;
               continue;
@@ -1927,7 +1927,7 @@ Syscall<URV>::loadFileDescriptors(const std::string& path)
               newFd = open(fdPath.c_str(), O_RDWR);
               if (lseek(newFd, position, SEEK_SET) == off_t(-1))
                 {
-                  std::cerr << "Hart::loadFileDecriptors: Failed to seek on file "
+                  std::cerr << "Error: Hart::loadFileDecriptors: Failed to seek on file "
                             << fdPath << '\n';
                   errors++;
                   continue;
@@ -1938,7 +1938,7 @@ Syscall<URV>::loadFileDescriptors(const std::string& path)
 
           if (newFd < 0)
             {
-              std::cerr << "Hart::loadFileDecriptors: Failed to open file "
+              std::cerr << "Error: Hart::loadFileDecriptors: Failed to open file "
                         << fdPath << " for write\n";
               errors++;
               continue;
@@ -1976,7 +1976,7 @@ Syscall<URV>::mmap_alloc(uint64_t size)
       return addr;
     }
 
-  std::cerr << "Whisper: Target program failed in mmap: size=" << size << '\n';
+  std::cerr << "Error: Whisper: Target program failed in mmap: size=" << size << '\n';
   return uint64_t(-1);
 }
 
@@ -2127,7 +2127,7 @@ Syscall<URV>::getUsedMemBlocks(uint64_t sp, std::vector<AddrLen>& usedBlocks)
   const uint64_t maxStackSize = UINT64_C(1024)*1024*256;
   uint64_t stackSize = memSize - sp + 4096;;
   if (stackSize > maxStackSize)
-    std::cerr << "Info: detUsedMemBlocks: Stack size too large: " << stackSize << "\n";
+    std::cerr << "Error: Info: detUsedMemBlocks: Stack size too large: " << stackSize << "\n";
   
   usedBlocks.emplace_back(memSize - stackSize, stackSize);
 }
@@ -2141,7 +2141,7 @@ Syscall<URV>::saveMmap(const std::string & filename)
   std::ofstream ofs(filename, std::ios::trunc);
   if (not ofs)
     {
-      std::cerr << "Syscall::saveMmap failed - cannot open " << filename
+      std::cerr << "Error: Syscall::saveMmap failed - cannot open " << filename
                 << " for write\n";
       return false;
     }
@@ -2161,7 +2161,7 @@ Syscall<URV>::loadMmap(const std::string & filename)
   std::ifstream ifs(filename);
   if (not ifs)
     {
-      std::cerr << "Syscall::loadMmap failed - cannot open " << filename
+      std::cerr << "Error: Syscall::loadMmap failed - cannot open " << filename
                 << " for read\n";
       return false;
     }

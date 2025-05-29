@@ -53,13 +53,13 @@ class Pci {
     {
       if (bus >= buses_.size())
         {
-          std::cerr << "bus location not instantiated" << std::endl;
+          std::cerr << "Error: bus location not instantiated" << std::endl;
           return false;
         }
 
       if (slot >= buses_.at(bus).size())
         {
-          std::cerr << "slot location not instantiated" << std::endl;
+          std::cerr << "Error: slot location not instantiated" << std::endl;
           return false;
         }
 
@@ -91,7 +91,7 @@ class Pci {
                   continue;
                 }
 
-              std::cerr << "Ran out of MMIO memory" << std::endl;
+              std::cerr << "Error: Ran out of MMIO memory" << std::endl;
               return false;
             }
 
@@ -101,7 +101,7 @@ class Pci {
 
       if (not dev->setup())
         {
-          std::cerr << "Failed to setup PCI device" << std::endl;
+          std::cerr << "Error: Failed to setup PCI device" << std::endl;
           return false;
         }
 

@@ -4271,7 +4271,7 @@ Hart<URV>::vwredsum_vs(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
   vecRegs_.write(vd, scalarElemIx, scalarElemGroupX8, result);
   ElementWidth dsew;
   if (not vecRegs_.doubleSew(vecRegs_.elemWidth(), dsew))
-    assert(0);
+    assert(0 && "Error: Assertion failed");
 
   unsigned destElems = vecRegs_.singleMax(dsew);
   for (unsigned ix = 1; ix < destElems; ++ix)
@@ -11151,7 +11151,7 @@ Hart<URV>::vectorLoad(const DecodedInst* di, ElementWidth eew, bool faultFirst)
         {
 	  uint64_t data = 0;
           if (not readForLoad<ELEM_TYPE>(di, addr, pa1, pa2, data, ix))
-	    assert(0);
+	    assert(0 && "Error: Assertion failed");
 	  elem = data;
           ldStInfo.setLastElem(pa1, pa2, elem);
 
@@ -11346,7 +11346,7 @@ Hart<URV>::vectorStore(const DecodedInst* di, ElementWidth eew)
       if (cause == ExceptionCause::NONE and not triggerTripped_)
 	{
 	  if (not writeForStore(addr, pa1, pa2, elem))
-	    assert(0);
+	    assert(0 && "Error: Assertion failed");
 	  ldStInfo.setLastElem(pa1, pa2, elem);
 	}
       else
@@ -11589,7 +11589,7 @@ Hart<URV>::vectorLoadWholeReg(const DecodedInst* di, ElementWidth eew)
 	{
 	  uint64_t data = 0;
 	  if (not readForLoad<ELEM_TYPE>(di, addr, pa1, pa2, data, ix))
-	    assert(0);
+	    assert(0 && "Error: Assertion failed");
 	  ELEM_TYPE elem = data;
 
 #ifndef FAST_SLOPPY
@@ -11753,7 +11753,7 @@ Hart<URV>::vectorStoreWholeReg(const DecodedInst* di)
       if (cause == ExceptionCause::NONE and not triggerTripped_)
 	{
 	  if (not writeForStore(addr, pa1, pa2, val))
-	    assert(0);
+	    assert(0 && "Error: Assertion failed");
 	  bool skip = false; // Not masked off.
 	  ldStInfo.addElem(VecLdStElem{addr, pa1, pa2, val, ix, skip});
 	}
@@ -11970,7 +11970,7 @@ Hart<URV>::vectorLoadStrided(const DecodedInst* di, ElementWidth eew)
         {
 	  uint64_t data = 0;
 	  if (not readForLoad<ELEM_TYPE>(di, addr, pa1, pa2, data, ix))
-	    assert(0);
+	    assert(0 && "Error: Assertion failed");
 	  elem = data;
           ldStInfo.setLastElem(pa1, pa2, elem);
         }
@@ -12134,7 +12134,7 @@ Hart<URV>::vectorStoreStrided(const DecodedInst* di, ElementWidth eew)
       if (cause == ExceptionCause::NONE and not triggerTripped_)
 	{
 	  if (not writeForStore(addr, pa1, pa2, val))
-	    assert(0);
+	    assert(0 && "Error: Assertion failed");
 	  ldStInfo.setLastElem(pa1, pa2, val);
 	}
       else
@@ -12325,7 +12325,7 @@ Hart<URV>::vectorLoadIndexed(const DecodedInst* di, ElementWidth offsetEew)
 	{
 	  uint64_t data = 0;
 	  if (not readForLoad<ELEM_TYPE>(di, vaddr, pa1, pa2, data, ix))
-	    assert(0);
+	    assert(0 && "Error: Assertion failed");
 	  elem = data;
           ldStInfo.setLastElem(pa1, pa2, elem);
 	  vecRegs_.write(vd, ix, groupX8, elem);
@@ -12543,7 +12543,7 @@ Hart<URV>::vectorStoreIndexed(const DecodedInst* di, ElementWidth offsetEew)
 
 	  if (cause == ExceptionCause::NONE and not triggerTripped_)
 	    if (not writeForStore(vaddr, pa1, pa2, x))
-	      assert(0);
+	      assert(0 && "Error: Assertion failed");
 	  data = x;
 	}
       else if (elemSize == 2)
@@ -12560,7 +12560,7 @@ Hart<URV>::vectorStoreIndexed(const DecodedInst* di, ElementWidth offsetEew)
 
 	  if (cause == ExceptionCause::NONE and not triggerTripped_)
 	    if (not writeForStore(vaddr, pa1, pa2, x))
-	      assert(0);
+	      assert(0 && "Error: Assertion failed");
 	  data = x;
 	}
       else if (elemSize == 4)
@@ -12577,7 +12577,7 @@ Hart<URV>::vectorStoreIndexed(const DecodedInst* di, ElementWidth offsetEew)
 
 	  if (cause == ExceptionCause::NONE and not triggerTripped_)
 	    if (not writeForStore(vaddr, pa1, pa2, x))
-	      assert(0);
+	      assert(0 && "Error: Assertion failed");
 	  data = x;
 	}
       else if (elemSize == 8)
@@ -12594,11 +12594,11 @@ Hart<URV>::vectorStoreIndexed(const DecodedInst* di, ElementWidth offsetEew)
 
 	  if (cause == ExceptionCause::NONE)
 	    if (not writeForStore(vaddr, pa1, pa2, x))
-	      assert(0);
+	      assert(0 && "Error: Assertion failed");
 	  data = x;
 	}
       else
-	assert(0);
+	assert(0 && "Error: Assertion failed");
 
       if (cause != ExceptionCause::NONE or triggerTripped_)
         {
@@ -12845,7 +12845,7 @@ Hart<URV>::vectorLoadSeg(const DecodedInst* di, ElementWidth eew,
             {
 	      uint64_t data = 0;
 	      if (not readForLoad<ELEM_TYPE>(di, faddr, pa1, pa2, data, ix, field))
-		assert(0);
+		assert(0 && "Error: Assertion failed");
 	      elem = data;
               ldStInfo.setLastElem(pa1, pa2, elem);
             }
@@ -13072,7 +13072,7 @@ Hart<URV>::vectorStoreSeg(const DecodedInst* di, ElementWidth eew,
             {
               if (vecRegs_.partialSegUpdate_)
                 if (not writeForStore(faddr, pa1, pa2, val))
-                  assert(0);
+                  assert(0 && "Error: Assertion failed");
               ldStInfo.setLastElem(pa1, pa2, val);
             }
           else
@@ -13097,7 +13097,7 @@ Hart<URV>::vectorStoreSeg(const DecodedInst* di, ElementWidth eew,
 
               ELEM_TYPE val = ELEM_TYPE(elem.data_);
               if (not writeForStore(elem.va_, elem.pa_, elem.pa2_, val))
-                assert(0);
+                assert(0 && "Error: Assertion failed");
             }
         }
     }
@@ -13459,7 +13459,7 @@ Hart<URV>::vectorLoadSegIndexed(const DecodedInst* di, ElementWidth offsetEew,
             {
               uint64_t data = 0;
               if (not readForLoad<ELEM_TYPE>(di, faddr, pa1, pa2, data, ix, field))
-                assert(0);
+                assert(0 && "Error: Assertion failed");
               elem = data;
               ldStInfo.setLastElem(pa1, pa2, elem);
 
@@ -13652,7 +13652,7 @@ Hart<URV>::vectorStoreSegIndexed(const DecodedInst* di, ElementWidth offsetEew,
             {
               if (vecRegs_.partialSegUpdate_)
                 if (not writeForStore(faddr, pa1, pa2, val))
-                  assert(0);
+                  assert(0 && "Error: Assertion failed");
               ldStInfo.setLastElem(pa1, pa2, val);
             }
           else
@@ -13677,7 +13677,7 @@ Hart<URV>::vectorStoreSegIndexed(const DecodedInst* di, ElementWidth offsetEew,
 
               ELEM_TYPE val = ELEM_TYPE(elem.data_);
               if (not writeForStore(elem.va_, elem.pa_, elem.pa2_, val))
-                assert(0);
+                assert(0 && "Error: Assertion failed");
             }
         }
     }
@@ -19725,7 +19725,7 @@ Hart<URV>::vfwredusum_vs(unsigned vd, unsigned vs1, unsigned vs2, unsigned group
 
   ElementWidth dsew = vecRegs_.elemWidth();
   if (not vecRegs_.doubleSew(vecRegs_.elemWidth(), dsew))
-    assert(0);
+    assert(0 && "Error: Assertion failed");
 
   ELEM_TYPE e1{};
 
@@ -19888,7 +19888,7 @@ Hart<URV>::vfwredosum_vs(unsigned vd, unsigned vs1, unsigned vs2, unsigned group
   vecRegs_.write(vd, scalarElemIx, scalarElemGroupX8, result);
   ElementWidth dsew;
   if (not vecRegs_.doubleSew(vecRegs_.elemWidth(), dsew))
-    assert(0);
+    assert(0 && "Error: Assertion failed");
 
   unsigned destElems = vecRegs_.singleMax(dsew);
   for (unsigned ix = 1; ix < destElems; ++ix)

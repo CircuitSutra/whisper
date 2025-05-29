@@ -99,8 +99,8 @@ main(int argc, char* argv[])
 	}
       else
         {
-          std::cerr << "Invalid register width: " << regWidth;
-          std::cerr << " -- expecting 32 or 64\n";
+          std::cerr << "Error: Invalid register width: " << regWidth;
+          std::cerr << "Error:  -- expecting 32 or 64\n";
           ok = false;
         }
     }
