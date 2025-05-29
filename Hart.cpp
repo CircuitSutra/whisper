@@ -11375,9 +11375,15 @@ Hart<URV>::imsicAccessible(const DecodedInst* di, CsrNumber csr, PrivilegeMode m
               return false;
             }
 
+          bool isVs = (privMode_ == PM::Supervisor and virtMode_);  // VS mode
+          bool isMhs = (privMode_ != PM::User and not virtMode_);   // M or HS mode
+
           if (TT_IMSIC::Imsic::isFileSelReserved(sel))
             {
-              if (not virtMode or not guestFile)
+              // Sec 2.3 of interrupt spec: attempts from M-mode or HS-mode to access
+              // vsireg, or from VS-mode to access sireg (really vsireg), should
+              // preferably raise an illegal instruction exception.
+              if ((isMhs and csr == CN::VSIREG) or (isVs and csr == CN::SIREG))
                 illegalInst(di);
               else
                 virtualInst(di);
@@ -11386,7 +11392,12 @@ Hart<URV>::imsicAccessible(const DecodedInst* di, CsrNumber csr, PrivilegeMode m
 
           if (not TT_IMSIC::Imsic::isFileSelAccessible<URV>(sel, guestFile))
             {
-              if (virtMode)
+              // Sec 2.3 of interrupt spec: attempts from M-mode or HS-mode to access
+              // vsireg raise an illegal instruction exception, and attempts from VS-mode
+              // to access sireg (really vsireg) raise a virtual instruction exception.
+              if (isMhs and csr == CN::VSIREG)
+                illegalInst(di);
+              else if (isVs and csr == CN::SIREG)
                 virtualInst(di);
               else
                 illegalInst(di);
@@ -11396,7 +11407,7 @@ Hart<URV>::imsicAccessible(const DecodedInst* di, CsrNumber csr, PrivilegeMode m
 
         // From section 5.3, When mvien.SEIP is set, 0x70-0xFF are reserved and stopei
         // are reserved from S-mode.
-        bool isS = privMode_ == PrivilegeMode::Supervisor and not virtMode_;
+        bool isS = privMode_ == PM::Supervisor and not virtMode_;
         if (isS and (csr == CN::STOPEI or csr == CN::SIREG))
           {
             URV mvien = csRegs_.peekMvien();
