@@ -11375,13 +11375,14 @@ Hart<URV>::imsicAccessible(const DecodedInst* di, CsrNumber csr, PrivilegeMode m
               return false;
             }
 
+          bool isVs = (privMode_ == PM::Supervisor and virtMode_);  // VS mode
+          bool isMhs = (privMode_ != PM::User and not virtMode_);   // M or HS mode
+
           if (TT_IMSIC::Imsic::isFileSelReserved(sel))
             {
               // Sec 2.3 of interrupt spec: attempts from M-mode or HS-mode to access
               // vsireg, or from VS-mode to access sireg (really vsireg), should
               // preferably raise an illegal instruction exception.
-              bool isVs = (privMode_ == PM::Supervisor and virtMode_);
-              bool isMhs = (privMode_ != PM::User and not virtMode_);
               if ((isMhs and csr == CN::VSIREG) or (isVs and csr == CN::SIREG))
                 illegalInst(di);
               else
@@ -11391,7 +11392,12 @@ Hart<URV>::imsicAccessible(const DecodedInst* di, CsrNumber csr, PrivilegeMode m
 
           if (not TT_IMSIC::Imsic::isFileSelAccessible<URV>(sel, guestFile))
             {
-              if (virtMode)
+              // Sec 2.3 of interrupt spec: attempts from M-mode or HS-mode to access
+              // vsireg raise an illegal instruction exception, and attempts from VS-mode
+              // to access sireg (really vsireg) raise a virtual instruction exception.
+              if (isMhs and csr == CN::VSIREG)
+                illegalInst(di);
+              else if (isVs and csr == CN::SIREG)
                 virtualInst(di);
               else
                 illegalInst(di);
