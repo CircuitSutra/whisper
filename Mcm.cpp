@@ -1783,7 +1783,7 @@ Mcm<URV>::printReadMismatch(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64
 
   if (type)
     cerr << "Error:  type=" << type;
-  cerr << "Error: \n';
+  cerr << "Error: \n";
 }
 
 
