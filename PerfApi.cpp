@@ -648,11 +648,11 @@ PerfApi::checkExecVsRetire(const Hart64& hart, const InstrPac& packet) const
             unsigned count = retire.size();
             for (unsigned j = 0; j < count; ++j)
               cerr << cerr.width(2) << std::setfill('0') << unsigned(retire.at(count-1-j));
-            cerr << "Error: \n';
+            cerr << "Error: \n";
             cerr << "Error:  exec:   0x";
             for (unsigned j = 0; j < count; ++j)
               cerr << cerr.width(2) << std::setfill('0') << unsigned(exec.at(count-1-j));
-            cerr << "Error: \n';
+            cerr << "Error: \n";
             return false;
           }
     }
