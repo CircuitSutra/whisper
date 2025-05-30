@@ -192,7 +192,7 @@ Session<URV>::configureSystem(const Args& args, const HartConfig& config)
   if (linux and checkForOpenMp(args))
     {
       if (args.verbose)
-        std::cerr << "Error: Found OpenMP in executable. To emulate clone, we suspend "
+        std::cerr << "Info: Found OpenMP in executable. To emulate clone, we suspend "
                      "all harts other than hart 0.\n";
       for (unsigned i = 1; i < system.hartCount(); ++i)
         {
@@ -471,7 +471,7 @@ Session<URV>::checkForNewlibOrLinux(const Args& args, bool& newlib, bool& linux)
   if (args.raw)
     {
       if (args.newlib or args.linux)
-	std::cerr << "Error: Raw mode not compatible with newlib/linux. Sticking"
+	std::cerr << "Warning: Raw mode not compatible with newlib/linux. Sticking"
 		  << " with raw mode.\n";
       return;
     }
@@ -496,14 +496,14 @@ Session<URV>::checkForNewlibOrLinux(const Args& args, bool& newlib, bool& linux)
     }
 
   if (linux and args.verbose)
-    std::cerr << "Error: Detected Linux symbol in ELF\n";
+    std::cerr << "Info: Detected Linux symbol in ELF\n";
 
   if (newlib and args. verbose)
-    std::cerr << "Error: Detected Newlib symbol in ELF\n";
+    std::cerr << "Info: Detected Newlib symbol in ELF\n";
 
   if (newlib and linux)
     {
-      std::cerr << "Error: Fishy: Both Newlib and Linux symbols present in "
+      std::cerr << "Warning: Fishy: Both Newlib and Linux symbols present in "
 		<< "ELF file(s). Doing Linux emulation.\n";
       newlib = false;
     }
@@ -534,7 +534,7 @@ Session<URV>::determineIsa(const HartConfig& config, const Args& args, bool clib
   isa.clear();
 
   if (not args.isa.empty() and args.elfisa)
-    std::cerr << "Error: Both --isa and --elfisa present: Using --isa\n";
+    std::cerr << "Info: Both --isa and --elfisa present: Using --isa\n";
 
   isa = args.isa;
 
@@ -551,14 +551,14 @@ Session<URV>::determineIsa(const HartConfig& config, const Args& args, bool clib
   if (isa.empty() and clib)
     {
       if (args.verbose)
-	std::cerr << "Error: No ISA specified, using imacfdv_zicsr extensions for newlib/linux\n";
+	std::cerr << "Info: No ISA specified, using imacfdv_zicsr extensions for newlib/linux\n";
       isa = "imacfdv_zicsr";
     }
 
   if (isa.empty() and not args.raw)
     {
       if (args.verbose)
-	std::cerr << "Error: No ISA specified: Defaulting to imacfd_zicsr\n";
+	std::cerr << "Info: No ISA specified: Defaulting to imacfd_zicsr\n";
       isa = "imacfd_zicsr";
     }
 
@@ -589,13 +589,13 @@ Session<URV>::getElfFilesIsaString(const Args& args, std::string& isaString)
 
   for (const auto& tag : archTags)
     if (tag != ref)
-      std::cerr << "Error: different ELF files have different ISA strings: "
+      std::cerr << "Warning: different ELF files have different ISA strings: "
 		<< tag << " and " << ref << '\n';
 
   isaString = ref;
 
   if (args.verbose)
-    std::cerr << "Error: ISA string from ELF file(s): " << isaString << '\n';
+    std::cerr << "Info: ISA string from ELF file(s): " << isaString << '\n';
 
   return errors == 0;
 }
@@ -613,7 +613,7 @@ sanitizeStackPointer(Hart<URV>& hart, bool verbose)
     {
       size_t spValue = memSize - 128;
       if (verbose)
-	std::cerr << "Error: Setting stack pointer to 0x" << std::hex << spValue
+	std::cerr << "Info: Setting stack pointer to 0x" << std::hex << spValue
 		  << std::dec << " for newlib/linux\n";
       hart.pokeIntReg(IntRegNumber::RegSp, spValue);
     }
@@ -688,7 +688,7 @@ applyCmdLineRegInit(const Args& args, Hart<URV>& hart)
 	}
 
       if (args.verbose)
-	std::cerr << "Error: Setting register " << regName << " to command line "
+	std::cerr << "Info: Setting register " << regName << " to command line "
 		  << "value 0x" << std::hex << val << std::dec << '\n';
     }
 
@@ -774,7 +774,7 @@ Session<URV>::applyCmdLineArgs(const Args& args, Hart<URV>& hart,
     {
       if (not args.stdoutFile.empty() or not args.stderrFile.empty() or
 	  not args.stdinFile.empty())
-	std::cerr << "Error: Info: Options --stdin/--stdout/--stderr are ignored with --loadfrom\n";
+	std::cerr << "Info: Options --stdin/--stdout/--stderr are ignored with --loadfrom\n";
     }
   else
     {
@@ -872,7 +872,7 @@ Session<URV>::applyCmdLineArgs(const Args& args, Hart<URV>& hart,
 	}
       else if (args.expandedTargets.front().size() > 1 or not args.envVars.empty())
 	{
-	  std::cerr << "Error: Target program options or env vars present which requires\n"
+	  std::cerr << "Warning: Target program options or env vars present which requires\n"
 		    << "         the use of --newlib/--linux. Options ignored.\n";
 	}
     }
@@ -914,10 +914,10 @@ Session<URV>::applyCmdLineArgs(const Args& args, Hart<URV>& hart,
       uint64_t low = args.steesr.at(0), high = args.steesr.at(1);
       if ((low % hart.pageSize()) != 0 or (high % hart.pageSize()) != 0)
 	{
-	  std::cerr << "Error: STEE secure region bounds are not page aligned\n";
+	  std::cerr << "Warning: STEE secure region bounds are not page aligned\n";
 	  low -= low % hart.pageSize();	  
 	  high -= high % hart.pageSize();
-	  std::cerr << "Error: STEE secure region bounds changed to: [0x" << std::hex
+	  std::cerr << "Warning: STEE secure region bounds changed to: [0x" << std::hex
 		    << low << ", " << high << "]\n" << std::dec;
 	}
       hart.configSteeSecureRegion(args.steesr.at(0), args.steesr.at(1));
@@ -938,7 +938,7 @@ Session<URV>::applyCmdLineArgs(const Args& args, Hart<URV>& hart,
       if (std::find(periods.begin(), periods.end(), 0)
                       != periods.end())
         {
-          std::cerr << "Error: Snapshot periods of 0 are ignored\n";
+          std::cerr << "Warning: Snapshot periods of 0 are ignored\n";
           periods.erase(std::remove(periods.begin(), periods.end(), 0), periods.end());
         }
 
@@ -946,7 +946,7 @@ Session<URV>::applyCmdLineArgs(const Args& args, Hart<URV>& hart,
       if (it != periods.end())
         {
           periods.erase(it, periods.end());
-          std::cerr << "Error: Duplicate snapshot periods not supported, removed duplicates\n";
+          std::cerr << "Warning: Duplicate snapshot periods not supported -- removing duplicates\n";
         }
     }
 
@@ -1144,7 +1144,7 @@ Session<URV>::runServerShm(const std::string& serverFile)
 static void
 kbdInterruptHandler(int)
 {
-  std::cerr << "Error: keyboard interrupt\n";
+  std::cerr << "Info: keyboard interrupt\n";
 }
 
 
@@ -1255,7 +1255,7 @@ Session<URV>::run(const Args& args)
     {
       stepWinLo = args.deterministic.at(0);
       stepWinHi = args.deterministic.at(1);
-      std::cerr << "Error: Deterministic multi-hart run with seed: " << seed
+      std::cerr << "Info: Deterministic multi-hart run with seed: " << seed
                 << " and steps distribution between " << stepWinLo << " and " << stepWinHi << "\n";
     }
 
@@ -1309,7 +1309,7 @@ getXlenFromElfFile(const Args& args, unsigned& xlen)
   xlen = is32 ? 32 : 64;
 
   if (args.verbose)
-    std::cerr << "Error: Setting xlen to " << xlen << " based on ELF file " <<  elfPath << '\n';
+    std::cerr << "Info: Setting xlen to " << xlen << " based on ELF file " <<  elfPath << '\n';
   return true;
 }
 
@@ -1328,13 +1328,13 @@ Session<URV>::determineRegisterWidth(const Args& args, const HartConfig& config)
       else if (args.isa.starts_with("rv64"))
 	isaLen = 64;
       else
-	std::cerr << "Error: Command line --isa tag does not start with rv32/rv64\n";
+	std::cerr << "Warning: Command line --isa tag does not start with rv32/rv64\n";
     }
 
   if (isaLen)
     {
       if (args.verbose)
-        std::cerr << "Error: Setting xlen from --isa: " << isaLen << "\n";
+        std::cerr << "Info: Setting xlen from --isa: " << isaLen << "\n";
       return isaLen;
     }
 
@@ -1342,7 +1342,7 @@ Session<URV>::determineRegisterWidth(const Args& args, const HartConfig& config)
   if (args.xlen)
     {
       if (args.verbose)
-        std::cerr << "Error: Setting xlen from --xlen: " << *args.xlen << "\n";
+        std::cerr << "Info: Setting xlen from --xlen: " << *args.xlen << "\n";
       return *args.xlen;
     }
 
@@ -1351,7 +1351,7 @@ Session<URV>::determineRegisterWidth(const Args& args, const HartConfig& config)
   if (config.getXlen(xlen))
     {
       if (args.verbose)
-	std::cerr << "Error: Setting xlen from config file: " << xlen << "\n";
+	std::cerr << "Info: Setting xlen from config file: " << xlen << "\n";
       return xlen;
     }
 
@@ -1359,12 +1359,12 @@ Session<URV>::determineRegisterWidth(const Args& args, const HartConfig& config)
   if (getXlenFromElfFile(args, xlen))
     {
       if (args.verbose)
-	std::cerr << "Error: Setting xlen from ELF file: " << xlen << "\n";
+	std::cerr << "Info: Setting xlen from ELF file: " << xlen << "\n";
       return xlen;
     }
 
   if (args.verbose)
-    std::cerr << "Error: Using default for xlen: " << xlen << "\n";
+    std::cerr << "Info: Using default for xlen: " << xlen << "\n";
   
   return xlen;
 }
@@ -1414,7 +1414,7 @@ Session<URV>::cleanup(const Args& args)
         assert(false && "Not compiled with sparse memory");
       for (const auto& [_, size] : blocks)
         bytes += size;
-      std::cerr << "Error: Used blocks: 0x" << std::hex << bytes << std::endl;
+      std::cerr << "Info: Used blocks: 0x" << std::hex << bytes << std::endl;
     }
 
   if (not args.eorMemDump.empty())
