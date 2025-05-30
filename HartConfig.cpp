@@ -1809,7 +1809,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
     {
       std::string etag = util::join("", "enable_", ztag);
       if (config_ -> contains(etag))
-	cerr << "Error: Config file tag \"" << etag << "\" deprecated: "
+	cerr << "Config file tag \"" << etag << "\" deprecated: "
 	     << "Add extension string \"" << ztag << "\" to \"isa\" tag instead.\n";
     }
 
@@ -1827,7 +1827,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
   tag = "enable_counter_overflow";
   if (config_ ->contains(tag))
     {
-      cerr << "Error: Config file tag \"enable_counter_overflow\" deprecated: "
+      cerr << "Config file tag \"enable_counter_overflow\" deprecated: "
 	   << " Add extension string \"sscofpmf\" to \"isa\" tag instread.\n";
       getJsonBoolean(tag, config_ ->at(tag), cof) or errors++;
     }
@@ -2015,7 +2015,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
   if (config_ -> contains(tag))
     {
       if (hart.sysHartIndex() == 0)
-	cerr << "Error: Config tag " << tag << " is deprecated -- "
+	cerr << "Config tag " << tag << " is deprecated -- "
 	     << "feature is now controlled by bit 61 of the MENVCFG/HENVCFG CSR.\n";
       getJsonBoolean(tag, config_ -> at(tag), flag) or errors++;
       // hart.setFaultOnFirstAccess(flag);
@@ -2133,7 +2133,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
   tag = "cancel_lr_on_ret";
   if (config_ -> contains(tag))
     {
-      cerr << "Error: Config tag cancel_lr_on_ret is deprecated. Use cancel_lr_on_trap.\n";
+      cerr << "Config tag cancel_lr_on_ret is deprecated. Use cancel_lr_on_trap.\n";
       if (not getJsonBoolean(tag, config_ -> at(tag), flag))
         errors++;
       else
@@ -2281,7 +2281,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
   tag = "enable_pbmt";
   if (config_ -> contains(tag))
     {
-      std::cerr << "Error: Config file tag enable_pbmt has been deprecated. Use enable_translation_pbmt.\n";
+      std::cerr << "Config file tag enable_pbmt has been deprecated. Use enable_translation_pbmt.\n";
       getJsonBoolean(tag, config_ ->at(tag), flag) or errors++;
       hart.enableTranslationPbmt(flag);
       errors++;
