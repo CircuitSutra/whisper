@@ -11380,11 +11380,17 @@ Hart<URV>::imsicAccessible(const DecodedInst* di, CsrNumber csr, PrivilegeMode m
 
           if (TT_IMSIC::Imsic::isFileSelReserved(sel))
             {
-              if (iselect == CN::SISELECT or iselect == CN::MISELECT)
+              if (iselect == CN::MISELECT and csr == CN::MIREG)
                 {
                   illegalInst(di);
+                  return false;
                 }
-              else if (iselect == CN::VSISELECT)
+              if (iselect == CN::SISELECT and csr == CN::SIREG)
+                {
+                  illegalInst(di);
+                  return false;
+                }
+              if (iselect == CN::VSISELECT)
                 {
                   // Sec 2.3 of interrupt spec: attempts from M-mode or HS-mode to access
                   // vsireg, or from VS-mode to access sireg (really vsireg), should
@@ -11395,17 +11401,21 @@ Hart<URV>::imsicAccessible(const DecodedInst* di, CsrNumber csr, PrivilegeMode m
                     virtualInst(di);
                   return false;
                 }
-              else
-                assert(0 && "Error: Assertion failed");
             }
 
           if (not TT_IMSIC::Imsic::isFileSelAccessible<URV>(sel, guestFile))
             {
-              if (iselect == CN::SISELECT or iselect == CN::MISELECT)
+              if (iselect == CN::MISELECT and csr == CN::MIREG)
                 {
                   illegalInst(di);
+                  return false;
                 }
-              else if (iselect == CN::VSISELECT)
+              if (iselect == CN::SISELECT and csr == CN::SIREG)
+                {
+                  illegalInst(di);
+                  return false;
+                }
+              if (iselect == CN::VSISELECT)
                 {
                   // Sec 2.3 of interrupt spec: attempts from M-mode or HS-mode to access
                   // vsireg raise an illegal instruction exception, and attempts from VS-mode
@@ -11418,8 +11428,6 @@ Hart<URV>::imsicAccessible(const DecodedInst* di, CsrNumber csr, PrivilegeMode m
                     illegalInst(di);
                   return false;
                 }
-              else
-                assert(0 && "Error: Assertio failed");
             }
         }
 
