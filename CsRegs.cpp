@@ -5128,7 +5128,8 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
   auto value = csr->read();
 
   auto hip = getImplementedCsr(CsrNumber::HIP);
-  auto sip = getImplementedCsr(CsrNumber::HIP);
+  auto hie = getImplementedCsr(CsrNumber::HIE);
+  auto sip = getImplementedCsr(CsrNumber::SIP);
   auto hvip = getImplementedCsr(CsrNumber::HVIP);
   auto mip = getImplementedCsr(CsrNumber::MIP);
   auto vsip = getImplementedCsr(CsrNumber::VSIP);
@@ -5144,10 +5145,10 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
   URV hieMask = 0x1444; // SGEIE, VSEIE, VSTIE and VSSIE.
 
   auto updateCsr = [this](Csr<URV>* csr, URV val) {
-    if (csr and csr->read() != val)
+    if (csr)
       {
         auto prev = csr->read();
-	csr->poke(val);
+	csr->write(val);
         if (prev != csr->read())
           recordWrite(csr->getNumber());
       }
@@ -5158,13 +5159,19 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
       assert(hideleg);
       // Where both hideleg & hvien is zero vsip/vsie are read only zero. Effects of
       // hideleg on bits 0 to 12 is shifted by 1.
-      URV mask = ((hideleg->read() >> 1) & 0x1fff) | (hideleg->read() & ~URV(0x1fff));
+      URV mask = (hideleg->read() & 0x1fff) >> 1;  // HIDELEG affects bits 0 to 12.
       if (hvien)
         mask |= hvien->read() & ~URV(0x1fff); // HVIEN affects bits 13 to 63.
       if (vsip)
-        vsip->setReadMask(mask);
+        {
+          vsip->setReadMask(mask);
+          vsip->setWriteMask(mask);
+        }
       if (vsie)
-        vsie->setReadMask(mask);
+        {
+          vsie->setReadMask(mask);
+          vsie->setWriteMask(mask);
+        }
     }
   else if (num == CsrNumber::MIP)
     {
@@ -5296,53 +5303,55 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
       assert(hideleg);
       if (vsip)
         {
+          URV low13Mask = 0x1fff;
           URV orig = vsip->read();
           URV mask = 0x222 & (hideleg->read() >> 1); // Bits below 13: sec 19.2.12 of priv spec.
-          URV newVal = (orig & ~mask) | ((hip->read() >> 1) & mask);
+          URV low13 = (orig & ~mask) | ((hip->read() >> 1) & mask);
 
-          mask = ~URV(0x1fff); // Bits 13 to 63
+          mask = ~low13Mask; // Bits 13 to 63
+          URV high = orig & mask;
           if (not hvien)
             {
               mask &= hideleg->read();
-              newVal |= (orig & ~mask) | (hip->read() & mask);
+              high = (orig & ~mask) | (hip->read() & mask);
             }
           else
             {
               // Sec. 6.3.2 of interrupt spec.
-              mask &= (hideleg->read() | hvien->read());
-              newVal |= (orig & ~mask) | (hvip->read() & ~hideleg->read() & hvien->read() & mask);
-              newVal |= hideleg->read() & sip->read() & mask;
+              mask &= hideleg->read() | hvien->read();
+              high = (orig & ~mask) | (hvip->read() & ~hideleg->read() & hvien->read() & mask);
+              high |= hideleg->read() & sip->read() & mask;
             }
 
-          updateCsr(vsip, newVal);
+          updateCsr(vsip, (low13 & low13Mask) | (high & ~low13Mask));
         }
       if (vsie)
         {
           // Bits below 13
+          URV low13Mask = 0x1fff;
           URV orig = vsie->read();
           URV mask = 0x222 & (hideleg->read() >> 1);
-          auto hie = getImplementedCsr(CsrNumber::HIE);
-          URV newVal = (orig & ~mask) | ((hie->read() >> 1) & mask);
+          URV low13 = (orig & ~mask) | ((hie->read() >> 1) & mask);
 
-          mask = ~URV(0x1fff); // Bits 13 to 63
+          mask = ~low13Mask; // Bits 13 to 63
+          URV high = orig & mask;
           if (not hvien)
             {
               mask &= hideleg->read();
-              newVal |= (orig & ~mask) | (hie->read() & mask);
+              high = (orig & ~mask) | (hie->read() & mask);
             }
           else
             {
               // Sec. 6.3.2 of interrupt spec.
               auto sie = getImplementedCsr(CsrNumber::SIE);
-              mask &= hideleg->read();
-              newVal |= (orig & ~mask) | (sie->read() & mask);
+              mask &= hideleg->read() | hvien->read();
+              high = (orig & ~mask) | (sie->read() & mask);
             }
-          updateCsr(vsie, newVal);
+          updateCsr(vsie, (low13 & low13Mask) | (high & ~low13Mask));
         }
       return;
     }
 
-  auto hie = getImplementedCsr(CsrNumber::HIE);
   auto mie = getImplementedCsr(CsrNumber::MIE);
   if (num == CsrNumber::HIE)
     {
