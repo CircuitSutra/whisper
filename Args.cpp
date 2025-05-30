@@ -165,7 +165,7 @@ Args::collectCommandLineValues(const boost::program_options::variables_map& varM
       if (not parseCmdLineNumber("alarm", numStr, this->alarmInterval))
         ok = false;
       else if (this->alarmInterval.has_value() and *this->alarmInterval == 0)
-        std::cerr << "Error: Zero alarm period ignored.\n";
+        std::cerr << "Warning: Zero alarm period ignored.\n";
     }
 
   if (varMap.count("branchwindow"))
@@ -213,7 +213,7 @@ Args::collectCommandLineValues(const boost::program_options::variables_map& varM
       auto numStr = varMap["xlen"].as<std::string>();
       if (not parseCmdLineNumber("xlen", numStr, this->xlen))
         ok = false;
-      std::cerr << "Error: Command line option --xlen is deprecated.\n";
+      std::cerr << "Warning: Command line option --xlen is deprecated.\n";
     }
 
   if (varMap.count("noppo"))

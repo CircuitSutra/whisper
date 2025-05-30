@@ -309,8 +309,11 @@ namespace TT_IMSIC      // TensTorrent Incoming Message Signaled Interrupt Contr
           if (reg == "p")
             {
               if (val.size() != pending_.size())
-                std::cerr << "Error: Imsic snapshot loader: Line " << lineNum
-                          << ": Mismatched number of interrupt ids specified\n";
+                {
+                  std::cerr << "Error: Imsic snapshot loader: Line " << lineNum
+                            << ": Mismatched number of interrupt ids specified\n";
+                  errors++;
+                }
 
               unsigned num = std::min(val.size(), pending_.size());
               for (unsigned i = 0; i < num; ++i)
@@ -320,8 +323,11 @@ namespace TT_IMSIC      // TensTorrent Incoming Message Signaled Interrupt Contr
           if (reg == "e")
             {
               if (val.size() != enabled_.size())
-                std::cerr << "Error: Imsic snapshot loader: Line " << lineNum
-                          << ": Mismatched number of interrupt ids specified\n";
+                {
+                  std::cerr << "Error: Imsic snapshot loader: Line " << lineNum
+                            << ": Mismatched number of interrupt ids specified\n";
+                  errors++;
+                }
 
               unsigned num = std::min(val.size(), pending_.size());
               for (unsigned i = 0; i < num; ++i)

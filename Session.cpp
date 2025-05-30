@@ -288,7 +288,7 @@ Session<URV>::checkAndRepairMemoryParams(size_t& memSize, size_t& pageSize)
   size_t p2PageSize = size_t(1) << logPageSize;
   if (p2PageSize != pageSize)
     {
-      std::cerr << "Error: Memory page size (0x" << std::hex << pageSize << ") "
+      std::cerr << "Warning: Memory page size (0x" << std::hex << pageSize << ") "
 		<< "is not a power of 2 -- using 0x" << p2PageSize << '\n'
 		<< std::dec;
       pageSize = p2PageSize;
@@ -297,7 +297,7 @@ Session<URV>::checkAndRepairMemoryParams(size_t& memSize, size_t& pageSize)
 
   if (pageSize < 64)
     {
-      std::cerr << "Error: Page size (" << pageSize << ") is less than 64. Using 64.\n";
+      std::cerr << "Warning: Page size (" << pageSize << ") is less than 64. Using 64.\n";
       pageSize = 64;
       ok = false;
     }

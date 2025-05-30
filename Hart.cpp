@@ -416,7 +416,7 @@ Hart<URV>::countImplementedPmpRegisters() const
       count++;
 
   if (count and count != 16 and count != 64 and hartIx_ == 0)
-    cerr << "Error: Some but not all PMPADDR CSRs are implemented\n";
+    cerr << "Warning: Some but not all PMPADDR CSRs are implemented\n";
 
   unsigned cfgCount = 0;
   if (mxlen_ == 32)
@@ -426,7 +426,7 @@ Hart<URV>::countImplementedPmpRegisters() const
         if (csRegs_.isImplemented(CsrNumber(num)))
           cfgCount++;
       if (count and cfgCount != 4 and cfgCount != 16 and hartIx_ == 0)
-        cerr << "Error: Physical memory protection enabled but only "
+        cerr << "Warning: Physical memory protection enabled but only "
 	     << cfgCount << "/16" << " PMPCFG CSRs implemented\n";
     }
   else
@@ -494,7 +494,7 @@ Hart<URV>::processExtensions(bool verbose)
     {
       flag = false;
       if (verbose and hartIx_ == 0)
-	std::cerr << "Error: Bit 3 (d) is set in the MISA register but f "
+	std::cerr << "Warning: Bit 3 (d) is set in the MISA register but f "
 		  << "extension (bit 5) is not enabled -- ignored\n";
     }
   enableRvd(flag);
@@ -507,7 +507,7 @@ Hart<URV>::processExtensions(bool verbose)
 
   flag = value & (URV(1) << ('i' - 'a'));
   if (not flag and not extensionIsEnabled(RvExtension::E) and verbose and hartIx_ == 0)
-    std::cerr << "Error: Bit 8 (i extension) is cleared in the MISA register "
+    std::cerr << "Warning: Bit 8 (i extension) is cleared in the MISA register "
 	      << " but extension is mandatory -- assuming bit 8 set\n";
 
   flag = value & (URV(1) << ('m' - 'a'));
@@ -519,7 +519,7 @@ Hart<URV>::processExtensions(bool verbose)
     {
       flag = false;
       if (verbose and hartIx_ == 0)
-	std::cerr << "Error: Bit 21 (v) is set in the MISA register but the d/f "
+	std::cerr << "Warning: Bit 21 (v) is set in the MISA register but the d/f "
 		  << "extensions are not enabled -- ignored\n";
     }
   flag = flag and isa_.isEnabled(RvExtension::V);
@@ -531,7 +531,7 @@ Hart<URV>::processExtensions(bool verbose)
       {
 	unsigned bit = ec - 'a';
 	if (value & (URV(1) << bit))
-	  std::cerr << "Error: Bit " << bit << " (" << ec << ") set in the MISA "
+	  std::cerr << "Warninig: Bit " << bit << " (" << ec << ") set in the MISA "
 		    << "register but extension is not supported "
 		    << "-- ignored\n";
       }
@@ -612,15 +612,15 @@ Hart<URV>::processExtensions(bool verbose)
   if (isa_.isEnabled(RvExtension::Zvknha) and
       isa_.isEnabled(RvExtension::Zvknhb))
     {
-      std::cerr << "Error: Both Zvknha/b enabled.";
+      std::cerr << "Info: Both Zvknha/b enabled.";
       if (rv64_)
         {
-          std::cerr << "Error:  Using Zvknhb.\n";
+          std::cerr << "Info:  Using Zvknhb.\n";
           enableExtension(RvExtension::Zvknha, false);
         }
       else
         {
-          std::cerr << "Error:  Using Zvknha.\n";
+          std::cerr << "Info:  Using Zvknha.\n";
           enableExtension(RvExtension::Zvknhb, false);
         }
     }
@@ -943,7 +943,7 @@ Hart<URV>::resetVector()
       if (not csr or csr->getWriteMask() != vstartMask)
 	{
 	  if (hartIx_ == 0 and configured)
-	    std::cerr << "Error: Write mask of CSR VSTART changed to 0x" << std::hex
+	    std::cerr << "Warning: Write mask of CSR VSTART changed to 0x" << std::hex
 		      << vstartMask << " to be compatible with VLEN=" << std::dec
 		      << (bytesPerReg*8) << '\n';
 	  csRegs_.configCsr(CsrNumber::VSTART, true, 0, vstartMask, vstartMask, false);
@@ -1353,7 +1353,7 @@ Hart<URV>::execAddi(const DecodedInst* di)
       if (di->op0() == 0 and di->op1() == 29)
         throw CoreException(CoreException::SnapshotAndStop, "Taking snapshot and stopping run from HINT.");
       if (di->op0() == 0 and di->op1() == 26)
-        std::cerr << "Error: Executed instructions: " << instCounter_ << "\n";
+        std::cerr << "Info: Executed instructions: " << instCounter_ << "\n";
     }
 }
 
@@ -3600,7 +3600,7 @@ Hart<URV>::peekCsr(CsrNumber csrn, bool quiet) const
 
   if (not peekCsr(csrn, value))
     if (not quiet)
-      std::cerr << "Error: Invalid CSR number in peekCsr: 0x" << std::hex
+      std::cerr << "Warning: Invalid CSR number in peekCsr: 0x" << std::hex
 		<<  unsigned(csrn) << std::dec << '\n';
   return value;
 }
@@ -5436,9 +5436,9 @@ Hart<URV>::runUntilAddress(uint64_t address, FILE* traceFile)
 
   if (instCounter_ >= instLim or
       retInstCounter_ >= retInstLim)
-    std::cerr << "Error: Stopped -- Reached instruction limit hart=" << hartIx_ << "\n";
+    std::cerr << "Info: Stopped -- Reached instruction limit hart=" << hartIx_ << "\n";
   else if (pc_ == address)
-    std::cerr << "Error: Stopped -- Reached end address hart=" << hartIx_ << "\n";
+    std::cerr << "Info: Stopped -- Reached end address hart=" << hartIx_ << "\n";
 
   // Simulator stats.
   struct timeval t1;
@@ -5472,13 +5472,13 @@ Hart<URV>::runSteps(uint64_t steps, bool& stop, FILE* traceFile)
           retInstCounter_ >= retInstLim)
         {
           stop = true;
-          std::cerr << "Error: Stopped -- Reached instruction limit\n";
+          std::cerr << "Info: Stopped -- Reached instruction limit\n";
           return true;
         }
       else if (pc_ == stopAddr)
         {
           stop = true;
-          std::cerr << "Error: Stopped -- Reached end address\n";
+          std::cerr << "Info: Stopped -- Reached end address\n";
           return true;
         }
 
@@ -5518,12 +5518,12 @@ Hart<URV>::simpleRun()
 
           if (userStop)
             {
-              std::cerr << "Error: Stopped -- interrupted\n";
+              std::cerr << "Info: Stopped -- interrupted\n";
               break;
             }
 
           if (hasLim)
-            std::cerr << "Error: Stopped -- Reached instruction limit\n";
+            std::cerr << "Info: Stopped -- Reached instruction limit\n";
           break;
         }
     }
@@ -10010,7 +10010,7 @@ Hart<URV>::enterDebugMode_(DebugModeCause cause, URV pc)
     cancelLr(CancelLrCause::ENTER_DEBUG);  // Lose LR reservation.
 
   if (debugMode_)
-    std::cerr << "Error: Entering debug-mode while in debug-mode\n";
+    std::cerr << "Warning: Entering debug-mode while in debug-mode\n";
   debugMode_ = true;
   csRegs_.enterDebug(true);
   enteredDebugMode_ = (cause == DebugModeCause::EBREAK) or
@@ -10069,7 +10069,7 @@ Hart<URV>::exitDebugMode()
 {
   if (not debugMode_)
     {
-      std::cerr << "Error: Bench sent exit debug while not in debug mode.\n";
+      std::cerr << "Warning: Bench sent exit debug while not in debug mode.\n";
       return;
     }
 
@@ -10088,7 +10088,7 @@ Hart<URV>::exitDebugMode()
   // object.
   URV dcsrVal = 0;
   if (not peekCsr(CsrNumber::DCSR, dcsrVal))
-    std::cerr << "Error: Failed to read DCSR in exit debug.\n";
+    std::cerr << "Warning: Failed to read DCSR in exit debug.\n";
 
   DcsrFields<URV> dcsrf(dcsrVal);
   if (dcsrf.bits_.NMIP)

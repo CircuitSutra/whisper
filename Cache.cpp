@@ -52,11 +52,11 @@ Cache::Cache(uint64_t totalSize, unsigned lineSize, unsigned setSize)
 
 Cache::~Cache()
 {
-  std::cerr << "Error: Cache access: " << accesses_ << '\n';
-  std::cerr << "Error: Cache hits: " << hits_ << '\n';
+  std::cerr << "Info: Cache access: " << accesses_ << '\n';
+  std::cerr << "Info: Cache hits: " << hits_ << '\n';
 
   double ratio = accesses_ == 0? 0. : double(hits_)/double(accesses_);
-  std::cerr << "Error: Hit ratio: " << ratio << '\n';
+  std::cerr << "Info: Hit ratio: " << ratio << '\n';
 }
 
 

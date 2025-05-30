@@ -349,7 +349,7 @@ applyCsrConfig(Hart<URV>& hart, std::string_view nm, const nlohmann::json& conf,
 
   if ((mask & pokeMask) != mask and hart.sysHartIndex() == 0)
     {
-      std::cerr << "Error: For CSR " << name << " poke mask (0x" << std::hex << pokeMask
+      std::cerr << "Warning: For CSR " << name << " poke mask (0x" << std::hex << pokeMask
 		<< ") is not a superset of write\n  mask (0x" << mask << std::dec << ")."
 		<< " Only bits set in both masks will be writable by CSR instructions.\n";
     }
@@ -360,11 +360,11 @@ applyCsrConfig(Hart<URV>& hart, std::string_view nm, const nlohmann::json& conf,
       URV extBits = (URV(1) << 26) - 1;
       URV writeable = extBits & mask, writeableReset = extBits & mask & reset;
       if (writeable != writeableReset and hart.sysHartIndex() == 0)
-	std::cerr << "Error: Reset value of MISA should be 0x"
+	std::cerr << "Warning: Reset value of MISA should be 0x"
 		  << std::hex << (reset | writeable) << std::dec
 		  << " to be compatible with write mask.\n";
       if ((writeable & (URV(1) << ('E' - 'A'))) and hart.sysHartIndex() == 0)
-	std::cerr << "Error: Bit E of MISA cannot be writebale.\n";
+	std::cerr << "Warning: Bit E of MISA cannot be writebale.\n";
       if ((reset & (1 << ('S' - 'A'))) and not (reset & (1 << ('U' - 'A'))))
         {
           std::cerr << "Error: Invalid MISA in config file: cannot have S=1 and U=0.\n";
@@ -1132,13 +1132,13 @@ applySteeConfig(Hart<URV>& hart, const nlohmann::json& config)
 		  high -= high % hart.pageSize();
 		  if (complain)
 		    {
-		      cerr << "Error: STEE secure region bounds are not page aligned\n";
-		      cerr << "Error: STEE secure region bounds changed to: [0x"
+		      cerr << "Warning: STEE secure region bounds are not page aligned\n";
+		      cerr << "Warning: STEE secure region bounds changed to: [0x"
 			   << std::hex << low << ", " << high << "]\n" << std::dec;
 		    }
 		}
 	      if (((low & secMask) or (high & secMask)) and complain)
-		cerr << "Error: STEE secure region bounds have secure bit(s) set.\n";
+		cerr << "Warning: STEE secure region bounds have secure bit(s) set.\n";
 
 	      if (not errors)
 		hart.configSteeSecureRegion(low, high);
@@ -1778,7 +1778,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
       getJsonBoolean(tag, config_ ->at(tag), flag) or errors++;
       hart.enableSdtrig(flag);
       if (hart.sysHartIndex() == 0)
-	cerr << "Error: Config file tag \"" << tag << "\" deprecated: "
+	cerr << "Config file tag \"" << tag << "\" deprecated: "
 	     << "Add extension string \"sdtrig\" to \"isa\" tag instead.\n";
     }
 
@@ -2291,7 +2291,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
   if (config_ -> contains(tag))
     {
       if (hart.sysHartIndex() == 0)
-	cerr << "Error: Config tag " << tag << " is deprecated. "
+	cerr << "Warning: Config tag " << tag << " is deprecated. "
 	     << "Use svnapot with --isa instead.\n";
       getJsonBoolean(tag, config_ ->at(tag), flag) or errors++;
       hart.enableTranslationNapot(flag);
@@ -2301,7 +2301,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
   if (config_ -> contains(tag))
     {
       if (hart.sysHartIndex() == 0)
-	cerr << "Error: Config tag " << tag << " is deprecated. "
+	cerr << "Warning: Config tag " << tag << " is deprecated. "
 	     << "Use svinval with --isa instead.\n";
       getJsonBoolean(tag, config_ ->at(tag), flag) or errors++;
       hart.enableSvinval(flag);
@@ -2331,7 +2331,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
   if (config_ ->contains(tag))
     {
       if (hart.sysHartIndex() == 0)
-	cerr << "Error: Config tag " << tag << " is deprecated. "
+	cerr << "Warning: Config tag " << tag << " is deprecated. "
 	     << "Use smstateen with --isa instead.\n";
       getJsonBoolean(tag, config_ ->at(tag), flag) or errors++;
       hart.enableSmstateen(flag);
@@ -2867,7 +2867,7 @@ HartConfig::getXlen(unsigned& xlen) const
 {
   if (config_ -> contains("xlen"))
     {
-      std::cerr << "Error: Config file tag xlen is deprecated: xlen is obtained from the isa tag.\n";
+      std::cerr << "Config file tag xlen is deprecated: xlen is obtained from the isa tag.\n";
       return getJsonUnsigned("xlen", config_ -> at("xlen"), xlen);
     }
   std::string isa;

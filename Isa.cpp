@@ -532,7 +532,7 @@ Isa::applyIsaString(std::string_view isaStr)
       RVE ext = stringToExtension(extension);
       if (ext == RVE::None)
 	{
-	  std::cerr << "Error: Unknown extension: " << extension << " -- ignored\n";
+	  std::cerr << "Warning: Unknown extension: " << extension << " -- ignored\n";
 	  continue;
 	}
 
@@ -555,7 +555,7 @@ Isa::applyIsaString(std::string_view isaStr)
 	{
 	  getDefaultVersion(ext, v, s);
 	  selectVersion(ext, v, s);
-	  std::cerr << "Error: Version " << version << "." << subversion
+	  std::cerr << "Warning: Version " << version << "." << subversion
 		    << " of extension " << extension << " is not "
 		    << "supported -- using default\n";
 	}

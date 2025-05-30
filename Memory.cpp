@@ -639,6 +639,7 @@ Memory::loadElfFile(const std::string& fileName, unsigned regWidth,
   if (reader.get_machine() != EM_RISCV)
     {
       std::cerr << "Error: non-riscv ELF file\n";
+      return false;
     }
 
   // Copy loadable ELF segments into memory.
@@ -841,7 +842,7 @@ Memory::saveSnapshot(const std::string& filename,
   constexpr size_t maxChunk = size_t(1) << 28;
 
   // Open binary file for write (compressed) and check success.
-  std::cerr << "Error: saveSnapshot starts..\n";
+  std::cerr << "Info: saveSnapshot starts..\n";
   gzFile gzout = gzopen(filename.c_str(), "wb2");
   if (not gzout)
     {
@@ -898,10 +899,10 @@ Memory::saveSnapshot(const std::string& filename,
 #else
       uint8_t* buffer = data_ + blk.first;
 #endif
-      std::cerr << "Error: *";
+      std::cerr << "*";
       while (remainingSize)  // write in chunk due to limitation of gzwrite
         {
-          std::cerr << "Error: -";
+          std::cerr << "-";
           fflush(stdout);
           size_t currentChunk = std::min(remainingSize, maxChunk);
           int resp = gzwrite(gzout, buffer, currentChunk);
@@ -919,7 +920,7 @@ Memory::saveSnapshot(const std::string& filename,
     std::cerr << "Error: Memory::saveSnapshot failed - write into " << filename
               << " failed with errno " << strerror(errno) << "\n";
   gzclose(gzout);
-  std::cerr << "Error: \nsaveSnapshot finished\n";
+  std::cerr << "Info: \nsaveSnapshot finished\n";
   return success;
 }
 
@@ -929,7 +930,7 @@ Memory::loadSnapshot(const std::string & filename,
                      const std::vector<std::pair<uint64_t,uint64_t>>& usedBlocks)
 {
   constexpr size_t maxChunk = size_t(1) << 28;  // This must match saveSnapshot
-  std::cerr << "Error: loadSnapshot starts..\n";
+  std::cerr << "Info: loadSnapshot starts..\n";
 
   // open binary file for read (decompress) and check success
   gzFile gzin = gzopen(filename.c_str(), "rb");
@@ -976,10 +977,10 @@ Memory::loadSnapshot(const std::string & filename,
       prevAddr = blk.first + blk.second;
       uint64_t addr = blk.first;
 
-      std::cerr << "Error: *";
+      std::cerr << "*";
       while (remainingSize) // read in chunk due to gzread limitation
         {
-          std::cerr << "Error: -";
+          std::cerr << "-";
           fflush(stdout);
           size_t currentChunk = std::min(remainingSize, maxChunk);
           int resp = gzread(gzin, temp.data(), currentChunk);
@@ -1008,7 +1009,7 @@ Memory::loadSnapshot(const std::string & filename,
     std::cerr << "Error: Memory::loadSnapshot failed - read from " << filename
               << " failed: " << gzerror(gzin, nullptr) << "\n";
   else if (remainingSize > 0)
-    std::cerr << "Error: Memory::loadSnapshot: Snapshot data size smaller than memory size\n";
+    std::cerr << "Warning: Memory::loadSnapshot: Snapshot data size smaller than memory size\n";
 
   gzclose(gzin);
   std::cerr << "Error: \nloadSnapshot finished\n";
@@ -1028,7 +1029,7 @@ Memory::saveAddressTrace(std::string_view tag, const LineMap& lineMap,
       return false;
     }
 
-  std::cerr << "Error: Trace map size for " << tag << ": " << lineMap.size() << '\n';
+  std::cerr << "Info: Trace map size for " << tag << ": " << lineMap.size() << '\n';
 
   std::vector<uint64_t> addrVec;
   addrVec.reserve(lineMap.size());

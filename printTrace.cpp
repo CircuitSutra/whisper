@@ -872,15 +872,15 @@ Hart<URV>::reportInstsPerSec(uint64_t instCount, uint64_t retInstCount, double e
   std::string_view     secStr = std::string_view(secBuf.begin(), secLen);
 
   if (userStop)
-    std::cerr << "Error: User stop\n";
-  std::cerr << "Error: Executed " << instCount << " instruction"
+    std::cerr << "Info: User stop\n";
+  std::cerr << "Info: Executed " << instCount << " instruction"
 	    << (instCount > 1? "s" : "") << " and "
             << "retired " << retInstCount << " instruction"
             << (retInstCount > 1? "s" : "")
             << " in " << secStr;
   if (elapsed > 0)
-    std::cerr << "Error:   " << uint64_t(double(instCount)/elapsed) << " inst/s";
-  std::cerr << "Error:  hart=" << hartIx_ << '\n';
+    std::cerr << "Info:   " << uint64_t(double(instCount)/elapsed) << " inst/s";
+  std::cerr << " hart=" << hartIx_ << '\n';
 }
 
 
@@ -936,11 +936,11 @@ Hart<URV>::logStop(const CoreException& ce, uint64_t counter, FILE* traceFile)
       cerr << (success? "Successful " : "Error: Failed ")
            << "stop: Hart " << hartIx_ << ": " << ce.what() << "\n";
     else if (ce.type() == CoreException::Exit)
-      cerr << "Error: Target program exited with code " << ce.value() << '\n';
+      cerr << "Info: Target program exited with code " << ce.value() << '\n';
     else if (ce.type() == CoreException::Snapshot)
-      cerr << "Error: Attempting to snapshot\n";
+      cerr << "Info: Attempting to snapshot\n";
     else if (ce.type() == CoreException::SnapshotAndStop)
-      cerr << "Error: Successful stop: Hart " << hartIx_ << ": attempting to snapshot and stop\n";
+      cerr << "Info: Successful stop: Hart " << hartIx_ << ": attempting to snapshot and stop\n";
     else
       cerr << "Error: Stopped -- unexpected exception\n";
   }

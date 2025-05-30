@@ -90,7 +90,7 @@ void FDChannel::write(uint8_t byte) {
 void FDChannel::terminate() {
   const uint8_t byte = 0;
   if (::write(terminate_pipe_[1], &byte, 1) != 1)
-    std::cerr << "Error: Info: FDChannel::terminate: write failed\n";
+    std::cerr << "Info: FDChannel::terminate: write failed\n";
 }
 
 FDChannel::~FDChannel() {
@@ -105,7 +105,7 @@ PTYChannelBase::PTYChannelBase() {
   if (openpty(&master_, &slave_, name, nullptr, nullptr) < 0)
     throw std::runtime_error("Failed to open a PTY\n");
 
-  std::cerr << "Error: Got PTY " << name << "\n";
+  std::cerr << "Info: Got PTY " << name << "\n";
 }
 
 PTYChannelBase::~PTYChannelBase()

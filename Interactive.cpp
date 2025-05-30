@@ -192,7 +192,10 @@ Interactive<URV>::untilCommand(Hart<URV>& hart, const std::string& line,
     return false;
 
   if (addr >= hart.memorySize())
-    cerr << "Error: Address outside memory range: " << line << ".\n";
+    {
+      cerr << "Error: Address outside memory range: " << line << ".\n";
+      return false;
+    }
 
   if (hart.inDebugMode())
     {
@@ -668,7 +671,7 @@ Interactive<URV>::peekCommand(Hart<URV>& hart, const std::string& line,
           out << (boost::format(hexForm) % val) << std::endl;
 	  return true;
 	}
-      cerr << "Error: Failed to read CSR: " << addrStr << '\n';
+      cerr << "Failed to read CSR: " << addrStr << '\n';
       return false;
     }
 
@@ -862,16 +865,16 @@ Interactive<URV>::pokeCommand(Hart<URV>& hart, const std::string& line,
     {
       if (not parseCmdLineVecData("poke", valueStr, vecVal))
 	{
-	  return false;
 	  cerr << "Error:   " << line << '\n';
+	  return false;
 	}
     }
   else
     {
       if (not parseCmdLineNumber("poke", valueStr, value))
 	{
-	  return false;
 	  cerr << "Error:  " << line << '\n';
+	  return false;
 	}
     }
 
@@ -1594,6 +1597,7 @@ Interactive<URV>::processKeywords(const StringMap& strMap)
 	    cerr << "Error: Empty key -- ignored\n";
 	  else
 	    cerr << "Error: Unknown key: " << key << "  -- ignored\n";
+          errors++;
 	}
     }
 
@@ -2588,6 +2592,7 @@ Interactive<URV>::translateCommand(Hart<URV>& hart, const std::string& line,
     {
       cerr << "Error: Invalid translate command: " << line << '\n';
       cerr << "Error: Expecting: translate <vaddr> [r|w|x [s|u|vs|vu]]\n";
+      return false;
     }
 
   uint64_t va = 0;

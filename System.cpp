@@ -218,7 +218,7 @@ System<URV>::~System()
       auto path = std::get<0>(bf);
       uint64_t addr = std::get<1>(bf);
       uint64_t size = std::get<2>(bf);
-      std::cerr << "Error: Updating " << path << " from addr: 0x" << std::hex << addr
+      std::cerr << "Info: Updating " << path << " from addr: 0x" << std::hex << addr
 		<< std::dec << " size: " << size << '\n';
       FILE* file = fopen(path.c_str(), "w");
       if (not file)
@@ -269,7 +269,7 @@ System<URV>::loadElfFiles(const std::vector<std::string>& files, bool raw, bool 
   for (const auto& file : files)
     {
       if (verbose)
-	std::cerr << "Error: Loading ELF file " << file << '\n';
+	std::cerr << "Info: Loading ELF file " << file << '\n';
       uint64_t end0 = 0, entry0 = 0;
       if (not memory_->loadElfFile(file, registerWidth, entry0, end0))
 	errors++;
@@ -301,7 +301,7 @@ System<URV>::loadElfFiles(const std::vector<std::string>& files, bool raw, bool 
 	hart->setConsoleIo(URV(sym.addr_));
 
       if (verbose)
-	std::cerr << "Error: Setting program break to 0x" << std::hex << end << std::dec << '\n';
+	std::cerr << "Info: Setting program break to 0x" << std::hex << end << std::dec << '\n';
       hart->setTargetProgramBreak(end);
 
       if (not raw)
@@ -309,19 +309,19 @@ System<URV>::loadElfFiles(const std::vector<std::string>& files, bool raw, bool 
 	  if (not hart->peekIntReg(RegGp) and gp)
 	    {
               if (verbose)
-                std::cerr << "Error: Setting register gp to 0x" << std::hex << gp << std::dec << '\n';
+                std::cerr << "Info: Setting register gp to 0x" << std::hex << gp << std::dec << '\n';
 	      hart->pokeIntReg(RegGp, URV(gp));
 	    }
 	  if (not hart->peekIntReg(RegTp) and tp)
 	    {
               if (verbose)
-                std::cerr << "Error: Setting register tp to 0x" << std::hex << tp << std::dec << '\n';
+                std::cerr << "Info: Setting register tp to 0x" << std::hex << tp << std::dec << '\n';
 	      hart->pokeIntReg(RegTp, URV(tp));
 	    }
 	  if (entry)
 	    {
 	      if (verbose)
-                std::cerr << "Error: Setting PC to 0x" << std::hex << entry << std::dec << '\n';
+                std::cerr << "Info: Setting PC to 0x" << std::hex << entry << std::dec << '\n';
 	      hart->pokePc(URV(entry));
 	    }
 	}
@@ -339,7 +339,7 @@ System<URV>::loadHexFiles(const std::vector<std::string>& files, bool verbose)
   for (const auto& file : files)
     {
       if (verbose)
-	std::cerr << "Error: Loading HEX file " << file << '\n';
+	std::cerr << "Info: Loading HEX file " << file << '\n';
       if (not memory_->loadHexFile(file))
 	errors++;
     }
@@ -372,7 +372,7 @@ binaryFileParams(std::string spec, uint64_t defOffset, std::string& filename, ui
     {
       std::string offsStr = parts.at(1);
       if (offsStr.empty())
-	cerr << "Error: Empty binary file offset: " << spec << '\n';
+	cerr << "Warning: Empty binary file offset: " << spec << '\n';
       else
 	{
 	  char* tail = nullptr;
@@ -385,7 +385,7 @@ binaryFileParams(std::string spec, uint64_t defOffset, std::string& filename, ui
 	}
     }
   else
-    cerr << "Error: Binary file " << filename << " does not have an address, will use address 0x"
+    cerr << "Warning: Binary file " << filename << " does not have an address, will use address 0x"
 	 << std::hex << offset << std::dec << '\n';
 
   if (parts.size() > 2)
@@ -424,7 +424,7 @@ System<URV>::loadBinaryFiles(const std::vector<std::string>& fileSpecs,
         }
 
       if (verbose)
-	cerr << "Error: Loading binary " << filename << " at address 0x" << std::hex
+	cerr << "Info: Loading binary " << filename << " at address 0x" << std::hex
 	     << offset << std::dec << '\n';
 
       if (not memory_->loadBinaryFile(filename, offset))
@@ -474,7 +474,7 @@ System<URV>::loadLz4Files(const std::vector<std::string>& fileSpecs,
 	}
 
       if (verbose)
-	cerr << "Error: Loading lz4 compressed file " << filename << " at address 0x" << std::hex
+	cerr << "Info: Loading lz4 compressed file " << filename << " at address 0x" << std::hex
 	     << offset << std::dec << '\n';
 
       if (not memory_->loadLz4File(filename, offset))
@@ -801,7 +801,7 @@ System<URV>::configAplic(unsigned num_sources, std::span<const TT_APLIC::DomainP
 
   TT_APLIC::DirectDeliveryCallback aplicCallback = [this] (unsigned hartIx, TT_APLIC::Privilege privilege, bool interState) -> bool {
     bool is_machine = privilege == TT_APLIC::Machine;
-    std::cerr << "Error: Delivering interrupt hart=" << hartIx << " privilege="
+    std::cerr << "Info: Delivering interrupt hart=" << hartIx << " privilege="
               << (is_machine ? "machine" : "supervisor")
               << " interrupt-state=" << (interState? "on" : "off") << '\n';
     // if an IMSIC is present, then interrupt should only be delivery if its eidelivery is 0x40000000
