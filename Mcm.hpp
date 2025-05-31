@@ -159,7 +159,7 @@ namespace WdRiscv
       if (std::find(memOps_.begin(), memOps_.end(), memOpIx) != memOps_.end())
 	{
 	  std::cerr << "McmInstr::addMemOp: Error: Op already added\n";
-	  assert(0 && "McmInstr::addMemOp: Op ix already present");
+	  assert(0 && "Error: McmInstr::addMemOp: Op ix already present");
 	}
       memOps_.push_back(memOpIx);
     }
@@ -223,18 +223,19 @@ namespace WdRiscv
     bool bypassOp(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa,
                   unsigned size, uint64_t rtlData, unsigned elem, unsigned field);
 
-    /// Initiate a merge buffer write.  All associated store write
-    /// transactions are marked completed. Write instructions where
-    /// all writes are complete are marked complete. Return true on
-    /// success.  The given physical address must be a multiple of the
-    /// merge buffer line size (which is also the cache line
-    /// size). The rtlData vector must be of size n or larger where n
-    /// is the merge buffer line size. The rtlData bytes will be
-    /// placed in memory in consecutive locations starting with
-    /// physAddr.
+    /// Initiate a merge buffer write.  All associated store write transactions are marked
+    /// completed. Write instructions where all writes are complete are marked
+    /// complete. Return true on success.  The given physical address must be a multiple
+    /// of the merge buffer line size (which is also the cache line size). The rtlData
+    /// vector must be of size n or larger where n is the merge buffer line size. The
+    /// rtlData bytes will be placed in memory in consecutive locations starting with
+    /// physAddr. If skipCheck is true, do not check RTL data versus Whisper data and do
+    /// not update Whisper memory (this is used by test-bench for non correctable checksum
+    /// errors).
     bool mergeBufferWrite(Hart<URV>& hart, uint64_t time, uint64_t physAddr,
 			  const std::vector<uint8_t>& rtlData,
-			  const std::vector<bool>& mask);
+			  const std::vector<bool>& mask,
+                          bool skipCheck = false);
 
     /// Insert a write operation for the given instruction into the merge buffer removing
     /// it from the store buffer. Return true on success. Size is expected to be less than
@@ -407,12 +408,14 @@ namespace WdRiscv
     /// executed by the same hart.
     bool checkSfenceWInval(Hart<URV>& hart, const McmInstr& instr) const;
 
+    bool checkCmo(Hart<URV>& bart, const McmInstr& instr) const;
+
     uint64_t latestOpTime(const McmInstr& instr) const
     {
       if (not instr.complete_)
 	{
-	  std::cerr << "Mcm::latestOpTime: Called on an incomplete instruction\n";
-	  assert(0 && "Mcm::lasestOpTime: Incomplete instr");
+	  std::cerr << "Error: Mcm::latestOpTime: Called on an incomplete instruction\n";
+	  assert(0 && "Error: Mcm::lasestOpTime: Incomplete instr");
 	}
       uint64_t time = 0;
       for (auto opIx : instr.memOps_)
@@ -451,8 +454,8 @@ namespace WdRiscv
 	return false;
       if (not a.complete_ and not b.complete_)
 	{
-	  std::cerr << "Mcm::isBeforeInMemoryTime: Both instructions incomplete\n";
-	  assert(0 && "Mcm::isBeforeInMemoryTime: Both instructions incomplete");
+	  std::cerr << "Error: Mcm::isBeforeInMemoryTime: Both instructions incomplete\n";
+	  assert(0 && "Error: Mcm::isBeforeInMemoryTime: Both instructions incomplete");
 	  return false;
 	}
       uint64_t aTime = latestOpTime(a);
@@ -881,6 +884,20 @@ namespace WdRiscv
     unsigned offsetToNextLine(uint64_t addr) const
     { return lineSize_ - (addr & (lineSize_ - 1)); }
 
+    /// Return true if given memory operation belong to an instrction from the Zicbom
+    /// extension (cbo.clean/flush/inval instructions). Such instructions are not marked
+    /// as stores (they do not forward).
+    bool isCbomOp(const MemoryOp& op) const
+    {
+      if (op.size_ != 0)
+        return false;
+      auto& instrVec = hartData_.at(op.hartIx_).instrVec_;
+      if (op.tag_ >= instrVec.size())
+        return false;
+      auto& instr = instrVec.at(op.tag_);
+      return instr.di_.extension() == RvExtension::Zicbom;
+    }
+
   private:
 
     const unsigned intRegOffset_ = 0;
@@ -992,11 +1009,6 @@ namespace WdRiscv
       // Set of stores that may affect (through forwarding) the currently executing load
       // instruction.
       std::set<McmInstrIx> forwardingStores_;
-
-      /// Map a store instruction index to the count of associated merge buffer insert
-      /// operations. This can be dropped once mbinsert is associated with the vector
-      /// element index and field.
-      std::unordered_map<McmInstrIx, uint16_t> storeInsertCount_;
 
       McmInstrIx currentLoadTag_ = 0;  // Currently executing load instruction.
 

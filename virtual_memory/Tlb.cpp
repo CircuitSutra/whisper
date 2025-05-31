@@ -9,7 +9,7 @@ using namespace WdRiscv;
 Tlb::Tlb(unsigned size)
 {
   if ((size & (size - 1)) != 0)
-    std::cerr << "TLB size must be a power of 2\n";
+    std::cerr << "Error: TLB size must be a power of 2\n";
   else
     entries_.resize(size);
 }

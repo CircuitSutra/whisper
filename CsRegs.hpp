@@ -65,6 +65,20 @@ namespace WdRiscv
 
       // Machine protection and translation.
       PMPCFG0 = 0x3a0,
+      PMPCFG1 = 0x3a1,
+      PMPCFG2 = 0x3a2,
+      PMPCFG3 = 0x3a3,
+      PMPCFG4 = 0x3a4,
+      PMPCFG5 = 0x3a5,
+      PMPCFG6 = 0x3a6,
+      PMPCFG7 = 0x3a7,
+      PMPCFG8 = 0x3a8,
+      PMPCFG9 = 0x3a9,
+      PMPCFG10 = 0x3aa,
+      PMPCFG11 = 0x3ab,
+      PMPCFG12 = 0x3ac,
+      PMPCFG13 = 0x3ad,
+      PMPCFG14 = 0x3ae,
       PMPCFG15 = 0x3af,
       PMPADDR0 = 0x3b0,
       PMPADDR63 = 0x3ef,
@@ -562,9 +576,15 @@ namespace WdRiscv
     bool isShared() const
     { return shared_; }
 
-    /// Return the current value of this register.
+    /// Return the current value of this register masked by the read mask.  The read mask
+    /// is used to reflect the effective value of fields that are currently read-only-zero
+    /// but may become readable/writable later in the run.
     URV read() const
     { return *valuePtr_ & readMask_; }
+
+    /// Return the current value of the register. This is not affected by the read mask.
+    URV value() const
+    { return *valuePtr_; }
 
     /// Return the write-mask associated with this register. A
     /// register value bit is writable by the write method if and only
@@ -931,8 +951,6 @@ namespace WdRiscv
     void attachImsic(std::shared_ptr<TT_IMSIC::Imsic> imsic)
     { imsic_ = imsic; }
 
-    bool aiaEnabled() const { return aiaEnabled_; }
-
   protected:
 
     /// Advance a csr number by the given amount (add amount to number).
@@ -1164,6 +1182,11 @@ namespace WdRiscv
     bool hasEnterDebugModeTripped() const
     { return triggers_.hasEnterDebugModeTripped(); }
 
+    /// Return true if there is one or more tripped trigger action set
+    /// to "enter debug mode".
+    bool hasBreakpTripped() const
+    { return triggers_.hasBreakpTripped(); }
+
     /// Set value to the value of the given register returning true on
     /// success and false if number is out of bound. Peeks register assuming
     /// virtMode.
@@ -1293,8 +1316,8 @@ namespace WdRiscv
     void updateVirtInterruptCtl();
 
     /// Update MVIP aliasing bits. This is called after a write/poke to
-    /// MIP. Returns true if MVIP was updated.
-    bool updateVirtInterrupt();
+    /// MIP. Returns true if successful.
+    bool updateVirtInterrupt(URV value, bool poke);
 
     /// Enter/exit debug mode based given a flag value of true/false.
     void enterDebug(bool flag)
@@ -1354,9 +1377,16 @@ namespace WdRiscv
 	}
     }
 
-    /// MIP is OR-ed when mvien does not exist or is set to zero. Otherwise,
-    /// the value of SEIP is solely the value of the pin.
-    URV overrideWithSeiPinAndMvip(URV ip) const
+    /// The value of SEIP is solely the value of the pin.
+    URV overrideWithSeiPin(URV ip) const
+    {
+      if (not superEnabled_)
+        return ip;
+      return ip |= seiPin_ << URV(InterruptCause::S_EXTERNAL);
+    }
+
+    /// MIP is OR-ed with MVIP when MVIEN does not exist or is set to zero.
+    URV overrideWithMvip(URV ip) const
     {
       if (not superEnabled_)
         return ip;
@@ -1372,7 +1402,13 @@ namespace WdRiscv
               ip |= mvip & URV(1 << URV(InterruptCause::S_EXTERNAL));
             }
         }
-      return ip |= seiPin_ << URV(InterruptCause::S_EXTERNAL);
+      return ip;
+    }
+
+    /// Combines both effects of MVIP and SEI pin.
+    URV overrideWithSeiPinAndMvip(URV ip) const
+    {
+      return overrideWithSeiPin(overrideWithMvip(ip));
     }
 
     /// Fast peek method for MIP.
@@ -1487,7 +1523,7 @@ namespace WdRiscv
       const auto& mvien = regs_.at(size_t(CsrNumber::MVIEN));
       const auto& mideleg = regs_.at(size_t(CsrNumber::MIDELEG));
       const auto& hideleg = regs_.at(size_t(CsrNumber::HIDELEG));
-      return (mie.read() | (shadowSie_ & mvien.read() & ~mideleg.read())) & ~hideleg.read();
+      return ((mie.read() & mideleg.read()) | (shadowSie_ & mvien.read() & ~mideleg.read())) & ~hideleg.read();
     }
 
     /// Return the effective interrupt enable mask. This is
@@ -1500,8 +1536,10 @@ namespace WdRiscv
       const auto& mideleg = regs_.at(size_t(CsrNumber::MIDELEG));
       const auto& hideleg = regs_.at(size_t(CsrNumber::HIDELEG));
       const auto& hvien = regs_.at(size_t(CsrNumber::HVIEN));
-      return ((mie.read() | (shadowSie_ & mvien.read() & ~mideleg.read())) & hideleg.read()) |
-              (sInterruptToVs(csr.read()) & ~hideleg.read() & hvien.read());
+      URV value = ((mie.read() & mideleg.read()) | (shadowSie_ & mvien.read() & ~mideleg.read())) & hideleg.read();
+      // HVIEN affects interrupt ids 13 to 63 (see section 6.3.2 of interrupt spec).
+      value |= csr.read() & ~hideleg.read() & hvien.read() & ((~URV(0)) << 13);
+      return value;
     }
 
     /// Fast peek method for MSTATUS
@@ -1914,11 +1952,21 @@ namespace WdRiscv
 
     /// Return true if given CSR is a hypervisor CSR.
     bool isHypervisor(CsrNumber csrn) const
-    { auto csr = getImplementedCsr(csrn); return csr and csr->isHypervisor(); }
+    {
+      size_t ix = size_t(csrn);
+      if (ix < regs_.size())
+        return regs_.at(ix).isHypervisor();
+      return false;
+    }
 
     /// Return true if given CSR is an AIA CSR.
     bool isAia(CsrNumber csrn) const
-    { auto csr = getImplementedCsr(csrn); return csr and csr->isAia(); }
+    {
+      size_t ix = size_t(csrn);
+      if (ix < regs_.size())
+        return regs_.at(ix).isAia();
+      return false;
+    }
 
     /// If flag is false, bit HENVCFG.STCE becomes read-only-zero;
     /// otherwise, bit is readable.
@@ -2257,7 +2305,7 @@ namespace WdRiscv
     }
 
     /// Returns true if CSR is defined as part of a STATEEN and enabled, or
-    /// not part of STATEEN. Returns false otherwise.
+    /// not part of STATEEN. Returns false otherwise. 
     bool isStateEnabled(CsrNumber num, PrivilegeMode mode, bool virtMode) const;
 
     /// Update the mask of the LCOF bit in MVIP/MVIEN based on extensions mcdeleg,
@@ -2288,6 +2336,24 @@ namespace WdRiscv
       URV s = bits & mask;
       bits &= ~mask;
       return bits | (s << 1);
+    }
+
+    /// Determine the highest priority interrupt from among the nominal
+    /// interrupt numbers.
+    unsigned highestIidPrio(uint64_t bits, PrivilegeMode mode, bool virtMode) const;
+
+    /// Determine if prio1 has higher priority than prio2 interrupt.
+    bool higherIidPrio(uint32_t prio1, uint32_t prio2, PrivilegeMode mode, bool virtMode) const;
+
+    /// Set interrupt priorities for the benefit of *topi registers. This is
+    /// necessary to support custom/local interrupt definitions.
+    void updateIidPrio(const std::vector<InterruptCause>& mInterrupts,
+                       const std::vector<InterruptCause>& sInterrupts,
+                       const std::vector<InterruptCause>& vsInterrupts)
+    {
+      mInterrupts_ = mInterrupts;
+      sInterrupts_ = sInterrupts;
+      vsInterrupts_ = vsInterrupts;
     }
 
   private:
@@ -2339,6 +2405,10 @@ namespace WdRiscv
     bool recordWrite_ = true;
     bool debugMode_ = false;
     bool virtMode_ = false;       // True if hart virtual (V) mode is on.
+
+    std::vector<InterruptCause> mInterrupts_;
+    std::vector<InterruptCause> sInterrupts_;
+    std::vector<InterruptCause> vsInterrupts_;
 
     bool seiPin_ = false;
   };

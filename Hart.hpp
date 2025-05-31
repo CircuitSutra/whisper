@@ -356,6 +356,11 @@ namespace WdRiscv
     bool setSupportedTriggerTypes(const std::vector<std::string>& types)
     { return csRegs_.triggers_.setSupportedTypes(types); }
 
+
+    /// Define the set of supported trigger actions.
+    bool setSupportedTriggerActions(const std::vector<std::string>& actions)
+    { return csRegs_.triggers_.setSupportedActions(actions); }
+
     /// Enable the extensions defined by the given string. If
     /// updateMisa is true then the MISA CSR reset value is updated to
     /// enable the extensions defined by the given string (this is done
@@ -596,7 +601,7 @@ namespace WdRiscv
           if (mstatusMprv() and not nmieOverridesMprv() and not debugModeOverridesMprv())
             {
               pm = mstatusMpp();
-              virt = mstatus_.bits_.MPV;
+              virt = pm == PM::Machine? false : mstatus_.bits_.MPV;
             }
 
           if (hyper)
@@ -951,13 +956,13 @@ namespace WdRiscv
     /// Set/clear low priorty exception for fetch/ld scenarios. For vector
     /// loads, we use the element index to determine the exception. This is
     /// useful for TB to inject errors.
-    void injectException(bool isLoad, URV code, unsigned elemIx)
+    void injectException(bool isLoad, URV cause, unsigned elemIx, URV addr)
     {
-      injectException_ = static_cast<ExceptionCause>(code);
       injectExceptionIsLd_ = isLoad;
+      injectException_ = static_cast<ExceptionCause>(cause);
       injectExceptionElemIx_ = elemIx;
+      injectAddr_ = addr;
     }
-
 
     /// Define address to which a write will stop the simulator. An
     /// sb, sh, or sw instruction will stop the simulator if the write
@@ -1122,6 +1127,24 @@ namespace WdRiscv
     /// Return the cache line size.
     unsigned cacheLineSize() const
     { return cacheLineSize_; }
+
+    /// Return the cache line number (address divided by line-size) of the given address.
+    uint64_t cacheLineNum(uint64_t addr) const
+    { return addr >> cacheLineShift_; }
+
+    /// Set the cache line size to n which must be a power of 2.
+    void setCacheLineSize(unsigned n)
+    {
+      assert(n > 0);
+      assert((n & (n-1)) == 0);
+      cacheLineSize_ = n;
+      cacheLineShift_ = std::countr_zero(n);
+      assert((unsigned(1) << cacheLineShift_) == n);
+    }
+
+    /// Align the given address to the closest smaller cache line boundary.
+    uint64_t cacheLineAlign(uint64_t addr) const
+    { return (addr >> cacheLineShift_) << cacheLineShift_; }
 
     const VecLdStInfo& getLastVectorMemory() const
     { return vecRegs_.getLastMemory(); }
@@ -1344,6 +1367,16 @@ namespace WdRiscv
     /// True if DCSR.step is on.
     bool hasDcsrStep() const
     { return dcsrStep_; }
+
+    /// Enter debug mode if dcsr step unless already there.
+    void evaluateDebugStep()
+    {
+      // If step bit set in dcsr then enter debug mode unless already there.
+      // From section 4.5.1, if a trigger fires we write TRIGGER instead of STEP to
+      // dcsr.
+      if (dcsrStep_ and not debugMode_ and not ebreakInstDebug_)
+	enterDebugMode_(triggerTripped_?DebugModeCause::TRIGGER : DebugModeCause::STEP, pc_);
+    }
 
     /// Take this hart out of debug mode.
     void exitDebugMode();
@@ -1848,6 +1881,12 @@ namespace WdRiscv
     void enableClearTinstOnCboInval(bool flag)
     { clearTinstOnCboInval_ = flag; }
 
+    /// When flag is true, align to cache line boundary the cbo/cmo instruction effective
+    /// address before doing address translation: MTVAL/STVAL value on exception will be
+    /// the aligned address.
+    void enableAlignCboAddress(bool flag)
+    { alignCboAddr_ = flag; }
+
     /// Clear MTINST/HTINST on cbo.flush if flag is true.
     void enableClearTinstOnCboFlush(bool flag)
     { clearTinstOnCboFlush_ = flag; }
@@ -2251,7 +2290,7 @@ namespace WdRiscv
 
       using IC = InterruptCause;
       imsic_->attachMInterrupt([this] (bool flag) {
-          URV mipVal = csRegs_.peekMip();
+          URV mipVal = csRegs_.overrideWithMvip(csRegs_.peekMip());
           URV prev = mipVal;
 
           if (flag)
@@ -2346,8 +2385,8 @@ namespace WdRiscv
     { vecRegs_.configVectorLegalizeVsetvliAvl(flag); }
 
     /// If flag is true, make VL/VSTART value a multiple of EGS in vector-crypto
-    /// instructions that have EGS. Otherwise, trigger an exceptio if VL/VSTART is not a
-    /// mulitple of EGS for such instrucions.
+    /// instructions that have EGS. Otherwise, trigger an exception if VL/VSTART is not a
+    /// multiple of EGS for such instructions.
     void configVectorLegalizeForEgs(bool flag)
     { vecRegs_.configLegalizeForEgs(flag); }
 
@@ -2612,6 +2651,10 @@ namespace WdRiscv
       return pma;
     }
 
+    /// Return MVIP-overriden interrupt pending.
+    bool overrideWithMvip(URV ip) const
+    { return csRegs_.overrideWithMvip(ip); }
+
     /// This is for the test-bench which in some run wants to take control over timer
     /// values.
     void autoIncrementTimer(bool flag)
@@ -2667,7 +2710,7 @@ namespace WdRiscv
     {
       bool virt = virtMode_;
       if (mstatusMprv() and not nmieOverridesMprv())
-	virt = mstatus_.bits_.MPV;
+	virt = mstatusMpp() == PrivilegeMode::Machine? false : mstatus_.bits_.MPV;
       return virt;
     }
 
@@ -2682,7 +2725,7 @@ namespace WdRiscv
       if (pa1 == pa2)
 	{
 	  if (not memory_.read(pa1, value))
-	    assert(0);
+	    assert(0 && "Error: Assertion failed");
 	  if (steeInsec1_)
 	    value = 0;
 	  if (bigEnd_)
@@ -2705,7 +2748,7 @@ namespace WdRiscv
 	      byte = 0;
 	    value |= LOAD_TYPE(byte) << 8*destIx;
 	  }
-	else assert(0);
+	else assert(0 && "Error: Assertion failed");
       for (unsigned i = 0; i < size2; ++i, ++destIx)
 	if (memory_.read(pa2 + i, byte))
 	  {
@@ -2713,7 +2756,7 @@ namespace WdRiscv
 	      byte = 0;
 	    value |= LOAD_TYPE(byte) << 8*destIx;
 	  }
-	else assert(0);
+	else assert(0 && "Error: Assertion failed");
 
       if (bigEnd_)
 	value = util::byteswap(value);
@@ -2730,7 +2773,7 @@ namespace WdRiscv
 	{
 	  if (not steeInsec1_)
 	    if (not memory_.write(hartIx_, pa1, value))
-	      assert(0);
+	      assert(0 && "Error: Assertion failed");
 	  return;
 	}
       unsigned size = sizeof(value);
@@ -2742,11 +2785,11 @@ namespace WdRiscv
 	  if (not steeInsec1_)
 	    for (unsigned i = 0; i < size1; ++i, value >>= 8)
 	      if (not memory_.write(hartIx_, pa1 + i, uint8_t(value & 0xff)))
-	      assert(0);
+	      assert(0 && "Error: Assertion failed");
 	  if (not steeInsec2_)
 	    for (unsigned i = 0; i < size2; ++i, value >>= 8)
 	      if (not memory_.write(hartIx_, pa2 + i, uint8_t(value & 0xff)))
-		assert(0);
+		assert(0 && "Error: Assertion failed");
 	}
     }
 
@@ -3546,9 +3589,13 @@ namespace WdRiscv
                                   unsigned offsetWidth, unsigned offsetGroupX8,
                                   unsigned fieldCount);
 
-    /// Check reduction vector operand against the group multiplier. Record operands
+    /// Check reduction vector operands against the group multiplier. Record operands
     /// group multiplier for tracing.
     bool checkRedOpVsEmul(const DecodedInst* di);
+
+    /// Check wideining reduction vector operands against the group multiplier. Record
+    /// operands group multiplier for tracing.
+    bool checkWideRedOpVsEmul(const DecodedInst* di);
 
     /// Check destination and index operands against the group multipliers. Return
     /// true if operand is a multiple of multiplier and false otherwise. Record
@@ -5612,6 +5659,7 @@ namespace WdRiscv
     bool indexedNmi_ = false;  // NMI handler is at a cause-scaled offset when true.
 
     unsigned cacheLineSize_ = 64;
+    unsigned cacheLineShift_ = 6;
 
     uint64_t& time_;             // Only hart 0 increments this value.
     uint64_t timeDownSample_ = 0;
@@ -5710,6 +5758,7 @@ namespace WdRiscv
 
     bool clearTinstOnCboInval_ = false;
     bool clearTinstOnCboFlush_ = false;
+    bool alignCboAddr_ = true;
 
     bool targetProgFinished_ = false;
     bool stepResult_ = false;        // Set by singleStep on caught exception (program success/fail).
@@ -5769,6 +5818,7 @@ namespace WdRiscv
 
     // Exceptions injected by user.
     ExceptionCause injectException_ = ExceptionCause::NONE;
+    uint64_t injectAddr_ = 0;
     bool injectExceptionIsLd_ = false;
     unsigned injectExceptionElemIx_ = 0;
 

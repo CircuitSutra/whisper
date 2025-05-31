@@ -101,7 +101,7 @@ void Domain::inferXeipBits()
             unsigned idelivery = idcs_[hart_index].idelivery;
             unsigned ithreshold = idcs_[hart_index].ithreshold;
             bool under_threshold = ithreshold == 0 or priority < ithreshold;
-            //std::cerr << "idelivery: " << idelivery << ", under_threshold: " << under_threshold << ", pending: " << pending(i) << ", enabled: " << enabled(i) << ")\n";
+            //std::cerr << "Error: idelivery: " << idelivery << ", under_threshold: " << under_threshold << ", pending: " << pending(i) << ", enabled: " << enabled(i) << ")\n";
             if (idelivery and under_threshold and pending(i) and enabled(i))
                 xeip_bits_[hart_index] = 1;
         }

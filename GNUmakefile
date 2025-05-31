@@ -115,7 +115,7 @@ GIT_SHA := $(shell git rev-parse --verify HEAD || echo unknown)
 override CPPFLAGS += -DGIT_SHA=$(GIT_SHA)
 
 # GIT_SHA is compiled into Args.cpp. If the SHA in the object file doesn't match, force a recompile.
-UNUSED := $(shell grep -q $(GIT_SHA) $(BUILD_DIR)/Args.cpp.o || touch Args.cpp)
+UNUSED := $(shell grep -q -s $(GIT_SHA) $(BUILD_DIR)/Args.cpp.o || touch Args.cpp)
 
 # Command to compile .cpp files.
 override CXXFLAGS += -MMD -MP $(ARCH_FLAGS) -std=$(CXX_STD) $(OFLAGS) $(IFLAGS)

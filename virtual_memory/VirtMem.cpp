@@ -35,7 +35,7 @@ stage1PageFaultType(bool read, bool write, bool exec)
   if (exec)  return ExceptionCause::INST_PAGE_FAULT;
   if (read)  return ExceptionCause::LOAD_PAGE_FAULT;
   if (write) return ExceptionCause::STORE_PAGE_FAULT;
-  assert(0);
+  assert(0 && "Error: Assertion failed");
   return ExceptionCause::STORE_PAGE_FAULT;
 }
 
@@ -49,7 +49,7 @@ stage2PageFaultType(bool read, bool write, bool exec)
   if (exec)  return ExceptionCause::INST_GUEST_PAGE_FAULT;
   if (read)  return ExceptionCause::LOAD_GUEST_PAGE_FAULT;
   if (write) return ExceptionCause::STORE_GUEST_PAGE_FAULT;
-  assert(0);
+  assert(0 && "Error: Assertion failed");
   return ExceptionCause::STORE_GUEST_PAGE_FAULT;
 }
 
@@ -61,7 +61,7 @@ accessFaultType(bool read, bool write, bool exec)
   if (exec)  return ExceptionCause::INST_ACC_FAULT;
   if (read)  return ExceptionCause::LOAD_ACC_FAULT;
   if (write) return ExceptionCause::STORE_ACC_FAULT;
-  assert(0);
+  assert(0 && "Error: Assertion failed");
   return ExceptionCause::LOAD_ACC_FAULT;
 }
 
@@ -347,6 +347,12 @@ ExceptionCause
 VirtMem::stage2TranslateNoTlb(uint64_t va, PrivilegeMode priv, bool read,
 			      bool write, bool exec, bool isPteAddr, uint64_t& pa, TlbEntry& entry)
 {
+  if (stage2Mode_ == Mode::Bare)
+    {
+      pa = va;
+      return ExceptionCause::NONE;
+    }
+
   // Perform a page table walk.
   ExceptionCause (VirtMem::*stage2PageTableWalk)(uint64_t, PrivilegeMode, bool, bool, bool, bool, uint64_t&, TlbEntry&);
   unsigned lowerMaskBitIndex = 0;
@@ -504,6 +510,16 @@ ExceptionCause
 VirtMem::stage1TranslateNoTlb(uint64_t va, PrivilegeMode priv, bool read, bool write,
 			      bool exec, uint64_t& pa, TlbEntry& entry)
 {
+  s1ImplAccTrap_ = false;
+
+  if (vsMode_ == Mode::Bare)
+    {
+      pa = va;
+      return ExceptionCause::NONE;
+    }
+
+  ExceptionCause (VirtMem::*walkFn)(uint64_t, PrivilegeMode, bool, bool, bool, uint64_t&, TlbEntry&);
+
   if (vsMode_ == Mode::Sv32)
     {
       auto cause =  stage1PageTableWalk<Pte32, Va32>(va, priv, read, write, exec, pa, entry);
@@ -511,7 +527,6 @@ VirtMem::stage1TranslateNoTlb(uint64_t va, PrivilegeMode priv, bool read, bool w
       return cause;
     }
 
-  ExceptionCause (VirtMem::*walkFn)(uint64_t, PrivilegeMode, bool, bool, bool, uint64_t&, TlbEntry&);
   unsigned vaMsb = 0;  // Most significant bit of va
 
   if (vsMode_ == Mode::Sv39)
@@ -656,7 +671,7 @@ VirtMem::pageTableWalk(uint64_t address, PrivilegeMode privMode, bool read, bool
 	    // B2. Compare pte to memory.
 	    PTE pte2(0);
 	    if (!memRead(pteAddr, bigEnd_, pte2.data_))
-              assert(0);
+              assert(0 && "Error: Assertion failed");
 
             // Preserve the original pte.ppn (no NAPOT fixup).
             PTE orig = pte2;
@@ -665,12 +680,13 @@ VirtMem::pageTableWalk(uint64_t address, PrivilegeMode privMode, bool read, bool
 
 	    if (pte.data_ != pte2.data_)
 	      continue;  // Comparison fails: return to step 2.
+
+            aUpdated = not pte.bits_.accessed_;
 	    pte.bits_.accessed_ = orig.bits_.accessed_ = true;
-            aUpdated = true;
 	    if (write)
               {
+                dUpdated = not pte.bits_.dirty_;
                 pte.bits_.dirty_ = orig.bits_.dirty_ = 1;
-                dUpdated = true;
               }
 	    if (not memWrite(pteAddr, bigEnd_, orig.data_))
 	      return stage1PageFaultType(read, write, exec);
@@ -701,8 +717,8 @@ VirtMem::pageTableWalk(uint64_t address, PrivilegeMode privMode, bool read, bool
     {
       walkVec.back().emplace_back(pa, WalkEntry::Type::RE);
       auto& walkEntry = walkVec.back().back();
-      walkEntry.aUpdated_ = walkEntry.accessed_ = aUpdated;
-      walkEntry.dUpdated_ = walkEntry.dirty_ = dUpdated;
+      walkEntry.aUpdated_ = aUpdated;
+      walkEntry.dUpdated_ = dUpdated;
     }
 
   // Update tlb-entry with data found in page table entry.
@@ -837,7 +853,7 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 	    // B2. Compare pte to memory.
 	    PTE pte2(0);
 	    if (!memRead(pteAddr, bigEnd_, pte2.data_))
-              assert(0);
+              assert(0 && "Error: Assertion failed");
 
             // Preserve the original pte.ppn (no NAPOT fixup).
             PTE orig = pte2;
@@ -846,12 +862,13 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 
 	    if (pte.data_ != pte2.data_)
 	      continue;  // Comparison fails: return to step 2.
+
+            aUpdated = not pte.bits_.accessed_;
 	    pte.bits_.accessed_ = orig.bits_.accessed_ = 1;
-            aUpdated = true;
 	    if (write or (dirtyGForVsNonleaf_ and isPteAddr))
               {
+                dUpdated = not pte.bits_.dirty_;
                 pte.bits_.dirty_ = orig.bits_.dirty_ = 1;
-                dUpdated = true;
               }
 	    if (not memWrite(pteAddr, bigEnd_, orig.data_))
 	      return stage2PageFaultType(read, write, exec);
@@ -882,8 +899,8 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
     {
       walkVec.back().emplace_back(pa, WalkEntry::Type::RE);
       auto& walkEntry = walkVec.back().back();
-      walkEntry.aUpdated_ = walkEntry.accessed_ = aUpdated;
-      walkEntry.dUpdated_ = walkEntry.dirty_ = dUpdated;
+      walkEntry.aUpdated_ = aUpdated;
+      walkEntry.dUpdated_ = dUpdated;
     }
 
   // Update tlb-entry with data found in page table entry.
@@ -1031,7 +1048,7 @@ VirtMem::stage1PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 	    // B2. Compare pte to memory.
 	    PTE pte2(0);
 	    if (!memRead(pteAddr, bigEnd_, pte2.data_))
-              assert(0);
+              assert(0 && "Error: Assertion failed");
 
             // Preserve the original pte.ppn (no NAPOT fixup).
             PTE orig = pte2;
@@ -1040,12 +1057,13 @@ VirtMem::stage1PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
 
 	    if (pte.data_ != pte2.data_)
 	      continue;  // Comparison fails: return to step 2.
+
+            aUpdated = not pte.bits_.accessed_;
 	    pte.bits_.accessed_ = orig.bits_.accessed_ = 1;
-            aUpdated = true;
 	    if (write)
               {
+                dUpdated = not pte.bits_.dirty_;
                 pte.bits_.dirty_ = orig.bits_.dirty_ = 1;
-                dUpdated = true;
               }
 
 	    // Need to make sure we have write access to page.
@@ -1083,8 +1101,8 @@ VirtMem::stage1PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
     {
       walkVec.back().emplace_back(pa, WalkEntry::Type::RE);
       auto& walkEntry = walkVec.back().back();
-      walkEntry.aUpdated_ = walkEntry.accessed_ = aUpdated;
-      walkEntry.dUpdated_ = walkEntry.dirty_ = dUpdated;
+      walkEntry.aUpdated_ = aUpdated;
+      walkEntry.dUpdated_ = dUpdated;
     }
 
   // Update tlb-entry with data found in page table entry.

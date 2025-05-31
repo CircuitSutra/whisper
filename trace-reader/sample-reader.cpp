@@ -23,7 +23,7 @@ main(int argc, char* argv[])
 
   if (not *reader)
     {
-      std::cerr << "Failed to open " << argv[1] << " for input.\n";
+      std::cerr << "Error: Failed to open " << argv[1] << " for input.\n";
       return 1;
     }
 

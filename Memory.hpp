@@ -770,7 +770,6 @@ namespace WdRiscv
     unsigned regionMask_  = 0xf;                // This should depend on mem size.
 
     std::shared_mutex amoMutex_;
-    SpinLock lrMutex_;
 
     bool checkUnmappedElf_ = true;
 

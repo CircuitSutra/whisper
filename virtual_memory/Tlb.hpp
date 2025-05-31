@@ -324,7 +324,7 @@ namespace WdRiscv
           if (level == 5) return uint64_t(64)*1024*1204*1024;  // 256T bytes
         }
 
-      assert(0);
+      assert(0 && "Error: Assertion failed");
       return 0;
     }
 

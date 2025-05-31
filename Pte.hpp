@@ -117,7 +117,7 @@ namespace WdRiscv
     {
       if (i == 0) return ppn0();
       if (i == 1) return ppn1();
-      assert(0); return 0;
+      assert(0 && "Error: Assertion failed"); return 0;
     }
 
     /// Set the physical phage number (ppn1,ppn0) to the least
@@ -133,7 +133,7 @@ namespace WdRiscv
     {
       if (i == 0) return 12;
       if (i == 1) return 22;
-      assert(0); return 0;
+      assert(0 && "Error: Assertion failed"); return 0;
     }
   };
 
@@ -244,7 +244,7 @@ namespace WdRiscv
       if (i == 0) { return ppn0(); }
       if (i == 1) { return ppn1(); }
       if (i == 2) { return ppn2(); }
-      assert(0);
+      assert(0 && "Error: Assertion failed");
       return 0;
     }
 
@@ -266,7 +266,7 @@ namespace WdRiscv
       if (i == 0) { return 12; }
       if (i == 1) { return 21; }
       if (i == 2) { return 30; }
-      assert(0);
+      assert(0 && "Error: Assertion failed");
       return 0;
     }
   };
@@ -384,7 +384,7 @@ namespace WdRiscv
       if (i == 1) { return ppn1(); }
       if (i == 2) { return ppn2(); }
       if (i == 3) { return ppn3(); }
-      assert(0);
+      assert(0 && "Error: Assertion failed");
       return 0;
     }
 
@@ -408,7 +408,7 @@ namespace WdRiscv
       if (i == 1) { return 21; }
       if (i == 2) { return 30; }
       if (i == 3) { return 39; }
-      assert(0);
+      assert(0 && "Error: Assertion failed");
       return 0;
     }
   };
@@ -532,7 +532,7 @@ namespace WdRiscv
       if (i == 2) { return ppn2(); }
       if (i == 3) { return ppn3(); }
       if (i == 4) { return ppn4(); }
-      assert(0);
+      assert(0 && "Error: Assertion failed");
       return 0;
     }
 
@@ -558,7 +558,7 @@ namespace WdRiscv
       if (i == 2) { return 30; }
       if (i == 3) { return 39; }
       if (i == 4) { return 48; }
-      assert(0);
+      assert(0 && "Error: Assertion failed");
       return 0;
     }
   };
@@ -592,7 +592,7 @@ namespace WdRiscv
     {
       if (i == 0) return vpn0();
       if (i == 1) return vpn1();
-      assert(0);
+      assert(0 && "Error: Assertion failed");
       return 0;
     }
   };
@@ -630,7 +630,7 @@ namespace WdRiscv
       if (i == 0) return vpn0();
       if (i == 1) return vpn1();
       if (i == 2) return vpn2();
-      assert(0);
+      assert(0 && "Error: Assertion failed");
       return 0;
     }
   };
@@ -672,7 +672,7 @@ namespace WdRiscv
       if (i == 1) return vpn1();
       if (i == 2) return vpn2();
       if (i == 3) return vpn3();
-      assert(0);
+      assert(0 && "Error: Assertion failed");
       return 0;
     }
   };
@@ -718,7 +718,7 @@ namespace WdRiscv
       if (i == 2) return vpn2();
       if (i == 3) return vpn3();
       if (i == 4) return vpn4();
-      assert(0);
+      assert(0 && "Error: Assertion failed");
       return 0;
     }
   };
@@ -753,7 +753,7 @@ namespace WdRiscv
     {
       if (i == 0) return vpn0();
       if (i == 1) return vpn1();
-      assert(0);
+      assert(0 && "Error: Assertion failed");
       return 0;
     }
   };
@@ -791,7 +791,7 @@ namespace WdRiscv
       if (i == 0) return vpn0();
       if (i == 1) return vpn1();
       if (i == 2) return vpn2();
-      assert(0);
+      assert(0 && "Error: Assertion failed");
       return 0;
     }
   };
@@ -833,7 +833,7 @@ namespace WdRiscv
       if (i == 1) return vpn1();
       if (i == 2) return vpn2();
       if (i == 3) return vpn3();
-      assert(0);
+      assert(0 && "Error: Assertion failed");
       return 0;
     }
   };
@@ -879,7 +879,7 @@ namespace WdRiscv
       if (i == 2) return vpn2();
       if (i == 3) return vpn3();
       if (i == 4) return vpn4();
-      assert(0);
+      assert(0 && "Error: Assertion failed");
       return 0;
     }
   };

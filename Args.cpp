@@ -25,7 +25,7 @@ void
 printVersion()
 {
   unsigned version = 1;
-  unsigned subversion = 851;
+  unsigned subversion = 853;
   std::cout << "Version " << version << "." << subversion << " compiled on "
 	    << __DATE__ << " at " << __TIME__ << '\n';
 #ifdef GIT_SHA
@@ -159,18 +159,6 @@ Args::collectCommandLineValues(const boost::program_options::variables_map& varM
   if (varMap.count("consoleiosym"))
     this->consoleIoSym = varMap["consoleiosym"].as<std::string>();
 
-  if (varMap.count("xlen"))
-    {
-      std::cerr << "Command line option --xlen is deprecated.\n";
-      this->hasRegWidth = true;
-    }
-
-  if (varMap.count("cores"))
-    this->hasCores = true;
-
-  if (varMap.count("harts"))
-    this->hasHarts = true;
-
   if (varMap.count("alarm"))
     {
       auto numStr = varMap["alarm"].as<std::string>();
@@ -204,6 +192,28 @@ Args::collectCommandLineValues(const boost::program_options::variables_map& varM
       auto numStr = varMap["mcmls"].as<std::string>();
       if (not parseCmdLineNumber("mcmls", numStr, this->mcmls))
         ok = false;
+    }
+
+  if (varMap.count("harts"))
+    {
+      auto numStr = varMap["harts"].as<std::string>();
+      if (not parseCmdLineNumber("harts", numStr, this->harts))
+        ok = false;
+    }
+
+  if (varMap.count("cores"))
+    {
+      auto numStr = varMap["cores"].as<std::string>();
+      if (not parseCmdLineNumber("cores", numStr, this->cores))
+        ok = false;
+    }
+
+  if (varMap.count("xlen"))
+    {
+      auto numStr = varMap["xlen"].as<std::string>();
+      if (not parseCmdLineNumber("xlen", numStr, this->xlen))
+        ok = false;
+      std::cerr << "Warning: Command line option --xlen is deprecated.\n";
     }
 
   if (varMap.count("noppo"))
@@ -302,12 +312,14 @@ Args::collectCommandLineValues(const boost::program_options::variables_map& varM
   if (varMap.count("seed"))
     {
       auto numStr = varMap["seed"].as<std::string>();
-      if (not parseCmdLineNumber("seed", numStr, this->seed))
-	ok = false;
+      ok = parseCmdLineNumber("seed", numStr, this->seed) and ok;
     }
 
   if (this->interactive)
     this->trace = true;  // Enable instruction tracing in interactive mode.
+
+  if (varMap.count("dumpmem"))
+    ok = parseDumpMem(varMap["dumpmem"].as<std::string>()) and ok;
 
   return ok;
 }
@@ -331,11 +343,11 @@ Args::parseCmdLineArgs(std::span<char*> argv)
 	("isa", po::value(&this->isa),
 	 "Specify instruction set extensions to enable. Supported extensions "
 	 "are a, c, d, f, i, m, s and u. Default is imc.")
-	("xlen", po::value(&this->regWidth),
+	("xlen", po::value<std::string>(),
 	 "Specify register width (32 or 64), defaults to 32")
-	("harts", po::value(&this->harts),
+	("harts", po::value<std::string>(),
 	 "Specify number of hardware threads per core (default=1).")
-	("cores", po::value(&this->cores),
+	("cores", po::value<std::string>(),
 	 "Specify number of core per system (default=1).")
 	("pagesize", po::value(&this->pageSize),
 	 "Specify memory page size.")
@@ -363,7 +375,8 @@ Args::parseCmdLineArgs(std::span<char*> argv)
         ("testsignature", po::value(&this->testSignatureFile),
          "Produce a signature file used to score tests provided by the riscv-arch-test project.")
 	("logfile,f", po::value(&this->traceFile),
-	 "Enable tracing to given file of executed instructions. Output is compressed (with /usr/bin/gzip) if file name ends with \".gz\".")
+	 "Enable tracing to given file of executed instructions. Output is compressed (with "
+         "/usr/bin/gzip) if file name ends with \".gz\".")
 	("csvlog", po::bool_switch(&this->csv),
 	 "Enable CSV format for log file.")
 	("consoleoutfile", po::value(&this->consoleOutFile),
@@ -474,9 +487,17 @@ Args::parseCmdLineArgs(std::span<char*> argv)
          "<vl>/<pl> stands for virtual/physical line number. A line number is an address "
          "divided by the cache line size.")
 	("instrlines", po::value(&this->instrLines),
-	 "Generate instruction line address trace to the given file. See --datalines for file format.")
+	 "Generate instruction line address trace to the given file. See --datalines for file "
+         "format.")
 	("initstate", po::value(&this->initStateFile),
 	 "Generate to given file the initial state of accessed memory lines.")
+	("dumpmem", po::value<std::string>(),
+	 "At end of run, write the contents of a list of memory address ranges to a file "
+         "in hex format. The argument is a string of the form 'file_name:b1:e1:b2:e2...', "
+         "where b1 is the beginning address of the first range and e1 is its end address. "
+         "Example: '--dumpmem xyz:0:100:0x200:0x300'. This will dump to the file xyz the "
+         "contents of the memory ranges [0,100] and [0x200, 0x300]. The count of the "
+         "colon separated addresses after the file name must be even and must not be zero.")
 	("abinames", po::bool_switch(&this->abiNames),
 	 "Use ABI register names (e.g. sp instead of x2) in instruction dis-assembly.")
 	("newlib", po::bool_switch(&this->newlib),
@@ -608,7 +629,7 @@ Args::parseCmdLineArgs(std::span<char*> argv)
 
   catch (std::exception& exp)
     {
-      std::cerr << "Failed to parse command line args: " << exp.what() << '\n';
+      std::cerr << "Error: Failed to parse command line args: " << exp.what() << '\n';
       return false;
     }
 
@@ -666,7 +687,7 @@ Args::parseCmdLineNumber(const std::string& option, const std::string& numberStr
 
       if (bad)
 	{
-	  std::cerr << "parseCmdLineNumber: Number too large: " << numberStr
+	  std::cerr << "Error: parseCmdLineNumber: Number too large: " << numberStr
 		    << '\n';
 	  return false;
 	}
@@ -675,7 +696,7 @@ Args::parseCmdLineNumber(const std::string& option, const std::string& numberStr
     }
 
   if (not good)
-    std::cerr << "Invalid command line " << option << " value: " << numberStr
+    std::cerr << "Error: Invalid command line " << option << " value: " << numberStr
 	      << '\n';
   return good;
 }
@@ -690,5 +711,59 @@ Args::parseCmdLineNumber(const std::string& option, const std::string& numberStr
   if (not parseCmdLineNumber(option, numberStr, n))
     return false;
   number = n;
+  return true;
+}
+
+
+bool
+Args::parseDumpMem(const std::string& arg)
+{
+  eorMemDump.clear();
+  eorMemDumpRanges.clear();
+
+  if (arg.empty())
+    {
+      std::cerr << "Error: Arg of --dumpmem cannot be an empty string.\n";
+      return false;
+    }
+
+  if (arg.starts_with(":") or arg.ends_with(":"))
+    {
+      std::cerr << "Error: Arg of --dumpmem cannot start or end with a colon.\n";
+      return false;
+    }
+
+  StringVec tokens;
+  boost::split(tokens, arg, boost::is_any_of(":"));
+  
+  this->eorMemDump = tokens[0];
+  if ((tokens.size() %2) != 1 or tokens.size() == 1)
+    {
+      std::cerr << "Error: For --dumpmem, count of addresses after file name must be "
+                << "even and non-zero.\n";
+      return false;
+    }
+
+  for (size_t i = 1; i < tokens.size(); i += 2)
+    {
+      uint64_t start = 0, end = 0;
+
+      if (not parseCmdLineNumber("dumpmem-range-start", tokens.at(i), start))
+        return false;
+
+      if (not parseCmdLineNumber("dumpmem-range-start", tokens.at(i+1), end))
+        return false;
+
+      if (start > end)
+        {
+          std::cerr << "Error: Invalid address range for --memdump (start > end): "
+                    << start << ':' << end << '\n';
+          return false;
+        }
+
+      this->eorMemDumpRanges.push_back(start);
+      this->eorMemDumpRanges.push_back(end);
+    }
+
   return true;
 }

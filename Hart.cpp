@@ -73,7 +73,7 @@ parseNumber(std::string_view numberStr, TYPE& number)
         number = strtoull(numberStr.data(), &end, 0);
       else
 	{
-	  std::cerr << "parseNumber: Only 32/64-bit RISCV harts supported\n";
+	  std::cerr << "Error: parseNumber: Only 32/64-bit RISCV harts supported\n";
 	  return false;
 	}
       if (end and *end)
@@ -174,7 +174,7 @@ void Hart<URV>::filterMachineInterrupts(bool verbose) {
     for (unsigned bitPos = 0; bitPos < sizeof(URV) * 8; ++bitPos) {
       if (combinedMask & (URV(1) << bitPos)) {
         if (userCauses.find(bitPos) == userCauses.end()) {
-          std::cerr << "Warning: Interrupt cause " << bitPos
+          std::cerr << "Error: Interrupt cause " << bitPos
                     << " is allowed by hardware mask but not provided in configuration.\n";
         }
       }
@@ -218,7 +218,7 @@ void Hart<URV>::filterSupervisorInterrupts(bool verbose) {
     for (unsigned bitPos = 0; bitPos < sizeof(URV) * 8; ++bitPos) {
       if (combinedMask & (URV(1) << bitPos)) {
         if (userCauses.find(bitPos) == userCauses.end())
-          std::cerr << "Warning: Supervisor interrupt cause " << bitPos
+          std::cerr << "Error: Supervisor interrupt cause " << bitPos
                     << " allowed by hardware but missing in configuration.\n";
       }
     }
@@ -348,24 +348,12 @@ Hart<URV>::setupVirtMemCallbacks()
   });
 
   virtMem_.setIsReadableCallback([this](uint64_t addr, PrivilegeMode pm) -> bool {
-    if (steeEnabled_)
-      {
-        if (!stee_.isValidAddress(addr))
-          return false;  
-        addr = stee_.clearSecureBits(addr);
-      }
-
     if (pmpManager_.isEnabled())
       {
         const Pmp& pmp = pmpManager_.accessPmp(addr);
         if (not pmp.isRead(pm))
           return false;
       }
-    auto pma = memory_.pmaMgr_.getPma(addr);
-    return pma.isRead();
-  });
-
-  virtMem_.setIsWritableCallback([this](uint64_t addr, PrivilegeMode pm) -> bool {
     if (steeEnabled_)
       {
         if (!stee_.isValidAddress(addr))
@@ -373,12 +361,24 @@ Hart<URV>::setupVirtMemCallbacks()
         addr = stee_.clearSecureBits(addr);
       }
 
+    auto pma = memory_.pmaMgr_.getPma(addr);
+    return pma.isRead();
+  });
+
+  virtMem_.setIsWritableCallback([this](uint64_t addr, PrivilegeMode pm) -> bool {
     if (pmpManager_.isEnabled())
       {
         const Pmp& pmp = pmpManager_.accessPmp(addr);
         if (not pmp.isWrite(pm))
           return false;
       }
+    if (steeEnabled_)
+      {
+        if (!stee_.isValidAddress(addr))
+          return false;  
+        addr = stee_.clearSecureBits(addr);
+      }
+
     auto pma = memory_.pmaMgr_.getPma(addr);
 
     // return pma.isWrite() and pma.isRsrv();  // FIX: RTL does not do this. It should.
@@ -434,10 +434,19 @@ Hart<URV>::countImplementedPmpRegisters() const
       num = unsigned(CsrNumber::PMPCFG0);
       for (unsigned ix = 0; ix < 16; ++ix, ++num)
         if (csRegs_.isImplemented(CsrNumber(num)))
-          cfgCount++;
-      if (count and cfgCount != 2 and cfgCount != 8 and hartIx_ == 0)  // Only even numbered implemented.
-        cerr << "Warning: Physical memory protection enabled but only "
-	     << cfgCount << "/8" << " PMPCFG CSRs implemented.\n";
+          {
+            if ((ix & 1) == 1)
+              cerr << "Error: Odd numbered PMPCFG" << ix << " CSR should not be implemented.\n";
+            cfgCount++;
+          }
+
+      // Count should be 0, 16, or 14. cfgCount should be count/8.
+      if (cfgCount != count / 8)
+        {
+          cerr << "Error: The number of implemented PMPADDR CSRs is " << count
+               << ", but the number of implemented PMPCFG CSRs is " << cfgCount
+               << " (should be " << count << "/8 = " << (count/8) << ")\n";
+        }
     }
 
   return count;
@@ -450,7 +459,7 @@ Hart<URV>::processExtensions(bool verbose)
 {
   URV value = 0;
   if (not peekCsr(CsrNumber::MISA, value))
-    std::cerr << "CSR MISA is not defined\n";
+    std::cerr << "Error: CSR MISA is not defined\n";
 
   bool flag = value & (URV(1) << ('s' - 'a'));  // Supervisor-mode option.
   flag = flag and isa_.isEnabled(RvExtension::S);
@@ -485,7 +494,7 @@ Hart<URV>::processExtensions(bool verbose)
     {
       flag = false;
       if (verbose and hartIx_ == 0)
-	std::cerr << "Bit 3 (d) is set in the MISA register but f "
+	std::cerr << "Warning: Bit 3 (d) is set in the MISA register but f "
 		  << "extension (bit 5) is not enabled -- ignored\n";
     }
   enableRvd(flag);
@@ -498,7 +507,7 @@ Hart<URV>::processExtensions(bool verbose)
 
   flag = value & (URV(1) << ('i' - 'a'));
   if (not flag and not extensionIsEnabled(RvExtension::E) and verbose and hartIx_ == 0)
-    std::cerr << "Bit 8 (i extension) is cleared in the MISA register "
+    std::cerr << "Warning: Bit 8 (i extension) is cleared in the MISA register "
 	      << " but extension is mandatory -- assuming bit 8 set\n";
 
   flag = value & (URV(1) << ('m' - 'a'));
@@ -510,7 +519,7 @@ Hart<URV>::processExtensions(bool verbose)
     {
       flag = false;
       if (verbose and hartIx_ == 0)
-	std::cerr << "Bit 21 (v) is set in the MISA register but the d/f "
+	std::cerr << "Warning: Bit 21 (v) is set in the MISA register but the d/f "
 		  << "extensions are not enabled -- ignored\n";
     }
   flag = flag and isa_.isEnabled(RvExtension::V);
@@ -522,7 +531,7 @@ Hart<URV>::processExtensions(bool verbose)
       {
 	unsigned bit = ec - 'a';
 	if (value & (URV(1) << bit))
-	  std::cerr << "Bit " << bit << " (" << ec << ") set in the MISA "
+	  std::cerr << "Warninig: Bit " << bit << " (" << ec << ") set in the MISA "
 		    << "register but extension is not supported "
 		    << "-- ignored\n";
       }
@@ -550,7 +559,7 @@ Hart<URV>::processExtensions(bool verbose)
   enableExtension(RvExtension::Zvbc,     isa_.isEnabled(RvExtension::Zvbc));
   enableExtension(RvExtension::Zvfbfmin, isa_.isEnabled(RvExtension::Zvfbfmin));
   enableExtension(RvExtension::Zvfbfwma, isa_.isEnabled(RvExtension::Zvfbfwma));
-  enableExtension(RvExtension::Zvqdot,   true /*isa_.isEnabled(RvExtension::Zvqdot*/);
+  enableExtension(RvExtension::Zvqdot,   isa_.isEnabled(RvExtension::Zvqdot));
   enableExtension(RvExtension::Zvfh,     isa_.isEnabled(RvExtension::Zvfh));
   enableExtension(RvExtension::Zvfhmin,  isa_.isEnabled(RvExtension::Zvfhmin));
   enableExtension(RvExtension::Zvkg,     isa_.isEnabled(RvExtension::Zvkg));
@@ -570,8 +579,8 @@ Hart<URV>::processExtensions(bool verbose)
   enableExtension(RvExtension::Zcmop,    isa_.isEnabled(RvExtension::Zcmop));
   enableExtension(RvExtension::Smaia,    isa_.isEnabled(RvExtension::Smaia));
   enableExtension(RvExtension::Ssaia,    isa_.isEnabled(RvExtension::Ssaia));
-  enableExtension(RvExtension::Zicsr,    true /*isa_.isEnabled(RvExtension::Zicsr)*/);
-  enableExtension(RvExtension::Zifencei, true /*isa_.isEnabled(RvExtension::Zifencei)*/);
+  enableExtension(RvExtension::Zicsr,    true /*isa_.isEnabled(RvExtension::Zicsr)*/); // Default true until we fix riscof
+  enableExtension(RvExtension::Zifencei, true /*isa_.isEnabled(RvExtension::Zifencei)*/); // Default true until RTL catches up
 
   if (isa_.isEnabled(RvExtension::Sstc))
     enableRvsstc(true);
@@ -603,15 +612,15 @@ Hart<URV>::processExtensions(bool verbose)
   if (isa_.isEnabled(RvExtension::Zvknha) and
       isa_.isEnabled(RvExtension::Zvknhb))
     {
-      std::cerr << "Warning: Both Zvknha/b enabled.";
+      std::cerr << "Info: Both Zvknha/b enabled.";
       if (rv64_)
         {
-          std::cerr << " Using Zvknhb.\n";
+          std::cerr << "Info:  Using Zvknhb.\n";
           enableExtension(RvExtension::Zvknha, false);
         }
       else
         {
-          std::cerr << " Using Zvknha.\n";
+          std::cerr << "Info:  Using Zvknha.\n";
           enableExtension(RvExtension::Zvknhb, false);
         }
     }
@@ -902,6 +911,9 @@ Hart<URV>::reset(bool resetMemoryMappedRegs)
       memory_.pmaMgr_.clearDefaultPma();  // No access.
       memory_.pmaMgr_.enableInDefaultPma(Pma::Attrib::MisalAccFault); // Access fault on misal.
     }
+
+  // Update IID priority for benefit of *topi registers.
+  csRegs_.updateIidPrio(mInterrupts_, sInterrupts_, vsInterrupts_);
 }
 
 
@@ -1132,7 +1144,7 @@ template <typename URV>
 bool
 Hart<URV>::pokeMemory(uint64_t addr, uint8_t val, bool usePma, bool skipFetch)
 {
-  std::lock_guard<SpinLock> lock(memory_.lrMutex_);
+  std::unique_lock lock(memory_.amoMutex_);
 
   memory_.invalidateOtherHartLr(hartIx_, addr, sizeof(val));
   invalidateDecodeCache(addr, sizeof(val));
@@ -1148,7 +1160,7 @@ template <typename URV>
 bool
 Hart<URV>::pokeMemory(uint64_t addr, uint16_t val, bool usePma, bool skipFetch)
 {
-  std::lock_guard<SpinLock> lock(memory_.lrMutex_);
+  std::unique_lock lock(memory_.amoMutex_);
 
   memory_.invalidateOtherHartLr(hartIx_, addr, sizeof(val));
   invalidateDecodeCache(addr, sizeof(val));
@@ -1177,7 +1189,7 @@ Hart<URV>::pokeMemory(uint64_t addr, uint32_t val, bool usePma, bool skipFetch)
   // otherwise, there is no way for external driver to clear bits that
   // are read-only to this hart.
 
-  std::lock_guard<SpinLock> lock(memory_.lrMutex_);
+  std::unique_lock lock(memory_.amoMutex_);
 
   memory_.invalidateOtherHartLr(hartIx_, addr, sizeof(val));
   invalidateDecodeCache(addr, sizeof(val));
@@ -1200,7 +1212,7 @@ template <typename URV>
 bool
 Hart<URV>::pokeMemory(uint64_t addr, uint64_t val, bool usePma, bool skipFetch)
 {
-  std::lock_guard<SpinLock> lock(memory_.lrMutex_);
+  std::unique_lock lock(memory_.amoMutex_);
 
   memory_.invalidateOtherHartLr(hartIx_, addr, sizeof(val));
   invalidateDecodeCache(addr, sizeof(val));
@@ -1341,7 +1353,7 @@ Hart<URV>::execAddi(const DecodedInst* di)
       if (di->op0() == 0 and di->op1() == 29)
         throw CoreException(CoreException::SnapshotAndStop, "Taking snapshot and stopping run from HINT.");
       if (di->op0() == 0 and di->op1() == 26)
-        std::cerr << "Executed instructions: " << instCounter_ << "\n";
+        std::cerr << "Info: Executed instructions: " << instCounter_ << "\n";
     }
 }
 
@@ -1851,19 +1863,33 @@ Hart<URV>::determineLoadException(uint64_t& addr1, uint64_t& addr2, uint64_t& ga
     {
       uint64_t aligned = addr1 & ~alignMask;
       uint64_t next = addr1 == addr2? aligned + ldSize : addr2;
-      ldStFaultAddr_ = va2;
       pma = accessPma(next);
       pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt());
       if (not pma.isRead()  or  (virtMem_.isExecForRead() and not pma.isExec()))
-	return EC::LOAD_ACC_FAULT;
+        {
+          ldStFaultAddr_ = va2;
+          return EC::LOAD_ACC_FAULT;
+        }
       if (not pma.isMisalignedOk())
-	return pma.misalOnMisal()? EC::LOAD_ADDR_MISAL : EC::LOAD_ACC_FAULT;
+        {
+          ldStFaultAddr_ = va2;
+          return pma.misalOnMisal()? EC::LOAD_ADDR_MISAL : EC::LOAD_ACC_FAULT;
+        }
     }
 
-  if (injectException_ != EC::NONE and
-      injectExceptionIsLd_ and
-      elemIx == injectExceptionElemIx_)
-    return injectException_;
+  if (injectException_ != EC::NONE and injectExceptionIsLd_ and elemIx == injectExceptionElemIx_)
+    {
+      // Adjust ldStFaultAddr for line crossers if fault is on 2nd line.
+      if (injectAddr_ != 0 and cacheLineNum(va1) != cacheLineNum(injectAddr_))
+        {
+          if (misal)
+            ldStFaultAddr_ = va2;
+          else
+            std::cerr << "Error: hart-id= " << hartId() << " tag=" << instCounter_
+                      << " injected exception pa does not match instruction data pa.\n";
+        }
+      return injectException_;
+    }
 
   return EC::NONE;
 }
@@ -1987,7 +2013,7 @@ readCharNonBlocking(int fd)
     return 0;
 
   if (code == -1)
-    std::cerr << "readCharNonBlocking: unexpected fail on read\n";
+    std::cerr << "Error: readCharNonBlocking: unexpected fail on read\n";
 
   return -1;
 }
@@ -2006,7 +2032,7 @@ Hart<URV>::getOooLoadValue(uint64_t va, uint64_t pa1, uint64_t pa2, unsigned siz
   if (perfApi_)
     return perfApi_->getLoadData(hartIx_, instCounter_, va, pa1, pa2, size, value,
                                  elemIx, field);
-  assert(0);
+  assert(0 && "Error: Assertion failed");
   return false;
 }
 
@@ -2082,7 +2108,7 @@ Hart<URV>::deviceRead(uint64_t pa, unsigned size, uint64_t& val)
       else if (size == 8)
 	memRead(pa, pa, val);
       else
-	assert(0);
+	assert(0 && "Error: Assertion failed");
       return;
     }
 
@@ -2130,20 +2156,24 @@ Hart<URV>::deviceRead(uint64_t pa, unsigned size, uint64_t& val)
 	  break;
 
 	default:
-	  assert(0);
+	  assert(0 && "Error: Assertion failed");
 	}
       return;
     }
 
   if (isAplicAddr(pa))
     {
-      uint32_t val32;
-      aplic_->read(pa, size, val32);
+      uint32_t val32 = 0;
+      if (not aplic_->read(pa, size, val32))
+        {
+          std::cerr << "Error: unsupported APLIC read: address = 0x" <<
+            std::hex << pa << std::dec << ", size = " << size << " bytes\n";
+        }
       val = val32;
       return;
     }
 
-  assert(0);  // No device contains given address.
+  assert(0 && "Error: Assertion failed");  // No device contains given address.
 }
 
 
@@ -2176,11 +2206,16 @@ Hart<URV>::deviceWrite(uint64_t pa, STORE_TYPE storeVal)
   if (isAplicAddr(pa))
     {
       uint32_t val32 = storeVal;
-      aplic_->write(pa, sizeof(storeVal), val32);
+      if (not aplic_->write(pa, sizeof(storeVal), val32))
+        {
+          std::cerr << "Error: unsupported APLIC write: address = 0x" <<
+            std::hex << pa << std::dec << ", size = " << sizeof(storeVal) <<
+            " bytes, data = 0x" << std::hex << uint64_t(storeVal) << std::dec << "\n";
+        }
       return;
     }
 
-  assert(0);
+  assert(0 && "Error: Assertion failed");
 }
 
 
@@ -2345,7 +2380,7 @@ Hart<URV>::handleStoreToHost(URV physAddr, STORE_TYPE storeVal)
 	  if (c)
 	    {
 	      if (::write(syscall_.effectiveFd(STDOUT_FILENO), &c, 1) != 1)
-		std::cerr << "Hart::handleStoreToHost: write failed\n";
+		std::cerr << "Error: Hart::handleStoreToHost: write failed\n";
 	    }
 	}
       else if (cmd == 0 and fromHostValid_)
@@ -2378,9 +2413,8 @@ Hart<URV>::store(const DecodedInst* di, URV virtAddr, [[maybe_unused]] bool hype
   return fastStore(di, virtAddr, storeVal);
 #else
 
-  auto lock = (amoLock)? std::shared_lock<std::shared_mutex>(memory_.amoMutex_) :
-                         std::shared_lock<std::shared_mutex>();
-  std::lock_guard<SpinLock> lock2(memory_.lrMutex_);
+  auto lock = (amoLock)? std::unique_lock(memory_.amoMutex_) :
+                         std::unique_lock<std::shared_mutex>();
 
   // ld/st-address or instruction-address triggers have priority over
   // ld/st access or misaligned exceptions.
@@ -2915,12 +2949,18 @@ Hart<URV>::initiateInterrupt(InterruptCause cause, PrivilegeMode nextMode,
   bool interrupt = true;
   URV info = 0;  // This goes into mtval.
 
-  // Remap the cause to non-VS cause (e.g. VSTIME becomes STIME).
+  // Remap the cause to non-VS cause (e.g. VSTIME becomes STIME) if the interrupt was
+  // delegated as opposed to injected by hvictl.
   using IC = InterruptCause;
   URV causeNum = URV(cause);
   if (nextVirt and (cause == IC::VS_EXTERNAL or cause == IC::VS_TIMER or
                     cause == IC::VS_SOFTWARE))
-    causeNum--;
+    {
+      auto hideleg = csRegs_.getImplementedCsr(CsrNumber::HIDELEG);
+      bool delegated = hideleg and ((URV(1) << causeNum) & hideleg->read());
+      if (delegated)
+        causeNum--;
+    }
 
   initiateTrap(nullptr, interrupt, causeNum, nextMode, nextVirt, pc, info);
 
@@ -3176,8 +3216,6 @@ Hart<URV>::initiateTrap(const DecodedInst* di, bool interrupt,
   if (cancelLrOnTrap_)
     cancelLr(CancelLrCause::TRAP);
 
-  injectException_ = ExceptionCause::NONE;
-
   bool origVirtMode = virtMode_;
   bool gvaVirtMode = effectiveVirtualMode();
 
@@ -3230,9 +3268,13 @@ Hart<URV>::initiateTrap(const DecodedInst* di, bool interrupt,
 
   uint32_t tinst = isRvh()? createTrapInst(di, interrupt, cause, info, info2) : 0;
 
-  bool gva = ( isRvh() and not interrupt and
-	       (hyperLs_ or isGvaTrap(gvaVirtMode, cause)));
-  if (lastEbreak_ and clearMtvalOnEbreak_)
+  using EC = ExceptionCause;
+  injectException_ = EC::NONE;
+
+  bool gva = isRvh() and not interrupt and (hyperLs_ or isGvaTrap(gvaVirtMode, cause));
+  if (origVirtMode  and  cause == unsigned(EC::HARDWARE_ERROR)  and not  interrupt)
+    gva = true;
+  else if (lastEbreak_ and clearMtvalOnEbreak_)
     gva = false;
 
   // Update status register saving xIE in xPIE and previous privilege
@@ -3559,7 +3601,7 @@ Hart<URV>::peekCsr(CsrNumber csrn, bool quiet) const
 
   if (not peekCsr(csrn, value))
     if (not quiet)
-      std::cerr << "Invalid CSR number in peekCsr: 0x" << std::hex
+      std::cerr << "Warning: Invalid CSR number in peekCsr: 0x" << std::hex
 		<<  unsigned(csrn) << std::dec << '\n';
   return value;
 }
@@ -3764,7 +3806,7 @@ Hart<URV>::postCsrUpdate(CsrNumber csr, URV val, URV lastVal)
   if (csr >= CN::PMACFG0 and csr <= CN::PMACFG15)
     {
       if (not processPmaChange(csr))
-	assert(0);
+	assert(0 && "Error: Assertion failed");
       return;
     }
 
@@ -4193,7 +4235,7 @@ Hart<URV>::configMemoryProtectionGrain(uint64_t size)
   if (size < 4)
     {
       if (hartIx_ == 0)
-	std::cerr << "Memory protection grain size (" << size << ") is "
+	std::cerr << "Error: Memory protection grain size (" << size << ") is "
 		  << "smaller than 4. Using 4.\n";
       size = 4;
       ok = false;
@@ -4204,7 +4246,7 @@ Hart<URV>::configMemoryProtectionGrain(uint64_t size)
   if (size != powerOf2)
     {
       if (hartIx_ == 0)
-	std::cerr << "Memory protection grain size (0x" << std::hex
+	std::cerr << "Error: Memory protection grain size (0x" << std::hex
 		  << size << ") is not a power of 2. Using: 0x"
 		  << powerOf2 << std::dec << '\n';
       size = powerOf2;
@@ -4215,7 +4257,7 @@ Hart<URV>::configMemoryProtectionGrain(uint64_t size)
   if (log2Size > limit)  // This can only happen in RV32.
     {
       if (hartIx_ == 0)
-	std::cerr << "Memory protection grain size (0x" << std::hex
+	std::cerr << "Error: Memory protection grain size (0x" << std::hex
 		  << size << ") is larger than 2 to the power "
 		  << std::dec << limit << ". "
 		  << "Using 2 to the power " << limit << ".\n";
@@ -4985,7 +5027,7 @@ Hart<URV>::takeTriggerAction(FILE* traceFile, URV pc, URV info,
 			     uint64_t instrTag, const DecodedInst* di)
 {
   // Check triggers configuration to determine action: take breakpoint
-  // exception or enter debugger.
+  // exception or enter debugger (or nothing).
 
   bool enteredDebug = false;
 
@@ -4994,7 +5036,7 @@ Hart<URV>::takeTriggerAction(FILE* traceFile, URV pc, URV info,
       enterDebugMode_(DebugModeCause::TRIGGER, pc);
       enteredDebug = true;
     }
-  else
+  else if (csRegs_.hasBreakpTripped())
     {
       initiateException(ExceptionCause::BREAKP, pc, info);
       if (dcsrStep_)
@@ -5161,14 +5203,16 @@ Hart<URV>::fetchInstWithTrigger(URV addr, uint64_t& physAddr, uint32_t& inst, FI
 
       // Fetch was successful, but injected exception.
       if (fetch)
-        initiateException(injectException_, pc_, pc_);
+        {
+          uint64_t tval = pc_;  // For MTVAL/STVAL
+          // Adjust MTVAL/STVAL for line crossers if fault is on 2nd line.
+          if (injectAddr_ != 0 and cacheLineNum(pc_) != cacheLineNum(injectAddr_))
+            tval = cacheLineAlign(tval) + cacheLineSize();
+          initiateException(injectException_, pc_, tval);
+        }
 
       std::string instStr;
       printInstTrace(inst, instCounter_, instStr, file);
-
-      if (dcsrStep_)
-        enterDebugMode_(DebugModeCause::STEP, pc_);
-
       return false;  // Next instruction in trap handler.
     }
 
@@ -5259,14 +5303,20 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
           if (processExternalInterrupt(traceFile, instStr))
             {
               if (sdtrigOn_)
-                evaluateIcountTrigger();
+                {
+                  evaluateIcountTrigger();
+                  evaluateDebugStep();
+                }
               continue;  // Next instruction in trap handler.
             }
 
           if (sdtrigOn_ and icountTriggerFired())
             {
               if (takeTriggerAction(traceFile, currPc_, 0, instCounter_, nullptr /*di*/))
-                return true;
+                {
+                  evaluateDebugStep();
+                  return true;
+                }
               continue;
             }
 
@@ -5274,7 +5324,10 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
           if (not fetchInstWithTrigger(pc_, physPc, inst, traceFile))
             {
               if (sdtrigOn_)
-                evaluateIcountTrigger();
+                {
+                  evaluateIcountTrigger();
+                  evaluateDebugStep();
+                }
               continue;  // Next instruction in trap handler.
             }
 
@@ -5297,6 +5350,7 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
               if (doStats)
                 accumulateInstructionStats(*di);
 	      printDecodedInstTrace(*di, instCounter_, instStr, traceFile);
+              evaluateDebugStep();
 	      continue;
 	    }
 
@@ -5316,7 +5370,10 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
 	    {
 	      URV tval = ldStFaultAddr_;
 	      if (takeTriggerAction(traceFile, currPc_, tval, instCounter_, di))
-		return true;
+                {
+                  evaluateDebugStep();
+                  return true;
+                }
 	      continue;
 	    }
 
@@ -5338,6 +5395,9 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
 	  if (doStats)
 	    accumulateInstructionStats(*di);
 	  printDecodedInstTrace(*di, instCounter_, instStr, traceFile);
+
+          if (sdtrigOn_)
+            evaluateDebugStep();
 
           prevPerfControl_ = perfControl_;
 
@@ -5377,9 +5437,9 @@ Hart<URV>::runUntilAddress(uint64_t address, FILE* traceFile)
 
   if (instCounter_ >= instLim or
       retInstCounter_ >= retInstLim)
-    std::cerr << "Stopped -- Reached instruction limit hart=" << hartIx_ << "\n";
+    std::cerr << "Info: Stopped -- Reached instruction limit hart=" << hartIx_ << "\n";
   else if (pc_ == address)
-    std::cerr << "Stopped -- Reached end address hart=" << hartIx_ << "\n";
+    std::cerr << "Info: Stopped -- Reached end address hart=" << hartIx_ << "\n";
 
   // Simulator stats.
   struct timeval t1;
@@ -5413,13 +5473,13 @@ Hart<URV>::runSteps(uint64_t steps, bool& stop, FILE* traceFile)
           retInstCounter_ >= retInstLim)
         {
           stop = true;
-          std::cerr << "Stopped -- Reached instruction limit\n";
+          std::cerr << "Info: Stopped -- Reached instruction limit\n";
           return true;
         }
       else if (pc_ == stopAddr)
         {
           stop = true;
-          std::cerr << "Stopped -- Reached end address\n";
+          std::cerr << "Info: Stopped -- Reached end address\n";
           return true;
         }
 
@@ -5459,12 +5519,12 @@ Hart<URV>::simpleRun()
 
           if (userStop)
             {
-              std::cerr << "Stopped -- interrupted\n";
+              std::cerr << "Info: Stopped -- interrupted\n";
               break;
             }
 
           if (hasLim)
-            std::cerr << "Stopped -- Reached instruction limit\n";
+            std::cerr << "Info: Stopped -- Reached instruction limit\n";
           break;
         }
     }
@@ -5659,7 +5719,7 @@ Hart<URV>::saveBranchTrace(const std::string& path)
   FILE* file = fopen(path.c_str(), "w");
   if (not file)
     {
-      std::cerr << "Failed to open branch-trace output file '" << path << "' for writing\n";
+      std::cerr << "Error: Failed to open branch-trace output file '" << path << "' for writing\n";
       return false;
     }
 
@@ -5686,7 +5746,7 @@ Hart<URV>::loadBranchTrace(const std::string& path)
 
   if (not ifs.good())
     {
-      std::cerr << "Failed to open branch trace file " << path << "' for input.\n";
+      std::cerr << "Error: Failed to open branch trace file " << path << "' for input.\n";
       return false;
     }
 
@@ -5764,7 +5824,7 @@ Hart<URV>::openTcpForGdb()
   int gdbFd = socket(AF_INET, SOCK_STREAM, 0);
   if (gdbFd < 0)
     {
-      std::cerr << "Failed to create gdb socket at port " << gdbTcpPort_ << '\n';
+      std::cerr << "Error: Failed to create gdb socket at port " << gdbTcpPort_ << '\n';
       return false;
     }
 
@@ -5774,27 +5834,27 @@ Hart<URV>::openTcpForGdb()
 		 SO_REUSEADDR | SO_REUSEPORT, &opt,
 		 sizeof(opt)) != 0)
     {
-      std::cerr << "Failed to set socket option for gdb socket\n";
+      std::cerr << "Error: Failed to set socket option for gdb socket\n";
       return false;
     }
 #endif
 
   if (bind(gdbFd, reinterpret_cast<sockaddr*>(&address), addrlen) < 0)
     {
-      std::cerr << "Failed to bind gdb socket\n";
+      std::cerr << "Error: Failed to bind gdb socket\n";
       return false;
     }
 
   if (listen(gdbFd, 3) < 0)
     {
-      std::cerr << "Failed to listen to gdb socket\n";
+      std::cerr << "Error: Failed to listen to gdb socket\n";
       return false;
     }
 
   gdbInputFd_ = accept(gdbFd, (sockaddr*) &address, &addrlen);
   if (gdbInputFd_ < 0)
     {
-      std::cerr << "Failed to accept from gdb socket\n";
+      std::cerr << "Error: Failed to accept from gdb socket\n";
       return false;
     }
 
@@ -5866,7 +5926,7 @@ void
 Hart<URV>::setPerfApi(std::shared_ptr<TT_PERF::PerfApi> perfApi)
 {
   if constexpr (sizeof(URV) == 4)
-    assert(0 && "Perf-api not supported in RV32");
+    assert(0 && "Error: Perf-api not supported in RV32");
   else
     {
       perfApi_ = std::move(perfApi);
@@ -6073,7 +6133,7 @@ Hart<URV>::processTimerInterrupt()
 {
   using IC = InterruptCause;
 
-  URV mipVal = csRegs_.peekMip();
+  URV mipVal = csRegs_.overrideWithMvip(csRegs_.peekMip());
   URV prev = mipVal;
 
   if (hasAclint() and aclintDeliverInterrupts_)
@@ -6211,13 +6271,17 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
       if (processExternalInterrupt(traceFile, instStr))
         {
           if (sdtrigOn_)
-            evaluateIcountTrigger();
+            {
+              evaluateIcountTrigger();
+              evaluateDebugStep();
+            }
           return;  // Next instruction in interrupt handler.
         }
 
       if (sdtrigOn_ and icountTriggerFired())
         {
           takeTriggerAction(traceFile, currPc_, 0, instCounter_, nullptr /*di*/);
+          evaluateDebugStep();
           return;
         }
 
@@ -6225,7 +6289,10 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
       if (not fetchInstWithTrigger(pc_, physPc, inst, traceFile))
         {
           if (sdtrigOn_)
-            evaluateIcountTrigger();
+            {
+              evaluateIcountTrigger();
+              evaluateDebugStep();
+            }
           return;
         }
 
@@ -6243,8 +6310,7 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
 	  if (doStats)
 	    accumulateInstructionStats(di);
 	  printDecodedInstTrace(di, instCounter_, instStr, traceFile);
-	  if (dcsrStep_ and not debugMode_ and not ebreakInstDebug_)
-	    enterDebugMode_(DebugModeCause::STEP, pc_);
+          evaluateDebugStep();
 	  return;
 	}
 
@@ -6252,6 +6318,7 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
 	{
           URV tval = ldStFaultAddr_;
 	  takeTriggerAction(traceFile, currPc_, tval, instCounter_, &di);
+          evaluateDebugStep();
 	  return;
 	}
 
@@ -6262,18 +6329,14 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
 	accumulateInstructionStats(di);
       printInstTrace(inst, instCounter_, instStr, traceFile);
 
-      // If step bit set in dcsr then enter debug mode unless already there.
-      if (dcsrStep_ and not debugMode_ and not ebreakInstDebug_)
-	enterDebugMode_(DebugModeCause::STEP, pc_);
+      if (sdtrigOn_)
+        evaluateDebugStep();
 
       prevPerfControl_ = perfControl_;
     }
   catch (const CoreException& ce)
     {
-      // If step bit set in dcsr then enter debug mode unless already there.
-      // This is for the benefit of the test bench.
-      if (dcsrStep_ and not debugMode_ and not ebreakInstDebug_)
-	enterDebugMode_(DebugModeCause::STEP, pc_);
+      evaluateDebugStep();
 
       stepResult_ = logStop(ce, instCounter_, traceFile);
       if (ce.type() == CoreException::Type::Snapshot or
@@ -9926,7 +9989,7 @@ Hart<URV>::execute(const DecodedInst* di)
       return;
     }
 
-  assert(0 && "Shouldn't be able to get here if all cases above returned");
+  assert(0 && "Error: Shouldn't be able to get here if all cases above returned");
 }
 
 
@@ -10007,7 +10070,7 @@ Hart<URV>::exitDebugMode()
 {
   if (not debugMode_)
     {
-      std::cerr << "Error: Bench sent exit debug while not in debug mode.\n";
+      std::cerr << "Warning: Bench sent exit debug while not in debug mode.\n";
       return;
     }
 
@@ -10026,7 +10089,7 @@ Hart<URV>::exitDebugMode()
   // object.
   URV dcsrVal = 0;
   if (not peekCsr(CsrNumber::DCSR, dcsrVal))
-    std::cerr << "Error: Failed to read DCSR in exit debug.\n";
+    std::cerr << "Warning: Failed to read DCSR in exit debug.\n";
 
   DcsrFields<URV> dcsrf(dcsrVal);
   if (dcsrf.bits_.NMIP)
@@ -10752,7 +10815,7 @@ namespace WdRiscv
     // 2. Restore program counter from MEPC.
     uint64_t epc;
     if (not csRegs_.readSignExtend(CsrNumber::MEPC, privMode_, epc))
-      assert(0);
+      assert(0 && "Error: Assertion failed");
     setPc(epc);
 
     // 3. Update virtual mode.
@@ -10907,7 +10970,7 @@ Hart<URV>::execSret(const DecodedInst* di)
 
   // ... and putting it back
   if (not csRegs_.write(CsrNumber::SSTATUS, privMode_, fields.value_))
-    assert(0);
+    assert(0 && "Error: Assertion failed");
   updateCachedSstatus();
 
   // Clear hstatus.spv if sret executed in M/S modes.
@@ -10915,7 +10978,7 @@ Hart<URV>::execSret(const DecodedInst* di)
     {
       hstatus_.bits_.SPV = 0;
       if (not csRegs_.write(CsrNumber::HSTATUS, privMode_, hstatus_.value_))
-	assert(0);
+	assert(0 && "Error: Assertion failed");
     }
 
   // Restore program counter from SEPC.
@@ -11092,12 +11155,26 @@ Hart<URV>::checkCsrAccess(const DecodedInst* di, CsrNumber csr, bool isWrite)
   using PM = PrivilegeMode;
   using CN = CsrNumber;
 
-  // Section 2.5 of AIA. Check if MSTATEN disallows access.
-  if (privMode_ != PM::Machine and csRegs_.isAia(csr)
-      and not csRegs_.isStateEnabled(csr, PM::Machine, false /*virtMode_*/))
+  if (csRegs_.isAia(csr))
     {
-      illegalInst(di);
-      return false;
+      if (csRegs_.isHypervisor(csr) and not isRvh())
+        {
+          illegalInst(di);
+          return false;
+        }
+
+      // Section 2.5 of AIA. Check if MSTATEN disallows access.
+      if (privMode_ != PM::Machine)
+        {
+          auto mappedCsr = csRegs_.getImplementedCsr(csr, virtMode_);
+          auto csrn = mappedCsr? mappedCsr->getNumber() : csr;
+
+          if (not csRegs_.isStateEnabled(csrn, PM::Machine, false /*virtMode_*/))
+            {
+              illegalInst(di);
+              return false;
+            }
+        }
     }
 
   // Check if HS qualified (section 9.6.1 of privileged spec).
@@ -11112,7 +11189,7 @@ Hart<URV>::checkCsrAccess(const DecodedInst* di, CsrNumber csr, bool isWrite)
 	  URV hcounteren = 0, mcounteren = 0, scounteren = 0;
 	  if (not peekCsr(CN::MCOUNTEREN, mcounteren) or not peekCsr(CN::HCOUNTEREN, hcounteren) or
 	      not peekCsr(CN::SCOUNTEREN, scounteren))
-	    assert(0);
+	    assert(0 && "Error: Assertion failed");
 	  unsigned bitIx = unsigned(csr) - unsigned(CN::CYCLE);
 	  URV mask = URV(1) << bitIx;
           if ((mcounteren & mask) == 0)
@@ -11295,29 +11372,69 @@ Hart<URV>::imsicAccessible(const DecodedInst* di, CsrNumber csr, PrivilegeMode m
           URV sel = 0;
           if (not peekCsr(iselect, sel))
             {
-              std::cerr << "Failed to peek AIA select csr\n";
+              std::cerr << "Error: Failed to peek AIA select csr\n";
               return false;
             }
 
+          bool isVs = (privMode_ == PM::Supervisor and virtMode_);  // VS mode
+          bool isMhs = (privMode_ != PM::User and not virtMode_);   // M or HS mode
+
           if (TT_IMSIC::Imsic::isFileSelReserved(sel))
             {
-              illegalInst(di);
-              return false;
+              if (iselect == CN::MISELECT and csr == CN::MIREG)
+                {
+                  illegalInst(di);
+                  return false;
+                }
+              if (iselect == CN::SISELECT and csr == CN::SIREG)
+                {
+                  illegalInst(di);
+                  return false;
+                }
+              if (iselect == CN::VSISELECT)
+                {
+                  // Sec 2.3 of interrupt spec: attempts from M-mode or HS-mode to access
+                  // vsireg, or from VS-mode to access sireg (really vsireg), should
+                  // preferably raise an illegal instruction exception.
+                  if ((isMhs and csr == CN::VSIREG) or (isVs and csr == CN::SIREG))
+                    illegalInst(di);
+                  else
+                    virtualInst(di);
+                  return false;
+                }
             }
 
           if (not TT_IMSIC::Imsic::isFileSelAccessible<URV>(sel, guestFile))
             {
-              if (virtMode)
-                virtualInst(di);
-              else
-                illegalInst(di);
-              return false;
+              if (iselect == CN::MISELECT and csr == CN::MIREG)
+                {
+                  illegalInst(di);
+                  return false;
+                }
+              if (iselect == CN::SISELECT and csr == CN::SIREG)
+                {
+                  illegalInst(di);
+                  return false;
+                }
+              if (iselect == CN::VSISELECT)
+                {
+                  // Sec 2.3 of interrupt spec: attempts from M-mode or HS-mode to access
+                  // vsireg raise an illegal instruction exception, and attempts from VS-mode
+                  // to access sireg (really vsireg) raise a virtual instruction exception.
+                  if (isMhs and csr == CN::VSIREG)
+                    illegalInst(di);
+                  else if (isVs and csr == CN::SIREG)
+                    virtualInst(di);
+                  else
+                    illegalInst(di);
+                  return false;
+                }
             }
         }
 
         // From section 5.3, When mvien.SEIP is set, 0x70-0xFF are reserved and stopei
         // are reserved from S-mode.
-        bool isS = privMode_ == PrivilegeMode::Supervisor and not virtMode_;
+        bool isS = privMode_ == PM::Supervisor and not virtMode_;
         if (isS and (csr == CN::STOPEI or csr == CN::SIREG))
           {
             URV mvien = csRegs_.peekMvien();
@@ -11334,7 +11451,7 @@ Hart<URV>::imsicAccessible(const DecodedInst* di, CsrNumber csr, PrivilegeMode m
                     URV sel = 0;
                     if (not peekCsr(iselect, sel))
                       {
-                        std::cerr << "Failed to peek AIA select csr\n";
+                        std::cerr << "Error: Failed to peek AIA select csr\n";
                         return false;
                       }
 
@@ -11612,16 +11729,22 @@ Hart<URV>::execCsrrs(const DecodedInst* di)
       return;
     }
 
-  URV next = prev | intRegs_.read(di->op1());
-
-  // MIP read value is ored with supervisor external interrupt pin. Same for SIP if
-  // supervisor external interrupt is delegated.
+  // When determining next value, we check the MVIP bit.
   using IC = InterruptCause;
   if (csr == CsrNumber::MIP)
-    prev = csRegs_.overrideWithSeiPinAndMvip(prev);
+    prev = csRegs_.overrideWithMvip(prev);
   else if (not virtMode_ and csr == CsrNumber::SIP and
             (csRegs_.peekMideleg() & (URV(1) << URV(IC::S_EXTERNAL))))
-    prev = csRegs_.overrideWithSeiPinAndMvip(prev);
+    prev = csRegs_.overrideWithMvip(prev);
+
+  URV next = prev | intRegs_.read(di->op1());
+
+  // When determining read value, we check both Mvip and SEI pin.
+  if (csr == CsrNumber::MIP)
+    prev = csRegs_.overrideWithSeiPin(prev);
+  else if (not virtMode_ and csr == CsrNumber::SIP and
+            (csRegs_.peekMideleg() & (URV(1) << URV(IC::S_EXTERNAL))))
+    prev = csRegs_.overrideWithSeiPin(prev);
 
   if (di->op1() == 0)
     {
@@ -11672,16 +11795,20 @@ Hart<URV>::execCsrrc(const DecodedInst* di)
       return;
     }
 
-  URV next = prev & (~ intRegs_.read(di->op1()));
-
-  // MIP read value is ored with supervisor external interrupt pin. Same for SIP if
-  // supervisor external interrupt is delegated.
   using IC = InterruptCause;
   if (csr == CsrNumber::MIP)
-    prev = csRegs_.overrideWithSeiPinAndMvip(prev);
+    prev = csRegs_.overrideWithMvip(prev);
   else if (not virtMode_ and csr == CsrNumber::SIP and
             (csRegs_.peekMideleg() & (URV(1) << URV(IC::S_EXTERNAL))))
-    prev = csRegs_.overrideWithSeiPinAndMvip(prev);
+    prev = csRegs_.overrideWithMvip(prev);
+
+  URV next = prev & (~ intRegs_.read(di->op1()));
+
+  if (csr == CsrNumber::MIP)
+    prev = csRegs_.overrideWithSeiPin(prev);
+  else if (not virtMode_ and csr == CsrNumber::SIP and
+            (csRegs_.peekMideleg() & (URV(1) << URV(IC::S_EXTERNAL))))
+    prev = csRegs_.overrideWithSeiPin(prev);
 
   if (di->op1() == 0)
     {
@@ -11777,16 +11904,22 @@ Hart<URV>::execCsrrsi(const DecodedInst* di)
       return;
     }
 
-  URV next = prev | imm;
-
   // MIP read value is ored with supervisor external interrupt pin. Same for SIP if
   // supervisor external interrupt is delegated.
   using IC = InterruptCause;
   if (csr == CsrNumber::MIP)
-    prev = csRegs_.overrideWithSeiPinAndMvip(prev);
+    prev = csRegs_.overrideWithMvip(prev);
   else if (not virtMode_ and csr == CsrNumber::SIP and
             (csRegs_.peekMideleg() & (URV(1) << URV(IC::S_EXTERNAL))))
-    prev = csRegs_.overrideWithSeiPinAndMvip(prev);
+    prev = csRegs_.overrideWithMvip(prev);
+
+  URV next = prev | imm;
+
+  if (csr == CsrNumber::MIP)
+    prev = csRegs_.overrideWithSeiPin(prev);
+  else if (not virtMode_ and csr == CsrNumber::SIP and
+            (csRegs_.peekMideleg() & (URV(1) << URV(IC::S_EXTERNAL))))
+    prev = csRegs_.overrideWithSeiPin(prev);
 
   if (imm == 0)
     {
@@ -11839,16 +11972,20 @@ Hart<URV>::execCsrrci(const DecodedInst* di)
       return;
     }
 
-  URV next = prev & (~ imm);
-
-  // MIP read value is ored with supervisor external interrupt pin. Same for SIP if
-  // supervisor external interrupt is delegated.
   using IC = InterruptCause;
   if (csr == CsrNumber::MIP)
-    prev = csRegs_.overrideWithSeiPinAndMvip(prev);
+    prev = csRegs_.overrideWithMvip(prev);
   else if (not virtMode_ and csr == CsrNumber::SIP and
             (csRegs_.peekMideleg() & (URV(1) << URV(IC::S_EXTERNAL))))
-    prev = csRegs_.overrideWithSeiPinAndMvip(prev);
+    prev = csRegs_.overrideWithMvip(prev);
+
+  URV next = prev & (~ imm);
+
+  if (csr == CsrNumber::MIP)
+    prev = csRegs_.overrideWithSeiPin(prev);
+  else if (not virtMode_ and csr == CsrNumber::SIP and
+            (csRegs_.peekMideleg() & (URV(1) << URV(IC::S_EXTERNAL))))
+    prev = csRegs_.overrideWithSeiPin(prev);
 
   if (imm == 0)
     {

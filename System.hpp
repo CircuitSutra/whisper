@@ -26,6 +26,7 @@
 #include "pci/Pci.hpp"
 #include "pci/virtio/Blk.hpp"
 #include "aplic/Aplic.hpp"
+#include "Uart8250.hpp"
 
 
 namespace TT_PERF
@@ -238,6 +239,14 @@ namespace WdRiscv
     /// contents of accessed pages.
     bool writeAccessedMemory(const std::string& path) const;
 
+
+    /// Set whether APLIC automatically forwards MSIs
+    void setAplicAutoForwardViaMsi(bool autoForward)
+    {
+      if (!aplic_) return;
+      aplic_->autoForwardViaMsi = autoForward;
+    }
+
     /// Special target program symbol writing to which stops the
     /// simulated program or performs console io.
     void setTohostSymbol(const std::string& sym)
@@ -259,26 +268,36 @@ namespace WdRiscv
     bool defineUart(const std::string& type, uint64_t addr, uint64_t size,
 		    uint32_t iid, const std::string& channel);
 
+    /// Enable UART input. This is useful in non-interactive mode.
+    void enableUartInput()
+    {
+      for (auto& dev : ioDevs_)
+        if (dev->type() == "uart8250")
+          static_cast<Uart8250*>(dev.get())->enableInput();
+    }
+
     /// Return the memory page size.
     size_t pageSize() const
     { return memory_->pageSize(); }
 
-    /// Configure incoming message signaled interrupt controller.  The
-    /// addresses of the machine files of hart0, hart1, ... will be
-    /// mbase, mbase + mstride, mbase + 2*mstride ...  Similartly the
-    /// address of the supervisor files will be sbase, sbase + sstride,
-    /// sbase + 2*sstride.  If mstride is zero then no machine file is
-    /// defined. If sstride is zero then no supervisor file is defined.
-    /// Guest files will take one page each and will start one page
-    /// after each supervisor file (supervisor stride must be large
-    /// enough). Guest files require supervisor files which require
-    /// machine files. The ids parameter denotes the max interrupt
-    /// id plus 1 and must be a multiple of 64.
+    /// Configure incoming message signaled interrupt controller.  The addresses of the
+    /// machine files of hart0, hart1, ... will be mbase, mbase + mstride, mbase +
+    /// 2*mstride ...  Similartly the address of the supervisor files will be sbase, sbase
+    /// + sstride, sbase + 2*sstride.  If mstride is zero then no machine file is
+    /// defined. If sstride is zero then no supervisor file is defined.  Guest files will
+    /// take one page each and will start one page after each supervisor file (supervisor
+    /// stride must be large enough). Guest files require supervisor files which require
+    /// machine files. The ids parameter denotes the max interrupt id plus 1 and must be a
+    /// multiple of 64. The flags maplic/saplic indicate whether the mfile/sfile support
+    /// an APLIC (section 3.8.1 of interrupt spec).
     bool configImsic(uint64_t mbase, uint64_t mstride,
 		     uint64_t sbase, uint64_t sstride,
 		     unsigned guests, const std::vector<unsigned>& ids,
                      const std::vector<unsigned>& thresholdMasks,
-                     bool trace);
+                     bool maplic, bool saplic, bool gaplic, bool trace);
+
+    /// If flag
+    void configMfileAplic(bool flag);
 
     /// Configure the Advanced Platform-Level Interrupt Controller (APLIC).
     /// num_sources specifies the number of interrupt sources up to a maximum
@@ -347,7 +366,8 @@ namespace WdRiscv
     /// is set for each byte of rtlData that is written by the RTL.
     bool mcmMbWrite(Hart<URV>& hart, uint64_t time, uint64_t pysAddr,
 		    const std::vector<uint8_t>& rtlData,
-		    const std::vector<bool>& mask);
+		    const std::vector<bool>& mask,
+                    bool skipCheck = false);
 
     bool mcmMbInsert(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t addr,
                      unsigned size, uint64_t data, unsigned elem, unsigned field);

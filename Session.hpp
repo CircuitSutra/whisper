@@ -91,6 +91,9 @@ namespace WdRiscv
     /// Check if running an app that uses openMp.
     bool checkForOpenMp(const Args& args);
 
+    /// Dump memory ranges to given file.
+    bool eorMemDump(const std::string& file, const std::vector<uint64_t>& addrs);
+
     bool determineIsa(const HartConfig& config, const Args& args, bool clib,
 		      std::string& isa);
 

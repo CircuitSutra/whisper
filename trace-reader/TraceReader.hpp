@@ -232,6 +232,26 @@ namespace WhisperUtil  {
     bool isVecStore() const
     { return isVector() and (inst & 0x7f) == 0x27; }
 
+    // Return true if this is a vector load/store unit-stride
+    // instruction.
+    bool isVecUnitStride() const
+    { return (isVecLoad() or isVecStore()) and (((inst >> 26) & 0x3) == 0); }
+
+    // Return true if this is a vector load/store indexed
+    // unordered instruction.
+    bool isVecIndexedUnordered() const
+    { return (isVecLoad() or isVecStore()) and (((inst >> 26) & 0x3) == 1); }
+
+    // Return true if this is a vector load/store strided
+    // instruction.
+    bool isVecStride() const
+    { return (isVecLoad() or isVecStore()) and (((inst >> 26) & 0x3) == 2); }
+
+    // Return true if this is a vector load/store indexed
+    // ordered instruction.
+    bool isVecIndexedOrdered() const
+    { return (isVecLoad() or isVecStore()) and (((inst >> 26) & 0x3) == 3); }
+
     // Return true if this is a call instruction.
     bool isCall() const
     { return instType == 'c'; }
@@ -380,7 +400,7 @@ namespace WhisperUtil  {
   protected:
 
     /// Read the file containing initial vlues of registers.
-    bool readInitialState(const std::string& path);
+    void readInitialState(const std::string& path);
 
     // Extract a pair of addresses from the given field. Return true on
     // success and false on failure.

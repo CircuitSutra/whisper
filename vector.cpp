@@ -395,6 +395,12 @@ Hart<URV>::checkRedOpVsEmul(const DecodedInst* di)
       return false;
     }
 
+  if (di->isMasked() and (di->op1() == 0 or di->op2() == 0))
+    {
+      postVecFail(di);    // V0 used as source with differing EEWs.
+      return false;
+    }
+
   unsigned groupX8 = vecRegs_.groupMultiplierX8();
   unsigned vs1 = di->op1();
 
@@ -406,6 +412,46 @@ Hart<URV>::checkRedOpVsEmul(const DecodedInst* di)
   if ((vs1 & mask) != 0)
     {
       postVecFail(di);
+      return false;
+    }
+
+  // Track operand group for logging (vd and vs2 have an lmul of 1).
+  vecRegs_.setOpEmul(1, lmul, 1);
+  return true;
+}
+
+
+template <typename URV>
+inline
+bool
+Hart<URV>::checkWideRedOpVsEmul(const DecodedInst* di)
+{
+  // Reduction ops must have zero vstart.
+  unsigned start = csRegs_.peekVstart();
+  if (start > 0)
+    {
+      postVecFail(di);
+      return false;
+    }
+
+  unsigned gX8 = vecRegs_.groupMultiplierX8();
+  unsigned lmul = gX8 >= 8 ? gX8 / 8 : 1;
+  unsigned vs1 = di->op1();
+
+  // Vector register (vs1) must be a multiple of lmul.
+  unsigned mask = lmul - 1;   // Assumes lmul is 1, 2, 4, or 8
+
+  if ((vs1 & mask) != 0)
+    {
+      postVecFail(di);
+      return false;
+    }
+
+  // Check that source registers are not used with different EEWs
+  unsigned vs2 = di->op2();
+  if ( (di->isMasked() and (vs1 == 0 or vs2 == 0)) or (vs2 >= vs1 and vs2 < vs1 + lmul) )
+    {
+      postVecFail(di);  
       return false;
     }
 
@@ -3880,16 +3926,17 @@ Hart<URV>::execVrgatherei16_vv(const DecodedInst* di)
 
   unsigned vd = di->op0(),  vs1 = di->op1(),  vs2 = di->op2();
 
-  unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
+  unsigned g8 = vecRegs_.groupMultiplierX8();  // Group of VD and V1 times 8.
+  unsigned start = csRegs_.peekVstart();
   unsigned elems = vecRegs_.elemMax();
   ElementWidth sew = vecRegs_.elemWidth();
   unsigned widthInBytes = VecRegs::elemWidthInBytes(sew);
   bool masked = di->isMasked();
 
-  unsigned v2Group = (2*group) / widthInBytes;
+  unsigned v2g8 = (2*g8) / widthInBytes;  // Group of V2 times 8.
 
   GroupMultiplier v2gm = GroupMultiplier::One;
-  if (not VecRegs::groupNumberX8ToSymbol(v2Group, v2gm) or
+  if (not VecRegs::groupNumberX8ToSymbol(v2g8, v2gm) or
       not vecRegs_.legalConfig(ElementWidth::Half, v2gm) or
       (masked and (vd == 0 or vs1 == 0 or vs2 == 0)))
     {
@@ -3897,8 +3944,8 @@ Hart<URV>::execVrgatherei16_vv(const DecodedInst* di)
       return;
     }
 
-  unsigned eg = group >= 8 ? group / 8 : 1;
-  unsigned v2g = v2Group >= 8 ? v2Group / 8 : 1;
+  unsigned eg = g8 >= 8 ? g8 / 8 : 1;
+  unsigned v2g = v2g8 >= 8 ? v2g8 / 8 : 1;
 
   if ((vd % eg) or (vs1 % eg) or (vs2 % v2g))
     {
@@ -3906,8 +3953,12 @@ Hart<URV>::execVrgatherei16_vv(const DecodedInst* di)
       return;
     }
 
-  if (hasDestSourceOverlap(vd, group, vs1, group) or
-      hasDestSourceOverlap(vd, group, vs2, v2Group))
+  unsigned ew1 = vecRegs_.elemWidthInBits();
+  unsigned ew2 = 16;
+
+  if (hasDestSourceOverlap(vd, g8, vs1, g8) or
+      hasDestSourceOverlap(vd, g8, vs2, v2g8) or
+      not checkSourceOverlap(vs1, ew1, g8, vs2, ew2, v2g8))
     {
       postVecFail(di);  // Source/dest vecs cannot overlap
       return;
@@ -3918,10 +3969,10 @@ Hart<URV>::execVrgatherei16_vv(const DecodedInst* di)
   using EW = ElementWidth;
   switch (sew)
     {
-    case EW::Byte:  vrgatherei16_vv<uint8_t>(vd, vs1, vs2, group, start, elems, masked); break;
-    case EW::Half:  vrgatherei16_vv<uint16_t>(vd, vs1, vs2, group, start, elems, masked); break;
-    case EW::Word:  vrgatherei16_vv<uint32_t>(vd, vs1, vs2, group, start, elems, masked); break;
-    case EW::Word2: vrgatherei16_vv<uint64_t>(vd, vs1, vs2, group, start, elems, masked); break;
+    case EW::Byte:  vrgatherei16_vv<uint8_t>(vd, vs1, vs2, g8, start, elems, masked); break;
+    case EW::Half:  vrgatherei16_vv<uint16_t>(vd, vs1, vs2, g8, start, elems, masked); break;
+    case EW::Word:  vrgatherei16_vv<uint32_t>(vd, vs1, vs2, g8, start, elems, masked); break;
+    case EW::Word2: vrgatherei16_vv<uint64_t>(vd, vs1, vs2, g8, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
   postVecSuccess();
@@ -4051,12 +4102,6 @@ Hart<URV>::execVredop_vs(const DecodedInst* di, OP op)
   ElementWidth sew = vecRegs_.elemWidth();
   bool masked = di->isMasked();
 
-  if (masked and (vs1 == 0 or vs2 == 0))
-    {
-      postVecFail(di);  // v0 used with different EEWs
-      return;
-    }
-
   if (not checkRedOpVsEmul(di))
     return;
 
@@ -4098,12 +4143,6 @@ Hart<URV>::execVredopu_vs(const DecodedInst* di, OP op)
   unsigned elems = vecRegs_.elemCount();
   ElementWidth sew = vecRegs_.elemWidth();
   bool masked = di->isMasked();
-
-  if (masked and (vs1 == 0 or vs2 == 0))
-    {
-      postVecFail(di);  // v0 used with different EEWs
-      return;
-    }
 
   if (not checkRedOpVsEmul(di))
     return;
@@ -4227,7 +4266,7 @@ Hart<URV>::vwredsum_vs(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
   vecRegs_.write(vd, scalarElemIx, scalarElemGroupX8, result);
   ElementWidth dsew;
   if (not vecRegs_.doubleSew(vecRegs_.elemWidth(), dsew))
-    assert(0);
+    assert(0 && "Error: Assertion failed");
 
   unsigned destElems = vecRegs_.singleMax(dsew);
   for (unsigned ix = 1; ix < destElems; ++ix)
@@ -4247,27 +4286,22 @@ Hart<URV>::execVwredsumu_vs(const DecodedInst* di)
     return;
 
   ElementWidth sew = vecRegs_.elemWidth();
-  unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
+  unsigned gx8 = vecRegs_.groupMultiplierX8();
+  unsigned start = csRegs_.peekVstart();
   unsigned vd = di->op0(),  vs1 = di->op1(),  vs2 = di->op2();
 
   unsigned elems = vecRegs_.elemCount();
   bool masked = di->isMasked();
 
-  if (masked and (vs1 == 0 or vs2 == 0))
-    {
-      postVecFail(di);  // v0 used with different EEWs
-      return;
-    }
-
-  if (not checkRedOpVsEmul(di))
+  if (not checkWideRedOpVsEmul(di))
     return;
 
   using EW = ElementWidth;
   switch (sew)
     {
-    case EW::Byte:  vwredsum_vs<uint8_t> (vd, vs1, vs2, group, start, elems, masked); break;
-    case EW::Half:  vwredsum_vs<uint16_t>(vd, vs1, vs2, group, start, elems, masked); break;
-    case EW::Word:  vwredsum_vs<uint32_t>(vd, vs1, vs2, group, start, elems, masked); break;
+    case EW::Byte:  vwredsum_vs<uint8_t> (vd, vs1, vs2, gx8, start, elems, masked); break;
+    case EW::Half:  vwredsum_vs<uint16_t>(vd, vs1, vs2, gx8, start, elems, masked); break;
+    case EW::Word:  vwredsum_vs<uint32_t>(vd, vs1, vs2, gx8, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
   postVecSuccess();
@@ -4282,27 +4316,22 @@ Hart<URV>::execVwredsum_vs(const DecodedInst* di)
     return;
 
   ElementWidth sew = vecRegs_.elemWidth();
-  unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
+  unsigned gx8 = vecRegs_.groupMultiplierX8();
+  unsigned start = csRegs_.peekVstart();
   unsigned vd = di->op0(),  vs1 = di->op1(),  vs2 = di->op2();
 
   unsigned elems = vecRegs_.elemCount();
   bool masked = di->isMasked();
 
-  if (masked and (vs1 == 0 or vs2 == 0))
-    {
-      postVecFail(di);  // v0 used with different EEWs
-      return;
-    }
-
-  if (not checkRedOpVsEmul(di))
+  if (not checkWideRedOpVsEmul(di))
     return;
 
   using EW = ElementWidth;
   switch (sew)
     {
-    case EW::Byte:  vwredsum_vs<int8_t> (vd, vs1, vs2, group, start, elems, masked); break;
-    case EW::Half:  vwredsum_vs<int16_t>(vd, vs1, vs2, group, start, elems, masked); break;
-    case EW::Word:  vwredsum_vs<int32_t>(vd, vs1, vs2, group, start, elems, masked); break;
+    case EW::Byte:  vwredsum_vs<int8_t> (vd, vs1, vs2, gx8, start, elems, masked); break;
+    case EW::Half:  vwredsum_vs<int16_t>(vd, vs1, vs2, gx8, start, elems, masked); break;
+    case EW::Word:  vwredsum_vs<int32_t>(vd, vs1, vs2, gx8, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
   postVecSuccess();
@@ -4806,14 +4835,19 @@ Hart<URV>::vslideup(unsigned vd, unsigned vs1, URV amount, unsigned group,
     {
       if (vecRegs_.isDestActive(vd, ix, destGroup, masked, dest))
 	{
-	  if (ix >= amount)
-	    {
-	      unsigned from = ix - amount;
-	      vecRegs_.read(vs1, from, group, e1);
-	      dest = e1;
-	    }
+          if (ix >= amount)
+            {
+              unsigned from = ix - amount;
+              vecRegs_.read(vs1, from, group, e1);
+              dest = e1;
+            }
 	}
-      vecRegs_.write(vd, ix, destGroup, dest);
+
+      // When the start element is max(start, amount), there is effectively no "body" if
+      // amount >= vl. However, we need to account for the tail.
+      if (ix >= vecRegs_.elemCount() or
+          (ix < vecRegs_.elemCount() and ix >= std::max(URV(start), amount)))
+        vecRegs_.write(vd, ix, destGroup, dest);
     }
 }
 
@@ -5089,7 +5123,6 @@ Hart<URV>::execVslide1down_vx(const DecodedInst* di)
 
   if (start < vecRegs_.elemCount())
     {
-
       URV amount = 1;
 
       // Sign extend scalar value
@@ -5151,54 +5184,62 @@ Hart<URV>::execVfslide1up_vf(const DecodedInst* di)
 
   if (not checkVecOpsVsEmul(di, vd, vs1, group))
     return;
-  if (vecRegs_.elemCount() == 0)
-    return;
 
-  URV amount = 1;
-
-  switch (sew)
+  if (start < vecRegs_.elemCount())
     {
-    case ElementWidth::Byte:
-      postVecFail(di);
-      return;
+      URV amount = 1;
 
-    case ElementWidth::Half:
-      {
-	vslideup<uint16_t>(vd, vs1, amount, group, start, elems, masked);
-	if (not start and (not masked or vecRegs_.isActive(0, 0)))
+      switch (sew)
+        {
+        case ElementWidth::Byte:
+          postVecFail(di);
+          return;
+
+        case ElementWidth::Half:
           {
-            Float16 f = fpRegs_.readHalf(rs2);
-            vecRegs_.write(vd, 0, group, std::bit_cast<uint16_t>(f));
+            vslideup<uint16_t>(vd, vs1, amount, group, start, elems, masked);
+            if (not start)
+              {
+                Float16 f;
+                if (vecRegs_.isDestActive(vd, 0, group, masked, f))
+                  f = fpRegs_.readHalf(rs2);
+                vecRegs_.write(vd, 0, group, std::bit_cast<uint16_t>(f));
+              }
           }
-      }
-      break;
+          break;
 
-    case ElementWidth::Word:
-      {
-	vslideup<uint32_t>(vd, vs1, amount, group, start, elems, masked);
-	if (not start and (not masked or vecRegs_.isActive(0, 0)))
-	  {
-            float f = fpRegs_.readSingle(rs2);
-            vecRegs_.write(vd, 0, group, std::bit_cast<uint32_t>(f));
-	  }
-      }
-      break;
+        case ElementWidth::Word:
+          {
+            vslideup<uint32_t>(vd, vs1, amount, group, start, elems, masked);
+            if (not start)
+              {
+                float f;
+                if (vecRegs_.isDestActive(vd, 0, group, masked, f))
+                  f = fpRegs_.readSingle(rs2);
+                vecRegs_.write(vd, 0, group, std::bit_cast<uint32_t>(f));
+              }
+          }
+          break;
 
-    case ElementWidth::Word2:
-      {
-	vslideup<uint64_t>(vd, vs1, amount, group, start, elems, masked);
-	if (not start and (not masked or vecRegs_.isActive(0, 0)))
-	  {
-            double d = fpRegs_.readDouble(rs2);
-            vecRegs_.write(vd, 0, group, std::bit_cast<uint64_t>(d));
-	  }
-      }
-      break;
+        case ElementWidth::Word2:
+          {
+            vslideup<uint64_t>(vd, vs1, amount, group, start, elems, masked);
+            if (not start)
+              {
+                double d;
+                if (vecRegs_.isDestActive(vd, 0, group, masked, d))
+                  d = fpRegs_.readDouble(rs2);
+                vecRegs_.write(vd, 0, group, std::bit_cast<uint64_t>(d));
+              }
+          }
+          break;
 
-    default:
-      postVecFail(di);
-      return;
+        default:
+          postVecFail(di);
+          return;
+        }
     }
+
   postVecSuccess();
 }
 
@@ -5218,56 +5259,58 @@ Hart<URV>::execVfslide1down_vf(const DecodedInst* di)
 
   if (not checkVecOpsVsEmul(di, vd, vs1, group))
     return;
-  if (vecRegs_.elemCount() == 0)
-    return;
 
-  URV amount = 1;
-
-  unsigned slot = vecRegs_.elemCount() - 1;
-
-  switch (sew)
+  if (start < vecRegs_.elemCount())
     {
-    case ElementWidth::Byte:
-      postVecFail(di);
-      return;
+      URV amount = 1;
 
-    case ElementWidth::Half:
-      {
-	vslidedown<uint16_t>(vd, vs1, amount, group, start, elems, masked);
-        if (not masked or vecRegs_.isActive(0, slot))
+      unsigned slot = vecRegs_.elemCount() - 1;
+
+      switch (sew)
+        {
+        case ElementWidth::Byte:
+          postVecFail(di);
+          return;
+
+        case ElementWidth::Half:
           {
-            Float16 f = fpRegs_.readHalf(rs2);
-            vecRegs_.write(vd, slot, group, std::bit_cast<uint16_t>(f));
+            vslidedown<uint16_t>(vd, vs1, amount, group, start, elems, masked);
+            if (not masked or vecRegs_.isActive(0, slot))
+              {
+                Float16 f = fpRegs_.readHalf(rs2);
+                vecRegs_.write(vd, slot, group, std::bit_cast<uint16_t>(f));
+              }
           }
-      }
-      break;
+          break;
 
-    case ElementWidth::Word:
-      {
-	vslidedown<uint32_t>(vd, vs1, amount, group, start, elems, masked);
-	if (not masked or vecRegs_.isActive(0, slot))
-	  {
-            float f = fpRegs_.readSingle(rs2);
-            vecRegs_.write(vd, slot, group, std::bit_cast<uint32_t>(f));
-	  }
-      }
-      break;
+        case ElementWidth::Word:
+          {
+            vslidedown<uint32_t>(vd, vs1, amount, group, start, elems, masked);
+            if (not masked or vecRegs_.isActive(0, slot))
+              {
+                float f = fpRegs_.readSingle(rs2);
+                vecRegs_.write(vd, slot, group, std::bit_cast<uint32_t>(f));
+              }
+          }
+          break;
 
-    case ElementWidth::Word2:
-      {
-	vslidedown<uint64_t>(vd, vs1, amount, group, start, elems, masked);
-	if (not masked or vecRegs_.isActive(0, slot))
-	  {
-            double d = fpRegs_.readDouble(rs2);
-            vecRegs_.write(vd, slot, group, std::bit_cast<uint64_t>(d));
-	  }
-      }
-      break;
+        case ElementWidth::Word2:
+          {
+            vslidedown<uint64_t>(vd, vs1, amount, group, start, elems, masked);
+            if (not masked or vecRegs_.isActive(0, slot))
+              {
+                double d = fpRegs_.readDouble(rs2);
+                vecRegs_.write(vd, slot, group, std::bit_cast<uint64_t>(d));
+              }
+          }
+          break;
 
-    default:
-      postVecFail(di);
-      return;
+        default:
+          postVecFail(di);
+          return;
+        }
     }
+
   postVecSuccess();
 }
 
@@ -8902,6 +8945,7 @@ Hart<URV>::execVfmv_f_s(const DecodedInst* di)
 	  Float16 val{};
 	  vecRegs_.read(vs1, 0, groupX8, val);
 	  fpRegs_.writeHalf(rd, val);
+          markFsDirty();
 	}
       break;
 
@@ -8913,6 +8957,7 @@ Hart<URV>::execVfmv_f_s(const DecodedInst* di)
 	  float val{};
 	  vecRegs_.read(vs1, 0, groupX8, val);
 	  fpRegs_.writeSingle(rd, val);
+          markFsDirty();
 	}
       break;
 
@@ -8924,6 +8969,7 @@ Hart<URV>::execVfmv_f_s(const DecodedInst* di)
 	  double val{};
 	  vecRegs_.read(vs1, 0, groupX8, val);
 	  fpRegs_.writeDouble(rd, val);
+          markFsDirty();
 	}
       break;
 
@@ -9012,19 +9058,17 @@ Hart<URV>::vmv_v_v(unsigned vd, unsigned vs1, unsigned group,
 {
   ELEM_TYPE e1 = 0, dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
-
   if (start >= vecRegs_.elemCount())
     return;
 
   for (unsigned ix = start; ix < elems; ++ix)
     {
-      if (vecRegs_.isDestActive(vd, ix, destGroup, false /*masked*/, dest))
+      if (vecRegs_.isDestActive(vd, ix, group, false /*masked*/, dest))
 	{
 	  vecRegs_.read(vs1, ix, group, e1);
 	  dest = e1;
 	}
-      vecRegs_.write(vd, ix, destGroup, dest);
+      vecRegs_.write(vd, ix, group, dest);
     }
 }
 
@@ -9046,6 +9090,8 @@ Hart<URV>::execVmv_v_v(const DecodedInst* di)
   unsigned vd = di->op0(),  vs1 = di->op1();
 
   unsigned group = vecRegs_.groupMultiplierX8();
+  group = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+
   unsigned elems = vecRegs_.elemMax();
   ElementWidth sew = vecRegs_.elemWidth();
 
@@ -9061,6 +9107,8 @@ Hart<URV>::execVmv_v_v(const DecodedInst* di)
     case EW::Word2: vmv_v_v<int64_t>(vd, vs1, group, start, elems); break;
     default:        postVecFail(di); return;
     }
+
+  vecRegs_.touchReg(vd, group);
   postVecSuccess();
 }
 
@@ -9071,18 +9119,15 @@ void
 Hart<URV>::vmv_v_x(unsigned vd, ELEM_TYPE e1, unsigned group,
                    unsigned start, unsigned elems)
 {
-  ELEM_TYPE dest = 0;
-
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
-
   if (start >= vecRegs_.elemCount())
     return;
 
   for (unsigned ix = start; ix < elems; ++ix)
     {
-      if (vecRegs_.isDestActive(vd, ix, destGroup, false /*masked*/, dest))
+      ELEM_TYPE dest = 0;
+      if (vecRegs_.isDestActive(vd, ix, group, false /*masked*/, dest))
 	dest = e1;
-      vecRegs_.write(vd, ix, destGroup, dest);
+      vecRegs_.write(vd, ix, group, dest);
     }
 }
 
@@ -9104,6 +9149,7 @@ Hart<URV>::execVmv_v_x(const DecodedInst* di)
   unsigned vd = di->op0();
   unsigned rs1 = di->op1();
   unsigned group = vecRegs_.groupMultiplierX8();
+  group = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
   unsigned elems = vecRegs_.elemMax();
   ElementWidth sew = vecRegs_.elemWidth();
 
@@ -9121,6 +9167,8 @@ Hart<URV>::execVmv_v_x(const DecodedInst* di)
     case EW::Word2: vmv_v_x<int64_t>(vd, e1, group, start, elems); break;
     default:        postVecFail(di); return;
     }
+
+  vecRegs_.touchReg(vd, group);
   postVecSuccess();
 }
 
@@ -9141,6 +9189,7 @@ Hart<URV>::execVmv_v_i(const DecodedInst* di)
   unsigned start = csRegs_.peekVstart();
   unsigned vd = di->op0();
   unsigned group = vecRegs_.groupMultiplierX8();
+  group = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
   unsigned elems = vecRegs_.elemMax();
   ElementWidth sew = vecRegs_.elemWidth();
 
@@ -9158,6 +9207,8 @@ Hart<URV>::execVmv_v_i(const DecodedInst* di)
     case EW::Word2: vmv_v_x<int64_t>(vd, e1, group, start, elems); break;
     default:        postVecFail(di); return;
     }
+
+  vecRegs_.touchReg(vd, group);
   postVecSuccess();
 }
 
@@ -9202,13 +9253,10 @@ Hart<URV>::vmvr_v(const DecodedInst* di, unsigned nr)
       bytes -= start*bytesPerElem;
 
       memcpy(dest, source, bytes);
-
-      unsigned groupX8 = nr*8;
-      vecRegs_.touchReg(vd, groupX8);
-
       vecRegs_.setOpEmul(nr, nr);  // Track operand group for logging
     }
 
+  vecRegs_.touchReg(vd, nr*8);
   postVecSuccess();
 }
 
@@ -11098,7 +11146,7 @@ Hart<URV>::vectorLoad(const DecodedInst* di, ElementWidth eew, bool faultFirst)
         {
 	  uint64_t data = 0;
           if (not readForLoad<ELEM_TYPE>(di, addr, pa1, pa2, data, ix))
-	    assert(0);
+	    assert(0 && "Error: Assertion failed");
 	  elem = data;
           ldStInfo.setLastElem(pa1, pa2, elem);
 
@@ -11293,7 +11341,7 @@ Hart<URV>::vectorStore(const DecodedInst* di, ElementWidth eew)
       if (cause == ExceptionCause::NONE and not triggerTripped_)
 	{
 	  if (not writeForStore(addr, pa1, pa2, elem))
-	    assert(0);
+	    assert(0 && "Error: Assertion failed");
 	  ldStInfo.setLastElem(pa1, pa2, elem);
 	}
       else
@@ -11536,7 +11584,7 @@ Hart<URV>::vectorLoadWholeReg(const DecodedInst* di, ElementWidth eew)
 	{
 	  uint64_t data = 0;
 	  if (not readForLoad<ELEM_TYPE>(di, addr, pa1, pa2, data, ix))
-	    assert(0);
+	    assert(0 && "Error: Assertion failed");
 	  ELEM_TYPE elem = data;
 
 #ifndef FAST_SLOPPY
@@ -11700,7 +11748,7 @@ Hart<URV>::vectorStoreWholeReg(const DecodedInst* di)
       if (cause == ExceptionCause::NONE and not triggerTripped_)
 	{
 	  if (not writeForStore(addr, pa1, pa2, val))
-	    assert(0);
+	    assert(0 && "Error: Assertion failed");
 	  bool skip = false; // Not masked off.
 	  ldStInfo.addElem(VecLdStElem{addr, pa1, pa2, val, ix, skip});
 	}
@@ -11917,7 +11965,7 @@ Hart<URV>::vectorLoadStrided(const DecodedInst* di, ElementWidth eew)
         {
 	  uint64_t data = 0;
 	  if (not readForLoad<ELEM_TYPE>(di, addr, pa1, pa2, data, ix))
-	    assert(0);
+	    assert(0 && "Error: Assertion failed");
 	  elem = data;
           ldStInfo.setLastElem(pa1, pa2, elem);
         }
@@ -12081,7 +12129,7 @@ Hart<URV>::vectorStoreStrided(const DecodedInst* di, ElementWidth eew)
       if (cause == ExceptionCause::NONE and not triggerTripped_)
 	{
 	  if (not writeForStore(addr, pa1, pa2, val))
-	    assert(0);
+	    assert(0 && "Error: Assertion failed");
 	  ldStInfo.setLastElem(pa1, pa2, val);
 	}
       else
@@ -12272,7 +12320,7 @@ Hart<URV>::vectorLoadIndexed(const DecodedInst* di, ElementWidth offsetEew)
 	{
 	  uint64_t data = 0;
 	  if (not readForLoad<ELEM_TYPE>(di, vaddr, pa1, pa2, data, ix))
-	    assert(0);
+	    assert(0 && "Error: Assertion failed");
 	  elem = data;
           ldStInfo.setLastElem(pa1, pa2, elem);
 	  vecRegs_.write(vd, ix, groupX8, elem);
@@ -12490,7 +12538,7 @@ Hart<URV>::vectorStoreIndexed(const DecodedInst* di, ElementWidth offsetEew)
 
 	  if (cause == ExceptionCause::NONE and not triggerTripped_)
 	    if (not writeForStore(vaddr, pa1, pa2, x))
-	      assert(0);
+	      assert(0 && "Error: Assertion failed");
 	  data = x;
 	}
       else if (elemSize == 2)
@@ -12507,7 +12555,7 @@ Hart<URV>::vectorStoreIndexed(const DecodedInst* di, ElementWidth offsetEew)
 
 	  if (cause == ExceptionCause::NONE and not triggerTripped_)
 	    if (not writeForStore(vaddr, pa1, pa2, x))
-	      assert(0);
+	      assert(0 && "Error: Assertion failed");
 	  data = x;
 	}
       else if (elemSize == 4)
@@ -12524,7 +12572,7 @@ Hart<URV>::vectorStoreIndexed(const DecodedInst* di, ElementWidth offsetEew)
 
 	  if (cause == ExceptionCause::NONE and not triggerTripped_)
 	    if (not writeForStore(vaddr, pa1, pa2, x))
-	      assert(0);
+	      assert(0 && "Error: Assertion failed");
 	  data = x;
 	}
       else if (elemSize == 8)
@@ -12541,11 +12589,11 @@ Hart<URV>::vectorStoreIndexed(const DecodedInst* di, ElementWidth offsetEew)
 
 	  if (cause == ExceptionCause::NONE)
 	    if (not writeForStore(vaddr, pa1, pa2, x))
-	      assert(0);
+	      assert(0 && "Error: Assertion failed");
 	  data = x;
 	}
       else
-	assert(0);
+	assert(0 && "Error: Assertion failed");
 
       if (cause != ExceptionCause::NONE or triggerTripped_)
         {
@@ -12792,7 +12840,7 @@ Hart<URV>::vectorLoadSeg(const DecodedInst* di, ElementWidth eew,
             {
 	      uint64_t data = 0;
 	      if (not readForLoad<ELEM_TYPE>(di, faddr, pa1, pa2, data, ix, field))
-		assert(0);
+		assert(0 && "Error: Assertion failed");
 	      elem = data;
               ldStInfo.setLastElem(pa1, pa2, elem);
             }
@@ -13019,7 +13067,7 @@ Hart<URV>::vectorStoreSeg(const DecodedInst* di, ElementWidth eew,
             {
               if (vecRegs_.partialSegUpdate_)
                 if (not writeForStore(faddr, pa1, pa2, val))
-                  assert(0);
+                  assert(0 && "Error: Assertion failed");
               ldStInfo.setLastElem(pa1, pa2, val);
             }
           else
@@ -13044,7 +13092,7 @@ Hart<URV>::vectorStoreSeg(const DecodedInst* di, ElementWidth eew,
 
               ELEM_TYPE val = ELEM_TYPE(elem.data_);
               if (not writeForStore(elem.va_, elem.pa_, elem.pa2_, val))
-                assert(0);
+                assert(0 && "Error: Assertion failed");
             }
         }
     }
@@ -13406,7 +13454,7 @@ Hart<URV>::vectorLoadSegIndexed(const DecodedInst* di, ElementWidth offsetEew,
             {
               uint64_t data = 0;
               if (not readForLoad<ELEM_TYPE>(di, faddr, pa1, pa2, data, ix, field))
-                assert(0);
+                assert(0 && "Error: Assertion failed");
               elem = data;
               ldStInfo.setLastElem(pa1, pa2, elem);
 
@@ -13599,7 +13647,7 @@ Hart<URV>::vectorStoreSegIndexed(const DecodedInst* di, ElementWidth offsetEew,
             {
               if (vecRegs_.partialSegUpdate_)
                 if (not writeForStore(faddr, pa1, pa2, val))
-                  assert(0);
+                  assert(0 && "Error: Assertion failed");
               ldStInfo.setLastElem(pa1, pa2, val);
             }
           else
@@ -13624,7 +13672,7 @@ Hart<URV>::vectorStoreSegIndexed(const DecodedInst* di, ElementWidth offsetEew,
 
               ELEM_TYPE val = ELEM_TYPE(elem.data_);
               if (not writeForStore(elem.va_, elem.pa_, elem.pa2_, val))
-                assert(0);
+                assert(0 && "Error: Assertion failed");
             }
         }
     }
@@ -19414,12 +19462,6 @@ Hart<URV>::execVfredusum_vs(const DecodedInst* di)
   ElementWidth sew = vecRegs_.elemWidth();
   bool masked = di->isMasked();
 
-  if (masked and (vs1 == 0 or vs2 == 0))
-    {
-      postVecFail(di);  // v0 used with different EEWs
-      return;
-    }
-
   if (not checkRedOpVsEmul(di))
     return;
 
@@ -19492,12 +19534,6 @@ Hart<URV>::execVfredosum_vs(const DecodedInst* di)
   unsigned elems = vecRegs_.elemCount();
   ElementWidth sew = vecRegs_.elemWidth();
   bool masked = di->isMasked();
-
-  if (masked and (vs1 == 0 or vs2 == 0))
-    {
-      postVecFail(di);  // v0 used with different EEWs
-      return;
-    }
 
   if (not checkRedOpVsEmul(di))
     return;
@@ -19573,12 +19609,6 @@ Hart<URV>::execVfredmin_vs(const DecodedInst* di)
   ElementWidth sew = vecRegs_.elemWidth();
   bool masked = di->isMasked();
 
-  if (masked and (vs1 == 0 or vs2 == 0))
-    {
-      postVecFail(di);  // v0 used with different EEWs
-      return;
-    }
-
   if (not checkRedOpVsEmul(di))
     return;
 
@@ -19652,12 +19682,6 @@ Hart<URV>::execVfredmax_vs(const DecodedInst* di)
   ElementWidth sew = vecRegs_.elemWidth();
   bool masked = di->isMasked();
 
-  if (masked and (vs1 == 0 or vs2 == 0))
-    {
-      postVecFail(di);  // v0 used with different EEWs
-      return;
-    }
-
   if (not checkRedOpVsEmul(di))
     return;
 
@@ -19696,7 +19720,7 @@ Hart<URV>::vfwredusum_vs(unsigned vd, unsigned vs1, unsigned vs2, unsigned group
 
   ElementWidth dsew = vecRegs_.elemWidth();
   if (not vecRegs_.doubleSew(vecRegs_.elemWidth(), dsew))
-    assert(0);
+    assert(0 && "Error: Assertion failed");
 
   ELEM_TYPE e1{};
 
@@ -19797,26 +19821,21 @@ Hart<URV>::execVfwredusum_vs(const DecodedInst* di)
     return;
 
   ElementWidth sew = vecRegs_.elemWidth();
-  unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
+  unsigned gx8 = vecRegs_.groupMultiplierX8();
+  unsigned start = csRegs_.peekVstart();
   unsigned vd = di->op0(),  vs1 = di->op1(),  vs2 = di->op2();
 
   unsigned elems = vecRegs_.elemCount();
   bool masked = di->isMasked();
 
-  if (masked and (vs1 == 0 or vs2 == 0))
-    {
-      postVecFail(di);  // v0 used with different EEWs
-      return;
-    }
-
-  if (not checkRedOpVsEmul(di))
+  if (not checkWideRedOpVsEmul(di))
     return;
 
   using EW = ElementWidth;
   switch (sew)
     {
-    case EW::Half:  vfwredusum_vs<Float16>(vd, vs1, vs2, group, start, elems, masked); break;
-    case EW::Word:  vfwredusum_vs<float>  (vd, vs1, vs2, group, start, elems, masked); break;
+    case EW::Half:  vfwredusum_vs<Float16>(vd, vs1, vs2, gx8, start, elems, masked); break;
+    case EW::Word:  vfwredusum_vs<float>  (vd, vs1, vs2, gx8, start, elems, masked); break;
     case EW::Byte:  // Fall-through to invalid case
     case EW::Word2: // Fall-through to invalid case
     default:        postVecFail(di); return;
@@ -19864,7 +19883,7 @@ Hart<URV>::vfwredosum_vs(unsigned vd, unsigned vs1, unsigned vs2, unsigned group
   vecRegs_.write(vd, scalarElemIx, scalarElemGroupX8, result);
   ElementWidth dsew;
   if (not vecRegs_.doubleSew(vecRegs_.elemWidth(), dsew))
-    assert(0);
+    assert(0 && "Error: Assertion failed");
 
   unsigned destElems = vecRegs_.singleMax(dsew);
   for (unsigned ix = 1; ix < destElems; ++ix)
@@ -19884,26 +19903,21 @@ Hart<URV>::execVfwredosum_vs(const DecodedInst* di)
     return;
 
   ElementWidth sew = vecRegs_.elemWidth();
-  unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
+  unsigned gx8 = vecRegs_.groupMultiplierX8();
+  unsigned start = csRegs_.peekVstart();
   unsigned vd = di->op0(),  vs1 = di->op1(),  vs2 = di->op2();
 
   unsigned elems = vecRegs_.elemCount();
   bool masked = di->isMasked();
 
-  if (masked and (vs1 == 0 or vs2 == 0))
-    {
-      postVecFail(di);  // v0 used with different EEWs
-      return;
-    }
-
-  if (not checkRedOpVsEmul(di))
+  if (not checkWideRedOpVsEmul(di))
     return;
 
   using EW = ElementWidth;
   switch (sew)
     {
-    case EW::Half:  vfwredosum_vs<Float16>(vd, vs1, vs2, group, start, elems, masked); break;
-    case EW::Word:  vfwredosum_vs<float>  (vd, vs1, vs2, group, start, elems, masked); break;
+    case EW::Half:  vfwredosum_vs<Float16>(vd, vs1, vs2, gx8, start, elems, masked); break;
+    case EW::Word:  vfwredosum_vs<float>  (vd, vs1, vs2, gx8, start, elems, masked); break;
     case EW::Byte:  // Fall-through to invalid case
     case EW::Word2: // Fall-through to invalid case
     default:        postVecFail(di); return;

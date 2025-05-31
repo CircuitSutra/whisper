@@ -17,6 +17,9 @@
 #include <fstream>
 #include <sstream>
 #include <boost/algorithm/string.hpp>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
 #include "Filesystem.hpp"
 #include "Hart.hpp"
 #include "Core.hpp"
@@ -91,7 +94,6 @@ System<URV>::System(unsigned coreCount, unsigned hartsPerCore,
 #endif
 }
 
-
 template <typename URV>
 bool
 System<URV>::defineUart(const std::string& type, uint64_t addr, uint64_t size,
@@ -99,34 +101,108 @@ System<URV>::defineUart(const std::string& type, uint64_t addr, uint64_t size,
 {
   std::shared_ptr<IoDevice> dev;
 
+
+  auto createChannel = [](std::string_view channel_type) -> std::unique_ptr<UartChannel> {
+    auto createChannelImpl = [](std::string_view channel_type, auto &createChannelImpl) -> std::unique_ptr<UartChannel> {
+      constexpr std::string_view unixPrefix = "unix:";
+
+      auto pos = channel_type.find(';');
+      if (pos != std::string::npos)
+      {
+        std::string_view readWriteChannelType = channel_type.substr(0, pos);
+        std::string_view writeOnlyChannelType = channel_type.substr(pos + 1);
+
+        std::unique_ptr<UartChannel> readWriteChannel = createChannelImpl(readWriteChannelType, createChannelImpl);
+        std::unique_ptr<UartChannel> writeOnlyChannel = createChannelImpl(writeOnlyChannelType, createChannelImpl);
+
+        return std::make_unique<ForkChannel>(std::move(readWriteChannel), std::move(writeOnlyChannel));
+      }
+      else if (channel_type == "stdio")
+        return std::make_unique<FDChannel>(fileno(stdin), fileno(stdout));
+      else if (channel_type == "pty")
+        return std::make_unique<PTYChannel>();
+      else if (channel_type.find(unixPrefix, 0) == 0)
+      {
+        std::string filename(channel_type.substr(unixPrefix.length()));
+        if (filename.empty()) {
+          std::cerr << "Error: System::defineUart: Missing filename for unix socket channel\n";
+          return nullptr;
+        }
+
+        int server_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+        if (server_fd < 0) {
+          perror("System::defineUart: Failed to create unix socket");
+          return nullptr;
+        }
+
+        struct sockaddr_un addr;
+        memset(&addr, 0, sizeof(addr));
+        addr.sun_family = AF_UNIX;
+        strncpy(addr.sun_path, filename.c_str(), sizeof(addr.sun_path) - 1);
+
+        // Remove existing socket file if present before binding
+        unlink(filename.c_str());
+
+        if (bind(server_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+          perror("System::defineUart: Failed to bind unix socket");
+          close(server_fd);
+          return nullptr;
+        }
+
+        if (listen(server_fd, 1) < 0) {
+          perror("System::defineUart: Failed to listen on unix socket");
+          close(server_fd);
+          return nullptr;
+        }
+
+        std::cerr << "Error: System::defineUart: Listening on unix socket: " << filename << "\n";
+        std::unique_ptr<SocketChannel> channel;
+        try {
+          channel = std::make_unique<SocketChannel>(server_fd);
+        } catch (const std::runtime_error& e) {
+          std::cerr << "Error: System::defineUart: Failed to create SocketChannel: " << e.what() << "\n";
+          close(server_fd);
+          unlink(filename.c_str());
+          return nullptr;
+        }
+
+        // SocketChannel constructor called accept(), server fd no longer needed here.
+        close(server_fd);
+        unlink(filename.c_str());
+
+        return channel;
+      }
+      else
+      {
+        std::cerr << "Error: System::defineUart: Invalid channel type: " << channel_type << "\n"
+          << "Valid channels: stdio, pty, unix:<server socket path>, or a"
+          << "semicolon separated list of those.\n";
+        return nullptr;
+      }
+    };
+    return createChannelImpl(channel_type, createChannelImpl);
+  };
+
   if (type == "uartsf")
     dev = std::make_shared<Uartsf>(addr, size);
   else if (type == "uart8250")
-    {
-      std::unique_ptr<UartChannel> channel;
-      if (channel_type == "stdio")
-        channel = std::make_unique<FDChannel>(fileno(stdin), fileno(stdout));
-      else if (channel_type == "pty")
-        channel = std::make_unique<PTYChannel>();
-      else
-        {
-          std::cerr << "System::defineUart: Invalid channel: " << channel_type << "\n";
-          return false;
-        }
-      dev = std::make_shared<Uart8250>(addr, size, aplic_, iid, std::move(channel));
-    }
-  else
-    {
-      std::cerr << "System::defineUart: Invalid uadrt type: " << type << "\n";
+  {
+    std::unique_ptr<UartChannel> channel = createChannel(channel_type);
+    if (!channel)
       return false;
-    }
+    dev = std::make_shared<Uart8250>(addr, size, aplic_, iid, std::move(channel), false);
+  }
+  else
+  {
+    std::cerr << "Error: System::defineUart: Invalid uart type: " << type << "\n";
+    return false;
+  }
 
   memory_->registerIoDevice(dev);
   ioDevs_.push_back(std::move(dev));
 
   return true;
 }
-
 
 template <typename URV>
 System<URV>::~System()
@@ -142,12 +218,12 @@ System<URV>::~System()
       auto path = std::get<0>(bf);
       uint64_t addr = std::get<1>(bf);
       uint64_t size = std::get<2>(bf);
-      std::cerr << "Updating " << path << " from addr: 0x" << std::hex << addr
+      std::cerr << "Info: Updating " << path << " from addr: 0x" << std::hex << addr
 		<< std::dec << " size: " << size << '\n';
       FILE* file = fopen(path.c_str(), "w");
       if (not file)
 	{
-	  std::cerr << "Failed to open " << path << " for update\n";
+	  std::cerr << "Error: Failed to open " << path << " for update\n";
 	  continue;
 	}
       for (uint64_t i = 0; i < size; ++i)
@@ -193,7 +269,7 @@ System<URV>::loadElfFiles(const std::vector<std::string>& files, bool raw, bool 
   for (const auto& file : files)
     {
       if (verbose)
-	std::cerr << "Loading ELF file " << file << '\n';
+	std::cerr << "Info: Loading ELF file " << file << '\n';
       uint64_t end0 = 0, entry0 = 0;
       if (not memory_->loadElfFile(file, registerWidth, entry0, end0))
 	errors++;
@@ -225,7 +301,7 @@ System<URV>::loadElfFiles(const std::vector<std::string>& files, bool raw, bool 
 	hart->setConsoleIo(URV(sym.addr_));
 
       if (verbose)
-	std::cerr << "Setting program break to 0x" << std::hex << end << std::dec << '\n';
+	std::cerr << "Info: Setting program break to 0x" << std::hex << end << std::dec << '\n';
       hart->setTargetProgramBreak(end);
 
       if (not raw)
@@ -233,19 +309,19 @@ System<URV>::loadElfFiles(const std::vector<std::string>& files, bool raw, bool 
 	  if (not hart->peekIntReg(RegGp) and gp)
 	    {
               if (verbose)
-                std::cerr << "Setting register gp to 0x" << std::hex << gp << std::dec << '\n';
+                std::cerr << "Info: Setting register gp to 0x" << std::hex << gp << std::dec << '\n';
 	      hart->pokeIntReg(RegGp, URV(gp));
 	    }
 	  if (not hart->peekIntReg(RegTp) and tp)
 	    {
               if (verbose)
-                std::cerr << "Setting register tp to 0x" << std::hex << tp << std::dec << '\n';
+                std::cerr << "Info: Setting register tp to 0x" << std::hex << tp << std::dec << '\n';
 	      hart->pokeIntReg(RegTp, URV(tp));
 	    }
 	  if (entry)
 	    {
 	      if (verbose)
-                std::cerr << "Setting PC to 0x" << std::hex << entry << std::dec << '\n';
+                std::cerr << "Info: Setting PC to 0x" << std::hex << entry << std::dec << '\n';
 	      hart->pokePc(URV(entry));
 	    }
 	}
@@ -263,7 +339,7 @@ System<URV>::loadHexFiles(const std::vector<std::string>& files, bool verbose)
   for (const auto& file : files)
     {
       if (verbose)
-	std::cerr << "Loading HEX file " << file << '\n';
+	std::cerr << "Info: Loading HEX file " << file << '\n';
       if (not memory_->loadHexFile(file))
 	errors++;
     }
@@ -309,7 +385,7 @@ binaryFileParams(std::string spec, uint64_t defOffset, std::string& filename, ui
 	}
     }
   else
-    cerr << "Binary file " << filename << " does not have an address, will use address 0x"
+    cerr << "Warning: Binary file " << filename << " does not have an address, will use address 0x"
 	 << std::hex << offset << std::dec << '\n';
 
   if (parts.size() > 2)
@@ -348,7 +424,7 @@ System<URV>::loadBinaryFiles(const std::vector<std::string>& fileSpecs,
         }
 
       if (verbose)
-	cerr << "Loading binary " << filename << " at address 0x" << std::hex
+	cerr << "Info: Loading binary " << filename << " at address 0x" << std::hex
 	     << offset << std::dec << '\n';
 
       if (not memory_->loadBinaryFile(filename, offset))
@@ -392,13 +468,13 @@ System<URV>::loadLz4Files(const std::vector<std::string>& fileSpecs,
 
       if (update)
 	{
-	  cerr << "Updating not supported on lz4 files, ignoring " << filename << '\n';
+	  cerr << "Error: Updating not supported on lz4 files, ignoring " << filename << '\n';
 	  errors++;
 	  continue;
 	}
 
       if (verbose)
-	cerr << "Loading lz4 compressed file " << filename << " at address 0x" << std::hex
+	cerr << "Info: Loading lz4 compressed file " << filename << " at address 0x" << std::hex
 	     << offset << std::dec << '\n';
 
       if (not memory_->loadLz4File(filename, offset))
@@ -428,7 +504,7 @@ saveUsedMemBlocks(const std::string& filename,
   std::ofstream ofs(filename, std::ios::trunc);
   if (not ofs)
     {
-      std::cerr << "saveUsedMemBlocks failed - cannot open "
+      std::cerr << "Error: saveUsedMemBlocks failed - cannot open "
                 << filename << " for write\n";
       return false;
     }
@@ -445,7 +521,7 @@ saveTime(const std::string& filename, uint64_t time)
   std::ofstream ofs(filename, std::ios::trunc);
   if (not ofs)
     {
-      std::cerr << "saveTime failed - cannot open "
+      std::cerr << "Error: saveTime failed - cannot open "
                 << filename << " for write\n";
       return false;
     }
@@ -478,7 +554,7 @@ System<URV>::saveSnapshot(const std::string& dir)
 
       URV sp = 0;
       if (not hartPtr->peekIntReg(IntRegNumber::RegSp, sp))
-	assert(0);
+	assert(0 && "Error: Assertion failed");
       minSp = std::min(minSp, uint64_t(sp));
     }
 
@@ -540,7 +616,7 @@ loadUsedMemBlocks(const std::string& filename,
   std::ifstream ifs(filename);
   if (not ifs)
     {
-      std::cerr << "loadUsedMemBlocks failed - cannot open "
+      std::cerr << "Error: loadUsedMemBlocks failed - cannot open "
                 << filename << " for read\n";
       return false;
     }
@@ -566,7 +642,7 @@ loadTime(const std::string& filename, uint64_t& time)
   std::ifstream ifs(filename);
   if (not ifs)
     {
-      std::cerr << "loadTime failed - cannot open "
+      std::cerr << "Error: loadTime failed - cannot open "
                 << filename << " for read\n";
       return false;
     }
@@ -585,7 +661,7 @@ System<URV>::configImsic(uint64_t mbase, uint64_t mstride,
 			 uint64_t sbase, uint64_t sstride,
 			 unsigned guests, const std::vector<unsigned>& idsVec,
                          const std::vector<unsigned>& tmVec, // Threshold masks
-                         bool trace)
+                         bool maplic, bool saplic, bool gaplic, bool trace)
 {
   using std::cerr;
 
@@ -686,9 +762,9 @@ System<URV>::configImsic(uint64_t mbase, uint64_t mstride,
 	}
     }
 
-  bool ok = imsicMgr_.configureMachine(mbase, mstride, idsVec.at(0), tmVec.at(0));
-  ok = imsicMgr_.configureSupervisor(sbase, sstride, idsVec.at(1), tmVec.at(1)) and ok;
-  ok = imsicMgr_.configureGuests(guests, idsVec.at(2), tmVec.at(2)) and ok;
+  bool ok = imsicMgr_.configureMachine(mbase, mstride, idsVec.at(0), tmVec.at(0), maplic);
+  ok = imsicMgr_.configureSupervisor(sbase, sstride, idsVec.at(1), tmVec.at(1), saplic) and ok;
+  ok = imsicMgr_.configureGuests(guests, idsVec.at(2), tmVec.at(2), gaplic) and ok;
   if (not ok)
     {
       cerr << "Error: Failed to configure IMSIC.\n";
@@ -725,22 +801,23 @@ System<URV>::configAplic(unsigned num_sources, std::span<const TT_APLIC::DomainP
 
   TT_APLIC::DirectDeliveryCallback aplicCallback = [this] (unsigned hartIx, TT_APLIC::Privilege privilege, bool interState) -> bool {
     bool is_machine = privilege == TT_APLIC::Machine;
-    std::cerr << "Delivering interrupt hart=" << hartIx << " privilege="
+    std::cerr << "Info: Delivering interrupt hart=" << hartIx << " privilege="
               << (is_machine ? "machine" : "supervisor")
               << " interrupt-state=" << (interState? "on" : "off") << '\n';
     // if an IMSIC is present, then interrupt should only be delivery if its eidelivery is 0x40000000
     auto& hart = *ithHart(hartIx);
-    if (hart.csRegs().aiaEnabled())
+    auto imsic = hart.imsic();
+    if (imsic)
       {
-        auto imsic = imsicMgr_.ithImsic(hartIx);
         unsigned eidelivery = is_machine ? imsic->machineDelivery() : imsic->supervisorDelivery();
         if (eidelivery != 0x40000000)
           {
-            std::cerr << "Cannot deliver interrupt; for direct delivery mode, IMSIC's eidelivery must be 0x40000000\n";
+            std::cerr << "Error: Cannot deliver interrupt; for direct delivery mode, IMSIC's eidelivery must be 0x40000000\n";
             return false;
           }
       }
     auto mip = hart.peekCsr(CsrNumber::MIP);
+    mip = hart.overrideWithMvip(mip);
     int xeip = is_machine ? 11 : 9;
     if (interState)
       mip |= 1 << xeip;
@@ -768,7 +845,7 @@ System<URV>::configPci(uint64_t configBase, uint64_t mmioBase, uint64_t mmioSize
 {
   if (mmioBase - configBase < (1ULL << 28))
     {
-      std::cerr << "PCI config space typically needs 28bits to fully cover entire region" << std::endl;
+      std::cerr << "Error: PCI config space typically needs 28bits to fully cover entire region" << std::endl;
       return false;
     }
 
@@ -832,7 +909,7 @@ System<URV>::addPciDevices(const std::vector<std::string>& devs)
 {
   if (not pci_)
     {
-      std::cerr << "Please specify a PCI region in the json" << std::endl;
+      std::cerr << "Error: Please specify a PCI region in the json" << std::endl;
       return false;
     }
 
@@ -843,7 +920,7 @@ System<URV>::addPciDevices(const std::vector<std::string>& devs)
 
       if (tokens.size() < 3)
         {
-          std::cerr << "PCI device string should have at least 3 fields" << std::endl;
+          std::cerr << "Error: PCI device string should have at least 3 fields" << std::endl;
           return false;
         }
 
@@ -855,7 +932,7 @@ System<URV>::addPciDevices(const std::vector<std::string>& devs)
         {
           if (not (tokens.size() == 4))
             {
-              std::cerr << "virtio-blk requires backing input file" << std::endl;
+              std::cerr << "Error: virtio-blk requires backing input file" << std::endl;
               return false;
             }
 
@@ -968,7 +1045,7 @@ System<URV>::enablePerfApi(std::vector<FILE*>& traceFiles)
 {
   if constexpr (sizeof(URV) == 4)
     {
-      std::cerr << "Performance model API is not supported for RV32\n";
+      std::cerr << "Error: Performance model API is not supported for RV32\n";
       return false;
     }
   else
@@ -1007,11 +1084,11 @@ template <typename URV>
 bool
 System<URV>::mcmMbWrite(Hart<URV>& hart, uint64_t time, uint64_t addr,
 			const std::vector<uint8_t>& data,
-			const std::vector<bool>& mask)
+			const std::vector<bool>& mask, bool skipCheck)
 {
   if (not mcm_)
     return false;
-  return mcm_->mergeBufferWrite(hart, time, addr, data, mask);
+  return mcm_->mergeBufferWrite(hart, time, addr, data, mask, skipCheck);
 }
 
 
@@ -1196,14 +1273,14 @@ System<URV>::produceTestSignatureFile(std::string_view outPath) const
     {
       if (not findElfSymbol(symbolName, *pSymbol))
         {
-          std::cerr << "Failed to find symbol " << symbolName << " in memory.\n";
+          std::cerr << "Error: Failed to find symbol " << symbolName << " in memory.\n";
           return false;
         }
     }
 
   if (beginSignature.addr_ > endSignature.addr_)
     {
-      std::cerr << "Ending address for signature file is before starting address.\n";
+      std::cerr << "Error: Ending address for signature file is before starting address.\n";
       return false;
     }
 
@@ -1216,7 +1293,7 @@ System<URV>::produceTestSignatureFile(std::string_view outPath) const
       uint32_t value;
       if (not memory_->peek(addr, value, true))
         {
-          std::cerr << "Unable to read data at address 0x" << std::hex << addr << ".\n";
+          std::cerr << "Error: Unable to read data at address 0x" << std::hex << addr << ".\n";
           return false;
         }
 
@@ -1264,13 +1341,13 @@ System<URV>::batchRun(std::vector<FILE*>& traceFiles, bool waitAll, uint64_t ste
 	  not Filesystem::create_directories(path))
         {
           std::cerr << "Error: Failed to create snapshot directory " << pathStr << '\n';
-          std::cerr << "Continuing...\n";
+          std::cerr << "Error: Continuing...\n";
         }
 
       if (not saveSnapshot(pathStr))
         {
           std::cerr << "Error: Failed to save a snapshot\n";
-          std::cerr << "Continuining...\n";
+          std::cerr << "Error: Continuining...\n";
         }
   };
 
@@ -1540,7 +1617,7 @@ System<URV>::loadSnapshot(const std::string& snapDir, bool restoreTrace)
   Filesystem::path timePath = dirPath / "time";
   if (not loadTime(timePath.string(), time_))
     {
-      std::cerr << "Using instruction count for time\n";
+      std::cerr << "Error: Using instruction count for time\n";
       time_ = hart0.getInstructionCount();  // Legacy snapshots.
     }
 

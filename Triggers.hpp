@@ -34,6 +34,10 @@ namespace WdRiscv
     Reserved3 = 11, Custom0 = 12, Custom1 = 13, Custom2 = 14, Disabled = 15
   };
 
+  /// Trigger action.
+  enum class TriggerAction : uint32_t { RaiseBreak, EnterDebug, StartTrace, StopTrace,
+		                        EmitTrace, Reserved, External0, External1, Limit = 15 };
+
   enum class TriggerOffset { Tdata1 = 0, Tdata2 = 1, Tdata3 = 2, Tinfo = 3 };
 
 
@@ -191,9 +195,9 @@ namespace WdRiscv
     unsigned vu_      : 1;
     unsigned vs_      : 1;
     uint64_t          : 8*sizeof(URV) - 19; // Reserved -- zero.
-    unsigned hit      : 1;
-    unsigned dmode    : 1;
-    unsigned type     : 4;
+    unsigned hit_     : 1;
+    unsigned dmode_   : 1;
+    unsigned type_    : 4;
   } __attribute((packed));
 
 
@@ -210,9 +214,9 @@ namespace WdRiscv
     unsigned vu_      : 1;
     unsigned vs_      : 1;
     uint64_t          : sizeof(URV)*8 - 19; // Reserved -- zero.
-    unsigned hit      : 1;
-    unsigned dmode    : 1;
-    unsigned type     : 4;
+    unsigned hit_     : 1;
+    unsigned dmode_   : 1;
+    unsigned type_    : 4;
   } __attribute((packed));
 
 
@@ -242,6 +246,14 @@ namespace WdRiscv
     /// Return trigger type field of Tdata1.
     TriggerType type() const { return TriggerType(mcontrol_.type_); }
 
+    TriggerAction action() const
+    {
+      if (isAddrData())
+        return TriggerAction(mcontrol_.action_);
+      else
+        return TriggerAction(icount_.action_);
+    }
+
     /// Return true if type is None or Disabled.
     bool isDisabled() const
     { return type() == TriggerType::None or type() == TriggerType::Disabled; }
@@ -259,6 +271,15 @@ namespace WdRiscv
     /// Set the type field of tdata1.
     void setType(TriggerType type)
     { mcontrol_.type_ = unsigned(type); }
+
+    /// Set the action field of tdata1.
+    void setAction(TriggerAction action)
+    {
+      if (isAddrData())
+        mcontrol_.action_ = unsigned(action);
+      else
+        icount_.action_ = unsigned(action);
+    }
 
     template <typename T>
     const T& mcontrol() const
@@ -290,9 +311,6 @@ namespace WdRiscv
     friend class Triggers<URV>;
 
     enum class Select { MatchAddress, MatchData };
-
-    enum class Action { RaiseBreak, EnterDebug, StartTrace, StopTrace,
-			EmitTrace, Reserved, External0, External1 };
 
     enum class Chain { No, Yes };
 
@@ -355,14 +373,14 @@ namespace WdRiscv
 
       if (data1_.isAddrData())
 	{
-	  if (not data1_.dmodeOnly())
+	  if (not data1_.dmodeOnly() and (data1_.mcontrol_.action_ == 1))
 	    data1_.mcontrol_.action_ = 0;
           if (data1_.isMcontrol())
             data1_.mcontrol_.maskMax_ = std::countr_zero(napotMask_) + 1;
         }
       else if (data1_.isInstCount())
 	{
-	  if (not data1_.dmodeOnly())
+	  if (not data1_.dmodeOnly() and (data1_.mcontrol_.action_ == 1))
 	    data1_.icount_.action_ = 0;
 	}
 
@@ -491,9 +509,9 @@ namespace WdRiscv
     bool isEnterDebugOnHit() const
     {
       if (data1_.isAddrData())
-	return Action(data1_.mcontrol_.action_) == Action::EnterDebug;
+	return TriggerAction(data1_.mcontrol_.action_) == TriggerAction::EnterDebug;
       if (data1_.isInstCount())
-	return Action(data1_.icount_.action_) == Action::EnterDebug;
+	return TriggerAction(data1_.icount_.action_) == TriggerAction::EnterDebug;
       return false;
     }
 
@@ -593,6 +611,20 @@ namespace WdRiscv
 	  data1_.icount_.hit_ = flag;
 	  modifiedT1_ = true;
 	}
+      if (data1_.isItrigger())
+        {
+          if (not modifiedT1_)
+            prevData1_ = data1_.value_;
+          data1_.itrigger_.hit_ = flag;
+          modifiedT1_ = true;
+        }
+      if (data1_.isEtrigger())
+        {
+          if (not modifiedT1_)
+            prevData1_ = data1_.value_;
+          data1_.etrigger_.hit_ = flag;
+          modifiedT1_ = true;
+        }
     }
 
     /// Return the hit bit of this trigger.
@@ -602,6 +634,10 @@ namespace WdRiscv
         return data1_.isMcontrol()? data1_.mcontrol_.hit_ : data1_.mcontrol6_.hit0_;
       if (data1_.isInstCount())
 	return data1_.icount_.hit_;
+      if (data1_.isItrigger())
+        return data1_.itrigger_.hit_;
+      if (data1_.isEtrigger())
+        return data1_.etrigger_.hit_;
       return false;
     }
 
@@ -631,13 +667,13 @@ namespace WdRiscv
     { chainHit_ = flag; }
 
     /// Return the action fields of the trigger.
-    Action getAction() const
+    TriggerAction getAction() const
     {
       if (data1_.isAddrData())
-	return Action(data1_.mcontrol_.action_);
+	return TriggerAction(data1_.mcontrol_.action_);
       if (data1_.isInstCount())
-	return Action(data1_.icount_.action_);
-      return Action::RaiseBreak;
+	return TriggerAction(data1_.icount_.action_);
+      return TriggerAction::RaiseBreak;
     }
 
     /// Enable all ld/st address matching [address, address+size-1].
@@ -990,7 +1026,24 @@ namespace WdRiscv
             size_t start = 0, end = 0;
             trig.getChainBounds(start, end);
             auto& last = triggers_.at(end - 1);
-            if (last.getAction() == Trigger<URV>::Action::EnterDebug)
+            if (last.getAction() == TriggerAction::EnterDebug)
+              return true;
+          }
+      return false;
+    }
+
+    /// Return true if there is one or more tripped trigger action set
+    /// to "take breakpoint". 
+    bool hasBreakpTripped() const
+    {
+      for (const auto& trig : triggers_)
+	if (trig.hasTripped())
+          {
+            // If chained, use action of last trigger in chain.
+            size_t start = 0, end = 0;
+            trig.getChainBounds(start, end);
+            auto& last = triggers_.at(end - 1);
+            if (last.getAction() == TriggerAction::RaiseBreak)
               return true;
           }
       return false;
@@ -1043,6 +1096,13 @@ namespace WdRiscv
       return ix < supportedTypes_.size() ? supportedTypes_.at(ix) : false;
     }
 
+    /// Return true if given action is supported.
+    bool isSupportedAction(TriggerAction action) const
+    {
+      unsigned ix = unsigned(action);
+      return ix < supportedActions_.size() ? supportedActions_.at(ix) : false;
+    }
+
     /// Set the supported trigger types to the types in the given vector. Items not in the
     /// vector are not supported. Return true on success. Return false if
     /// "none"/"disabled" is not in types vector or if a string in the vector does not correspond
@@ -1055,6 +1115,11 @@ namespace WdRiscv
     /// vector are not supported. Return true on success. Return false if None/Disabled is
     /// not in types vector.
     bool setSupportedTypes(const std::vector<TriggerType>& types);
+
+    /// Same as above but for trigger actions.
+    bool setSupportedActions(const std::vector<std::string>& types);
+
+    bool setSupportedActions(const std::vector<TriggerAction>& actions);
 
     /// Enable hypervisor mode.
     void enableHypervisor(bool flag);
@@ -1109,6 +1174,7 @@ namespace WdRiscv
   private:
 
     std::vector<bool> supportedTypes_;   // Indexed by a TriggerMode.
+    std::vector<bool> supportedActions_; // Indexed by an Action.
 
     std::vector< Trigger<URV> > triggers_;
     bool mmodeEnabled_ = true;  // Triggers trip in Machine mode when true.

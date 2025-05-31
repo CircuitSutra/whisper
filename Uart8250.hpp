@@ -64,17 +64,52 @@ namespace WdRiscv
   };
 
   class PTYChannel : private PTYChannelBase, public FDChannel {
+    public:
+      PTYChannel();
+  };
+
+  // Base class to handle accepting a connection from a server socket
+  class SocketChannelBase {
   public:
-    PTYChannel();
+    // Do not allow copying because that may cause the socket fd to be used
+    // after close
+    SocketChannelBase(const SocketChannelBase&) = delete;
+    SocketChannelBase& operator=(const SocketChannelBase&) = delete;
+
+  protected:
+    SocketChannelBase(int server_fd);
+    ~SocketChannelBase();
+
+    int conn_fd_ = -1;
+  };
+
+  // UartChannel implementation using a socket connection
+  class SocketChannel : private SocketChannelBase, public FDChannel {
+    public:
+      SocketChannel(int server_fd);
+  };
+
+  class ForkChannel : public UartChannel {
+    public:
+      ForkChannel(std::unique_ptr<UartChannel> readWriteChannel, std::unique_ptr<UartChannel> writeOnlyChannel);
+      size_t read(uint8_t *buf, size_t size) override;
+      void write(uint8_t byte) override;
+      void terminate() override;
+
+    private:
+      std::unique_ptr<UartChannel> readWriteChannel_;
+      std::unique_ptr<UartChannel> writeOnlyChannel_;
   };
 
   class Uart8250 : public IoDevice
   {
   public:
 
-    Uart8250(uint64_t addr, uint64_t size, std::shared_ptr<TT_APLIC::Aplic> aplic, uint32_t iid, std::unique_ptr<UartChannel> channel);
+    Uart8250(uint64_t addr, uint64_t size, std::shared_ptr<TT_APLIC::Aplic> aplic, uint32_t iid, std::unique_ptr<UartChannel> channel, bool enableInput = true);
 
     ~Uart8250() override;
+
+    void enableInput();
 
     uint32_t read(uint64_t addr) override;
 
