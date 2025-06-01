@@ -263,14 +263,15 @@ CsRegs<URV>::writeMvip(URV value)
 
   auto mvien = getImplementedCsr(CsrNumber::MVIEN);
   auto mip = getImplementedCsr(CsrNumber::MIP);
+
   if (mvien and mip)
     {
-      // Bit 1 of MVIP is an alias to bit 1 in MIP if bit 1 is not set in MVIEN.
+      // Bit 1 of MVIP is an alias to bit 1 in MIP if bit 1 of MVIEN is 0.
       // Bit 9 aliasing applied in effectiveMip()
       URV mvienVal = mvien->read();
       URV mask = mvienVal;
 
-      // When MVIEN is 0, do not write MVIP. Keep original value.
+      // When bit 1 of MVIEN is 1, do not write MIP. Keep original value.
       URV b1 = URV(0x2);
       mask ^= b1;
 
@@ -287,10 +288,12 @@ CsRegs<URV>::writeMvip(URV value)
           recordWrite(CsrNumber::MIP);
         }
 
+#if 0
       // If bit 1 is aliased to MIP (bit 1 of MVIEN is 0), preserve its value in MVIP.
       // This matches current implementation. Spec says value is unsecified.
       if (b1 & ~mvien->read())
         value = (value & ~b1) | (mvip->read() & b1);
+#endif
     }
 
   mvip->write(value);
@@ -1499,7 +1502,7 @@ CsRegs<URV>::writeSie(URV value, bool recordWr)
   // Where mideleg is 0 and mvien is 1, SIE becomes writable independent of MIP.
   // See AIA spec section 5.3.
   auto mvien = getImplementedCsr(CsrNumber::MVIEN);
-  auto mvip = getImplementedCsr(CsrNumber::MVIP);
+  auto mvip = getImplementedCsr(CsrNumber::MVIP);  // Why do we need MVIP?
   if (mideleg and mvien and mvip)
     {
       URV smask = mvien->read() & ~mideleg->read();
@@ -5346,7 +5349,10 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
               // Sec. 6.3.2 of interrupt spec.
               auto sie = getImplementedCsr(CsrNumber::SIE);
               mask &= hideleg->read() | hvien->read();
-              high = (orig & ~mask) | (sie->read() & mask);
+              // Put SIE where HIDELEG is 1.
+              high = (orig & ~mask) | (sie->read() & hideleg->read() & mask);
+              // Or put original where HIDELEG is 0 and HVIEN is 1.
+              high |= (orig & mask) & ~hideleg->read() & hvien->read(); // Keep orig where 
             }
           updateCsr(vsie, (low13 & low13Mask) | (high & ~low13Mask));
         }
