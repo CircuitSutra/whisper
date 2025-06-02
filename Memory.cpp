@@ -1005,6 +1005,8 @@ Memory::loadSnapshot(const std::string & filename,
         break;
     }
 
+  std::cerr << '\n';
+
   if (not success)
     std::cerr << "Error: Memory::loadSnapshot failed - read from " << filename
               << " failed: " << gzerror(gzin, nullptr) << "\n";
@@ -1012,7 +1014,7 @@ Memory::loadSnapshot(const std::string & filename,
     std::cerr << "Warning: Memory::loadSnapshot: Snapshot data size smaller than memory size\n";
 
   gzclose(gzin);
-  std::cerr << "Error: \nloadSnapshot finished\n";
+  std::cerr << "Info: loadSnapshot finished\n";
   return success;
 }
 
