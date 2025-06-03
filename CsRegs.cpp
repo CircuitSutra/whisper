@@ -1506,7 +1506,7 @@ CsRegs<URV>::writeSie(URV value, bool recordWr)
       sieMask &= ~ smask;  // Don't write SIE where SIE is indepedent of MIE
 
       // Write shadow sie instead.
-      shadowSie_ = value &  smask;;
+      shadowSie_ = (shadowSie_ & ~smask) | (value &  smask);
     }
 
   sie->setWriteMask(sieMask);
