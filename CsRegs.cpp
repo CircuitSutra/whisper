@@ -1435,9 +1435,14 @@ CsRegs<URV>::writeSip(URV value, bool recordWr)
     {
       URV mvipMask = mvien->read() & ~mideleg->read();
       sipMask &= ~ mvipMask;  // Don't write SIP where SIP is an alias to MVIP
+
+#if 0
+      // RTL does not do this.
       // Do write MVIP when mideleg=1 and mvien=0. SIP aliases MIP, which in turn aliases MVIP.
       // SEIP is read-only in SIP in this scenario.
       mvipMask |= (~mvien->read() & mideleg->read()) & sipMask & 0x22;  // SEIP masked.
+#endif
+
       mvip->write((mvip->read() & ~mvipMask) | (value & mvipMask)); // Write MVIP instead.
       if (recordWr)
         recordWrite(CN::MVIP);
