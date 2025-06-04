@@ -4053,7 +4053,11 @@ CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode) const
 
               if ((not value and not value2) or
                   (value and not value2))
-                return true;
+                {
+                  if (hvf.bits_.IPRIOM == 0)
+                    value = (value & ~URV(0xfff)) | 1;  // Bottom of sec 6.3.3 of interrupt spec
+                  return true;
+                }
 
               if (prio2 < prio or (not value and value2))
                 {
