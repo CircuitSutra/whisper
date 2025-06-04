@@ -244,7 +244,7 @@ namespace WdRiscv
     [[nodiscard]] bool peekCsr(CsrNumber csr, URV& val, bool virtMode) const
     { return csRegs_.peek(csr, val, virtMode); }
 
-    /// Return value of the given csr. Throw exception if csr is out of bounds.
+    /// Return value of the given csr.
     /// Return 0 if CSR is not implemented printing an error message unless
     /// quiet is true.
     URV peekCsr(CsrNumber csr, bool quiet = false) const;
