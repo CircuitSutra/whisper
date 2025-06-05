@@ -4054,7 +4054,7 @@ CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode) const
               if ((not value and not value2) or
                   (value and not value2))
                 {
-                  if (hvf.bits_.IPRIOM == 0)
+                  if (hvf.bits_.IPRIOM == 0 and value != 0)
                     value = (value & ~URV(0xfff)) | 1;  // Bottom of sec 6.3.3 of interrupt spec
                   return true;
                 }
