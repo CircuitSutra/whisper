@@ -23,7 +23,7 @@ namespace TT_STEE      // TensTorrent Static Trusted Execution Environment.
     /// secure world, or running in secure world and the bits of the given
     /// address corresponding to the secure mask are not all set.
     bool isInsecureAddress(uint64_t physAddr) const
-    { return secWorld_ == 0 or (physAddr & secMask_) != secMask_; }
+    { return (physAddr & secMask_) != secMask_; }
 
     /// Return true if given memory access is insecure: The address is
     /// insecure and it overlaps a secure memory region.
