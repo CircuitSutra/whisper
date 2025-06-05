@@ -11563,6 +11563,8 @@ Hart<URV>::vectorLoadWholeReg(const DecodedInst* di, ElementWidth eew)
   TriggerTiming timing = TriggerTiming::Before;
   bool isLd = true;
 
+  bool result = true;
+
   for (unsigned ix = start; ix < elemCount; ++ix, addr += elemBytes)
     {
       auto cause = ExceptionCause::NONE;
@@ -11580,7 +11582,8 @@ Hart<URV>::vectorLoadWholeReg(const DecodedInst* di, ElementWidth eew)
             {
               markVsDirty();
               csRegs_.write(CsrNumber::VSTART, PrivilegeMode::Machine, ix);
-              return false;
+              result = false;
+              break;
             }
         }
 #endif
@@ -11598,7 +11601,8 @@ Hart<URV>::vectorLoadWholeReg(const DecodedInst* di, ElementWidth eew)
               triggerTripped_ = true;
               markVsDirty();
               csRegs_.write(CsrNumber::VSTART, PrivilegeMode::Machine, ix);
-              return false;
+              result = false;
+              break;
             }
 #endif
           ldStInfo.addElem(VecLdStElem{addr, pa1, pa2, elem, ix, false /*skip*/});
@@ -11609,13 +11613,14 @@ Hart<URV>::vectorLoadWholeReg(const DecodedInst* di, ElementWidth eew)
           markVsDirty();
           csRegs_.write(CsrNumber::VSTART, PrivilegeMode::Machine, ix);
           initiateLoadException(di, cause, ldStFaultAddr_, gpa1);
-          return false;
+          result = false;
+          break;
         }
     }
 
   vecRegs_.touchReg(vd, groupX8);  // We want the group and not the effective group.
 
-  return true;
+  return result;
 }
 
 
