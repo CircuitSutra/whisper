@@ -6274,6 +6274,7 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
               evaluateIcountTrigger();
               evaluateDebugStep();
             }
+          injectException_ = ExceptionCause::NONE;
           return;  // Next instruction in interrupt handler.
         }
 
@@ -6281,6 +6282,7 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
         {
           takeTriggerAction(traceFile, currPc_, 0, instCounter_, nullptr /*di*/);
           evaluateDebugStep();
+          injectException_ = ExceptionCause::NONE;
           return;
         }
 
@@ -6292,6 +6294,7 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
               evaluateIcountTrigger();
               evaluateDebugStep();
             }
+          injectException_ = ExceptionCause::NONE;
           return;
         }
 
@@ -6300,6 +6303,7 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
       // Increment pc and execute instruction
       pc_ += di.instSize();
       execute(&di);
+      injectException_ = ExceptionCause::NONE;
 
       if (sdtrigOn_)
         evaluateIcountTrigger();

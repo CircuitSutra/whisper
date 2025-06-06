@@ -953,9 +953,17 @@ namespace WdRiscv
     bool getSeiPin() const
     { return seiPin_; }
 
-    /// Set/clear low priorty exception for fetch/ld scenarios. For vector
-    /// loads, we use the element index to determine the exception. This is
-    /// useful for TB to inject errors.
+    /// Set a low priority exception of type fetch or load to be applied to the next
+    /// instruction and to be automatically cleared afterwards. The exception may have no
+    /// effect if the next instruction encounters a higher priority exception, is
+    /// interrupted, or if it does not match the exception type (for example, if the next
+    /// instruction is an add and the injected exception type is load, then there is no
+    /// match). This is useful to the test-bench allowing it to inject hardware-error
+    /// exceptions into fetch/load transactions. If isLoad is true, the injected exception
+    /// is of type load; otherwise, it is of type fetch. A fetch exception applies to all
+    /// instructions. A load exception applies to load/amo instructions. The given address
+    /// is the address that encountered the hardware error. For a vector load, the element
+    /// index is that of the particular element that encountered the error.
     void injectException(bool isLoad, URV cause, unsigned elemIx, URV addr)
     {
       injectExceptionIsLd_ = isLoad;
