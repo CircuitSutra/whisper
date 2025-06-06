@@ -223,36 +223,6 @@ CsRegs<URV>::readSie(URV& value) const
 
 template <typename URV>
 bool
-CsRegs<URV>::readVsip(URV& value) const
-{
-  value = 0;
-  auto vsip = getImplementedCsr(CsrNumber::VSIP);
-  if (not vsip)
-    return false;
-
-  value = vsip->read();
-
-  // When bit 10/6/2 of HIDELEG is 0, bit 9/5/1 of VISP is read-only-zero. Else
-  // it is an alias to bit 10/6/2 of HIP.
-
-  auto hideleg = getImplementedCsr(CsrNumber::HIDELEG);
-  auto mip = getImplementedCsr(CsrNumber::HIDELEG);
-
-  auto hval = hideleg ? hideleg->read() : 0;
-  auto mipVal = mip ? mip->read() : 0;
-
-  URV bits = 0x222;  // Bits of VSIP affected by hideleg. Bits 9/5/1.
-
-  URV mask = (hval >> 1) & bits;  // Mask of VSIP bits that should come from HIP.
-  value &= ~bits;                 // Clear bits that may come from HIP
-  value |= (mipVal >> 1) & mask;  // Or in bits aliased to HIP.
-
-  return true;
-}
-
-
-template <typename URV>
-bool
 CsRegs<URV>::readMvip(URV& value) const
 {
   value = 0;
@@ -560,8 +530,6 @@ CsRegs<URV>::read(CsrNumber num, PrivilegeMode mode, URV& value) const
     return readSip(value);
   else if (num == CN::SIE)
     return readSie(value);
-  else if (num == CN::VSIP)
-    return readVsip(value);
 
   if (num == CN::MTOPEI)
     {
