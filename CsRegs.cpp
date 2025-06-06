@@ -5182,7 +5182,7 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
       if (vsip)
         {
           vsip->setReadMask(mask);
-          vsip->setWriteMask(mask);
+          vsip->setWriteMask(mask & ~URV(0x222));  // Bits 2/4/6 not writable.
         }
       if (vsie)
         {
@@ -5257,12 +5257,12 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
         {
 	  if (hideleg)
 	    {
-	      URV newVal = (hip->read() & ~hideleg->read()) |
-                            (sInterruptToVs(value) & hideleg->read());
-	      hip->poke(newVal);
+	      URV newVal = ( (hip->read() & ~hideleg->read()) |
+                             (sInterruptToVs(vsip->read()) & hideleg->read()) );
+	      hip->write(newVal);
 	    }
 	  else
-	    hip->poke(value);
+	    hip->write(vsip->read());
         }
       // It may also alias bits 13-63 of HVIP or bits 13-63 of SIP/MVIP.
       // Bits 13-63 of VSIP is not aliasing with HIP.
