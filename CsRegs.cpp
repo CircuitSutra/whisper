@@ -5182,7 +5182,7 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
       if (vsip)
         {
           vsip->setReadMask(mask);
-          vsip->setWriteMask(mask & ~URV(0x222));  // Bits 2/4/6 not writable.
+          vsip->setWriteMask(mask & ~URV(0x220));  // Bits 9 & 5 are not writable.
         }
       if (vsie)
         {
