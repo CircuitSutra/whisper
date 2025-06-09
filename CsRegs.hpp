@@ -1708,6 +1708,9 @@ namespace WdRiscv
     bool readSie(URV& value) const;
 
     /// Helper to read method.
+    bool readVsip(URV& value) const;
+
+    /// Helper to read method.
     bool readMvip(URV& value) const;
 
     /// Helper to write method.

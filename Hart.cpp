@@ -11315,8 +11315,30 @@ Hart<URV>::doCsrRead(const DecodedInst* di, CsrNumber csr, bool isWrite, URV& va
   if (not checkCsrAccess(di, csr, isWrite))
     return false;
 
+#if 0
+  // RTL now changes. No longer doing this.
+
+  // Reading for update. Special case for VSIE/VSIP where RTL updates read-only-zero bits.
+  using CN = CsrNumber;
+  if (isWrite  and (csr == CN::VSIE or csr == CN::VSIP))
+    {
+      auto ptr = csRegs_.getImplementedCsr(csr);
+      if (ptr)
+        {
+          auto prev = ptr->getReadMask();
+          ptr->setReadMask(~URV(0));
+          bool readOk = csRegs_.read(csr, privMode_, value);
+          ptr->setReadMask(prev);
+          if (readOk)
+            return readOk;
+        }
+    }
+  else if (csRegs_.read(csr, privMode_, value))
+    return true;
+#else
   if (csRegs_.read(csr, privMode_, value))
     return true;
+#endif
 
   // Check if HS qualified (section 9.6.1 of privileged spec).
   using PM = PrivilegeMode;
