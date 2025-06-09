@@ -3436,6 +3436,14 @@ Hart<URV>::initiateNmi(URV cause, URV pcToSave)
   nmiCount_++;
   if (instFreq_)
     accumulateTrapStats(true);
+
+  if (hasActiveTrigger())
+    {
+      bool isNmi = true;
+      if (csRegs_.intTriggerHit(cause, privMode_, virtMode_, isBreakpInterruptEnabled(), isNmi))
+        initiateException(ExceptionCause::BREAKP, pc_, 0, 0);
+    }
+
   return true;
 }
 

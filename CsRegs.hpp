@@ -1103,9 +1103,9 @@ namespace WdRiscv
     }
 
     /// Similar to instAddrTriggerHit but for interrupt triggers.
-    bool intTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool ie)
+    bool intTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool ie, bool isNmi = false)
     {
-      bool chainHit = triggers_.intTriggerHit(cause, mode, virtMode, ie);
+      bool chainHit = triggers_.intTriggerHit(cause, mode, virtMode, ie, isNmi);
       URV tselect = 0;
       peek(CsrNumber::TSELECT, tselect);
       if (triggers_.getLocalHit(tselect))

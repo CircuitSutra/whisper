@@ -488,11 +488,20 @@ Triggers<URV>::expTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool 
       if (mode == PM::Machine and not etrig.m_)
 	continue;
 
-      if (mode == PM::Supervisor and not virtMode and not etrig.s_)
-	continue;
-
-      if (mode == PrivilegeMode::User and not virtMode and not etrig.u_)
-	continue;
+      if (not virtMode)
+        {
+          if (mode == PM::Supervisor and not etrig.s_)
+            continue;
+          if (mode == PrivilegeMode::User and not etrig.u_)
+            continue;
+        }
+      else
+        {
+          if (mode == PM::Supervisor and not etrig.vs_)
+            continue;
+          if (mode == PrivilegeMode::User and not etrig.vu_)
+            continue;
+        }
 
       if (mode == PrivilegeMode::Reserved)
 	continue;
@@ -512,7 +521,8 @@ Triggers<URV>::expTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool 
 
 template <typename URV>
 bool
-Triggers<URV>::intTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool interruptEnabled)
+Triggers<URV>::intTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool interruptEnabled,
+                             bool isNmi)
 {
   // Check if we should skip tripping because of reentrant behavior. 
   bool skip = not interruptEnabled;
@@ -537,14 +547,26 @@ Triggers<URV>::intTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool 
 
       auto& itrig = trigger.data1_.itrigger_;
 
+      if (itrig.nmi_ != isNmi)
+        continue;
+
       if (mode == PM::Machine and not itrig.m_)
 	continue;
 
-      if (mode == PM::Supervisor and not virtMode and not itrig.s_)
-	continue;
-
-      if (mode == PrivilegeMode::User and not virtMode and not itrig.u_)
-	continue;
+      if (not virtMode)
+        {
+          if (mode == PM::Supervisor and not itrig.s_)
+            continue;
+          if (mode == PrivilegeMode::User and not itrig.u_)
+            continue;
+        }
+      else
+        {
+          if (mode == PM::Supervisor and not itrig.vs_)
+            continue;
+          if (mode == PrivilegeMode::User and not itrig.vu_)
+            continue;
+        }
 
       if (mode == PrivilegeMode::Reserved)
 	continue;
