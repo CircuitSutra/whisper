@@ -418,12 +418,13 @@ Hart<URV>::printDecodedInstTrace(const DecodedInst& di, uint64_t tag, std::strin
   // Process memory diff.
   if (di.instId() == InstId::cbo_zero and not hasException_)
     {
+      uint64_t addr = cacheLineAlign(ldStAddr_);
       for (unsigned i = 0; i < cacheLineSize_; i += sizeof(URV))
 	{
 	  if (pending)
 	    fprintf(out, "  +\n");
 	  formatInstTrace<URV>(out, tag, *this, instSV, 'm',
-			       URV(ldStAddr_ + i), URV(0), tmp);
+			       URV(addr + i), URV(0), tmp);
 	  pending = true;
 	}
     }
