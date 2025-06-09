@@ -1426,6 +1426,9 @@ CsRegs<URV>::writeSip(URV value, bool recordWr)
   // Bits SGEIP, VSEIP, VSTIP, VSSIP are not writeable in SIE/SIP.
   sipMask &= ~ URV(0x1444);
 
+  // Bits 5 and 9 are not writable in SIP either (even when filtering is on).
+  sipMask &= ~URV(0x220);
+
   // Where mideleg is 0 and mvien is 1, SIP becomes an alias to mvip. More
   // importantly, mvip is a separate writable bit.
   // See AIA spec section 5.3.
@@ -1433,7 +1436,8 @@ CsRegs<URV>::writeSip(URV value, bool recordWr)
   auto mvip = getImplementedCsr(CsrNumber::MVIP);
   if (mideleg and mvien and mvip)
     {
-      URV mvipMask = mvien->read() & ~mideleg->read();
+      // Bits 5 and 9 are not writable in SIP even when aliased to MVIP.
+      URV mvipMask = mvien->read() & ~mideleg->read() & ~URV(0x220);
       sipMask &= ~ mvipMask;  // Don't write SIP where SIP is an alias to MVIP
 
 #if 0
