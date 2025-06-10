@@ -5191,7 +5191,7 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
       if (vsie)
         {
           vsie->setReadMask(mask);
-          vsip->setWriteMask(mask);
+          vsie->setWriteMask(mask);
         }
     }
   else if (num == CsrNumber::MIP)
