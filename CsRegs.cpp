@@ -263,32 +263,35 @@ CsRegs<URV>::writeMvip(URV value)
   auto mvien = getImplementedCsr(CsrNumber::MVIEN);
   auto mip = getImplementedCsr(CsrNumber::MIP);
 
+  URV mipMask = 0;
+
   if (mvien and mip)
     {
       // Bit 1 of MVIP is an alias to bit 1 in MIP if bit 1 of MVIEN is 0.
       // Bit 9 aliasing applied in effectiveMip()
       URV mvienVal = mvien->read();
-      URV mask = mvienVal;
+      mipMask = mvienVal;
 
       // When bit 1 of MVIEN is 1, do not write MIP. Keep original value.
       URV b1 = URV(0x2);
-      mask ^= b1;
+      mipMask ^= b1;
 
       // Bit STIE (5) of MVIP is an alias to bit 5 of MIP if bit 5 of MIP is writable.
       // Othrwise, it is zero.
       URV b5 = URV(0x20);  // Bit 5 mask
       if ((mip->getWriteMask() & b5) != 0)   // Bit 5 writable in mip
-	mask |= b5;
+	mipMask |= b5;
 
-      mask &= b1 | b5;
-      if (mask)
+      mipMask &= b1 | b5;
+      if (mipMask)
         {
-          mip->write((mip->read() & ~mask) | (value & mask));
+          mip->write((mip->read() & ~mipMask) | (value & mipMask));
           recordWrite(CsrNumber::MIP);
         }
     }
 
-  mvip->write(value);
+  // Where MIP was written MVIP does not change.
+  mvip->write((mvip->read() & mipMask) | (value & ~mipMask));
   recordWrite(CsrNumber::MVIP);
   return true;
 }
