@@ -3393,6 +3393,12 @@ template <typename URV>
 bool
 Hart<URV>::initiateNmi(URV cause, URV pcToSave)
 {
+  if (hasActiveTrigger())
+    {
+      dataAddrTrig_ = false;  // Not an data-address trigger.
+      triggerTripped_ = instAddrTriggerHit(pcToSave, 4 /*size*/, TriggerTiming::Before);
+    }
+
   URV nextPc = indexedNmi_ ? nmiPc_ + 4*cause : nmiPc_;
 
   if (extensionIsEnabled(RvExtension::Smrnmi))
