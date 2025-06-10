@@ -5336,6 +5336,7 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
           URV orig = vsip->read();
           URV mask = 0x222 & (hideleg->read() >> 1); // Bits below 13: sec 19.2.12 of priv spec.
           URV low13 = (orig & ~mask) | ((hip->read() >> 1) & mask);
+          updateCsr(vsip, low13, false);  // Low bits are read-only aliases to HIP.
 
           mask = ~low13Mask; // Bits 13 to 63
           URV high = orig & mask;
