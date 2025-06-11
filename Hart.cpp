@@ -3275,6 +3275,8 @@ Hart<URV>::initiateTrap(const DecodedInst* di, bool interrupt,
     gva = true;
   else if (lastEbreak_ and clearMtvalOnEbreak_)
     gva = false;
+  else if (not lastEbreak_ and (cause == unsigned(EC::BREAKP)) and not info) // icount trigger
+    gva = false;
 
   // Update status register saving xIE in xPIE and previous privilege
   // mode in xPP by getting current value of xstatus, updating
@@ -3391,6 +3393,12 @@ template <typename URV>
 bool
 Hart<URV>::initiateNmi(URV cause, URV pcToSave)
 {
+  if (hasActiveTrigger())
+    {
+      dataAddrTrig_ = false;  // Not an data-address trigger.
+      triggerTripped_ = instAddrTriggerHit(pcToSave, 4 /*size*/, TriggerTiming::Before);
+    }
+
   URV nextPc = indexedNmi_ ? nmiPc_ + 4*cause : nmiPc_;
 
   if (extensionIsEnabled(RvExtension::Smrnmi))
