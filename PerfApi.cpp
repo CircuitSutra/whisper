@@ -1547,7 +1547,7 @@ PerfApi::restoreHartValues(Hart64& hart, const InstrPac& packet,
               {
                 auto pokeData = vec.data() + i*bytesPerReg;
                 if (not hart.pokeVecRegLsb(number + i, std::span(pokeData, bytesPerReg)))
-                  assert(0 && "Error: Assertion failed");
+                  assert(packet.trap_);
               }
           }
 	  break;
