@@ -11525,7 +11525,7 @@ Hart<URV>::vectorLoadWholeReg(const DecodedInst* di, ElementWidth eew)
   unsigned fieldCount = di->vecFieldCount();
   unsigned group = 1, groupX8 = 8, effGroupX8 = fieldCount*8;
 
-  // Field count must be a multiple of 8.
+  // Field count must be a power of 2.
   bool ok = (fieldCount & (fieldCount - 1)) == 0;
   if (ok)
     {
