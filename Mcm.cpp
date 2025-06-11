@@ -1831,9 +1831,14 @@ Mcm<URV>::checkRtlWrite(unsigned hartId, const McmInstr& instr,
 {
   if (instr.size_ == 0)
     {
-      cerr << "Error: Merge buffer insert for a non-store instruction: "
-	   << "Hart-id=" << hartId << " time=" << time_ << " tag=" << instr.tag_
-	   << '\n';
+      cerr << "Error: Hart-id=" << hartId << " time=" << op.time_ << " tag="
+           << instr.tag_;
+      if (instr.di_.isSc())
+        cerr << " merge buffer " << (op.bypass_ ? "bypass" : "insert")
+             << " operation for a non-successful store-conditional instruction\n";
+      else
+        cerr << " merge buffer insert/bypass for a non-store instruction\n";
+
       return false;
     }
 
