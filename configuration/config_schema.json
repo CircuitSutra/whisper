@@ -676,7 +676,7 @@
                   "properties": {
                       "<domain_name>" : {
                           "type": "object",
-                          "description" : "parmaeters of the domain",
+                          "description" : "parameters of the domain",
                           "properties": {
                               "parent" : {
                                   "type" : "string",
@@ -698,9 +698,12 @@
                                   "type" : "array",
                                   "items" {
                                       "$ref": "#/definitions/int_or_hex_string",
-                                      "description" : "harts belonging to the domain",
-                                      "minimum": 1
+                                      "description" : "harts belonging to the domain, this is relevant for direct delivery"
                                   }
+                              },
+                              "child_index" : {
+                                  "#/definitions/int_or_hex_string",
+                                  "description" : "order of a domain within its parent, not needed if a domain has no sibling, if a domain A, has two sub-domains B and C, then B and C should be assigned a child_index each from indices 0 and 1 according to their order."
                               }
                           }
                       }
