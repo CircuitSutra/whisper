@@ -5255,11 +5255,12 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
       // Updating VSIP injects values into writeable bits of HIP
       if (hip)
         {
+          // VSIP bits 5 and 9 are read only. Only bit 2 affects HIP.
 	  if (hideleg)
 	    {
-	      URV newVal = ( (hip->read() & ~hideleg->read()) |
-                             (sInterruptToVs(value) & hideleg->read()) );
-	      hip->write(newVal);
+              URV hipMask = URV(0x4) & hideleg->read(); // Where HIP will be updated.
+              URV newVal = (hip->read() & ~hipMask) | (sInterruptToVs(value) & hipMask);
+              hip->write(newVal);
 	    }
 	  else
 	    hip->write(value);
@@ -5458,6 +5459,7 @@ CsRegs<URV>::hyperPoke(Csr<URV>* csr)
 	  URV mask = bit << 10;
           // Update bit SGEIP (12) of HIP.
           mask |= ((hgeipVal & hgeie->read()) != 0) << 12;
+          mask |= hvip->read() & URV(0x400);  // Or bit 10 of HVIP.
           hip->poke(hip->read() | mask);  // Set bit 10 to HGEIP bit selected by VGEIN.
           hipUpdated = true;
         }
