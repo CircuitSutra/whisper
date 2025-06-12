@@ -5220,13 +5220,14 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
       // for VSEIP and VSTIP.
       if (hip)
 	{
-	  // Bit 10 (VSEIP) of HIP is the or of bit 10 of HVIP and HGEIP bit
-	  // selected by GVEIN.
+	  // Bit 10 (VSEIP) of HIP is the or of bit 10 of HVIP and HGEIP bit selected by
+	  // GVEIN. Bits 2, 6 and 10 are injected into HIP. What about bits 13 to 63.
 	  HstatusFields<URV> hsf(hstatus->read());
 	  unsigned vgein = hsf.bits_.VGEIN;
 	  unsigned bit = (hgeip->read() >> vgein) & 1;  // Bit of HGEIP selected by VGEIN
+          URV hipMask = 0x444;  // Mask of bits injected into HIP.
 	  value = value | (bit << 10);  // Or HGEIP bit selected by GVEIN.
-	  hip->poke(value);
+	  hip->poke((hip->read() & ~hipMask) | (value & hipMask));
 	}
     }
   else if (num == CsrNumber::HSTATUS or num == CsrNumber::HGEIE)
