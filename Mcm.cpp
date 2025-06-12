@@ -3863,10 +3863,8 @@ Mcm<URV>::ppoRule3(Hart<URV>& hart, const McmInstr& instrB) const
 	break;
 
       const auto& instrA =  instrVec.at(op.tag_);
-      if (instrA.isCanceled() or not instrA.isRetired())
-	continue;
-
-      if (not instrA.isStore_ or not overlaps(instrA, instrB))
+      if (instrA.isCanceled() or not instrA.isRetired() or not instrA.isStore_ or
+          not overlaps(instrA, instrB))
 	continue;
 
       // Check if a byte of B is written by A.
@@ -3881,12 +3879,17 @@ Mcm<URV>::ppoRule3(Hart<URV>& hart, const McmInstr& instrB) const
               if (not overlaps(instrA, op))
                 continue;
 	      if (not instrA.di_.isAtomic())
-		locallyWritten.insert(addr);
-              else if (op.time_ < latestOpTime(instrA))
+                {
+                  locallyWritten.insert(addr);
+                  continue;
+                }
+              
+              uint64_t aTime = instrA.complete_ ? latestOpTime(instrA) : ~uint64_t(0);
+              if (op.time_ < aTime)
 		{
 		  cerr << "Error: PPO rule 3 failed: hart-id=" << hart.hartId() << " tag1="
 		       << instrA.tag_ << " tag2=" << instrB.tag_ << " time1="
-		       << latestOpTime(instrA) << " time2=" << op.time_
+		       << aTime << " time2=" << op.time_
 		       << '\n';
 		  return false;
 		}
@@ -5175,9 +5178,10 @@ Mcm<URV>::ppoRule13(Hart<URV>& hart, const McmInstr& instrB) const
       if (ap.isMemory())
 	if (not ap.complete_ or isBeforeInMemoryTime(instrB, ap))
 	  {
+            uint64_t apTime = ap.complete_ ? latestOpTime(ap) : ~uint64_t(0);
 	    cerr << "Error: PPO rule 13 failed: hart-id=" << hart.hartId() << " tag1="
 		 << mapt << " tag2=" << instrB.tag_ << " mtag=" << mTag
-		 << " time1=" << latestOpTime(ap) << " time2=" << earlyB << '\n';
+		 << " time1=" << apTime << " time2=" << earlyB << '\n';
 	    return false;
 	  }
 
