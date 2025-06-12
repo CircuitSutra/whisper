@@ -20,7 +20,7 @@ Hart<URV>::saveSnapshotRegs(const std::string & filename)
   std::ofstream ofs(filename, std::ios::trunc);
   if (not ofs)
     {
-      std::cerr << "Hart::saveSnapshotRegs failed - cannot open " << filename << " for write\n";
+      std::cerr << "Error: Hart::saveSnapshotRegs failed - cannot open " << filename << " for write\n";
       return false;
     }
 
@@ -202,7 +202,7 @@ Hart<URV>::loadSnapshotRegs(const std::string & filename)
   std::ifstream ifs(filename);
   if (not ifs)
     {
-      std::cerr << "Hart::loadSnapshotRegs failed - cannot open " << filename << " for read\n";
+      std::cerr << "Error: Hart::loadSnapshotRegs failed - cannot open " << filename << " for read\n";
       return false;
     }
   // read line by line and set registers
@@ -317,7 +317,7 @@ Hart<URV>::loadSnapshotRegs(const std::string & filename)
               pokeCsr(csrNum, val);
             }
 	  else
-	    cerr << "Warning: Register snapshot loader: Line " << lineNum
+	    cerr << "Error: Register snapshot loader: Line " << lineNum
 		 << ": No such CSR: " << line << '\n';
         }
       else if (type == "x")   // Integer register
@@ -328,7 +328,7 @@ Hart<URV>::loadSnapshotRegs(const std::string & filename)
 	      continue;
 	    }
           if (not pokeIntReg(num, val))
-	    cerr << "Warning: Register snapshot loader: Line " << lineNum
+	    cerr << "Error: Register snapshot loader: Line " << lineNum
 		 << ": No such register: " << line << '\n';
         }
       else if (type == "f")   // FP register
@@ -341,7 +341,7 @@ Hart<URV>::loadSnapshotRegs(const std::string & filename)
 		  continue;
 		}
               if (not pokeFpReg(num, val))
-		cerr << "Warning: Register snapshot loader: Line " << lineNum
+		cerr << "Error: Register snapshot loader: Line " << lineNum
 		     << ": No such FP register: " << line << '\n';
             }
         }
@@ -356,13 +356,13 @@ Hart<URV>::loadSnapshotRegs(const std::string & filename)
 		  continue;
 		}
 	      if (not pokeVecReg(num, vecBytes))
-		cerr << "Warning: Register snapshot loader: Line " << lineNum
+		cerr << "Error: Register snapshot loader: Line " << lineNum
 		     << ": No such vector register: " << line << '\n';
 	    }
 	}
       else
 	{
-	  cerr << "Warning: Register snapshot loader: Line " << lineNum
+	  cerr << "Error: Register snapshot loader: Line " << lineNum
 	       << ": Ignoring unexpected line: " << line << '\n';
 	}
     }
@@ -379,9 +379,9 @@ Hart<URV>::loadSnapshotRegs(const std::string & filename)
 
   if (errors)
     {
-      cerr << "Hart::loadSnapshotRegs failed to parse " << filename << ":"
+      cerr << "Error: Hart::loadSnapshotRegs failed to parse " << filename << ":"
 	   << std::dec << lineNum << "\n";
-      cerr << "\t" << line << "\n";
+      cerr << "Error: \t" << line << "\n";
     }
   ifs.close();
 

@@ -87,7 +87,7 @@ Session<URV>::defineSystem(const Args& args, const HartConfig& config)
 #endif
       and not args.interactive and not args.instList)
     {
-      std::cerr << "No program file specified.\n";
+      std::cerr << "Error: No program file specified.\n";
       return nullptr;
     }
 
@@ -96,7 +96,7 @@ Session<URV>::defineSystem(const Args& args, const HartConfig& config)
   config.getHartIdOffset(hartIdOffset);
   if (hartIdOffset < hartsPerCore)
     {
-      std::cerr << "Invalid core_hart_id_offset: " << hartIdOffset
+      std::cerr << "Error: Invalid core_hart_id_offset: " << hartIdOffset
                 << ",  must be greater than harts_per_core: " << hartsPerCore << '\n';
       return nullptr;
     }
@@ -192,7 +192,7 @@ Session<URV>::configureSystem(const Args& args, const HartConfig& config)
   if (linux and checkForOpenMp(args))
     {
       if (args.verbose)
-        std::cerr << "Found OpenMP in executable. To emulate clone, we suspend "
+        std::cerr << "Info: Found OpenMP in executable. To emulate clone, we suspend "
                      "all harts other than hart 0.\n";
       for (unsigned i = 1; i < system.hartCount(); ++i)
         {
@@ -225,7 +225,7 @@ Session<URV>::configureSystem(const Args& args, const HartConfig& config)
     {
       if (system.hartCount() > 1)
 	{
-	  std::cerr << "Initial line-state report (--initstate) valid only when hart count is 1\n";
+	  std::cerr << "Error: Initial line-state report (--initstate) valid only when hart count is 1\n";
 	  return false;
 	}
       auto& hart0 = *system.ithHart(0);
@@ -248,8 +248,8 @@ Session<URV>::getPrimaryConfigParameters(const Args& args, const HartConfig& con
     hartsPerCore = *args.harts;
   if (hartsPerCore == 0 or hartsPerCore > 32)
     {
-      std::cerr << "Unsupported hart count: " << hartsPerCore;
-      std::cerr << " (1 to 32 currently supported)\n";
+      std::cerr << "Error: Unsupported hart count: " << hartsPerCore;
+      std::cerr << "Error:  (1 to 32 currently supported)\n";
       return false;
     }
 
@@ -258,8 +258,8 @@ Session<URV>::getPrimaryConfigParameters(const Args& args, const HartConfig& con
     coreCount = *args.cores;
   if (coreCount == 0 or coreCount > 32)
     {
-      std::cerr << "Unsupported core count: " << coreCount;
-      std::cerr << " (1 to 32 currently supported)\n";
+      std::cerr << "Error: Unsupported core count: " << coreCount;
+      std::cerr << "Error:  (1 to 32 currently supported)\n";
       return false;
     }
 
@@ -288,7 +288,7 @@ Session<URV>::checkAndRepairMemoryParams(size_t& memSize, size_t& pageSize)
   size_t p2PageSize = size_t(1) << logPageSize;
   if (p2PageSize != pageSize)
     {
-      std::cerr << "Memory page size (0x" << std::hex << pageSize << ") "
+      std::cerr << "Warning: Memory page size (0x" << std::hex << pageSize << ") "
 		<< "is not a power of 2 -- using 0x" << p2PageSize << '\n'
 		<< std::dec;
       pageSize = p2PageSize;
@@ -297,14 +297,14 @@ Session<URV>::checkAndRepairMemoryParams(size_t& memSize, size_t& pageSize)
 
   if (pageSize < 64)
     {
-      std::cerr << "Page size (" << pageSize << ") is less than 64. Using 64.\n";
+      std::cerr << "Warning: Page size (" << pageSize << ") is less than 64. Using 64.\n";
       pageSize = 64;
       ok = false;
     }
 
   if (memSize < pageSize)
     {
-      std::cerr << "Memory size (0x" << std::hex << memSize << ") "
+      std::cerr << "Warning: Memory size (0x" << std::hex << memSize << ") "
 		<< "smaller than page size (0x" << pageSize << ") -- "
                 << "using 0x" << pageSize << " as memory size\n" << std::dec;
       memSize = pageSize;
@@ -317,7 +317,7 @@ Session<URV>::checkAndRepairMemoryParams(size_t& memSize, size_t& pageSize)
       size_t newSize = (pageCount + 1) * pageSize;
       if (newSize == 0)
 	newSize = (pageCount - 1) * pageSize;  // Avoid overflow
-      std::cerr << "Memory size (0x" << std::hex << memSize << ") is not a "
+      std::cerr << "Warning: Memory size (0x" << std::hex << memSize << ") is not a "
 		<< "multiple of page size (0x" << pageSize << ") -- "
 		<< "using 0x" << newSize << '\n' << std::dec;
       memSize = newSize;
@@ -367,7 +367,7 @@ Session<URV>::openUserFiles(const Args& args)
 
           if (not traceFile)
             {
-              std::cerr << "Failed to open trace file '" << name
+              std::cerr << "Error: Failed to open trace file '" << name
                         << "' for output\n";
               return false;
             }
@@ -383,7 +383,7 @@ Session<URV>::openUserFiles(const Args& args)
       commandLog_ = fopen(args.commandLogFile.c_str(), "w");
       if (not commandLog_)
 	{
-	  std::cerr << "Failed to open command log file '"
+	  std::cerr << "Error: Failed to open command log file '"
 		    << args.commandLogFile << "' for output\n";
 	  return false;
 	}
@@ -396,7 +396,7 @@ Session<URV>::openUserFiles(const Args& args)
       consoleOut_ = fopen(args.consoleOutFile.c_str(), "w");
       if (not consoleOut_)
 	{
-	  std::cerr << "Failed to open console output file '"
+	  std::cerr << "Error: Failed to open console output file '"
 		    << args.consoleOutFile << "' for output\n";
 	  return false;
 	}
@@ -407,7 +407,7 @@ Session<URV>::openUserFiles(const Args& args)
       bblockFile_ = fopen(args.bblockFile.c_str(), "w");
       if (not bblockFile_)
 	{
-	  std::cerr << "Failed to open basic block file '"
+	  std::cerr << "Error: Failed to open basic block file '"
 		    << args.bblockFile << "' for output\n";
 	  return false;
 	}
@@ -418,7 +418,7 @@ Session<URV>::openUserFiles(const Args& args)
       initStateFile_ = fopen(args.initStateFile.c_str(), "w");
       if (not initStateFile_)
 	{
-	  std::cerr << "Failed to open init state file '"
+	  std::cerr << "Error: Failed to open init state file '"
 		    << args.initStateFile << "' for output\n";
 	  return false;
 	}
@@ -471,7 +471,7 @@ Session<URV>::checkForNewlibOrLinux(const Args& args, bool& newlib, bool& linux)
   if (args.raw)
     {
       if (args.newlib or args.linux)
-	std::cerr << "Raw mode not compatible with newlib/linux. Sticking"
+	std::cerr << "Warning: Raw mode not compatible with newlib/linux. Sticking"
 		  << " with raw mode.\n";
       return;
     }
@@ -496,14 +496,14 @@ Session<URV>::checkForNewlibOrLinux(const Args& args, bool& newlib, bool& linux)
     }
 
   if (linux and args.verbose)
-    std::cerr << "Detected Linux symbol in ELF\n";
+    std::cerr << "Info: Detected Linux symbol in ELF\n";
 
   if (newlib and args. verbose)
-    std::cerr << "Detected Newlib symbol in ELF\n";
+    std::cerr << "Info: Detected Newlib symbol in ELF\n";
 
   if (newlib and linux)
     {
-      std::cerr << "Fishy: Both Newlib and Linux symbols present in "
+      std::cerr << "Warning: Fishy: Both Newlib and Linux symbols present in "
 		<< "ELF file(s). Doing Linux emulation.\n";
       newlib = false;
     }
@@ -534,7 +534,7 @@ Session<URV>::determineIsa(const HartConfig& config, const Args& args, bool clib
   isa.clear();
 
   if (not args.isa.empty() and args.elfisa)
-    std::cerr << "Warning: Both --isa and --elfisa present: Using --isa\n";
+    std::cerr << "Info: Both --isa and --elfisa present: Using --isa\n";
 
   isa = args.isa;
 
@@ -551,14 +551,14 @@ Session<URV>::determineIsa(const HartConfig& config, const Args& args, bool clib
   if (isa.empty() and clib)
     {
       if (args.verbose)
-	std::cerr << "No ISA specified, using imacfdv_zicsr extensions for newlib/linux\n";
+	std::cerr << "Info: No ISA specified, using imacfdv_zicsr extensions for newlib/linux\n";
       isa = "imacfdv_zicsr";
     }
 
   if (isa.empty() and not args.raw)
     {
       if (args.verbose)
-	std::cerr << "No ISA specified: Defaulting to imacfd_zicsr\n";
+	std::cerr << "Info: No ISA specified: Defaulting to imacfd_zicsr\n";
       isa = "imacfd_zicsr";
     }
 
@@ -589,13 +589,13 @@ Session<URV>::getElfFilesIsaString(const Args& args, std::string& isaString)
 
   for (const auto& tag : archTags)
     if (tag != ref)
-      std::cerr << "Warning different ELF files have different ISA strings: "
+      std::cerr << "Warning: different ELF files have different ISA strings: "
 		<< tag << " and " << ref << '\n';
 
   isaString = ref;
 
   if (args.verbose)
-    std::cerr << "ISA string from ELF file(s): " << isaString << '\n';
+    std::cerr << "Info: ISA string from ELF file(s): " << isaString << '\n';
 
   return errors == 0;
 }
@@ -613,7 +613,7 @@ sanitizeStackPointer(Hart<URV>& hart, bool verbose)
     {
       size_t spValue = memSize - 128;
       if (verbose)
-	std::cerr << "Setting stack pointer to 0x" << std::hex << spValue
+	std::cerr << "Info: Setting stack pointer to 0x" << std::hex << spValue
 		  << std::dec << " for newlib/linux\n";
       hart.pokeIntReg(IntRegNumber::RegSp, spValue);
     }
@@ -637,7 +637,7 @@ applyCmdLineRegInit(const Args& args, Hart<URV>& hart)
       boost::split(tokens, regInit, boost::is_any_of("="), boost::token_compress_on);
       if (tokens.size() != 2)
 	{
-	  std::cerr << "Invalid command line register initialization: " << regInit << '\n';
+	  std::cerr << "Error: Invalid command line register initialization: " << regInit << '\n';
 	  ok = false;
 	  continue;
 	}
@@ -654,7 +654,7 @@ applyCmdLineRegInit(const Args& args, Hart<URV>& hart)
 	  regName = regName.substr(colonIx + 1);
 	  if (not Args::parseCmdLineNumber("hart", hartStr, ix))
 	    {
-	      std::cerr << "Invalid command line register initialization: " << regInit << '\n';
+	      std::cerr << "Error: Invalid command line register initialization: " << regInit << '\n';
 	      ok = false;
 	      continue;
 	    }
@@ -682,13 +682,13 @@ applyCmdLineRegInit(const Args& args, Hart<URV>& hart)
 	hart.pokeCsr(csr->getNumber(), val);
       else
 	{
-	  std::cerr << "Invalid --setreg register: " << regName << '\n';
+	  std::cerr << "Error: Invalid --setreg register: " << regName << '\n';
 	  ok = false;
 	  continue;
 	}
 
       if (args.verbose)
-	std::cerr << "Setting register " << regName << " to command line "
+	std::cerr << "Info: Setting register " << regName << " to command line "
 		  << "value 0x" << std::hex << val << std::dec << '\n';
     }
 
@@ -861,7 +861,7 @@ Session<URV>::applyCmdLineArgs(const Args& args, Hart<URV>& hart,
 		size_t memSize = hart.memorySize();
 		size_t suggestedStack = memSize - 4;
 
-		std::cerr << "Failed to setup target program arguments -- stack "
+		std::cerr << "Error: Failed to setup target program arguments -- stack "
 			  << "is not writable\n"
 			  << "Try using --setreg sp=<val> to set the stack pointer "
 			  << "to a\nwritable region of memory (e.g. --setreg "
@@ -938,7 +938,7 @@ Session<URV>::applyCmdLineArgs(const Args& args, Hart<URV>& hart,
       if (std::find(periods.begin(), periods.end(), 0)
                       != periods.end())
         {
-          std::cerr << "Snapshot periods of 0 are ignored\n";
+          std::cerr << "Warning: Snapshot periods of 0 are ignored\n";
           periods.erase(std::remove(periods.begin(), periods.end(), 0), periods.end());
         }
 
@@ -946,7 +946,7 @@ Session<URV>::applyCmdLineArgs(const Args& args, Hart<URV>& hart,
       if (it != periods.end())
         {
           periods.erase(it, periods.end());
-          std::cerr << "Duplicate snapshot periods not supported, removed duplicates\n";
+          std::cerr << "Warning: Duplicate snapshot periods not supported -- removing duplicates\n";
         }
     }
 
@@ -958,7 +958,7 @@ Session<URV>::applyCmdLineArgs(const Args& args, Hart<URV>& hart,
       size_t size = *args.tlbSize;
       if ((size & (size-1)) != 0)
 	{
-	  std::cerr << "TLB size must be a power of 2\n";
+	  std::cerr << "Error: TLB size must be a power of 2\n";
 	  errors++;
 	}
       else
@@ -992,7 +992,7 @@ Session<URV>::runServer(const std::string& serverFile)
   std::array<char, 1024> hostName = {};
   if (gethostname(hostName.data(), hostName.size()) != 0)
     {
-      std::cerr << "Failed to obtain name of this computer\n";
+      std::cerr << "Error: Failed to obtain name of this computer\n";
       return false;
     }
 
@@ -1006,7 +1006,7 @@ Session<URV>::runServer(const std::string& serverFile)
 #else
       p = strerror_r(errno, buffer.data(), buffer.size());
 #endif
-      std::cerr << "Failed to create socket: " << p << '\n';
+      std::cerr << "Error: Failed to create socket: " << p << '\n';
       return -1;
     }
 
@@ -1045,7 +1045,7 @@ Session<URV>::runServer(const std::string& serverFile)
     std::ofstream out(serverFile);
     if (not out.good())
       {
-	std::cerr << "Failed to open file '" << serverFile << "' for output\n";
+	std::cerr << "Error: Failed to open file '" << serverFile << "' for output\n";
 	return false;
       }
     out << hostName.data() << ' ' << ntohs(socAddr.sin_port) << std::endl;
@@ -1144,7 +1144,7 @@ Session<URV>::runServerShm(const std::string& serverFile)
 static void
 kbdInterruptHandler(int)
 {
-  std::cerr << "keyboard interrupt\n";
+  std::cerr << "Info: keyboard interrupt\n";
 }
 
 
@@ -1255,7 +1255,7 @@ Session<URV>::run(const Args& args)
     {
       stepWinLo = args.deterministic.at(0);
       stepWinHi = args.deterministic.at(1);
-      std::cerr << "Deterministic multi-hart run with seed: " << seed
+      std::cerr << "Info: Deterministic multi-hart run with seed: " << seed
                 << " and steps distribution between " << stepWinLo << " and " << stepWinHi << "\n";
     }
 
@@ -1309,7 +1309,7 @@ getXlenFromElfFile(const Args& args, unsigned& xlen)
   xlen = is32 ? 32 : 64;
 
   if (args.verbose)
-    std::cerr << "Setting xlen to " << xlen << " based on ELF file " <<  elfPath << '\n';
+    std::cerr << "Info: Setting xlen to " << xlen << " based on ELF file " <<  elfPath << '\n';
   return true;
 }
 
@@ -1328,13 +1328,13 @@ Session<URV>::determineRegisterWidth(const Args& args, const HartConfig& config)
       else if (args.isa.starts_with("rv64"))
 	isaLen = 64;
       else
-	std::cerr << "Command line --isa tag does not start with rv32/rv64\n";
+	std::cerr << "Warning: Command line --isa tag does not start with rv32/rv64\n";
     }
 
   if (isaLen)
     {
       if (args.verbose)
-        std::cerr << "Setting xlen from --isa: " << isaLen << "\n";
+        std::cerr << "Info: Setting xlen from --isa: " << isaLen << "\n";
       return isaLen;
     }
 
@@ -1342,7 +1342,7 @@ Session<URV>::determineRegisterWidth(const Args& args, const HartConfig& config)
   if (args.xlen)
     {
       if (args.verbose)
-        std::cerr << "Setting xlen from --xlen: " << *args.xlen << "\n";
+        std::cerr << "Info: Setting xlen from --xlen: " << *args.xlen << "\n";
       return *args.xlen;
     }
 
@@ -1351,7 +1351,7 @@ Session<URV>::determineRegisterWidth(const Args& args, const HartConfig& config)
   if (config.getXlen(xlen))
     {
       if (args.verbose)
-	std::cerr << "Setting xlen from config file: " << xlen << "\n";
+	std::cerr << "Info: Setting xlen from config file: " << xlen << "\n";
       return xlen;
     }
 
@@ -1359,12 +1359,12 @@ Session<URV>::determineRegisterWidth(const Args& args, const HartConfig& config)
   if (getXlenFromElfFile(args, xlen))
     {
       if (args.verbose)
-	std::cerr << "Setting xlen from ELF file: " << xlen << "\n";
+	std::cerr << "Info: Setting xlen from ELF file: " << xlen << "\n";
       return xlen;
     }
 
   if (args.verbose)
-    std::cerr << "Using default for xlen: " << xlen << "\n";
+    std::cerr << "Info: Using default for xlen: " << xlen << "\n";
   
   return xlen;
 }
@@ -1378,7 +1378,7 @@ reportInstructionFrequency(Hart<URV>& hart, const std::string& outPath)
   FILE* outFile = fopen(outPath.c_str(), "w");
   if (not outFile)
     {
-      std::cerr << "Failed to open instruction frequency file '" << outPath
+      std::cerr << "Error: Failed to open instruction frequency file '" << outPath
 		<< "' for output.\n";
       return false;
     }
@@ -1414,7 +1414,7 @@ Session<URV>::cleanup(const Args& args)
         assert(false && "Not compiled with sparse memory");
       for (const auto& [_, size] : blocks)
         bytes += size;
-      std::cerr << "Used blocks: 0x" << std::hex << bytes << std::endl;
+      std::cerr << "Info: Used blocks: 0x" << std::hex << bytes << std::endl;
     }
 
   if (not args.eorMemDump.empty())

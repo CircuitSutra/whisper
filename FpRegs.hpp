@@ -173,7 +173,7 @@ namespace WdRiscv
       if constexpr (std::is_same<FT, float>::value)    return readSingle(i);
       if constexpr (std::is_same<FT, double>::value)   return readDouble(i);
       if constexpr (std::is_same<FT, BFloat16>::value) return readBFloat16(i);
-      assert(0);
+      assert(0 && "Error: Assertion failed");
       return FT{};
     }
 

@@ -195,9 +195,9 @@ namespace WdRiscv
     unsigned vu_      : 1;
     unsigned vs_      : 1;
     uint64_t          : 8*sizeof(URV) - 19; // Reserved -- zero.
-    unsigned hit      : 1;
-    unsigned dmode    : 1;
-    unsigned type     : 4;
+    unsigned hit_     : 1;
+    unsigned dmode_   : 1;
+    unsigned type_    : 4;
   } __attribute((packed));
 
 
@@ -214,9 +214,9 @@ namespace WdRiscv
     unsigned vu_      : 1;
     unsigned vs_      : 1;
     uint64_t          : sizeof(URV)*8 - 19; // Reserved -- zero.
-    unsigned hit      : 1;
-    unsigned dmode    : 1;
-    unsigned type     : 4;
+    unsigned hit_     : 1;
+    unsigned dmode_   : 1;
+    unsigned type_    : 4;
   } __attribute((packed));
 
 
@@ -373,16 +373,26 @@ namespace WdRiscv
 
       if (data1_.isAddrData())
 	{
-	  if (not data1_.dmodeOnly())
+	  if (not data1_.dmodeOnly() and (data1_.mcontrol_.action_ == 1))
 	    data1_.mcontrol_.action_ = 0;
           if (data1_.isMcontrol())
             data1_.mcontrol_.maskMax_ = std::countr_zero(napotMask_) + 1;
         }
       else if (data1_.isInstCount())
 	{
-	  if (not data1_.dmodeOnly())
+	  if (not data1_.dmodeOnly() and (data1_.icount_.action_ == 1))
 	    data1_.icount_.action_ = 0;
 	}
+      else if (data1_.isItrigger())
+        {
+	  if (not data1_.dmodeOnly() and (data1_.itrigger_.action_ == 1))
+	    data1_.itrigger_.action_ = 0;
+        }
+      else if (data1_.isEtrigger())
+        {
+	  if (not data1_.dmodeOnly() and (data1_.etrigger_.action_ == 1))
+	    data1_.etrigger_.action_ = 0;
+        }
 
       return true;
     }
@@ -487,13 +497,32 @@ namespace WdRiscv
       if (data1_.isAddrData())
         {
           if (data1_.isMcontrol())
-            return data1_.mcontrol_.m_ or data1_.mcontrol_.s_ or data1_.mcontrol_.u_;
-          else
-            return data1_.mcontrol6_.m_ or data1_.mcontrol6_.s_ or data1_.mcontrol6_.u_ or
-                   data1_.mcontrol6_.vs_ or data1_.mcontrol6_.vu_;
+            {
+              auto& ctl = data1_.mcontrol_;
+              return ctl.m_ or ctl.s_ or ctl.u_;
+            }
+          auto& ctl6 = data1_.mcontrol6_;
+          return ctl6.m_ or ctl6.s_ or ctl6.u_ or ctl6.vs_ or ctl6.vu_;
         }
+
       if (data1_.isInstCount())
-	return data1_.icount_.m_ or data1_.icount_.s_ or data1_.icount_.u_;
+        {
+          auto& ctl = data1_.icount_;
+          return ctl.m_ or ctl.s_ or ctl.u_ or ctl.vs_ or ctl.vu_;
+        }
+
+      if (data1_.isItrigger())
+        {
+          auto& ctl = data1_.itrigger_;
+          return ctl.m_ or ctl.s_ or ctl.u_ or ctl.vs_ or ctl.vu_ or ctl.nmi_;
+        }
+
+      if (data1_.isEtrigger())
+        {
+          auto& ctl = data1_.etrigger_;
+          return ctl.m_ or ctl.s_ or ctl.u_ or ctl.vs_ or ctl.vu_;
+        }
+
       return false;
     }
 
@@ -611,6 +640,20 @@ namespace WdRiscv
 	  data1_.icount_.hit_ = flag;
 	  modifiedT1_ = true;
 	}
+      if (data1_.isItrigger())
+        {
+          if (not modifiedT1_)
+            prevData1_ = data1_.value_;
+          data1_.itrigger_.hit_ = flag;
+          modifiedT1_ = true;
+        }
+      if (data1_.isEtrigger())
+        {
+          if (not modifiedT1_)
+            prevData1_ = data1_.value_;
+          data1_.etrigger_.hit_ = flag;
+          modifiedT1_ = true;
+        }
     }
 
     /// Return the hit bit of this trigger.
@@ -620,6 +663,10 @@ namespace WdRiscv
         return data1_.isMcontrol()? data1_.mcontrol_.hit_ : data1_.mcontrol6_.hit0_;
       if (data1_.isInstCount())
 	return data1_.icount_.hit_;
+      if (data1_.isItrigger())
+        return data1_.itrigger_.hit_;
+      if (data1_.isEtrigger())
+        return data1_.etrigger_.hit_;
       return false;
     }
 
@@ -917,7 +964,8 @@ namespace WdRiscv
     bool expTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool interruptEnabled);
 
     /// Return true if any of the interrupt-triggers (itrigger) trips.
-    bool intTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool interruptEnabled);
+    bool intTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool interruptEnabled,
+                       bool isNmi);
 
     /// Return the tigger at the given index. Reurn None if index is out of bounds.
     TriggerType triggerType(URV trigger) const
@@ -1009,6 +1057,23 @@ namespace WdRiscv
             trig.getChainBounds(start, end);
             auto& last = triggers_.at(end - 1);
             if (last.getAction() == TriggerAction::EnterDebug)
+              return true;
+          }
+      return false;
+    }
+
+    /// Return true if there is one or more tripped trigger action set
+    /// to "take breakpoint". 
+    bool hasBreakpTripped() const
+    {
+      for (const auto& trig : triggers_)
+	if (trig.hasTripped())
+          {
+            // If chained, use action of last trigger in chain.
+            size_t start = 0, end = 0;
+            trig.getChainBounds(start, end);
+            auto& last = triggers_.at(end - 1);
+            if (last.getAction() == TriggerAction::RaiseBreak)
               return true;
           }
       return false;

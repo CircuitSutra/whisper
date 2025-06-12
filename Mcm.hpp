@@ -159,7 +159,7 @@ namespace WdRiscv
       if (std::find(memOps_.begin(), memOps_.end(), memOpIx) != memOps_.end())
 	{
 	  std::cerr << "McmInstr::addMemOp: Error: Op already added\n";
-	  assert(0 && "McmInstr::addMemOp: Op ix already present");
+	  assert(0 && "Error: McmInstr::addMemOp: Op ix already present");
 	}
       memOps_.push_back(memOpIx);
     }
@@ -414,8 +414,8 @@ namespace WdRiscv
     {
       if (not instr.complete_)
 	{
-	  std::cerr << "Mcm::latestOpTime: Called on an incomplete instruction\n";
-	  assert(0 && "Mcm::lasestOpTime: Incomplete instr");
+	  std::cerr << "Error: Mcm::latestOpTime: Called on an incomplete instruction\n";
+	  assert(0 && "Error: Mcm::lasestOpTime: Incomplete instr");
 	}
       uint64_t time = 0;
       for (auto opIx : instr.memOps_)
@@ -454,8 +454,8 @@ namespace WdRiscv
 	return false;
       if (not a.complete_ and not b.complete_)
 	{
-	  std::cerr << "Mcm::isBeforeInMemoryTime: Both instructions incomplete\n";
-	  assert(0 && "Mcm::isBeforeInMemoryTime: Both instructions incomplete");
+	  std::cerr << "Error: Mcm::isBeforeInMemoryTime: Both instructions incomplete\n";
+	  assert(0 && "Error: Mcm::isBeforeInMemoryTime: Both instructions incomplete");
 	  return false;
 	}
       uint64_t aTime = latestOpTime(a);
@@ -883,6 +883,20 @@ namespace WdRiscv
     /// address. Return 0 if address is on a line boundary.
     unsigned offsetToNextLine(uint64_t addr) const
     { return lineSize_ - (addr & (lineSize_ - 1)); }
+
+    /// Return true if given memory operation belong to an instrction from the Zicbom
+    /// extension (cbo.clean/flush/inval instructions). Such instructions are not marked
+    /// as stores (they do not forward).
+    bool isCbomOp(const MemoryOp& op) const
+    {
+      if (op.size_ != 0)
+        return false;
+      auto& instrVec = hartData_.at(op.hartIx_).instrVec_;
+      if (op.tag_ >= instrVec.size())
+        return false;
+      auto& instr = instrVec.at(op.tag_);
+      return instr.di_.extension() == RvExtension::Zicbom;
+    }
 
   private:
 

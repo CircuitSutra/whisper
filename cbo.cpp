@@ -69,18 +69,6 @@ Hart<URV>::determineCboException(uint64_t& addr, uint64_t& gpa, uint64_t& pa, bo
         }
     }
 
-  for (uint64_t offset = 0; offset < cacheLineSize_; offset += 8)
-    {
-      Pma pma = accessPma(pa + offset);
-      if (isZero)
-        {
-          if (not pma.isWrite())
-            return EC::STORE_ACC_FAULT;
-        }
-      else if (not pma.isRead() and not pma.isWrite())
-        return EC::STORE_ACC_FAULT;
-    }
-
   // Physical memory protection.
   if (pmpEnabled_)
     {
@@ -99,6 +87,28 @@ Hart<URV>::determineCboException(uint64_t& addr, uint64_t& gpa, uint64_t& pa, bo
 	  else if (not pmp.isRead(ep) and not pmp.isWrite(ep))
 	    return EC::STORE_ACC_FAULT;
 	}
+    }
+
+  steeInsec1_ = false;
+  steeInsec2_ = false;
+
+  if (steeEnabled_)
+    {
+      if (not stee_.isValidAddress(pa))
+	return EC::STORE_ACC_FAULT;
+      pa = stee_.clearSecureBits(pa);
+    }
+
+  for (uint64_t offset = 0; offset < cacheLineSize_; offset += 8)
+    {
+      Pma pma = accessPma(pa + offset);
+      if (isZero)
+        {
+          if (not pma.isWrite())
+            return EC::STORE_ACC_FAULT;
+        }
+      else if (not pma.isRead() and not pma.isWrite())
+        return EC::STORE_ACC_FAULT;
     }
 
   return EC::NONE;
@@ -334,7 +344,7 @@ Hart<URV>::execCbo_zero(const DecodedInst* di)
   // Translate virtual addr and check for exception.
   uint64_t virtAddr = intRegs_.read(di->op0());
   if (alignCboAddr_)
-    virtAddr = cacheLineAlign(virtAddr);
+    virtAddr = cacheLineAlign(virtAddr);  // To report aligned address in xTVAL.
   uint64_t gPhysAddr = virtAddr;
   uint64_t physAddr = virtAddr;
   uint64_t pmva = applyPointerMask(virtAddr, false /*isLoad*/);
@@ -378,11 +388,9 @@ Hart<URV>::execCbo_zero(const DecodedInst* di)
       return;
     }
 
-  for (unsigned i = 0; i < cacheLineSize_; i += 8)
-    {
-      uint64_t pa = physAddr + i;
-      memWrite(pa, pa, uint64_t(0));
-    }
+  uint64_t pa = cacheLineAlign(physAddr);
+  for (unsigned i = 0; i < cacheLineSize_; i += 8, pa += 8)
+    memWrite(pa, pa, uint64_t(0));
 }
 
 

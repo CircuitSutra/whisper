@@ -244,7 +244,7 @@ namespace WdRiscv
     [[nodiscard]] bool peekCsr(CsrNumber csr, URV& val, bool virtMode) const
     { return csRegs_.peek(csr, val, virtMode); }
 
-    /// Return value of the given csr. Throw exception if csr is out of bounds.
+    /// Return value of the given csr.
     /// Return 0 if CSR is not implemented printing an error message unless
     /// quiet is true.
     URV peekCsr(CsrNumber csr, bool quiet = false) const;
@@ -953,9 +953,17 @@ namespace WdRiscv
     bool getSeiPin() const
     { return seiPin_; }
 
-    /// Set/clear low priorty exception for fetch/ld scenarios. For vector
-    /// loads, we use the element index to determine the exception. This is
-    /// useful for TB to inject errors.
+    /// Set a low priority exception of type fetch or load to be applied to the next
+    /// instruction and to be automatically cleared afterwards. The exception may have no
+    /// effect if the next instruction encounters a higher priority exception, is
+    /// interrupted, or if it does not match the exception type (for example, if the next
+    /// instruction is an add and the injected exception type is load, then there is no
+    /// match). This is useful to the test-bench allowing it to inject hardware-error
+    /// exceptions into fetch/load transactions. If isLoad is true, the injected exception
+    /// is of type load; otherwise, it is of type fetch. A fetch exception applies to all
+    /// instructions. A load exception applies to load/amo instructions. The given address
+    /// is the address that encountered the hardware error. For a vector load, the element
+    /// index is that of the particular element that encountered the error.
     void injectException(bool isLoad, URV cause, unsigned elemIx, URV addr)
     {
       injectExceptionIsLd_ = isLoad;
@@ -2285,7 +2293,7 @@ namespace WdRiscv
 
       using IC = InterruptCause;
       imsic_->attachMInterrupt([this] (bool flag) {
-          URV mipVal = csRegs_.peekMip();
+          URV mipVal = csRegs_.overrideWithMvip(csRegs_.peekMip());
           URV prev = mipVal;
 
           if (flag)
@@ -2646,6 +2654,10 @@ namespace WdRiscv
       return pma;
     }
 
+    /// Return MVIP-overriden interrupt pending.
+    bool overrideWithMvip(URV ip) const
+    { return csRegs_.overrideWithMvip(ip); }
+
     /// This is for the test-bench which in some run wants to take control over timer
     /// values.
     void autoIncrementTimer(bool flag)
@@ -2716,7 +2728,7 @@ namespace WdRiscv
       if (pa1 == pa2)
 	{
 	  if (not memory_.read(pa1, value))
-	    assert(0);
+	    assert(0 && "Error: Assertion failed");
 	  if (steeInsec1_)
 	    value = 0;
 	  if (bigEnd_)
@@ -2739,7 +2751,7 @@ namespace WdRiscv
 	      byte = 0;
 	    value |= LOAD_TYPE(byte) << 8*destIx;
 	  }
-	else assert(0);
+	else assert(0 && "Error: Assertion failed");
       for (unsigned i = 0; i < size2; ++i, ++destIx)
 	if (memory_.read(pa2 + i, byte))
 	  {
@@ -2747,7 +2759,7 @@ namespace WdRiscv
 	      byte = 0;
 	    value |= LOAD_TYPE(byte) << 8*destIx;
 	  }
-	else assert(0);
+	else assert(0 && "Error: Assertion failed");
 
       if (bigEnd_)
 	value = util::byteswap(value);
@@ -2764,7 +2776,7 @@ namespace WdRiscv
 	{
 	  if (not steeInsec1_)
 	    if (not memory_.write(hartIx_, pa1, value))
-	      assert(0);
+	      assert(0 && "Error: Assertion failed");
 	  return;
 	}
       unsigned size = sizeof(value);
@@ -2776,11 +2788,11 @@ namespace WdRiscv
 	  if (not steeInsec1_)
 	    for (unsigned i = 0; i < size1; ++i, value >>= 8)
 	      if (not memory_.write(hartIx_, pa1 + i, uint8_t(value & 0xff)))
-	      assert(0);
+	      assert(0 && "Error: Assertion failed");
 	  if (not steeInsec2_)
 	    for (unsigned i = 0; i < size2; ++i, value >>= 8)
 	      if (not memory_.write(hartIx_, pa2 + i, uint8_t(value & 0xff)))
-		assert(0);
+		assert(0 && "Error: Assertion failed");
 	}
     }
 

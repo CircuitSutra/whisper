@@ -142,7 +142,7 @@ namespace WdRiscv
         case Mode::Off: return 0;
         case Mode::Pm57: return 7;
         case Mode::Pm48: return 16;
-        default: assert(0); return 0;
+        default: assert(0 && "Error: Assertion failed"); return 0;
       }
     }
 
@@ -217,7 +217,7 @@ namespace WdRiscv
         case 0: return Mode::Off;
         case 7: return Mode::Pm57;
         case 16: return Mode::Pm48;
-        default: assert(0); return Mode::Off;
+        default: assert(0 && "Error: Assertion failed"); return Mode::Off;
       }
     }
 

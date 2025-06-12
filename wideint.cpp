@@ -168,12 +168,12 @@ main(int argc, char* argv[])
   cc *= cc;
 
   if ((cc.high() != c >> 64) or (cc.low() != (c << 64) >> 64))
-    std::cerr << "Failed\n";
+    std::cerr << "Error: Failed\n";
 
   c = c + c;
   cc = cc + cc;
   if ((cc.high() != c >> 64) or (cc.low() != (c << 64) >> 64))
-    std::cerr << "Failed\n";
+    std::cerr << "Error: Failed\n";
 
   Uint256 u256 = cc;
   u256 = u256 + u256;
@@ -181,7 +181,7 @@ main(int argc, char* argv[])
 
   cc = cc - cc;
   if ((cc.high() != 0) or (cc.low() != 0))
-    std::cerr << "Failed\n";
+    std::cerr << "Error: Failed\n";
 
   std::mt19937 gen;
   std::uniform_int_distribution<uint64_t> distrib(0, ~uint64_t(0));

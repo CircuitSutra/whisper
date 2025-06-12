@@ -262,7 +262,7 @@ namespace WhisperUtil  {
   protected:
 
     /// Read the file containing initial vlues of registers.
-    bool readInitialState(const std::string& path);
+    void readInitialState(const std::string& path);
 
     // Extract a pair of addresses from the given field. Return true on
     // success and false on failure.

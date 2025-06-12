@@ -95,7 +95,7 @@ Uartsf::monitorInput()
 	      std::lock_guard<std::mutex> lock(mutex_);
 	      char c;
 	      if (::read(fd, &c, sizeof(c)) != 1)
-		std::cerr << "Uartsf::monitorInput: unexpected fail on read\n";
+		std::cerr << "Error: Uartsf::monitorInput: unexpected fail on read\n";
 	      regs_.at(RX_FIFO) = c;
 	      // setInterruptPending(true);
 	    }

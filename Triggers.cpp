@@ -417,7 +417,12 @@ Triggers<URV>::icountTriggerFired(PrivilegeMode mode, bool virtMode, bool interr
 	continue;  // Cannot fire in machine mode.
 
       if (trig.data1_.icount_.pending_)
-        hit = true;
+        {
+          hit = true;
+          // Icount doesn't have a chain bit, we just use it to indicate
+          // this trigger is tripped.
+          trig.setTripped(hit);
+        }
 
       trig.data1_.icount_.pending_ = false;
     }
@@ -483,11 +488,20 @@ Triggers<URV>::expTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool 
       if (mode == PM::Machine and not etrig.m_)
 	continue;
 
-      if (mode == PM::Supervisor and not virtMode and not etrig.s_)
-	continue;
-
-      if (mode == PrivilegeMode::User and not virtMode and not etrig.u_)
-	continue;
+      if (not virtMode)
+        {
+          if (mode == PM::Supervisor and not etrig.s_)
+            continue;
+          if (mode == PrivilegeMode::User and not etrig.u_)
+            continue;
+        }
+      else
+        {
+          if (mode == PM::Supervisor and not etrig.vs_)
+            continue;
+          if (mode == PrivilegeMode::User and not etrig.vu_)
+            continue;
+        }
 
       if (mode == PrivilegeMode::Reserved)
 	continue;
@@ -496,6 +510,7 @@ Triggers<URV>::expTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool 
       if (data2 & mask)
 	{
 	  trigger.setLocalHit(true);
+          trigger.setHit(true);
 	  hit = true;
 	}
     }
@@ -506,7 +521,8 @@ Triggers<URV>::expTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool 
 
 template <typename URV>
 bool
-Triggers<URV>::intTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool interruptEnabled)
+Triggers<URV>::intTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool interruptEnabled,
+                             bool isNmi)
 {
   // Check if we should skip tripping because of reentrant behavior. 
   bool skip = not interruptEnabled;
@@ -531,14 +547,26 @@ Triggers<URV>::intTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool 
 
       auto& itrig = trigger.data1_.itrigger_;
 
+      if (itrig.nmi_ != isNmi)
+        continue;
+
       if (mode == PM::Machine and not itrig.m_)
 	continue;
 
-      if (mode == PM::Supervisor and not virtMode and not itrig.s_)
-	continue;
-
-      if (mode == PrivilegeMode::User and not virtMode and not itrig.u_)
-	continue;
+      if (not virtMode)
+        {
+          if (mode == PM::Supervisor and not itrig.s_)
+            continue;
+          if (mode == PrivilegeMode::User and not itrig.u_)
+            continue;
+        }
+      else
+        {
+          if (mode == PM::Supervisor and not itrig.vs_)
+            continue;
+          if (mode == PrivilegeMode::User and not itrig.vu_)
+            continue;
+        }
 
       if (mode == PrivilegeMode::Reserved)
 	continue;
@@ -665,7 +693,7 @@ Triggers<URV>::setSupportedTypes(const std::vector<std::string>& strings)
 	types.push_back(TT::Disabled);
       else
 	{
-	  std::cerr << "No such trigger type: " << str << '\n';
+	  std::cerr << "Error: No such trigger type: " << str << '\n';
 	  errors++;
 	}
     }
@@ -729,7 +757,7 @@ Triggers<URV>::setSupportedActions(const std::vector<std::string>& strings)
 	actions.push_back(TA::External1);
       else
 	{
-	  std::cerr << "No such trigger action: " << str << '\n';
+	  std::cerr << "Error: No such trigger action: " << str << '\n';
 	  errors++;
 	}
     }
@@ -1005,7 +1033,7 @@ Trigger<URV>::matchLdStAddr(URV address, unsigned size, TriggerTiming timing, bo
 	      break;
 
 	    case 4:  // 6-byte access
-	      assert(0);  // Not supported
+	      assert(0 && "Error: Assertion failed");  // Not supported
 	      break;
 
 	    case 5:  // double word access
@@ -1014,7 +1042,7 @@ Trigger<URV>::matchLdStAddr(URV address, unsigned size, TriggerTiming timing, bo
 	      break;
 
 	    default:
-	      assert(0);
+	      assert(0 && "Error: Assertion failed");
 	      break;
 	    }
 	}
@@ -1223,7 +1251,7 @@ Trigger<URV>::matchInstAddr(URV address, unsigned size, TriggerTiming timing, Pr
 	      break;
 
 	    case 4:  // 6-byte access
-	      assert(0);  // Not supported
+	      assert(0 && "Error: Assertion failed");  // Not supported
 	      break;
 
 	    case 5:  // double word access
@@ -1232,7 +1260,7 @@ Trigger<URV>::matchInstAddr(URV address, unsigned size, TriggerTiming timing, Pr
 	      break;
 
 	    default:
-	      assert(0);
+	      assert(0 && "Error: Assertion failed");
 	      break;
 	    }
 	}

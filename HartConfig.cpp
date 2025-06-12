@@ -51,7 +51,7 @@ HartConfig::loadConfigFile(const std::string& filePath)
   std::ifstream ifs(filePath);
   if (not ifs.good())
     {
-      std::cerr << "Failed to open config file '" << filePath
+      std::cerr << "Error: Failed to open config file '" << filePath
 		<< "' for input.\n";
       return false;
     }
@@ -68,7 +68,7 @@ HartConfig::loadConfigFile(const std::string& filePath)
     }
   catch (...)
     {
-      std::cerr << "Caught unknown exception while parsing "
+      std::cerr << "Error: Caught unknown exception while parsing "
 		<< " config file '" << filePath << "'\n";
       return false;
     }
@@ -102,14 +102,14 @@ namespace WdRiscv
         uint64_t         u64 = strtoull(str.data(), &end, 0);
         if (end and *end)
           {
-            std::cerr << "Invalid config file unsigned value for '" << tag << "': "
+            std::cerr << "Error: Invalid config file unsigned value for '" << tag << "': "
                       << str << '\n';
             return false;
           }
         value = static_cast<URV>(u64);
         if (value != u64)
           {
-            std::cerr << "Overflow in config file value for '" << tag << "': "
+            std::cerr << "Error: Overflow in config file value for '" << tag << "': "
                       << str << '\n';
             return false;
           }
@@ -117,7 +117,7 @@ namespace WdRiscv
         return true;
       }
 
-    std::cerr << "Config file entry '" << tag << "' must contain a number\n";
+    std::cerr << "Error: Config file entry '" << tag << "' must contain a number\n";
     return false;
   }
 
@@ -134,7 +134,7 @@ namespace WdRiscv
 
     if (not js.is_array())
       {
-	std::cerr << "Invalid config file value for '" << tag << "'"
+	std::cerr << "Error: Invalid config file value for '" << tag << "'"
 		  << " -- expecting array of numbers\n";
 	return false;
       }
@@ -152,7 +152,7 @@ namespace WdRiscv
             uint64_t         u64 = strtoull(str.data(), &end, 0);
 	    if (end and *end)
 	      {
-		std::cerr << "Invalid config file value for '" << tag << "': "
+		std::cerr << "Error: Invalid config file value for '" << tag << "': "
 			  << str << '\n';
                 errors++;
 		continue;
@@ -161,7 +161,7 @@ namespace WdRiscv
             URV val = static_cast<URV>(u64);
             if (val != u64)
               {
-                std::cerr << "Overflow in config file value for '" << tag << "': "
+                std::cerr << "Error: Overflow in config file value for '" << tag << "': "
                           << str << '\n';
                 errors++;
                 continue;
@@ -171,7 +171,7 @@ namespace WdRiscv
 	  }
 	else
           {
-            std::cerr << "Invalid config file value for '" << tag << "'"
+            std::cerr << "Error: Invalid config file value for '" << tag << "'"
                       << " -- expecting array of number\n";
             errors++;
           }
@@ -209,14 +209,14 @@ namespace WdRiscv
           value = true;
         else
           {
-            std::cerr << "Invalid config file boolean value for '" << tag << "': "
+            std::cerr << "Error: Invalid config file boolean value for '" << tag << "': "
                       << str << '\n';
             return false;
           }
         return true;
       }
 
-    std::cerr << "Config file entry '" << tag << "' must contain a bool\n";
+    std::cerr << "Error: Config file entry '" << tag << "' must contain a bool\n";
     return false;
   }
 
@@ -283,7 +283,7 @@ applyCsrConfig(Hart<URV>& hart, std::string_view nm, const nlohmann::json& conf,
 	    {
 	      if (csr->getNumber() != CsrNumber(number))
 		{
-		  std::cerr << "Invalid config file entry for CSR "
+		  std::cerr << "Error: Invalid config file entry for CSR "
 			    << name << ": Number (0x" << std::hex << number
 			    << ") does not match that of previous definition ("
 			    << "0x" << unsigned(csr->getNumber())
@@ -299,7 +299,7 @@ applyCsrConfig(Hart<URV>& hart, std::string_view nm, const nlohmann::json& conf,
 	    }
 	  else
 	    {
-	      std::cerr << "Invalid config file CSR definition with name "
+	      std::cerr << "Error: Invalid config file CSR definition with name "
 			<< name << " and number 0x" << std::hex << number
 			<< ": Number already in use\n" << std::dec;
 	      return false;
@@ -309,7 +309,7 @@ applyCsrConfig(Hart<URV>& hart, std::string_view nm, const nlohmann::json& conf,
 
   if (not csr)
     {
-      std::cerr << "A CSR number must be provided in configuration of non-standard CSR "
+      std::cerr << "Error: A CSR number must be provided in configuration of non-standard CSR "
 		<< name << '\n';
       return false;
     }
@@ -321,20 +321,20 @@ applyCsrConfig(Hart<URV>& hart, std::string_view nm, const nlohmann::json& conf,
 
   if (name == "mhartid" or name == "vlenb")
     {
-      std::cerr << "CSR " << name << " cannot be configured.\n";
+      std::cerr << "Error: CSR " << name << " cannot be configured.\n";
       return true;
     }
 
   if (name == "sstatus")
     {
-      std::cerr << "CSR sstatus is a shadow of mstatus and cannot be configured.\n";
+      std::cerr << "Error: CSR sstatus is a shadow of mstatus and cannot be configured.\n";
       return true;
     }
 
   if (debug0 and not isDebug)
     {
       if (verbose)
-        std::cerr << "CSR " << name << " cannot be marked as not debug-mode.\n";
+        std::cerr << "Error: CSR " << name << " cannot be marked as not debug-mode.\n";
       isDebug = true;
     }
 
@@ -343,7 +343,7 @@ applyCsrConfig(Hart<URV>& hart, std::string_view nm, const nlohmann::json& conf,
 
   if (not hart.configCsrByUser(name, exists, reset, mask, pokeMask, shared, isDebug))
     {
-      std::cerr << "Invalid CSR (" << name << ") in config file.\n";
+      std::cerr << "Error: Invalid CSR (" << name << ") in config file.\n";
       return false;
     }
 
@@ -367,7 +367,7 @@ applyCsrConfig(Hart<URV>& hart, std::string_view nm, const nlohmann::json& conf,
 	std::cerr << "Warning: Bit E of MISA cannot be writebale.\n";
       if ((reset & (1 << ('S' - 'A'))) and not (reset & (1 << ('U' - 'A'))))
         {
-          std::cerr << "Invalid MISA in config file: cannot have S=1 and U=0.\n";
+          std::cerr << "Error: Invalid MISA in config file: cannot have S=1 and U=0.\n";
           return false;
         }
     }
@@ -376,27 +376,27 @@ applyCsrConfig(Hart<URV>& hart, std::string_view nm, const nlohmann::json& conf,
     {
       if (exists0 != exists or reset0 != reset or mask0 != mask or pokeMask0 != pokeMask)
 	{
-	  std::cerr << "Configuration of CSR (" << name <<
+	  std::cerr << "Error: Configuration of CSR (" << name <<
 	    ") changed in config file:\n";
 
 	  if (exists0 != exists)
-	    std::cerr << "  implemented: " << exists0 << " to "
+	    std::cerr << "Error:   implemented: " << exists0 << " to "
 		      << exists << '\n';
 
 	  if (shared0 != shared)
-	    std::cerr << "  shared: " << shared0 << " to "
+	    std::cerr << "Error:   shared: " << shared0 << " to "
 		      << shared << '\n';
 
 	  if (reset0 != reset)
-	    std::cerr << "  reset: 0x" << std::hex << reset0
+	    std::cerr << "Error:   reset: 0x" << std::hex << reset0
 		      << " to 0x" << reset << '\n' << std::dec;
 
 	  if (mask0 != mask)
-	    std::cerr << "  mask: 0x" << std::hex << mask0
+	    std::cerr << "Error:   mask: 0x" << std::hex << mask0
 		      << " to 0x" << mask << '\n' << std::dec;
 
 	  if (pokeMask0 != pokeMask)
-	    std::cerr << "  poke_mask: " << std::hex << pokeMask0
+	    std::cerr << "Error:   poke_mask: " << std::hex << pokeMask0
 		      << " to 0x" << pokeMask << '\n' << std::dec;
 	}
     }
@@ -416,7 +416,7 @@ applyCsrConfig(Hart<URV>& hart, const nlohmann::json& config, bool verbose)
   const auto& csrs = config.at("csr");
   if (not csrs.is_object())
     {
-      std::cerr << "Invalid csr entry in config file (expecting an object)\n";
+      std::cerr << "Error: Invalid csr entry in config file (expecting an object)\n";
       return false;
     }
 
@@ -437,14 +437,14 @@ applyCsrConfig(Hart<URV>& hart, const nlohmann::json& config, bool verbose)
       if (not getJsonUnsignedVec(util::join("", "csr.", tag, ".range"), conf.at(tag), range)
 	  or range.size() != 2 or range.at(0) > range.at(1))
 	{
-	  std::cerr << "Invalid range in CSR '" << csrName << "': " << conf.at(tag) << '\n';
+	  std::cerr << "Error: Invalid range in CSR '" << csrName << "': " << conf.at(tag) << '\n';
 	  errors++;
 	  continue;
 	}
 
       if (range.at(1) - range.at(0) > 256)
 	{
-	  std::cerr << "Invalid range in CSR '" << csrName << "': " << conf.at(tag)
+	  std::cerr << "Error: Invalid range in CSR '" << csrName << "': " << conf.at(tag)
 		    << ": Range size greater than 256\n";
 	  errors++;
 	  continue;
@@ -476,7 +476,7 @@ applyTriggerConfig(Hart<URV>& hart, const nlohmann::json& config)
   const auto& triggers = config.at("triggers");
   if (not triggers.is_array())
     {
-      std::cerr << "Invalid triggers entry in config file (expecting an array)\n";
+      std::cerr << "Error: Invalid triggers entry in config file (expecting an array)\n";
       return false;
     }
 
@@ -488,7 +488,7 @@ applyTriggerConfig(Hart<URV>& hart, const nlohmann::json& config)
       std::string name = std::string("trigger") + std::to_string(ix);
       if (not trig.is_object())
 	{
-	  std::cerr << "Invalid trigger in config file triggers array "
+	  std::cerr << "Error: Invalid trigger in config file triggers array "
 		    << "(expecting an object at index " << ix << ")\n";
 	  ++errors;
 	  break;
@@ -497,7 +497,7 @@ applyTriggerConfig(Hart<URV>& hart, const nlohmann::json& config)
       for (const auto& tag : {"reset", "mask", "poke_mask"})
         if (not trig.contains(tag))
           {
-            std::cerr << "Trigger " << name << " has no '" << tag
+            std::cerr << "Error: Trigger " << name << " has no '" << tag
                       << "' entry in config file\n";
             ok = false;
           }
@@ -520,7 +520,7 @@ applyTriggerConfig(Hart<URV>& hart, const nlohmann::json& config)
       // Each trigger has up to 5 components: tdata1, tdata2, tdata3, tinfo, tcontrol
       size_t maxSize = std::max(resets.size(), std::max(masks.size(), pokeMasks.size()));
       if (maxSize > 5)
-	std::cerr << "Trigger " << name << ": Unreasonable item count (" << maxSize
+	std::cerr << "Error: Trigger " << name << ": Unreasonable item count (" << maxSize
 		  << ") for 'reset/mask/poke_mask' field in config file. "
 		  << " Expecting no more than to 5. Extra fields ignored.\n";
 
@@ -534,7 +534,7 @@ applyTriggerConfig(Hart<URV>& hart, const nlohmann::json& config)
 
       if (not hart.configTrigger(ix, resets, masks, pokeMasks))
 	{
-	  std::cerr << "Failed to configure trigger " << std::dec << ix << '\n';
+	  std::cerr << "Error: Failed to configure trigger " << std::dec << ix << '\n';
 	  ++errors;
 	}
     }
@@ -555,7 +555,7 @@ applyPerfEventMap(Hart<URV>& hart, const nlohmann::json& config)
   const auto& perfMap = config.at(tag);
   if (not perfMap.is_object())
     {
-      std::cerr << "Invalid " << tag << " entry in config file (expecting an object)\n";
+      std::cerr << "Error: Invalid " << tag << " entry in config file (expecting an object)\n";
       return false;
     }
 
@@ -577,14 +577,14 @@ applyPerfEventMap(Hart<URV>& hart, const nlohmann::json& config)
       EventNumber eventId = EventNumber::None;
       if (not PerfRegs::findEvent(eventName, eventId))
 	{
-	  std::cerr << "No such performance event: " << eventName << '\n';
+	  std::cerr << "Error: No such performance event: " << eventName << '\n';
 	  errors++;
 	  continue;
 	}
 
       if (eventNumbers.contains(value))
 	{
-	  std::cerr << "Event number " << value << " associaged with more than one event in mmode_perf_event_map in config file.\n";
+	  std::cerr << "Error: Event number " << value << " associaged with more than one event in mmode_perf_event_map in config file.\n";
 	  errors++;
 	}
       hart.configEventNumber(value, eventId);
@@ -630,7 +630,7 @@ applyPerfEvents(Hart<URV>& hart, const nlohmann::json& config,
           unsigned limit = 16*1024;
           if (maxPerfId > limit)
             {
-              std::cerr << "Config file max_mmode_perf_event too large -- Using "
+              std::cerr << "Error: Config file max_mmode_perf_event too large -- Using "
                         << limit << '\n';
               maxPerfId = limit;
             }
@@ -646,7 +646,7 @@ applyPerfEvents(Hart<URV>& hart, const nlohmann::json& config,
       const auto& events = config.at(tag);
       if (not events.is_array())
         {
-          std::cerr << "Invalid mmode_perf_events entry in config file (expecting an array)\n";
+          std::cerr << "Error: Invalid mmode_perf_events entry in config file (expecting an array)\n";
           errors++;
         }
       else
@@ -680,7 +680,7 @@ processMinBytesPerLmul(const nlohmann::json& jsonMap, unsigned minBytes, unsigne
 {
   if (not jsonMap.is_object())
     {
-      std::cerr << "Invalid min_bytes_per_lmul entry in config file (expecting an object)\n";
+      std::cerr << "Error: Invalid min_bytes_per_lmul entry in config file (expecting an object)\n";
       return false;
     }
 
@@ -691,12 +691,12 @@ processMinBytesPerLmul(const nlohmann::json& jsonMap, unsigned minBytes, unsigne
       const unsigned mewb = it.value();  // min element width in bytes
       if (not VecRegs::to_lmul(lmul, group))
 	{
-	  std::cerr << "Invalid lmul setting in min_bytes_per_lmul: " << lmul << '\n';
+	  std::cerr << "Error: Invalid lmul setting in min_bytes_per_lmul: " << lmul << '\n';
 	  return false;
 	}
       if (group > GroupMultiplier::Eight)
 	{
-	  std::cerr << "Invalid lmul setting in min_bytes_per_lmul: " << lmul
+	  std::cerr << "Error: Invalid lmul setting in min_bytes_per_lmul: " << lmul
 		    << " (expecting non-fractional group)\n";
 	  return false;
 	}
@@ -729,7 +729,7 @@ processMaxBytesPerLmul(const nlohmann::json& jsonMap, unsigned minBytes, unsigne
 {
   if (not jsonMap.is_object())
     {
-      std::cerr << "Invalid max_bytes_per_lmul tag in config file (expecting an object)\n";
+      std::cerr << "Error: Invalid max_bytes_per_lmul tag in config file (expecting an object)\n";
       return false;
     }
 
@@ -740,12 +740,12 @@ processMaxBytesPerLmul(const nlohmann::json& jsonMap, unsigned minBytes, unsigne
       const unsigned mewb = it.value();  // max element width in bytes
       if (not VecRegs::to_lmul(lmul, group))
 	{
-	  std::cerr << "Invalid lmul setting in max_bytes_per_lmul: " << lmul << '\n';
+	  std::cerr << "Error: Invalid lmul setting in max_bytes_per_lmul: " << lmul << '\n';
 	  return false;
 	}
       if (group < GroupMultiplier::Eighth)
 	{
-	  std::cerr << "Invalid lmul setting in max_bytes_per_lmul: " << lmul
+	  std::cerr << "Error: Invalid lmul setting in max_bytes_per_lmul: " << lmul
 		    << " (expecting fractional group)\n";
 	  return false;
 	}
@@ -851,7 +851,7 @@ applyVectorConfig(Hart<URV>& hart, const nlohmann::json& config)
   tag = "min_sew_per_lmul";
   if (vconf.contains(tag))
     {
-      std::cerr << "Tag min_sew_per_lmul is deprecated: Use min_bytes_per_lmul\n";
+      std::cerr << "Error: Tag min_sew_per_lmul is deprecated: Use min_bytes_per_lmul\n";
       if (not processMinBytesPerLmul(vconf.at(tag), bytesPerElem.at(0), bytesPerElem.at(1),
 				     minBytesPerLmul))
 	errors++;
@@ -869,7 +869,7 @@ applyVectorConfig(Hart<URV>& hart, const nlohmann::json& config)
   tag = "max_sew_per_lmul";
   if (vconf.contains(tag))
     {
-      std::cerr << "Tag max_sew_per_lmul is deprecated: Use max_bytes_per_lmul\n";
+      std::cerr << "Error: Tag max_sew_per_lmul is deprecated: Use max_bytes_per_lmul\n";
       if (not processMaxBytesPerLmul(vconf.at(tag), bytesPerElem.at(0), bytesPerElem.at(1),
 				     maxBytesPerLmul))
 	errors++;
@@ -1120,7 +1120,7 @@ applySteeConfig(Hart<URV>& hart, const nlohmann::json& config)
 	  if (vec.size() != 2)
 	    {
 	      if (complain)
-		cerr << "Invalid config stee.secure_region: Expecting array of 2 integers\n";
+		cerr << "Error: Invalid config stee.secure_region: Expecting array of 2 integers\n";
 	      errors++;
 	    }
 	  else
@@ -1418,7 +1418,7 @@ applyPmaConfig(Hart<URV>& hart, const nlohmann::json& config, bool hasPmacfgCsr)
 
   if (memMappedCount != config.size() and hasPmacfgCsr)
     if (hart.sysHartIndex() == 0)
-      cerr << "Warning: Configuration file has both memmap pma "
+      cerr << "Error: Configuration file has both memmap pma "
 	   << "and a pmacfg CSR. CSRs will override memmap.\n";
 
   return errors == 0;
@@ -1442,7 +1442,7 @@ HartConfig::applyMemoryConfig(Hart<URV>& hart) const
     }
 
   if (config_ -> contains("cache"))
-      std::cerr << "Configuration entry 'cache' no longer supported -- ignored\n";
+      std::cerr << "Error: Configuration entry 'cache' no longer supported -- ignored\n";
 
   return errors == 0;
 }
@@ -1598,7 +1598,7 @@ HartConfig::applyAplicConfig(System<URV>& system) const
           std::cerr << "Error: domain '" << ci.first << "' has invalid child indices: ";
           for (auto i : indices)
             std::cerr << i << " ";
-          std::cerr << "\n";
+          std::cerr << "Error: \n";
           return false;
         }
     }
@@ -1651,18 +1651,18 @@ static std::vector<InterruptCause> parseInterruptArray(const nlohmann::json &arr
       else if (s == "lcofi")       ic = InterruptCause::LCOF;
       else
       {
-        std::cerr << "Unknown interrupt symbol in " << context << ": " << s << "\n";
+        std::cerr << "Error: Unknown interrupt symbol in " << context << ": " << s << "\n";
         continue;
       }
     }
     else
     {
-      std::cerr << "Invalid element in " << context << " (expecting number or string)\n";
+      std::cerr << "Error: Invalid element in " << context << " (expecting number or string)\n";
       continue;
     }
     if (std::find(vec.begin(), vec.end(), ic) != vec.end())
     {
-      std::cerr << "Duplicate interrupt entry in " << context << ": " << static_cast<unsigned>(ic) << "\n";
+      std::cerr << "Error: Duplicate interrupt entry in " << context << ": " << static_cast<unsigned>(ic) << "\n";
       continue;
     }
     vec.push_back(ic);
@@ -1817,7 +1817,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
     {
       std::string etag = util::join("", "enable_", ztag);
       if (config_ -> contains(etag))
-	cerr << "Config file tag \"" << etag << "\" is no longer supported.\n";
+	cerr << "Error: Config file tag \"" << etag << "\" is no longer supported.\n";
     }
 
   // Counter overflow: sscofpmf extension
@@ -1842,7 +1842,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
   tag = "trap_non_zero_vstart";
   if (config_ ->contains(tag))
     {
-      std::cerr << "Configuration tag trap_non_zero_vstart should be in vector section.\n";
+      std::cerr << "Error: Configuration tag trap_non_zero_vstart should be in vector section.\n";
       bool flag = false;
       if (not getJsonBoolean(tag, config_ ->at(tag), flag))
         errors++;
@@ -1999,7 +1999,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
 	hart.forceRoundingMode(RoundingMode::NearestMax);
       else
 	{
-	  cerr << "Invalid force_rounding_mode config: " << str << '\n';
+	  cerr << "Error: Invalid force_rounding_mode config: " << str << '\n';
 	  errors++;
 	}
     }
@@ -2015,7 +2015,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
   if (config_ -> contains(tag))
     {
       if (hart.sysHartIndex() == 0)
-	cerr << "Warning: Config tag " << tag << " is deprecated -- "
+	cerr << "Config tag " << tag << " is deprecated -- "
 	     << "feature is now controlled by bit 61 of the MENVCFG/HENVCFG CSR.\n";
       getJsonBoolean(tag, config_ -> at(tag), flag) or errors++;
       // hart.setFaultOnFirstAccess(flag);
@@ -2033,7 +2033,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
           if (std::find(periods.begin(), periods.end(), 0)
                           != periods.end())
             {
-              cerr << "Snapshot periods of 0 are ignored\n";
+              cerr << "Error: Snapshot periods of 0 are ignored\n";
               periods.erase(std::remove(periods.begin(), periods.end(), 0), periods.end());
             }
 
@@ -2041,7 +2041,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
           if (it != periods.end())
             {
               periods.erase(it, periods.end());
-              cerr << "Duplicate snapshot periods not supported, removed duplicates\n";
+              cerr << "Error: Duplicate snapshot periods not supported, removed duplicates\n";
             }
         }
     }
@@ -2056,7 +2056,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
       {
         if ((size & (size - 1)) != 0)
           {
-            cerr << "TLB size must be a power of 2\n";
+            cerr << "Error: TLB size must be a power of 2\n";
             errors++;
           }
         else
@@ -2225,7 +2225,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
 	  VirtMem::Mode mode;
 	  if (not VirtMem::to_mode(modeStr, mode))
 	    {
-	      cerr << "Error no such address translation mode: " << tag << '\n';
+	      cerr << "Error: Error no such address translation mode: " << tag << '\n';
 	      atmErrors++;
 	      continue;
 	    }
@@ -2233,7 +2233,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
 	}
       if (std::find(modes.begin(), modes.end(), VirtMem::Mode::Bare) == modes.end())
 	{
-	  cerr << "Bare mode added to config file address_translation_modes\n";
+	  cerr << "Error: Bare mode added to config file address_translation_modes\n";
 	  modes.push_back(VirtMem::Mode::Bare);
 	}
       if (not atmErrors)
@@ -2260,7 +2260,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
 	  PmaskManager::Mode pmm;
 	  if (not PmaskManager::to_pmm(pmmStr, pmm))
 	    {
-	      cerr << "Error no such address translation pmm: " << tag << '\n';
+	      cerr << "Error: Error no such address translation pmm: " << tag << '\n';
 	      atpErrors++;
 	      continue;
 	    }
@@ -2311,7 +2311,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
   if (config_ -> contains(tag))
     {
       if (hart.sysHartIndex() == 0)
-	cerr << "Warning: Config tag " << tag << " is deprecated. "
+	cerr << "Error: Config tag " << tag << " is deprecated. "
 	     << "Use sstc with --isa instead.\n";
       getJsonBoolean(tag, config_ ->at(tag), flag) or errors++;
       hart.enableRvsstc(flag);
@@ -2321,7 +2321,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
   if (config_ ->contains(tag))
     {
       if (hart.sysHartIndex() == 0)
-	cerr << "Warning: Config tag " << tag << " is deprecated. "
+	cerr << "Error: Config tag " << tag << " is deprecated. "
 	     << "Use smaia with --isa instead.\n";
       getJsonBoolean(tag, config_ ->at(tag), flag) or errors++;
       hart.enableAiaExtension(flag);
@@ -2386,7 +2386,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
     const auto &mi = config_->at(tag);
     if (!mi.is_array())
     {
-      std::cerr << "Invalid machine_interrupts entry in config file (expecting an array)\n";
+      std::cerr << "Error: Invalid machine_interrupts entry in config file (expecting an array)\n";
       ++errors;
     }
     else
@@ -2396,7 +2396,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
       {
         hart.setMachineInterrupts(vec);
         if (verbose)
-          std::cerr << "Applied machine_interrupts configuration\n";
+          std::cerr << "Error: Applied machine_interrupts configuration\n";
       }
     }
   }
@@ -2408,7 +2408,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
     const auto &si = config_->at(tag);
     if (!si.is_array())
     {
-      std::cerr << "Invalid supervisor_interrupts entry in config file (expecting an array)\n";
+      std::cerr << "Error: Invalid supervisor_interrupts entry in config file (expecting an array)\n";
       ++errors;
     }
     else
@@ -2418,7 +2418,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
       {
         hart.setSupervisorInterrupts(vec);
         if (verbose)
-          std::cerr << "Applied supervisor_interrupts configuration\n";
+          std::cerr << "Error: Applied supervisor_interrupts configuration\n";
       }
     }
   }
@@ -2605,7 +2605,7 @@ HartConfig::applyImsicConfig(System<URV>& system) const
   auto& hart0 = *system.ithHart(0);
   if (not hart0.extensionIsEnabled(RvExtension::Smaia))
     {
-      std::cerr << "Cannot configure IMSIC without enabling Smaia\n";
+      std::cerr << "Error: Cannot configure IMSIC without enabling Smaia\n";
       return false;
     }
 
@@ -2639,7 +2639,6 @@ HartConfig::applyImsicConfig(System<URV>& system) const
     if (not getJsonUnsigned("imsic.guests", imsic.at(tag), guests))
       return false;
 
-
   std::vector<unsigned> idVec = { 64, 64, 64}; // For M, S, and VS privs.
   tag = "ids";
   if (imsic.contains(tag))
@@ -2650,7 +2649,7 @@ HartConfig::applyImsicConfig(System<URV>& system) const
 	    return false;
 	  if (idVec.size() != 3)
 	    {
-	      std::cerr << "Config file imsic.ids array must have 3 values\n";
+	      std::cerr << "Error: Config file imsic.ids array must have 3 values\n";
 	      return false;
 	    }
 	}
@@ -2678,7 +2677,7 @@ HartConfig::applyImsicConfig(System<URV>& system) const
 	    return false;
 	  if (tmVec.size() != 3)
 	    {
-	      std::cerr << "Config file imsic.threshold array must have 3 values\n";
+	      std::cerr << "Error: Config file imsic.threshold array must have 3 values\n";
 	      return false;
 	    }
 	}
@@ -2688,13 +2687,32 @@ HartConfig::applyImsicConfig(System<URV>& system) const
       std::fill(tmVec.begin(), tmVec.end(), tm);
     }
 
+  bool maplic = false;    // Machine file supports aplic
+  tag = "maplic";
+  if (imsic.contains(tag))
+    if (not getJsonBoolean("imsic.maplic", imsic.at(tag), maplic))
+      return false;
+
+  bool saplic = false;   // Supervisor file supports applic
+  tag = "saplic";
+  if (imsic.contains(tag))
+    if (not getJsonBoolean("imsic.saplic", imsic.at(tag), saplic))
+      return false;
+
+  bool gaplic = false;   // Guest file(s) support aplic
+  tag = "gaplic";
+  if (imsic.contains(tag))
+    if (not getJsonBoolean("imsic.gaplic", imsic.at(tag), gaplic))
+      return false;
+
   bool trace = false;
   tag = "trace";
   if (imsic.contains(tag))
     if (not getJsonBoolean("imsic.trace", imsic.at(tag), trace))
       return false;
 
-  return system.configImsic(mbase, mstride, sbase, sstride, guests, idVec, tmVec, trace);
+  return system.configImsic(mbase, mstride, sbase, sstride, guests, idVec, tmVec, maplic,
+                            saplic, gaplic, trace);
 }
 
 
@@ -2709,7 +2727,7 @@ HartConfig::applyPciConfig(System<URV>& system) const
   auto& pci = config_ -> at(tag);
   if (not pci.contains("config_base") or not pci.contains("mmio_base") or not pci.contains("mmio_size"))
     {
-      std::cerr << "Invalid pci entry in config file\n";
+      std::cerr << "Error: Invalid pci entry in config file\n";
       return false;
     }
   uint64_t configBase = 0, mmioBase = 0, mmioSize = 0;
@@ -2785,7 +2803,7 @@ HartConfig::configHarts(System<URV>& system, bool userMode, bool verbose) const
       auto& uart = config_ -> at(tag);
       if (not uart.contains("address") or not uart.contains("size"))
 	{
-	  std::cerr << "Invalid uart entry in config file: missing address/size entry.\n";
+	  std::cerr << "Error: Invalid uart entry in config file: missing address/size entry.\n";
 	  return false;
 	}
       uint64_t addr = 0, size = 0;
@@ -2795,13 +2813,13 @@ HartConfig::configHarts(System<URV>& system, bool userMode, bool verbose) const
 
       std::string type = "uart8250";
       if (not uart.contains("type"))
-	std::cerr << "Missing uart type. Using uart250. Valid types: uart8250, usartsf.\n";
+	std::cerr << "Error: Missing uart type. Using uart250. Valid types: uart8250, usartsf.\n";
       else
 	{
 	  type = uart.at("type").get<std::string>();
 	  if (type != "uartsf" and type != "uart8250")
 	    {
-	      std::cerr << "Invalid uart type: " << type << ". Valid types: uartsf, uart8250.\n";
+	      std::cerr << "Error: Invalid uart type: " << type << ". Valid types: uartsf, uart8250.\n";
 	      return false;
 	    }
 	}
@@ -2815,7 +2833,7 @@ HartConfig::configHarts(System<URV>& system, bool userMode, bool verbose) const
             return false;
 
           if (not uart.contains("channel"))
-              std::cerr << "Missing uart channel. Using " << channel << ". "
+              std::cerr << "Error: Missing uart channel. Using " << channel << ". "
                 << "Valid channels: stdio, pty, unix:<server socket path>, or a"
                 << "semicolon separated list of those.\n";
           else
@@ -2867,7 +2885,7 @@ HartConfig::getXlen(unsigned& xlen) const
               return true;
             }
         }
-      std::cerr << "Invalid register width in isa string (" << isa << ") in config file -- ignored\n";
+      std::cerr << "Error: Invalid register width in isa string (" << isa << ") in config file -- ignored\n";
     }
   return false;
 }
@@ -2963,7 +2981,7 @@ HartConfig::getEnabledPpos(std::vector<unsigned>& enabledPpos) const
 	      if (ix < Mcm<uint64_t>::PpoRule::Limit)
 		enabledPpos.push_back(ix);
 	      else
-		std::cerr << "Invalid PPO rule number in config file enable_ppo tag: " << ix << '\n';
+		std::cerr << "Error: Invalid PPO rule number in config file enable_ppo tag: " << ix << '\n';
 	    }
 	}
     }
