@@ -3169,7 +3169,7 @@ Mcm<URV>::storeToReadForward(const McmInstr& store, MemoryOp& readOp, uint64_t& 
       if (fwdTime == 0)
 	fwdTime = store.retireTime_;  // Happens if store.memOps_ empty.
 
-      uint64_t offset = fwdTime - readOp.time_;
+      uint64_t offset = fwdTime > readOp.time_ ? fwdTime - readOp.time_ : 0;
       uint16_t off16 = static_cast<uint16_t>(offset);  // TOD: Use gsl
       readOp.fwOffset_.at(rix) = std::max(readOp.fwOffset_.at(rix), off16);
 
