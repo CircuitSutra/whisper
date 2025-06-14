@@ -84,13 +84,14 @@ union WhisperFlags
 
   struct             // Second variant of union.
   {
-    unsigned privMode  : 2;    // privilege mode
-    unsigned fpFlags   : 5;    // floating point flags from last instruction
-    bool     trap      : 1;    // true if last instruction trapped
-    bool     stop      : 1;    // true if target program stopped
-    bool     interrupt : 1;    // true if last instruction interrupted
-    bool     virt      : 1;    // virtual mode before last instruction
-    bool     debug     : 1;    // true if hart is in debug mode
-    bool     load      : 1;    // true if last instructions reads data memory
+    unsigned privMode  : 2;  // privilege mode
+    unsigned fpFlags   : 5;  // floating point flags from last instruction
+    bool     trap      : 1;  // true if last instruction trapped
+    bool     stop      : 1;  // true if target program stopped
+    bool     interrupt : 1;  // true if last instruction interrupted
+    bool     virt      : 1;  // virtual mode before last instruction
+    bool     debug     : 1;  // true if hart is in debug mode
+    bool     load      : 1;  // true if last instructions reads data memory
+    bool     cancelled : 1;  // true if trap, or enter-debug-mode because of trigger
   } bits;
 };

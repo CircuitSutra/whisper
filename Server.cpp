@@ -695,6 +695,7 @@ Server<URV>::stepCommand(const WhisperMessage& req,
   flags.bits.virt = hart.lastVirtMode();
   flags.bits.debug = prevDebug;
   flags.bits.load = di.isLoad() or di.isAmo() or di.isVectorLoad();
+  flags.bits.cancelled = hart.lastInstructionCancelled();
   reply.flags = flags.value;
 
   if (reenterDebug)
