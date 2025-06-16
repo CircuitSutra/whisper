@@ -5230,7 +5230,8 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
 	  hip->poke((hip->read() & ~hipMask) | (value & hipMask));
 	}
     }
-  else if (num == CsrNumber::HSTATUS or num == CsrNumber::HGEIE)
+  else if (num == CsrNumber::HGEIP or num == CsrNumber::HGEIE or
+           num == CsrNumber::HSTATUS)
     {
       // Updating HGEIP or HSTATUS.VGEIN is reflected in HIP
       if (hip)
@@ -5457,9 +5458,9 @@ CsRegs<URV>::hyperPoke(Csr<URV>* csr)
 	  // Update bit VSEIP (10) of HIP.
 	  hip->poke(hip->read() & ~(URV(5) << 10));  // Clear bit 10/12 of HIP
 	  URV mask = bit << 10;
+          mask |= hvip->read() & URV(0x400);  // Or bit 10 of HVIP.
           // Update bit SGEIP (12) of HIP.
           mask |= ((hgeipVal & hgeie->read()) != 0) << 12;
-          mask |= hvip->read() & URV(0x400);  // Or bit 10 of HVIP.
           hip->poke(hip->read() | mask);  // Set bit 10 to HGEIP bit selected by VGEIN.
           hipUpdated = true;
         }

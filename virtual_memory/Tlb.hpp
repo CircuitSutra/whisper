@@ -60,11 +60,11 @@ namespace WdRiscv
     /// Return pointer to TLB entry associated with given virtual page
     /// number and address space identifier.
     /// Return nullptr if no such entry.
-    TlbEntry* findEntry(uint64_t pageNum, uint32_t asid)
+    TlbEntry* findEntry(uint64_t pageNum, uint32_t asid, uint32_t wid)
     {
       auto* entry = getEntry(pageNum);
 
-      if (entry and entry->valid_ and entry->virtPageNum_ == pageNum)
+      if (entry and entry->valid_ and entry->virtPageNum_ == pageNum and entry->wid_ == wid)
         if (entry->global_ or entry->asid_ == asid)
             return entry;
       return nullptr;
@@ -73,12 +73,13 @@ namespace WdRiscv
     /// Return pointer to TLB entry associated with given virtual page
     /// number, address space identifier, and virtual machine identifier.
     /// Return nullptr if no such entry.
-    TlbEntry* findEntry(uint64_t pageNum, uint32_t asid, uint32_t vmid)
+    TlbEntry* findEntry(uint64_t pageNum, uint32_t asid, uint32_t vmid, uint32_t wid)
     {
       auto* entry = getEntry(pageNum);
 
       if (entry and entry->valid_ and entry->virtPageNum_ == pageNum and
-          entry->vmid_ == vmid and (entry->global_ or entry->asid_ == asid))
+          entry->vmid_ == vmid and entry->wid_ == wid and
+          (entry->global_ or entry->asid_ == asid))
         return entry;
       return nullptr;
     }
@@ -87,9 +88,9 @@ namespace WdRiscv
     /// number and address space identifier. Update entry time of
     /// access and increment time if entry is found. Return nullptr if
     /// no such entry.
-    TlbEntry* findEntryUpdateTime(uint64_t pageNum, uint32_t asid)
+    TlbEntry* findEntryUpdateTime(uint64_t pageNum, uint32_t asid, uint32_t wid)
     {
-      auto* entry = findEntry(pageNum, asid);
+      auto* entry = findEntry(pageNum, asid, wid);
       if (entry)
         {
           ++entry->counter_;
@@ -102,9 +103,9 @@ namespace WdRiscv
     /// number and address space identifier. Update entry time of
     /// access and increment time if entry is found. Return nullptr if
     /// no such entry.
-    TlbEntry* findEntryUpdateTime(uint64_t pageNum, uint32_t asid, uint32_t vmid)
+    TlbEntry* findEntryUpdateTime(uint64_t pageNum, uint32_t asid, uint32_t vmid, uint32_t wid)
     {
-      auto* entry = findEntry(pageNum, asid, vmid);
+      auto* entry = findEntry(pageNum, asid, vmid, wid);
       if (entry)
         {
           ++entry->counter_;
