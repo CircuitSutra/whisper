@@ -843,7 +843,7 @@ Memory::saveSnapshot(const std::string& filename,
 
   // Open binary file for write (compressed) and check success.
   std::cerr << "Info: saveSnapshot starts..\n";
-  gzFile gzout = gzopen(filename.c_str(), "wb2");
+  gzFile gzout = gzopen(filename.c_str(), "wb1");
   if (not gzout)
     {
       std::cerr << "Error: Memory::saveSnapshot failed - cannot open " << filename
