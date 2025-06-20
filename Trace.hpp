@@ -310,13 +310,15 @@ namespace WdRiscv
 
       imsic.fileTraces(mselects, sselects, gselects, minterrupts, sinterrupts, ginterrupts);
 
-      bool ok; unsigned int value;
+      bool ok; URV value; uint32_t value32;
       for (auto [select, size] : mselects)
         {
           if (size == 4)
-            ok = imsic.template readMireg<uint32_t>(select, value);
+            ok = imsic.template readMireg<uint32_t>(select, value32);
           else
             ok = imsic.readMireg(select, value);
+
+          value = value32;
           if (ok)
             mcvps.emplace_back(select, value);
         }
@@ -324,9 +326,11 @@ namespace WdRiscv
       for (auto [select, size] : sselects)
         {
           if (size == 4)
-            ok = imsic.template readSireg<uint32_t>(false, 0 /* guest */, select, value);
+            ok = imsic.template readSireg<uint32_t>(false, 0 /* guest */, select, value32);
           else
             ok = imsic.readSireg(false, 0 /* guest */, select, value);
+
+          value = value32;
           if (ok)
             scvps.emplace_back(select, value);
         }
@@ -337,10 +341,11 @@ namespace WdRiscv
           for (auto [select, size] : gselects.at(i))
             {
               if (size == 4)
-                ok = imsic.template readSireg<uint32_t>(true, i, select, value);
+                ok = imsic.template readSireg<uint32_t>(true, i, select, value32);
               else
                 ok = imsic.readSireg(true, i, select, value);
 
+              value = value32;
               if (ok)
                 tmp.emplace_back(select, value);
             }
