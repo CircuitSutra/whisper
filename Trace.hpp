@@ -103,7 +103,9 @@ namespace WdRiscv
       bool trapped = hasTrap();
       if (trapped)
         {
-          if (nextPrivMode() == PrivilegeMode::Machine)
+          if (hart_->hasNmiPending())
+            cause = hart_->peekCsr(CsrNumber::MNCAUSE);
+          else if (nextPrivMode() == PrivilegeMode::Machine)
             cause = hart_->peekCsr(CsrNumber::MCAUSE);
           else if (nextPrivMode() == PrivilegeMode::Supervisor)
             cause = hart_->peekCsr(CsrNumber::SCAUSE);

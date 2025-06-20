@@ -1058,6 +1058,10 @@ namespace WdRiscv
     bool lastInstructionTrapped() const
     { return hasException_ or hasInterrupt_; }
 
+    /// Return true if has NMI pending.
+    bool hasNmiPending() const
+    { return nmiPending_; }
+
     /// Return true if the last execution instruction entered debug
     /// mode because of a trigger or ebreak or if interrupt/exception.
     bool lastInstructionCancelled() const
