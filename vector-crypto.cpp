@@ -70,7 +70,7 @@ Hart<URV>::execVandn_vv(const DecodedInst* di)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -118,7 +118,7 @@ Hart<URV>::execVandn_vx(const DecodedInst* di)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -189,7 +189,7 @@ Hart<URV>::execVbrev_v(const DecodedInst* di)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -260,7 +260,7 @@ Hart<URV>::execVbrev8_v(const DecodedInst* di)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -331,7 +331,7 @@ Hart<URV>::execVrev8_v(const DecodedInst* di)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -402,7 +402,7 @@ Hart<URV>::execVclz_v(const DecodedInst* di)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -473,7 +473,7 @@ Hart<URV>::execVctz_v(const DecodedInst* di)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -544,7 +544,7 @@ Hart<URV>::execVcpop_v(const DecodedInst* di)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -619,7 +619,7 @@ Hart<URV>::execVrol_vv(const DecodedInst* di)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -694,7 +694,7 @@ Hart<URV>::execVrol_vx(const DecodedInst* di)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -769,7 +769,7 @@ Hart<URV>::execVror_vv(const DecodedInst* di)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -844,7 +844,7 @@ Hart<URV>::execVror_vx(const DecodedInst* di)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -893,7 +893,7 @@ Hart<URV>::execVror_vi(const DecodedInst* di)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -976,7 +976,7 @@ Hart<URV>::execVwsll_vv(const DecodedInst* di)
       postVecFail(di);
       return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 
 }
 
@@ -1062,7 +1062,7 @@ Hart<URV>::execVwsll_vx(const DecodedInst* di)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -1119,7 +1119,7 @@ Hart<URV>::execVwsll_vi(const DecodedInst* di)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -1156,7 +1156,7 @@ Hart<URV>::execVclmul_vv(const DecodedInst* di)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -1195,7 +1195,7 @@ Hart<URV>::execVclmul_vx(const DecodedInst* di)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -1232,7 +1232,7 @@ Hart<URV>::execVclmulh_vv(const DecodedInst* di)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -1271,7 +1271,7 @@ Hart<URV>::execVclmulh_vx(const DecodedInst* di)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -1340,7 +1340,7 @@ Hart<URV>::execVghsh_vv(const DecodedInst* di)
       vecRegs_.write(vd, i, destGroup, res);
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -1407,7 +1407,7 @@ Hart<URV>::execVgmul_vv(const DecodedInst* di)
       vecRegs_.write(vd, i, destGroup, res);
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -1465,7 +1465,7 @@ Hart<URV>::execVaesdf_vv(const DecodedInst* di)
       vecRegs_.write(vd, i, destGroup, ark);
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -1523,7 +1523,7 @@ Hart<URV>::execVaesdf_vs(const DecodedInst* di)
       vecRegs_.write(vd, i, destGroup, ark);
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -1581,7 +1581,7 @@ Hart<URV>::execVaesef_vv(const DecodedInst* di)
       vecRegs_.write(vd, i, destGroup, ark);
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -1639,7 +1639,7 @@ Hart<URV>::execVaesef_vs(const DecodedInst* di)
       vecRegs_.write(vd, i, destGroup, ark);
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -1698,7 +1698,7 @@ Hart<URV>::execVaesem_vv(const DecodedInst* di)
       vecRegs_.write(vd, i, destGroup, ark);
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -1757,7 +1757,7 @@ Hart<URV>::execVaesem_vs(const DecodedInst* di)
       vecRegs_.write(vd, i, destGroup, ark);
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -1816,7 +1816,7 @@ Hart<URV>::execVaesdm_vv(const DecodedInst* di)
       vecRegs_.write(vd, i, destGroup, mix);
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -1875,7 +1875,7 @@ Hart<URV>::execVaesdm_vs(const DecodedInst* di)
       vecRegs_.write(vd, i, destGroup, mix);
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -1938,7 +1938,7 @@ Hart<URV>::execVaeskf1_vi(const DecodedInst* di)
       vecRegs_.write(vd, i, destGroup, res);
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2005,7 +2005,7 @@ Hart<URV>::execVaeskf2_vi(const DecodedInst* di)
       vecRegs_.write(vd, i, destGroup, res);
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2061,7 +2061,7 @@ Hart<URV>::execVaesz_vs(const DecodedInst* di)
       vecRegs_.write(vd, i, destGroup, ark);
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2141,7 +2141,7 @@ Hart<URV>::execVsha2ms_vv(const DecodedInst* di)
 	}
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2225,7 +2225,7 @@ Hart<URV>::execVsha2ch_vv(const DecodedInst* di)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2309,7 +2309,7 @@ Hart<URV>::execVsha2cl_vv(const DecodedInst* di)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2396,7 +2396,7 @@ Hart<URV>::execVsm4k_vi(const DecodedInst* di)
       vecRegs_.write(vd, i, destGroup, dd);
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2471,7 +2471,7 @@ Hart<URV>::execVsm4r_vv(const DecodedInst* di)
       vecRegs_.write(vd, i, destGroup, dd);
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2547,7 +2547,7 @@ Hart<URV>::execVsm4r_vs(const DecodedInst* di)
       vecRegs_.write(vd, i, destGroup, dd);
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2664,7 +2664,7 @@ Hart<URV>::execVsm3me_vv(const DecodedInst* di)
       vecRegs_.write(vd, i, destGroup, dd);
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2781,7 +2781,7 @@ Hart<URV>::execVsm3c_vi(const DecodedInst* di)
       vecRegs_.write(vd, i, destGroup, dd);
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 

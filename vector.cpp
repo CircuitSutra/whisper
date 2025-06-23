@@ -1037,9 +1037,11 @@ Hart<URV>::vsetvl(unsigned rd, unsigned rs1, URV vtypeVal, bool vli /* vsetvli i
 
 template <typename URV>
 void
-Hart<URV>::postVecSuccess()
+Hart<URV>::postVecSuccess(const DecodedInst* di)
 {
-  bool dirty = vecRegs_.getLastWrittenReg() >= 0;  // Some vec register was written.
+  bool dirty = vecRegs_.getLastWrittenReg() >= 0 or
+    ((di->ithOperandType(0) == OperandType::VecReg and di->ithOperandMode(0) == OperandMode::Write) and
+      vecRegs_.alwaysMarkDirty_);
 
   if (csRegs_.peekVstart() != 0)
     {
@@ -1057,6 +1059,11 @@ void
 Hart<URV>::postVecFail(const DecodedInst* di)
 {
   illegalInst(di);
+
+  bool dirty = vecRegs_.getLastWrittenReg() >= 0 or
+    ((di->ithOperandType(0) == OperandType::VecReg and di->ithOperandMode(0) == OperandMode::Write) and
+      vecRegs_.alwaysMarkDirty_);
+
   if (vecRegs_.getLastWrittenReg() >= 0)
     markVsDirty();
 }
@@ -1078,7 +1085,7 @@ Hart<URV>::execVsetvli(const DecodedInst* di)
   
   URV vtypeVal = imm;
   if (vsetvl(rd, rs1, vtypeVal, true /* isVtypeImm */))
-    postVecSuccess();
+    postVecSuccess(di);
   else
     postVecFail(di);
 }
@@ -1150,7 +1157,7 @@ Hart<URV>::execVsetivli(const DecodedInst* di)
 
   // Update cached vtype fields in vecRegs_.
   vecRegs_.updateConfig(ew, gm, ma, ta, vill);
-  postVecSuccess();
+  postVecSuccess(di);
 
   markVsDirty();
 }
@@ -1171,7 +1178,7 @@ Hart<URV>::execVsetvl(const DecodedInst* di)
   URV vtypeVal = intRegs_.read(di->op2());
 
   if (vsetvl(rd, rs1, vtypeVal, false /* isVtypeImm */))
-    postVecSuccess();
+    postVecSuccess(di);
   else
     postVecFail(di);
 }
@@ -1299,7 +1306,7 @@ Hart<URV>::execVop_vv(const DecodedInst* di, OP op)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -1341,7 +1348,7 @@ Hart<URV>::execVopu_vv(const DecodedInst* di, OP op)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -1384,7 +1391,7 @@ Hart<URV>::execVop_vx(const DecodedInst* di, OP op)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -1427,7 +1434,7 @@ Hart<URV>::execVopu_vx(const DecodedInst* di, OP op)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -1469,7 +1476,7 @@ Hart<URV>::execVop_vi(const DecodedInst* di, OP op)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -1511,7 +1518,7 @@ Hart<URV>::execVopu_vi(const DecodedInst* di, OP op)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -1634,7 +1641,7 @@ Hart<URV>::execVwaddu_vv(const DecodedInst* di)
     case EW::Word2: vwadd_vv<uint64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -1670,7 +1677,7 @@ Hart<URV>::execVwadd_vv(const DecodedInst* di)
     case EW::Word2: vwadd_vv<int64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -1737,7 +1744,7 @@ Hart<URV>::execVwaddu_vx(const DecodedInst* di)
     case EW::Word2: vwadd_vx<uint64_t>(vd, vs1, e2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -1775,7 +1782,7 @@ Hart<URV>::execVwadd_vx(const DecodedInst* di)
     case EW::Word2: vwadd_vx<int64_t>(vd, vs1, e2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -1842,7 +1849,7 @@ Hart<URV>::execVwsubu_vx(const DecodedInst* di)
     case EW::Word2: // Fall-through to invalid case
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -1880,7 +1887,7 @@ Hart<URV>::execVwsub_vx(const DecodedInst* di)
     case EW::Word2: // Fall-through to invalid case
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -1946,7 +1953,7 @@ Hart<URV>::execVwsubu_vv(const DecodedInst* di)
     case EW::Word2: vwsub_vv<uint64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -1982,7 +1989,7 @@ Hart<URV>::execVwsub_vv(const DecodedInst* di)
     case EW::Word2: vwsub_vv<int64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2049,7 +2056,7 @@ Hart<URV>::execVwaddu_wv(const DecodedInst* di)
     case EW::Word2: vwadd_wv<uint64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2085,7 +2092,7 @@ Hart<URV>::execVwadd_wv(const DecodedInst* di)
     case EW::Word2: vwadd_wv<int64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2130,7 +2137,7 @@ Hart<URV>::execVwaddu_wx(const DecodedInst* di)
       postVecFail(di);
       return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2176,7 +2183,7 @@ Hart<URV>::execVwadd_wx(const DecodedInst* di)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2222,7 +2229,7 @@ Hart<URV>::execVwsubu_wx(const DecodedInst* di)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2268,7 +2275,7 @@ Hart<URV>::execVwsub_wx(const DecodedInst* di)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2335,7 +2342,7 @@ Hart<URV>::execVwsubu_wv(const DecodedInst* di)
     case EW::Word2: vwsub_wv<uint64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2371,7 +2378,7 @@ Hart<URV>::execVwsub_wv(const DecodedInst* di)
     case EW::Word2: vwsub_wv<int64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2459,7 +2466,7 @@ Hart<URV>::execVmseq_vv(const DecodedInst* di)
       postVecFail(di);
       return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2497,7 +2504,7 @@ Hart<URV>::execVmseq_vx(const DecodedInst* di)
       postVecFail(di);
       return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2535,7 +2542,7 @@ Hart<URV>::execVmseq_vi(const DecodedInst* di)
       postVecFail(di);
       return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2572,7 +2579,7 @@ Hart<URV>::execVmsne_vv(const DecodedInst* di)
       postVecFail(di);
       return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2610,7 +2617,7 @@ Hart<URV>::execVmsne_vx(const DecodedInst* di)
       postVecFail(di);
       return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2648,7 +2655,7 @@ Hart<URV>::execVmsne_vi(const DecodedInst* di)
       postVecFail(di);
       return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2685,7 +2692,7 @@ Hart<URV>::execVmsltu_vv(const DecodedInst* di)
       postVecFail(di);
       return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2723,7 +2730,7 @@ Hart<URV>::execVmsltu_vx(const DecodedInst* di)
       postVecFail(di);
       return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2760,7 +2767,7 @@ Hart<URV>::execVmslt_vv(const DecodedInst* di)
       postVecFail(di);
       return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2799,7 +2806,7 @@ Hart<URV>::execVmslt_vx(const DecodedInst* di)
       postVecFail(di);
       return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2836,7 +2843,7 @@ Hart<URV>::execVmsleu_vv(const DecodedInst* di)
       postVecFail(di);
       return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2874,7 +2881,7 @@ Hart<URV>::execVmsleu_vx(const DecodedInst* di)
       postVecFail(di);
       return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2913,7 +2920,7 @@ Hart<URV>::execVmsleu_vi(const DecodedInst* di)
       postVecFail(di);
       return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2950,7 +2957,7 @@ Hart<URV>::execVmsle_vv(const DecodedInst* di)
       postVecFail(di);
       return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -2988,7 +2995,7 @@ Hart<URV>::execVmsle_vx(const DecodedInst* di)
       postVecFail(di);
       return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -3026,7 +3033,7 @@ Hart<URV>::execVmsle_vi(const DecodedInst* di)
       postVecFail(di);
       return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -3064,7 +3071,7 @@ Hart<URV>::execVmsgtu_vx(const DecodedInst* di)
       postVecFail(di);
       return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -3103,7 +3110,7 @@ Hart<URV>::execVmsgtu_vi(const DecodedInst* di)
       postVecFail(di);
       return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -3141,7 +3148,7 @@ Hart<URV>::execVmsgt_vx(const DecodedInst* di)
       postVecFail(di);
       return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -3179,7 +3186,7 @@ Hart<URV>::execVmsgt_vi(const DecodedInst* di)
       postVecFail(di);
       return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -3455,7 +3462,7 @@ Hart<URV>::execVnsrl_wv(const DecodedInst* di)
     case EW::Word2: vnsr_wv<uint64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -3527,7 +3534,7 @@ Hart<URV>::execVnsrl_wx(const DecodedInst* di)
     case EW::Word2: vnsr_wx<uint64_t>(vd, vs1, e2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -3564,7 +3571,7 @@ Hart<URV>::execVnsrl_wi(const DecodedInst* di)
     case EW::Word2: vnsr_wx<uint64_t>(vd, vs1, imm, gp, start, elems, msk); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -3600,7 +3607,7 @@ Hart<URV>::execVnsra_wv(const DecodedInst* di)
     case EW::Word2: vnsr_wv<int64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -3639,7 +3646,7 @@ Hart<URV>::execVnsra_wx(const DecodedInst* di)
     case EW::Word2: vnsr_wx<int64_t>(vd, vs1, e2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -3676,7 +3683,7 @@ Hart<URV>::execVnsra_wi(const DecodedInst* di)
     case EW::Word2: vnsr_wx<int64_t>(vd, vs1, imm, gp, start, elems, msk); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -3748,7 +3755,7 @@ Hart<URV>::execVrgather_vv(const DecodedInst* di)
     case EW::Word2: vrgather_vv<uint64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -3818,7 +3825,7 @@ Hart<URV>::execVrgather_vx(const DecodedInst* di)
     case EW::Word2: vrgather_vx<uint64_t>(vd, vs1, rs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -3884,7 +3891,7 @@ Hart<URV>::execVrgather_vi(const DecodedInst* di)
     case EW::Word2: vrgather_vi<uint64_t>(vd, vs1, imm, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -3980,7 +3987,7 @@ Hart<URV>::execVrgatherei16_vv(const DecodedInst* di)
     case EW::Word2: vrgatherei16_vv<uint64_t>(vd, vs1, vs2, g8, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -4056,7 +4063,7 @@ Hart<URV>::execVcompress_vm(const DecodedInst* di)
     case EW::Word2: vcompress_vm<uint64_t>(vd, vs1, vs2, group, start, elems); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -4130,7 +4137,7 @@ Hart<URV>::execVredop_vs(const DecodedInst* di, OP op)
       break;
     default:  postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -4172,7 +4179,7 @@ Hart<URV>::execVredopu_vs(const DecodedInst* di, OP op)
       break;
     default:  postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -4309,7 +4316,7 @@ Hart<URV>::execVwredsumu_vs(const DecodedInst* di)
     case EW::Word:  vwredsum_vs<uint32_t>(vd, vs1, vs2, gx8, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -4339,7 +4346,7 @@ Hart<URV>::execVwredsum_vs(const DecodedInst* di)
     case EW::Word:  vwredsum_vs<int32_t>(vd, vs1, vs2, gx8, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -4378,7 +4385,7 @@ Hart<URV>::execVmop_mm(const DecodedInst* di, OP op)
     }
 
   vecRegs_.touchMask(vd);  // In case nothing was written.
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -4471,7 +4478,7 @@ Hart<URV>::execVcpop_m(const DecodedInst* di)
     }
 
   intRegs_.write(rd, count);
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -4504,7 +4511,7 @@ Hart<URV>::execVfirst_m(const DecodedInst* di)
     }
 
   intRegs_.write(rd, first);
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -4551,7 +4558,7 @@ Hart<URV>::execVmsbf_m(const DecodedInst* di)
       vecRegs_.touchMask(vd);
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -4598,7 +4605,7 @@ Hart<URV>::execVmsif_m(const DecodedInst* di)
       vecRegs_.touchMask(vd);
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -4655,7 +4662,7 @@ Hart<URV>::execVmsof_m(const DecodedInst* di)
       vecRegs_.touchMask(vd);  // In case nothing was written
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -4747,7 +4754,7 @@ Hart<URV>::execViota_m(const DecodedInst* di)
 	  sum++;
       }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -4819,7 +4826,7 @@ Hart<URV>::execVid_v(const DecodedInst* di)
 	default: postVecFail(di); return;
 	}
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -4891,7 +4898,7 @@ Hart<URV>::execVslideup_vx(const DecodedInst* di)
     case EW::Word2: vslideup<uint64_t>(vd, vs1, amount, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -4929,7 +4936,7 @@ Hart<URV>::execVslideup_vi(const DecodedInst* di)
     case EW::Word2: vslideup<uint64_t>(vd, vs1, amount, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -5012,7 +5019,7 @@ Hart<URV>::execVslide1up_vx(const DecodedInst* di)
 	}
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -5074,7 +5081,7 @@ Hart<URV>::execVslidedown_vx(const DecodedInst* di)
     case EW::Word2:  vslidedown<uint64_t>(vd, vs1, amount, group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -5106,7 +5113,7 @@ Hart<URV>::execVslidedown_vi(const DecodedInst* di)
     case EW::Word2: vslidedown<uint64_t>(vd, vs1, amount, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -5164,7 +5171,7 @@ Hart<URV>::execVslide1down_vx(const DecodedInst* di)
 	}
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -5245,7 +5252,7 @@ Hart<URV>::execVfslide1up_vf(const DecodedInst* di)
         }
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -5316,7 +5323,7 @@ Hart<URV>::execVfslide1down_vf(const DecodedInst* di)
         }
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -5388,7 +5395,7 @@ Hart<URV>::execVmulh_vv(const DecodedInst* di)
     case EW::Word2: vmulh_vv<int64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -5443,7 +5450,7 @@ Hart<URV>::execVmulh_vx(const DecodedInst* di)
     case EW::Word2: vmulh_vx<int64_t>(vd, vs1, rs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -5473,7 +5480,7 @@ Hart<URV>::execVmulhu_vv(const DecodedInst* di)
     case EW::Word2: vmulh_vv<uint64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -5528,7 +5535,7 @@ Hart<URV>::execVmulhu_vx(const DecodedInst* di)
     case EW::Word2: vmulhu_vx<uint64_t>(vd, vs1, rs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -5587,7 +5594,7 @@ Hart<URV>::execVmulhsu_vv(const DecodedInst* di)
     case EW::Word2: vmulhsu_vv<int64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -5645,7 +5652,7 @@ Hart<URV>::execVmulhsu_vx(const DecodedInst* di)
     case EW::Word2: vmulhsu_vx<int64_t>(vd, vs1, rs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -5702,7 +5709,7 @@ Hart<URV>::execVmadd_vv(const DecodedInst* di)
     case EW::Word2: vmadd_vv<int64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -5759,7 +5766,7 @@ Hart<URV>::execVmadd_vx(const DecodedInst* di)
     case EW::Word2: vmadd_vx<int64_t>(vd, rs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 template <typename URV>
@@ -5815,7 +5822,7 @@ Hart<URV>::execVnmsub_vv(const DecodedInst* di)
     case EW::Word2: vnmsub_vv<int64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -5872,7 +5879,7 @@ Hart<URV>::execVnmsub_vx(const DecodedInst* di)
     case EW::Word2: vnmsub_vx<int64_t>(vd, rs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -5929,7 +5936,7 @@ Hart<URV>::execVmacc_vv(const DecodedInst* di)
     case EW::Word2: vmacc_vv<int64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -5987,7 +5994,7 @@ Hart<URV>::execVmacc_vx(const DecodedInst* di)
     case EW::Word2: vmacc_vx<int64_t>(vd, rs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -6044,7 +6051,7 @@ Hart<URV>::execVnmsac_vv(const DecodedInst* di)
     case EW::Word2: vnmsac_vv<int64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -6101,7 +6108,7 @@ Hart<URV>::execVnmsac_vx(const DecodedInst* di)
     case EW::Word2: vnmsac_vx<int64_t>(vd, rs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -6169,7 +6176,7 @@ Hart<URV>::execVwmulu_vv(const DecodedInst* di)
     case EW::Word2: vwmulu_vv<uint64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -6237,7 +6244,7 @@ Hart<URV>::execVwmulu_vx(const DecodedInst* di)
     case EW::Word2: vwmulu_vx<uint64_t>(vd, vs1, int64_t(e2), group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -6305,7 +6312,7 @@ Hart<URV>::execVwmul_vv(const DecodedInst* di)
     case EW::Word2: vwmul_vv<int64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -6375,7 +6382,7 @@ Hart<URV>::execVwmul_vx(const DecodedInst* di)
     case EW::Word2: vwmul_vx<int64_t>(vd, vs1, int64_t(e2), group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -6445,7 +6452,7 @@ Hart<URV>::execVwmulsu_vv(const DecodedInst* di)
     case EW::Word2: vwmulsu_vv<int64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -6516,7 +6523,7 @@ Hart<URV>::execVwmulsu_vx(const DecodedInst* di)
     case EW::Word2: vwmulsu_vx<int64_t>(vd, vs1, int64_t(e2), group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -6585,7 +6592,7 @@ Hart<URV>::execVwmaccu_vv(const DecodedInst* di)
     case EW::Word2: vwmacc_vv<uint64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -6657,7 +6664,7 @@ Hart<URV>::execVwmaccu_vx(const DecodedInst* di)
     case EW::Word2: vwmaccu_vx<uint64_t>(vd, int64_t(e1), vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -6696,7 +6703,7 @@ Hart<URV>::execVwmacc_vv(const DecodedInst* di)
     case EW::Word2: vwmacc_vv<int64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -6766,7 +6773,7 @@ Hart<URV>::execVwmacc_vx(const DecodedInst* di)
     case EW::Word2: vwmacc_vx<int64_t>(vd, int64_t(e1), vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -6839,7 +6846,7 @@ Hart<URV>::execVwmaccsu_vv(const DecodedInst* di)
     case EW::Word2: vwmaccsu_vv<int64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -6913,7 +6920,7 @@ Hart<URV>::execVwmaccsu_vx(const DecodedInst* di)
     case EW::Word2: vwmaccsu_vx<int64_t>(vd, int64_t(e1), vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -6987,7 +6994,7 @@ Hart<URV>::execVwmaccus_vx(const DecodedInst* di)
     case EW::Word2: vwmaccus_vx<int64_t>(vd, e1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -7045,7 +7052,7 @@ Hart<URV>::execVdivu_vv(const DecodedInst* di)
     case EW::Word2: vdivu_vv<uint64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -7104,7 +7111,7 @@ Hart<URV>::execVdivu_vx(const DecodedInst* di)
     case EW::Word2: vdivu_vx<uint64_t>(vd, vs1, rs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -7171,7 +7178,7 @@ Hart<URV>::execVdiv_vv(const DecodedInst* di)
     case EW::Word2: vdiv_vv<int64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -7237,7 +7244,7 @@ Hart<URV>::execVdiv_vx(const DecodedInst* di)
     case EW::Word2: vdiv_vx<int64_t>(vd, vs1, rs2, group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -7296,7 +7303,7 @@ Hart<URV>::execVremu_vv(const DecodedInst* di)
     case EW::Word2: vremu_vv<uint64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -7355,7 +7362,7 @@ Hart<URV>::execVremu_vx(const DecodedInst* di)
     case EW::Word2: vremu_vx<uint64_t>(vd, vs1, rs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -7421,7 +7428,7 @@ Hart<URV>::execVrem_vv(const DecodedInst* di)
     case EW::Word2: vrem_vv<int64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -7487,7 +7494,7 @@ Hart<URV>::execVrem_vx(const DecodedInst* di)
     case EW::Word2: vrem_vx<int64_t>(vd, vs1, rs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -7592,7 +7599,7 @@ Hart<URV>::execVsext_vf2(const DecodedInst* di)
     case EW::Byte:  // Fall-through to invalid case
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -7671,7 +7678,7 @@ Hart<URV>::execVsext_vf4(const DecodedInst* di)
     case EW::Half:  // Fall-through to invalid case
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -7750,7 +7757,7 @@ Hart<URV>::execVsext_vf8(const DecodedInst* di)
     case EW::Word:  // Fall-through to invalid case
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -7855,7 +7862,7 @@ Hart<URV>::execVzext_vf2(const DecodedInst* di)
     case EW::Byte:  // Fall-through to invalid case
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -7934,7 +7941,7 @@ Hart<URV>::execVzext_vf4(const DecodedInst* di)
     case EW::Half:  // Fall-through to invalid case
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -8013,7 +8020,7 @@ Hart<URV>::execVzext_vf8(const DecodedInst* di)
     case EW::Word:  // Fall-through to invalid case
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -8290,7 +8297,7 @@ Hart<URV>::execVadc_vvm(const DecodedInst* di)
     case EW::Word2: vadc_vvm<uint64_t>(vd, vs1, vs2, vcin, group, start, elems); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -8329,7 +8336,7 @@ Hart<URV>::execVadc_vxm(const DecodedInst* di)
     case EW::Word2: vadc_vxm<uint64_t>(vd, vs1, int64_t(e2), vcin, group, start, elems); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -8368,7 +8375,7 @@ Hart<URV>::execVadc_vim(const DecodedInst* di)
     case EW::Word2: vadc_vxm<uint64_t>(vd, vs1, int64_t(e2), vcin, group, start, elems); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -8405,7 +8412,7 @@ Hart<URV>::execVsbc_vvm(const DecodedInst* di)
     case EW::Word2: vsbc_vvm<uint64_t>(vd, vs1, vs2, vbin, group, start, elems); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -8444,7 +8451,7 @@ Hart<URV>::execVsbc_vxm(const DecodedInst* di)
     case EW::Word2: vsbc_vxm<uint64_t>(vd, vs1, int64_t(e2), vbin, group, start, elems); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -8478,7 +8485,7 @@ Hart<URV>::execVmadc_vvm(const DecodedInst* di)
     case EW::Word2: vmadc_vvm<uint64_t>(vcout, vs1, vs2, carry, vcin, group, start, elems); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -8513,7 +8520,7 @@ Hart<URV>::execVmadc_vxm(const DecodedInst* di)
     case EW::Word2: vmadc_vxm<uint64_t>(vcout, vs1, int64_t(e2), carry, vcin, group, start, elems); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -8549,7 +8556,7 @@ Hart<URV>::execVmadc_vim(const DecodedInst* di)
     case EW::Word2: vmadc_vxm<uint64_t>(vcout, vs1, int64_t(e2), carry, vcin, group, start, elems); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -8583,7 +8590,7 @@ Hart<URV>::execVmsbc_vvm(const DecodedInst* di)
     case EW::Word2: vmsbc_vvm<uint64_t>(vbout, vs1, vs2, borrow, vbin, group, start, elems); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -8619,7 +8626,7 @@ Hart<URV>::execVmsbc_vxm(const DecodedInst* di)
     case EW::Word2: vmsbc_vxm<uint64_t>(vbout, vs1, int64_t(e2), borrow, vbin, group, start, elems); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -8683,7 +8690,7 @@ Hart<URV>::execVmerge_vvm(const DecodedInst* di)
     case EW::Word2: vmerge_vvm<int64_t>(vd, vs1, vs2, group, start, elems); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -8747,7 +8754,7 @@ Hart<URV>::execVmerge_vxm(const DecodedInst* di)
     case EW::Word2: vmerge_vxm<int64_t>(vd, vs1, e2, group, start, elems); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -8784,7 +8791,7 @@ Hart<URV>::execVmerge_vim(const DecodedInst* di)
     case EW::Word2: vmerge_vxm<int64_t>(vd, vs1, imm, group, start, elems); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -8845,7 +8852,7 @@ Hart<URV>::execVmv_x_s(const DecodedInst* di)
       postVecFail(di);
       return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -8913,7 +8920,7 @@ Hart<URV>::execVmv_s_x(const DecodedInst* di)
       return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -8982,7 +8989,7 @@ Hart<URV>::execVfmv_f_s(const DecodedInst* di)
       postVecFail(di);
       return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -9051,7 +9058,7 @@ Hart<URV>::execVfmv_s_f(const DecodedInst* di)
       postVecFail(di);
       return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -9114,7 +9121,7 @@ Hart<URV>::execVmv_v_v(const DecodedInst* di)
     }
 
   vecRegs_.touchReg(vd, group);
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -9174,7 +9181,7 @@ Hart<URV>::execVmv_v_x(const DecodedInst* di)
     }
 
   vecRegs_.touchReg(vd, group);
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -9214,7 +9221,7 @@ Hart<URV>::execVmv_v_i(const DecodedInst* di)
     }
 
   vecRegs_.touchReg(vd, group);
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -9262,7 +9269,7 @@ Hart<URV>::vmvr_v(const DecodedInst* di, unsigned nr)
     }
 
   vecRegs_.touchReg(vd, nr*8);
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -9359,7 +9366,7 @@ Hart<URV>::execVsaddu_vv(const DecodedInst* di)
     case EW::Word2:  vsaddu_vv<uint64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -9425,7 +9432,7 @@ Hart<URV>::execVsaddu_vx(const DecodedInst* di)
     case EW::Word2:  vsaddu_vx<uint64_t>(vd, vs1, e2,          group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -9455,7 +9462,7 @@ Hart<URV>::execVsaddu_vi(const DecodedInst* di)
     case EW::Word2:  vsaddu_vx<uint64_t>(vd, vs1, imm,          group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -9526,7 +9533,7 @@ Hart<URV>::execVsadd_vv(const DecodedInst* di)
     case EW::Word2:  vsadd_vv<int64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -9598,7 +9605,7 @@ Hart<URV>::execVsadd_vx(const DecodedInst* di)
     case EW::Word2:  vsadd_vx<int64_t>(vd, vs1, e2,          group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -9628,7 +9635,7 @@ Hart<URV>::execVsadd_vi(const DecodedInst* di)
     case EW::Word2:  vsadd_vx<int64_t>(vd, vs1, imm,          group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -9694,7 +9701,7 @@ Hart<URV>::execVssubu_vv(const DecodedInst* di)
     case EW::Word2:  vssubu_vv<uint64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -9760,7 +9767,7 @@ Hart<URV>::execVssubu_vx(const DecodedInst* di)
     case EW::Word2:  vssubu_vx<uint64_t>(vd, vs1, e2,          group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -9831,7 +9838,7 @@ Hart<URV>::execVssub_vv(const DecodedInst* di)
     case EW::Word2:  vssub_vv<int64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -9903,7 +9910,7 @@ Hart<URV>::execVssub_vx(const DecodedInst* di)
     case EW::Word2:  vssub_vx<int64_t>(vd, vs1, e2,          group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -10008,7 +10015,7 @@ Hart<URV>::execVaadd_vv(const DecodedInst* di)
     case EW::Word2:  vaadd_vv<int64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -10037,7 +10044,7 @@ Hart<URV>::execVaaddu_vv(const DecodedInst* di)
     case EW::Word2:  vaadd_vv<uint64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -10103,7 +10110,7 @@ Hart<URV>::execVaadd_vx(const DecodedInst* di)
     case EW::Word2:  vaadd_vx<int64_t>(vd, vs1, e2,          group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -10134,7 +10141,7 @@ Hart<URV>::execVaaddu_vx(const DecodedInst* di)
     case EW::Word2:  vaadd_vx<uint64_t>(vd, vs1, e2,          group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -10199,7 +10206,7 @@ Hart<URV>::execVasub_vv(const DecodedInst* di)
     case EW::Word2:  vasub_vv<int64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -10228,7 +10235,7 @@ Hart<URV>::execVasubu_vv(const DecodedInst* di)
     case EW::Word2:  vasub_vv<uint64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -10294,7 +10301,7 @@ Hart<URV>::execVasub_vx(const DecodedInst* di)
     case EW::Word2:  vasub_vx<int64_t>(vd, vs1, e2,          group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -10325,7 +10332,7 @@ Hart<URV>::execVasubu_vx(const DecodedInst* di)
     case EW::Word2:  vasub_vx<uint64_t>(vd, vs1, e2,          group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -10404,7 +10411,7 @@ Hart<URV>::execVsmul_vv(const DecodedInst* di)
     case EW::Word2:  vsmul_vv<int64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -10484,7 +10491,7 @@ Hart<URV>::execVsmul_vx(const DecodedInst* di)
     case EW::Word2:  vsmul_vx<int64_t>(vd, vs1, e2,          group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -10550,7 +10557,7 @@ Hart<URV>::execVssrl_vv(const DecodedInst* di)
     case EW::Word2:  vssr_vv<uint64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -10615,7 +10622,7 @@ Hart<URV>::execVssrl_vx(const DecodedInst* di)
     case EW::Word2:  vssr_vx<uint64_t>(vd, vs1, e2,           group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -10644,7 +10651,7 @@ Hart<URV>::execVssrl_vi(const DecodedInst* di)
     case EW::Word2:  vssr_vx<uint64_t>(vd, vs1, imm,           group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -10673,7 +10680,7 @@ Hart<URV>::execVssra_vv(const DecodedInst* di)
     case EW::Word2:  vssr_vv<int64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -10704,7 +10711,7 @@ Hart<URV>::execVssra_vx(const DecodedInst* di)
     case EW::Word2:  vssr_vx<int64_t>(vd, vs1, e2,          group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -10733,7 +10740,7 @@ Hart<URV>::execVssra_vi(const DecodedInst* di)
     case EW::Word2:  vssr_vx<int64_t>(vd, vs1, imm,          group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -10825,7 +10832,7 @@ Hart<URV>::execVnclipu_wv(const DecodedInst* di)
     case EW::Word2:  vnclip_wv<uint64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -10917,7 +10924,7 @@ Hart<URV>::execVnclipu_wx(const DecodedInst* di)
     case EW::Word2:  vnclip_wx<uint64_t>(vd, vs1, e2,           group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -10952,7 +10959,7 @@ Hart<URV>::execVnclipu_wi(const DecodedInst* di)
     case EW::Word2:  vnclip_wx<uint64_t>(vd, vs1, imm,           group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -10987,7 +10994,7 @@ Hart<URV>::execVnclip_wv(const DecodedInst* di)
     case EW::Word2:  vnclip_wv<int64_t>(vd, vs1, vs2, group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -11024,7 +11031,7 @@ Hart<URV>::execVnclip_wx(const DecodedInst* di)
     case EW::Word2:  vnclip_wx<int64_t>(vd, vs1, e2,          group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -11059,7 +11066,7 @@ Hart<URV>::execVnclip_wi(const DecodedInst* di)
     case EW::Word2:  vnclip_wx<int64_t>(vd, vs1, imm,           group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -11208,7 +11215,7 @@ Hart<URV>::execVle8_v(const DecodedInst* di)
 {
   if (not vectorLoad<uint8_t>(di, ElementWidth::Byte, false))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -11218,7 +11225,7 @@ Hart<URV>::execVle16_v(const DecodedInst* di)
 {
   if (not vectorLoad<uint16_t>(di, ElementWidth::Half, false))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -11228,7 +11235,7 @@ Hart<URV>::execVle32_v(const DecodedInst* di)
 {
   if (not vectorLoad<uint32_t>(di, ElementWidth::Word, false))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -11238,7 +11245,7 @@ Hart<URV>::execVle64_v(const DecodedInst* di)
 {
   if (not vectorLoad<uint64_t>(di, ElementWidth::Word2, false))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -11370,7 +11377,7 @@ Hart<URV>::execVse8_v(const DecodedInst* di)
 {
   if (not vectorStore<uint8_t>(di, ElementWidth::Byte))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -11380,7 +11387,7 @@ Hart<URV>::execVse16_v(const DecodedInst* di)
 {
   if (not vectorStore<uint16_t>(di, ElementWidth::Half))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -11390,7 +11397,7 @@ Hart<URV>::execVse32_v(const DecodedInst* di)
 {
   if (not vectorStore<uint32_t>(di, ElementWidth::Word))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -11400,7 +11407,7 @@ Hart<URV>::execVse64_v(const DecodedInst* di)
 {
   if (not vectorStore<uint64_t>(di, ElementWidth::Word2))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -11472,7 +11479,7 @@ Hart<URV>::execVlm_v(const DecodedInst* di)
 
   if (not ok)
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -11512,7 +11519,7 @@ Hart<URV>::execVsm_v(const DecodedInst* di)
 
   if (not ok)
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -11630,7 +11637,7 @@ Hart<URV>::execVlre8_v(const DecodedInst* di)
 {
   if (not vectorLoadWholeReg<uint8_t>(di, ElementWidth::Byte))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -11640,7 +11647,7 @@ Hart<URV>::execVlre16_v(const DecodedInst* di)
 {
   if (not vectorLoadWholeReg<uint16_t>(di, ElementWidth::Half))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -11650,7 +11657,7 @@ Hart<URV>::execVlre32_v(const DecodedInst* di)
 {
   if (not vectorLoadWholeReg<uint32_t>(di, ElementWidth::Word))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -11660,7 +11667,7 @@ Hart<URV>::execVlre64_v(const DecodedInst* di)
 {
   if (not vectorLoadWholeReg<uint64_t>(di, ElementWidth::Word2))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -11782,7 +11789,7 @@ Hart<URV>::execVs1r_v(const DecodedInst* di)
 {
   if (not vectorStoreWholeReg(di))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -11792,7 +11799,7 @@ Hart<URV>::execVs2r_v(const DecodedInst* di)
 {
   if (not vectorStoreWholeReg(di))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -11802,7 +11809,7 @@ Hart<URV>::execVs4r_v(const DecodedInst* di)
 {
   if (not vectorStoreWholeReg(di))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -11812,7 +11819,7 @@ Hart<URV>::execVs8r_v(const DecodedInst* di)
 {
   if (not vectorStoreWholeReg(di))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -11822,7 +11829,7 @@ Hart<URV>::execVle8ff_v(const DecodedInst* di)
 {
   if (not vectorLoad<uint8_t>(di, ElementWidth::Byte, true))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -11832,7 +11839,7 @@ Hart<URV>::execVle16ff_v(const DecodedInst* di)
 {
   if (not vectorLoad<uint16_t>(di, ElementWidth::Half, true))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -11842,7 +11849,7 @@ Hart<URV>::execVle32ff_v(const DecodedInst* di)
 {
   if (not vectorLoad<uint32_t>(di, ElementWidth::Word, true))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -11852,7 +11859,7 @@ Hart<URV>::execVle64ff_v(const DecodedInst* di)
 {
   if (not vectorLoad<uint64_t>(di, ElementWidth::Word2, true))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -12001,7 +12008,7 @@ Hart<URV>::execVlse8_v(const DecodedInst* di)
 {
   if (not vectorLoadStrided<uint8_t>(di, ElementWidth::Byte))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -12011,7 +12018,7 @@ Hart<URV>::execVlse16_v(const DecodedInst* di)
 {
   if (not vectorLoadStrided<uint16_t>(di, ElementWidth::Half))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -12021,7 +12028,7 @@ Hart<URV>::execVlse32_v(const DecodedInst* di)
 {
   if (not vectorLoadStrided<uint32_t>(di, ElementWidth::Word))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -12031,7 +12038,7 @@ Hart<URV>::execVlse64_v(const DecodedInst* di)
 {
   if (not vectorLoadStrided<uint64_t>(di, ElementWidth::Word2))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -12163,7 +12170,7 @@ Hart<URV>::execVsse8_v(const DecodedInst* di)
 {
   if (not vectorStoreStrided<uint8_t>(di, ElementWidth::Byte))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -12173,7 +12180,7 @@ Hart<URV>::execVsse16_v(const DecodedInst* di)
 {
   if (not vectorStoreStrided<uint16_t>(di, ElementWidth::Half))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -12183,7 +12190,7 @@ Hart<URV>::execVsse32_v(const DecodedInst* di)
 {
   if (not vectorStoreStrided<uint32_t>(di, ElementWidth::Word))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -12193,7 +12200,7 @@ Hart<URV>::execVsse64_v(const DecodedInst* di)
 {
   if (not vectorStoreStrided<uint64_t>(di, ElementWidth::Word2))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -12366,7 +12373,7 @@ Hart<URV>::execVloxei8_v(const DecodedInst* di)
     }
 
   if (ok)
-    postVecSuccess();
+    postVecSuccess(di);
 }
 
 
@@ -12388,7 +12395,7 @@ Hart<URV>::execVloxei16_v(const DecodedInst* di)
     }
 
   if (ok)
-    postVecSuccess();
+    postVecSuccess(di);
 }
 
 
@@ -12410,7 +12417,7 @@ Hart<URV>::execVloxei32_v(const DecodedInst* di)
     }
 
   if (ok)
-    postVecSuccess();
+    postVecSuccess(di);
 }
 
 
@@ -12432,7 +12439,7 @@ Hart<URV>::execVloxei64_v(const DecodedInst* di)
     }
 
   if (ok)
-    postVecSuccess();
+    postVecSuccess(di);
 }
 
 
@@ -12640,7 +12647,7 @@ Hart<URV>::execVsoxei8_v(const DecodedInst* di)
     }
 
   if (ok)
-    postVecSuccess();
+    postVecSuccess(di);
 }
 
 
@@ -12662,7 +12669,7 @@ Hart<URV>::execVsoxei16_v(const DecodedInst* di)
     }
 
   if (ok)
-    postVecSuccess();
+    postVecSuccess(di);
 }
 
 
@@ -12684,7 +12691,7 @@ Hart<URV>::execVsoxei32_v(const DecodedInst* di)
     }
 
   if (ok)
-    postVecSuccess();
+    postVecSuccess(di);
 }
 
 
@@ -12706,7 +12713,7 @@ Hart<URV>::execVsoxei64_v(const DecodedInst* di)
     }
 
   if (ok)
-    postVecSuccess();
+    postVecSuccess(di);
 }
 
 
@@ -12915,7 +12922,7 @@ Hart<URV>::execVlsege8_v(const DecodedInst* di)
   unsigned stride = fieldCount*sizeof(uint8_t);
   if (not vectorLoadSeg<uint8_t>(di, ElementWidth::Byte, fieldCount, stride, false))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -12927,7 +12934,7 @@ Hart<URV>::execVlsege16_v(const DecodedInst* di)
   unsigned stride = fieldCount*sizeof(uint16_t);
   if (not vectorLoadSeg<uint16_t>(di, ElementWidth::Half, fieldCount, stride, false))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -12939,7 +12946,7 @@ Hart<URV>::execVlsege32_v(const DecodedInst* di)
   unsigned stride = fieldCount*sizeof(uint32_t);
   if (not vectorLoadSeg<uint32_t>(di, ElementWidth::Word, fieldCount, stride, false))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -12951,7 +12958,7 @@ Hart<URV>::execVlsege64_v(const DecodedInst* di)
   unsigned stride = fieldCount*sizeof(uint64_t);
   if (not vectorLoadSeg<uint64_t>(di, ElementWidth::Word2, fieldCount, stride, false))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -13119,7 +13126,7 @@ Hart<URV>::execVssege8_v(const DecodedInst* di)
   unsigned stride = fieldCount*sizeof(uint8_t);
   if (not vectorStoreSeg<uint8_t>(di, ElementWidth::Byte, fieldCount, stride))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -13131,7 +13138,7 @@ Hart<URV>::execVssege16_v(const DecodedInst* di)
   unsigned stride = fieldCount*sizeof(uint16_t);
   if (not vectorStoreSeg<uint16_t>(di, ElementWidth::Half, fieldCount, stride))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -13143,7 +13150,7 @@ Hart<URV>::execVssege32_v(const DecodedInst* di)
   unsigned stride = fieldCount*sizeof(uint32_t);
   if (not vectorStoreSeg<uint32_t>(di, ElementWidth::Word, fieldCount, stride))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -13155,7 +13162,7 @@ Hart<URV>::execVssege64_v(const DecodedInst* di)
   unsigned stride = fieldCount*sizeof(uint64_t);
   if (not vectorStoreSeg<uint64_t>(di, ElementWidth::Word2, fieldCount, stride))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -13199,7 +13206,7 @@ Hart<URV>::execVlssege8_v(const DecodedInst* di)
   unsigned fieldCount = di->vecFieldCount();
   if (not vectorLoadSeg<uint8_t>(di, ElementWidth::Byte, fieldCount, stride, false))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -13211,7 +13218,7 @@ Hart<URV>::execVlssege16_v(const DecodedInst* di)
   unsigned fieldCount = di->vecFieldCount();
   if (not vectorLoadSeg<uint16_t>(di, ElementWidth::Half, fieldCount, stride, false))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -13223,7 +13230,7 @@ Hart<URV>::execVlssege32_v(const DecodedInst* di)
   unsigned fieldCount = di->vecFieldCount();
   if (not vectorLoadSeg<uint32_t>(di, ElementWidth::Word, fieldCount, stride, false))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -13235,7 +13242,7 @@ Hart<URV>::execVlssege64_v(const DecodedInst* di)
   unsigned fieldCount = di->vecFieldCount();
   if (not vectorLoadSeg<uint64_t>(di, ElementWidth::Word2, fieldCount, stride, false))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -13279,7 +13286,7 @@ Hart<URV>::execVsssege8_v(const DecodedInst* di)
   unsigned fieldCount = di->vecFieldCount();
   if (not vectorStoreSeg<uint8_t>(di, ElementWidth::Byte, fieldCount, stride))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -13291,7 +13298,7 @@ Hart<URV>::execVsssege16_v(const DecodedInst* di)
   unsigned fieldCount = di->vecFieldCount();
   if (not vectorStoreSeg<uint16_t>(di, ElementWidth::Half, fieldCount, stride))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -13303,7 +13310,7 @@ Hart<URV>::execVsssege32_v(const DecodedInst* di)
   unsigned fieldCount = di->vecFieldCount();
   if (not vectorStoreSeg<uint32_t>(di, ElementWidth::Word, fieldCount, stride))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -13315,7 +13322,7 @@ Hart<URV>::execVsssege64_v(const DecodedInst* di)
   unsigned fieldCount = di->vecFieldCount();
   if (not vectorStoreSeg<uint64_t>(di, ElementWidth::Word2, fieldCount, stride))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -13774,7 +13781,7 @@ Hart<URV>::execVloxsegei8_v(const DecodedInst* di)
     }
 
   if (ok)
-    postVecSuccess();
+    postVecSuccess(di);
 }
 
 
@@ -13797,7 +13804,7 @@ Hart<URV>::execVloxsegei16_v(const DecodedInst* di)
     }
 
   if (ok)
-    postVecSuccess();
+    postVecSuccess(di);
 }
 
 
@@ -13820,7 +13827,7 @@ Hart<URV>::execVloxsegei32_v(const DecodedInst* di)
     }
 
   if (ok)
-    postVecSuccess();
+    postVecSuccess(di);
 }
 
 
@@ -13843,7 +13850,7 @@ Hart<URV>::execVloxsegei64_v(const DecodedInst* di)
     }
 
   if (ok)
-    postVecSuccess();
+    postVecSuccess(di);
 }
 
 
@@ -13898,7 +13905,7 @@ Hart<URV>::execVsoxsegei8_v(const DecodedInst* di)
     }
 
   if (ok)
-    postVecSuccess();
+    postVecSuccess(di);
 }
 
 
@@ -13921,7 +13928,7 @@ Hart<URV>::execVsoxsegei16_v(const DecodedInst* di)
     }
 
   if (ok)
-    postVecSuccess();
+    postVecSuccess(di);
 }
 
 
@@ -13944,7 +13951,7 @@ Hart<URV>::execVsoxsegei32_v(const DecodedInst* di)
     }
 
   if (ok)
-    postVecSuccess();
+    postVecSuccess(di);
 }
 
 
@@ -13967,7 +13974,7 @@ Hart<URV>::execVsoxsegei64_v(const DecodedInst* di)
     }
 
   if (ok)
-    postVecSuccess();
+    postVecSuccess(di);
 }
 
 
@@ -14011,7 +14018,7 @@ Hart<URV>::execVlsege8ff_v(const DecodedInst* di)
   unsigned stride = fieldCount*sizeof(uint8_t);
   if (not vectorLoadSeg<uint8_t>(di, ElementWidth::Byte, fieldCount, stride, true))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -14023,7 +14030,7 @@ Hart<URV>::execVlsege16ff_v(const DecodedInst* di)
   unsigned stride = fieldCount*sizeof(uint16_t);
   if (not vectorLoadSeg<uint16_t>(di, ElementWidth::Half, fieldCount, stride, true))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -14035,7 +14042,7 @@ Hart<URV>::execVlsege32ff_v(const DecodedInst* di)
   unsigned stride = fieldCount*sizeof(uint32_t);
   if (not vectorLoadSeg<uint32_t>(di, ElementWidth::Word, fieldCount, stride, true))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -14047,7 +14054,7 @@ Hart<URV>::execVlsege64ff_v(const DecodedInst* di)
   unsigned stride = fieldCount*sizeof(uint64_t);
   if (not vectorLoadSeg<uint64_t>(di, ElementWidth::Word2, fieldCount, stride, true))
     return;
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -14366,7 +14373,7 @@ Hart<URV>::execVfadd_vv(const DecodedInst* di)
     }
 
   updateAccruedFpBits();
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -14426,7 +14433,7 @@ Hart<URV>::execVfadd_vf(const DecodedInst* di)
     }
 
   updateAccruedFpBits();
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -14464,7 +14471,7 @@ Hart<URV>::execVfsub_vv(const DecodedInst* di)
     }
 
   updateAccruedFpBits();
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -14524,7 +14531,7 @@ Hart<URV>::execVfsub_vf(const DecodedInst* di)
     }
 
   updateAccruedFpBits();
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -14584,7 +14591,7 @@ Hart<URV>::execVfrsub_vf(const DecodedInst* di)
     }
 
   updateAccruedFpBits();
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -14659,7 +14666,7 @@ Hart<URV>::execVfwadd_vv(const DecodedInst* di)
     }
 
   updateAccruedFpBits();
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -14731,7 +14738,7 @@ Hart<URV>::execVfwadd_vf(const DecodedInst* di)
     }
 
   updateAccruedFpBits();
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -14806,7 +14813,7 @@ Hart<URV>::execVfwsub_vv(const DecodedInst* di)
     }
 
   updateAccruedFpBits();
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -14878,7 +14885,7 @@ Hart<URV>::execVfwsub_vf(const DecodedInst* di)
     }
 
   updateAccruedFpBits();
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -14952,7 +14959,7 @@ Hart<URV>::execVfwadd_wv(const DecodedInst* di)
     }
 
   updateAccruedFpBits();
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -15023,7 +15030,7 @@ Hart<URV>::execVfwadd_wf(const DecodedInst* di)
     }
 
   updateAccruedFpBits();
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -15095,7 +15102,7 @@ Hart<URV>::execVfwsub_wv(const DecodedInst* di)
     }
 
   updateAccruedFpBits();
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -15166,7 +15173,7 @@ Hart<URV>::execVfwsub_wf(const DecodedInst* di)
     }
 
   updateAccruedFpBits();
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -15204,7 +15211,7 @@ Hart<URV>::execVfmul_vv(const DecodedInst* di)
     }
 
   updateAccruedFpBits();
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -15264,7 +15271,7 @@ Hart<URV>::execVfmul_vf(const DecodedInst* di)
     }
 
   updateAccruedFpBits();
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -15302,7 +15309,7 @@ Hart<URV>::execVfdiv_vv(const DecodedInst* di)
     }
 
   updateAccruedFpBits();
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -15362,7 +15369,7 @@ Hart<URV>::execVfdiv_vf(const DecodedInst* di)
     }
 
   updateAccruedFpBits();
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -15422,7 +15429,7 @@ Hart<URV>::execVfrdiv_vf(const DecodedInst* di)
     }
 
   updateAccruedFpBits();
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -15494,7 +15501,7 @@ Hart<URV>::execVfwmul_vv(const DecodedInst* di)
     }
 
   updateAccruedFpBits();
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -15566,7 +15573,7 @@ Hart<URV>::execVfwmul_vf(const DecodedInst* di)
     }
 
   updateAccruedFpBits();
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -15627,7 +15634,7 @@ Hart<URV>::execVfmadd_vv(const DecodedInst* di)
     case EW::Word2:  vfmadd_vv<double> (vd, vs1, vs2, group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 template <typename URV>
@@ -15687,7 +15694,7 @@ Hart<URV>::execVfmadd_vf(const DecodedInst* di)
     case EW::Word2: vfmadd_vf<double> (vd, f1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -15748,7 +15755,7 @@ Hart<URV>::execVfnmadd_vv(const DecodedInst* di)
     case EW::Word2:  vfnmadd_vv<double> (vd, vs1, vs2, group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 template <typename URV>
@@ -15808,7 +15815,7 @@ Hart<URV>::execVfnmadd_vf(const DecodedInst* di)
     case EW::Word2: vfnmadd_vf<double> (vd, f1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -15869,7 +15876,7 @@ Hart<URV>::execVfmsub_vv(const DecodedInst* di)
     case EW::Word2:  vfmsub_vv<double> (vd, vs1, vs2, group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 template <typename URV>
@@ -15929,7 +15936,7 @@ Hart<URV>::execVfmsub_vf(const DecodedInst* di)
     case EW::Word2: vfmsub_vf<double> (vd, f1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -15990,7 +15997,7 @@ Hart<URV>::execVfnmsub_vv(const DecodedInst* di)
     case EW::Word2:  vfnmsub_vv<double> (vd, vs1, vs2, group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 template <typename URV>
@@ -16050,7 +16057,7 @@ Hart<URV>::execVfnmsub_vf(const DecodedInst* di)
     case EW::Word2: vfnmsub_vf<double> (vd, f1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -16111,7 +16118,7 @@ Hart<URV>::execVfmacc_vv(const DecodedInst* di)
     case EW::Word2:  vfmacc_vv<double> (vd, vs1, vs2, group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 template <typename URV>
@@ -16186,7 +16193,7 @@ Hart<URV>::execVfmacc_vf(const DecodedInst* di)
 
     default: postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -16247,7 +16254,7 @@ Hart<URV>::execVfnmacc_vv(const DecodedInst* di)
     case EW::Word2:  vfnmacc_vv<double> (vd, vs1, vs2, group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 template <typename URV>
@@ -16307,7 +16314,7 @@ Hart<URV>::execVfnmacc_vf(const DecodedInst* di)
     case EW::Word2: vfnmacc_vf<double> (vd, f1, v2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -16368,7 +16375,7 @@ Hart<URV>::execVfmsac_vv(const DecodedInst* di)
     case EW::Word2:  vfmsac_vv<double> (vd, vs1, vs2, group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 template <typename URV>
@@ -16428,7 +16435,7 @@ Hart<URV>::execVfmsac_vf(const DecodedInst* di)
     case EW::Word2: vfmsac_vf<double> (vd, f1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -16489,7 +16496,7 @@ Hart<URV>::execVfnmsac_vv(const DecodedInst* di)
     case EW::Word2:  vfnmsac_vv<double> (vd, vs1, vs2, group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 template <typename URV>
@@ -16549,7 +16556,7 @@ Hart<URV>::execVfnmsac_vf(const DecodedInst* di)
     case EW::Word2: vfnmsac_vf<double> (vd, f1, vs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -16623,7 +16630,7 @@ Hart<URV>::execVfwmacc_vv(const DecodedInst* di)
     case EW::Word:   vfwmacc_vv<float>  (vd, vs1, vs2, group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 template <typename URV>
@@ -16696,7 +16703,7 @@ Hart<URV>::execVfwmacc_vf(const DecodedInst* di)
     case EW::Word: vfwmacc_vf<float>  (vd, fs1, vs2, group, start, elems, masked); break;
     default:       postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -16770,7 +16777,7 @@ Hart<URV>::execVfwnmacc_vv(const DecodedInst* di)
     case EW::Word: vfwnmacc_vv<float>  (vd, vs1, vs2, group, start, elems, masked); break;
     default:       postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 template <typename URV>
@@ -16842,7 +16849,7 @@ Hart<URV>::execVfwnmacc_vf(const DecodedInst* di)
     case EW::Word: vfwnmacc_vf<float>  (vd, fs1, vs2, group, start, elems, masked); break;
     default:       postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -16916,7 +16923,7 @@ Hart<URV>::execVfwmsac_vv(const DecodedInst* di)
     case EW::Word:   vfwmsac_vv<float>  (vd, vs1, vs2, group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 template <typename URV>
@@ -16988,7 +16995,7 @@ Hart<URV>::execVfwmsac_vf(const DecodedInst* di)
     case EW::Word: vfwmsac_vf<float>  (vd, fs1, vs2, group, start, elems, masked); break;
     default:       postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -17062,7 +17069,7 @@ Hart<URV>::execVfwnmsac_vv(const DecodedInst* di)
     case EW::Word: vfwnmsac_vv<float>  (vd, vs1, vs2, group, start, elems, masked); break;
     default:       postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -17135,7 +17142,7 @@ Hart<URV>::execVfwnmsac_vf(const DecodedInst* di)
     case EW::Word: vfwnmsac_vf<float>  (vd, fs1, vs2, group, start, elems, masked); break;
     default: postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -17194,7 +17201,7 @@ Hart<URV>::execVfsqrt_v(const DecodedInst* di)
     case EW::Word2: vfsqrt_v<double> (vd, vs1, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -17268,7 +17275,7 @@ Hart<URV>::execVfmerge_vfm(const DecodedInst* di)
 
     default: postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -17336,7 +17343,7 @@ Hart<URV>::execVfmv_v_f(const DecodedInst* di)
 
     default: postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -17396,7 +17403,7 @@ Hart<URV>::execVmfeq_vv(const DecodedInst* di)
     case EW::Byte:   // Fall-through to invalid case
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -17456,7 +17463,7 @@ Hart<URV>::execVmfeq_vf(const DecodedInst* di)
     case EW::Word2: vmfeq_vf<double> (vd, vs1, rs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -17518,7 +17525,7 @@ Hart<URV>::execVmfne_vv(const DecodedInst* di)
     case EW::Byte:   // Fall-through to invalid case
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -17577,7 +17584,7 @@ Hart<URV>::execVmfne_vf(const DecodedInst* di)
     case EW::Word2: vmfne_vf<double> (vd, vs1, rs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -17635,7 +17642,7 @@ Hart<URV>::execVmflt_vv(const DecodedInst* di)
     case EW::Byte:  // Fall-through to invalid case
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -17690,7 +17697,7 @@ Hart<URV>::execVmflt_vf(const DecodedInst* di)
     case EW::Word2: vmflt_vf<double> (vd, vs1, rs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -17748,7 +17755,7 @@ Hart<URV>::execVmfle_vv(const DecodedInst* di)
     case EW::Byte:  // Fall-through to invalid case
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -17803,7 +17810,7 @@ Hart<URV>::execVmfle_vf(const DecodedInst* di)
     case EW::Word2: vmfle_vf<double> (vd, vs1, rs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -17858,7 +17865,7 @@ Hart<URV>::execVmfgt_vf(const DecodedInst* di)
     case EW::Word2: vmfgt_vf<double> (vd, vs1, rs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -17913,7 +17920,7 @@ Hart<URV>::execVmfge_vf(const DecodedInst* di)
     case EW::Word2: vmfge_vf<double> (vd, vs1, rs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -17969,7 +17976,7 @@ Hart<URV>::execVfclass_v(const DecodedInst* di)
     case EW::Byte:   // Fall-through to invalid case
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -18032,7 +18039,7 @@ Hart<URV>::execVfcvt_xu_f_v(const DecodedInst* di)
     case EW::Byte:   // Fall-through to invalid case
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -18094,7 +18101,7 @@ Hart<URV>::execVfcvt_x_f_v(const DecodedInst* di)
     case EW::Byte:   // Fall-through to invalid case
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -18124,7 +18131,7 @@ Hart<URV>::execVfcvt_rtz_xu_f_v(const DecodedInst* di)
     case EW::Byte:   // Fall-through to invalid case
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -18154,7 +18161,7 @@ Hart<URV>::execVfcvt_rtz_x_f_v(const DecodedInst* di)
     case EW::Byte:   // Fall-through to invalid case
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -18217,7 +18224,7 @@ Hart<URV>::execVfcvt_f_xu_v(const DecodedInst* di)
     case EW::Byte:   // Fall-through to invalid case
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -18280,7 +18287,7 @@ Hart<URV>::execVfcvt_f_x_v(const DecodedInst* di)
     case EW::Byte:   // Fall-through to invalid case
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -18352,7 +18359,7 @@ Hart<URV>::execVfwcvt_xu_f_v(const DecodedInst* di)
     case EW::Word2: // Fall-through to invalid case
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -18424,7 +18431,7 @@ Hart<URV>::execVfwcvt_x_f_v(const DecodedInst* di)
     case EW::Word2: // Fall-through to invalid case
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -18462,7 +18469,7 @@ Hart<URV>::execVfwcvt_rtz_xu_f_v(const DecodedInst* di)
     case EW::Word2: // Fall-through to invalid case
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -18499,7 +18506,7 @@ Hart<URV>::execVfwcvt_rtz_x_f_v(const DecodedInst* di)
     case EW::Word2: // Fall-through to invalid case
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -18584,7 +18591,7 @@ Hart<URV>::execVfwcvt_f_xu_v(const DecodedInst* di)
       postVecFail(di);
       return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -18669,7 +18676,7 @@ Hart<URV>::execVfwcvt_f_x_v(const DecodedInst* di)
       postVecFail(di);
       return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -18744,7 +18751,7 @@ Hart<URV>::execVfwcvt_f_f_v(const DecodedInst* di)
     case EW::Byte: // Fall-through
     default:       postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -18826,7 +18833,7 @@ Hart<URV>::execVfncvt_xu_f_w(const DecodedInst* di)
       break;
     default:       postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -18910,7 +18917,7 @@ Hart<URV>::execVfncvt_x_f_w(const DecodedInst* di)
       postVecFail(di);
       return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -18959,7 +18966,7 @@ Hart<URV>::execVfncvt_rtz_xu_f_w(const DecodedInst* di)
       postVecFail(di);
       return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -19008,7 +19015,7 @@ Hart<URV>::execVfncvt_rtz_x_f_w(const DecodedInst* di)
       postVecFail(di);
       return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -19081,7 +19088,7 @@ Hart<URV>::execVfncvt_f_xu_w(const DecodedInst* di)
     }
 
   updateAccruedFpBits();
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -19154,7 +19161,7 @@ Hart<URV>::execVfncvt_f_x_w(const DecodedInst* di)
     }
 
   updateAccruedFpBits();
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -19226,7 +19233,7 @@ Hart<URV>::execVfncvt_f_f_w(const DecodedInst* di)
     }
 
   updateAccruedFpBits();
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -19270,7 +19277,7 @@ Hart<URV>::execVfncvt_rod_f_f_w(const DecodedInst* di)
     }
 
   updateAccruedFpBits();
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -19489,7 +19496,7 @@ Hart<URV>::execVfredusum_vs(const DecodedInst* di)
     }
 
   updateAccruedFpBits();
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -19562,7 +19569,7 @@ Hart<URV>::execVfredosum_vs(const DecodedInst* di)
     }
 
   updateAccruedFpBits();
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -19635,7 +19642,7 @@ Hart<URV>::execVfredmin_vs(const DecodedInst* di)
     default:        postVecFail(di); return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -19708,7 +19715,7 @@ Hart<URV>::execVfredmax_vs(const DecodedInst* di)
     default:        postVecFail(di); return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -19852,7 +19859,7 @@ Hart<URV>::execVfwredusum_vs(const DecodedInst* di)
     }
 
   updateAccruedFpBits();
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -19934,7 +19941,7 @@ Hart<URV>::execVfwredosum_vs(const DecodedInst* di)
     }
 
   updateAccruedFpBits();
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -20000,7 +20007,7 @@ Hart<URV>::execVfrsqrt7_v(const DecodedInst* di)
     case EW::Word2: vfrsqrt7_v<double> (vd, vs1, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -20061,7 +20068,7 @@ Hart<URV>::execVfrec7_v(const DecodedInst* di)
     case EW::Word2: vfrec7_v<double> (vd, vs1, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -20125,7 +20132,7 @@ Hart<URV>::execVfmin_vv(const DecodedInst* di)
     default:         postVecFail(di); return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -20185,7 +20192,7 @@ Hart<URV>::execVfmin_vf(const DecodedInst* di)
     case EW::Word2: vfmin_vf<double> (vd, vs1, rs2, group, start, elems, masked); break;
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -20248,7 +20255,7 @@ Hart<URV>::execVfmax_vv(const DecodedInst* di)
     default:        postVecFail(di); return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -20309,7 +20316,7 @@ Hart<URV>::execVfmax_vf(const DecodedInst* di)
     default:        postVecFail(di); return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -20366,7 +20373,7 @@ Hart<URV>::execVfsgnj_vv(const DecodedInst* di)
     default:        postVecFail(di); return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -20421,7 +20428,7 @@ Hart<URV>::execVfsgnj_vf(const DecodedInst* di)
     default:        postVecFail(di); return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -20479,7 +20486,7 @@ Hart<URV>::execVfsgnjn_vv(const DecodedInst* di)
     default:        postVecFail(di); return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -20536,7 +20543,7 @@ Hart<URV>::execVfsgnjn_vf(const DecodedInst* di)
     default:        postVecFail(di); return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -20600,7 +20607,7 @@ Hart<URV>::execVfsgnjx_vv(const DecodedInst* di)
     default:        postVecFail(di); return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -20662,7 +20669,7 @@ Hart<URV>::execVfsgnjx_vf(const DecodedInst* di)
     default:        postVecFail(di); return;
     }
 
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -20700,7 +20707,7 @@ Hart<URV>::execVfncvtbf16_f_f_w(const DecodedInst* di)
     }
 
   updateAccruedFpBits();
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -20737,7 +20744,7 @@ Hart<URV>::execVfwcvtbf16_f_f_v(const DecodedInst* di)
     case EW::Word2: // Fall-through to invalid case
     default:        postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -20770,7 +20777,7 @@ Hart<URV>::execVfwmaccbf16_vv(const DecodedInst* di)
     case EW::Half:   vfwmacc_vv<BFloat16>(vd, vs1, vs2, group, start, elems, masked); break;
     default:         postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 
@@ -20803,7 +20810,7 @@ Hart<URV>::execVfwmaccbf16_vf(const DecodedInst* di)
     case EW::Half: vfwmacc_vf<BFloat16>(vd, fs1, vs2, group, start, elems, masked); break;
     default:       postVecFail(di); return;
     }
-  postVecSuccess();
+  postVecSuccess(di);
 }
 
 //NOLINTEND(bugprone-signed-char-misuse)

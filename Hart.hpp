@@ -2401,6 +2401,10 @@ namespace WdRiscv
     void configVectorFpUnorderedSumCanonical(ElementWidth ew, bool flag)
     { vecRegs_.configVectorFpUnorderedSumCanonical(ew, flag); }
 
+    /// If flag is true, we always mark vector state as dirty when instruction would update vector register, regardless of whether the register is updated.
+    void configVectorAlwaysMarkDirty(bool flag)
+    { vecRegs_.configAlwaysMarkDirty(flag); }
+
     /// Support memory consistency model (MCM) instruction cache. Read 2 bytes from the
     /// given address (must be even) into inst. Return true on success.  Return false if
     /// the line of the given address is not in the cache.
@@ -3661,8 +3665,8 @@ namespace WdRiscv
 
     /// Called at the end of successful vector instruction to clear the
     /// vstart register and mark VS dirty if a vector register was
-    /// updated.
-    void postVecSuccess();
+    /// updated or if configured to always mark dirty.
+    void postVecSuccess(const DecodedInst* di);
 
     /// Called at the end of a trapping vector instruction to mark VS
     /// dirty if a vector register was updated.

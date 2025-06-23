@@ -1061,6 +1061,14 @@ applyVectorConfig(Hart<URV>& hart, const nlohmann::json& config)
         }
     }
 
+  tag = "always_mark_dirty";
+  if (vconf.contains(tag))
+    {
+      bool flag = false;
+      getJsonBoolean(tag, vconf.at(tag), flag) or errors++;
+      hart.configVectorAlwaysMarkDirty(flag);
+    }
+
   return errors == 0;
 }
 
