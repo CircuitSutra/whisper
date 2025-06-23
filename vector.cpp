@@ -1064,7 +1064,7 @@ Hart<URV>::postVecFail(const DecodedInst* di)
     ((di->ithOperandType(0) == OperandType::VecReg and di->ithOperandMode(0) == OperandMode::Write) and
       vecRegs_.alwaysMarkDirty_);
 
-  if (vecRegs_.getLastWrittenReg() >= 0)
+  if (dirty)
     markVsDirty();
 }
 
