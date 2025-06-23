@@ -3070,6 +3070,9 @@ Mcm<URV>::vecStoreToReadForward(const McmInstr& store, MemoryOp& readOp, uint64_
 	if (vecRef.overlaps(byteAddr))
 	  refCount++;
 
+      if (refCount == 0)
+        continue;
+
       // We cannot forward if last overlapping write drains before read.
       bool drained = false;
       uint64_t lastWopTime = store.retireTime_;
@@ -3793,8 +3796,8 @@ Mcm<URV>::ppoRule2(Hart<URV>& hart, const McmInstr& instrB) const
 	  if (remoteOp.isCanceled() or remoteOp.hartIx_ == hartIx or remoteOp.isRead_)
 	    continue;
 
-	  // Check the of bytes of the remote write. If the address of any of them
-	  // overlaps A and B and corresponding time is between times of A and B, we fail.
+	  // Check the bytes of the remote write. If the address of any of them overlaps A
+	  // and B and corresponding time is between times of A and B, we fail.
 	  for (unsigned byteIx = 0; byteIx < remoteOp.size_; ++byteIx)
 	    {
 	      uint64_t addr = remoteOp.pa_ + byteIx;
