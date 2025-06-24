@@ -951,6 +951,10 @@ namespace WdRiscv
     void attachImsic(std::shared_ptr<TT_IMSIC::Imsic> imsic)
     { imsic_ = imsic; }
 
+    /// Return true if the given CSR number corresponds to a custom CSR (See table 3 of
+    /// section 2.2 of the privileged spec version 20241017).
+    bool isCustomCsr(CsrNumber num) const;
+
   protected:
 
     /// Advance a csr number by the given amount (add amount to number).

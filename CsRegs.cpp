@@ -5571,10 +5571,9 @@ CsRegs<URV>::hyperPoke(Csr<URV>* csr)
 }
 
 
-/// Return true if given number corresponds to a custom CSR. See table 3 of section 2.2
-/// of the privileged spec.
-static bool
-isCustomCsr(CsrNumber num)
+template <typename URV>
+bool
+CsRegs<URV>::isCustomCsr(CsrNumber num) const
 {
   unsigned n = unsigned(num);      // CSR number is 12-bit.
   assert((n >> 14) == 0);
