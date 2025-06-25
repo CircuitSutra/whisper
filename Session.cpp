@@ -180,9 +180,11 @@ Session<URV>::configureSystem(const Args& args, const HartConfig& config)
       if (not args.interactive)
 	return false;
 
-  if (not args.loadFrom.empty())
+  if (not args.loadFrom.empty()){
+    system.setDecompressionType(args.decompressionType);
     if (not system.loadSnapshot(args.loadFrom, args.loadFromTrace))
       return false;
+  }
 
   // Enable uart input (if exists)
   if (not args.interactive)
@@ -950,8 +952,10 @@ Session<URV>::applyCmdLineArgs(const Args& args, Hart<URV>& hart,
         }
     }
 
-  if (not args.snapshotDir.empty())
+  if (not args.snapshotDir.empty()){
     system.setSnapshotDir(args.snapshotDir);
+    system.setCompressionType(args.compressionType);
+  }
 
   if (args.tlbSize)
     {
@@ -1242,9 +1246,12 @@ Session<URV>::run(const Args& args)
 
   if (args.interactive)
     return runInteractive();
-
-  if (not args.snapshotPeriods.empty())
-    return system.snapshotRun(traceFiles_, args.snapshotPeriods);
+  
+  if (not args.snapshotPeriods.empty()){
+    if(not system.snapshotRun(traceFiles_, args.snapshotPeriods))
+      return false;
+  }
+  
 
   bool waitAll = not args.quitOnAnyHart;
   unsigned seed = args.seed.value_or(time(NULL));
