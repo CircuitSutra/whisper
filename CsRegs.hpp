@@ -1222,7 +1222,8 @@ namespace WdRiscv
     /// csr (implemented == false) as user-disabled so that internal code cannot enable
     /// them.
     bool configCsrByUser(std::string_view name, bool implemented, URV resetValue,
-			 URV mask, URV pokeMask, bool shared, bool isDebug);
+			 URV mask, URV pokeMask, bool shared, bool isDebug,
+                         bool isHypervisor);
 
     /// Configure CSR. Return true on success and false on failure.
     bool configCsr(CsrNumber csr, bool implemented, URV resetValue,

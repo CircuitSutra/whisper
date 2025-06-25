@@ -2260,7 +2260,8 @@ CsRegs<URV>::configCsr(std::string_view name, bool implemented, URV resetValue,
 template <typename URV>
 bool
 CsRegs<URV>::configCsrByUser(std::string_view name, bool implemented, URV resetValue,
-			     URV mask, URV pokeMask, bool shared, bool isDebug)
+			     URV mask, URV pokeMask, bool shared, bool isDebug,
+                             bool isHypervisor)
 {
   auto iter = nameToNumber_.find(name);
   if (iter == nameToNumber_.end())
@@ -2270,16 +2271,28 @@ CsRegs<URV>::configCsrByUser(std::string_view name, bool implemented, URV resetV
   if (num >= regs_.size())
     return false;
 
-  bool ok = configCsr(CsrNumber(num), implemented, resetValue, mask, pokeMask, shared);
+  CsrNumber csrn = CsrNumber(num);
 
-  auto csr = findCsr(CsrNumber(num));
+  bool ok = configCsr(csrn, implemented, resetValue, mask, pokeMask, shared);
+
+  auto csr = findCsr(csrn);
   if (csr->isDebug() and not isDebug)
     {
-      std::cerr << "Error: cannot set debug-mode CSR as not debug-mode\n";
+      std::cerr << "Error: cannot set debug-mode CSR " << name << " as not debug-mode\n";
       return false;
     }
   else
     csr->setIsDebug(isDebug);
+
+  if (isHypervisor)
+    {
+      if (not isCustomCsr(csrn))
+        {
+          std::cerr << "Error: cannot mark non-custom CSR " << name << " as hypervisor\n";
+          return false;
+        }
+      csr->setHypervisor(isHypervisor);
+    }
 
   // Make user choice to disable a CSR sticky.
   if (not implemented and csr)
