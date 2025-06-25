@@ -64,32 +64,35 @@ namespace WdRiscv
     parseCmdLineNumber(const std::string& option, const std::string& numberStr,
 		       std::optional<TYPE>& number);
 
-    StringVec   hexFiles;                  // Hex files to be loaded into simulator memory.
-    StringVec   binaryFiles;               // Binary files to be loaded into simulator memory.
+    StringVec   hexFiles;                   // Hex files to be loaded into simulator memory.
+    StringVec   binaryFiles;                // Binary files to be loaded into simulator memory.
 #if LZ4_COMPRESS
-    StringVec   lz4Files;                  // LZ4 files to be loaded into simulator memory.
+    StringVec   lz4Files;                   // LZ4 files to be loaded into simulator memory.
 #endif
-    std::string traceFile;                 // Log of state change after each instruction.
-    std::string commandLogFile;            // Log of interactive or socket commands.
-    std::string consoleOutFile;            // Console io output file.
-    std::string serverFile;                // File in which to write server host and port.
-    std::string instFreqFile;              // Instruction frequency file.
-    std::string configFile;                // Configuration (JSON) file.
-    std::string bblockFile;                // Basci block file.
-    std::string branchTraceFile;           // Branch trace file.
-    std::string tracerLib;                 // Path to tracer extension shared library.
+    std::string traceFile;                  // Log of state change after each instruction.
+    std::string commandLogFile;             // Log of interactive or socket commands.
+    std::string consoleOutFile;             // Console io output file.
+    std::string serverFile;                 // File in which to write server host and port.
+    std::string instFreqFile;               // Instruction frequency file.
+    std::string configFile;                 // Configuration (JSON) file.
+    std::string bblockFile;                 // Basci block file.
+    std::string branchTraceFile;            // Branch trace file.
+    std::string tracerLib;                  // Path to tracer extension shared library.
     std::string isa;
-    std::string snapshotDir = "snapshot";  // Dir prefix for saving snapshots
-    std::string loadFrom;                  // Directory for loading a snapshot
-    std::string stdoutFile;                // Redirect target program stdout to this.
-    std::string stderrFile;                // Redirect target program stderr to this.
-    std::string stdinFile;                 // Redirect target program stdin to this.
-    std::string dataLines;                 // Output file for data address line tracing.
-    std::string instrLines;                // Output file for instruction address line tracing.
-    std::string initStateFile;             // Output: initial state of used memory lines.
-    std::string kernelFile;                // Input: Load kernel image at address.
-    std::string testSignatureFile;         // Output: signature to score riscv-arch-test tests.
-    StringVec   regInits;                  // Initial values of regs.
+    std::string snapshotDir = "snapshot";   // Dir prefix for saving snapshots
+    std::string compressionType = "gzip";   // Compression type for snapshots.
+    std::string decompressionType = "gzip"; // Decompression type for snapshots. 
+    std::string loadFrom;                   // Directory for loading a snapshot
+    std::string stdoutFile;                 // Redirect target program stdout to this.
+    std::string stderrFile;                 // Redirect target program stderr to this.
+    std::string stdinFile;                  // Redirect target program stdin to this.
+    std::string dataLines;                  // Output file for data address line tracing.
+    std::string instrLines;                 // Output file for instruction address line tracing.
+    std::string initStateFile;              // Output: initial state of used memory lines.
+    std::string kernelFile;                 // Input: Load kernel image at address.
+    std::string testSignatureFile;          // Output: signature to score riscv-arch-test tests.
+    StringVec   regInits;                   // Initial values of regs.
+
 
     // Target (ELF file) programs and associated program options to be loaded into
     // simulator memory. Each target plus args is one string.

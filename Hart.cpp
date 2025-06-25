@@ -5249,6 +5249,7 @@ template <typename URV>
 bool
 Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
 {
+
   std::string instStr;
   instStr.reserve(128);
 
@@ -5417,7 +5418,7 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
           prevPerfControl_ = perfControl_;
 
 	  if (traceBranchOn and (di->isBranch() or di->isXRet()))
-	    traceBranch(di);
+	    traceBranch(di);    
 	}
       catch (const CoreException& ce)
 	{
@@ -5718,7 +5719,8 @@ Hart<URV>::simpleRunNoLimit()
             continue;
           decode(pc_, physPc, inst, *di);
         }
-
+      
+      
       pc_ += di->instSize();
       execute(di);
     }

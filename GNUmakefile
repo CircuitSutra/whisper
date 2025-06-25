@@ -23,7 +23,7 @@ BOOST_LIB_DIR := $(wildcard $(BOOST_DIR)/stage/lib $(BOOST_DIR)/lib)
 BOOST_LIBS := boost_program_options
 
 # Add extra dependency libraries here
-EXTRA_LIBS := -lpthread -lm -lz -ldl -static-libstdc++ -lrt -lutil
+EXTRA_LIBS := -lpthread -lm -lz -ldl -static-libstdc++ -lrt -lutil -llz4
 
 VIRT_MEM := 1
 ifeq ($(VIRT_MEM), 1)
