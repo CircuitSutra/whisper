@@ -961,7 +961,8 @@ bool compress_lz4(FILE* out, const uint8_t* buffer, size_t mem_block_size) {
   size_t compressed_size = LZ4F_compressFrame(dst.get(), dst_size, buffer, mem_block_size, &frame_preferences);
 
   // Check the size written in the frame 
-  
+  // std::cerr << "Size written in the frame: " << frame_info.contentSize << std::endl;
+
   // Check if there was an error in compression
   if (LZ4F_isError(compressed_size)) {
     std::cerr << "Error: Memory::saveSnapshot failed - LZ4 Compression Error: " << LZ4F_getErrorName(compressed_size) << std::endl;
@@ -1059,7 +1060,9 @@ Memory::saveSnapshot_lz4(const std::string& filename,
       // Compress the data in the block 
       // Buffer Contains the sim memory 
       // blk.second has the size 
+      // std::cerr << "Compressing block: " << " Block: " << block_count  << " Addr: " << blk.first << " with size: " << blk.second << std::endl;
       bool success = compress_lz4(out, buffer, blk.second);
+      // std::cerr << "Success: " << success << std::endl;
 
       if (not success)
         break;
