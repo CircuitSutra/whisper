@@ -94,7 +94,7 @@ main(int argc, char* argv[])
 	  Session<uint64_t> session{};
 	  ok = session.defineSystem(args, config) != nullptr;
 	  ok = ok and session.configureSystem(args, config);
-         ok = ok and session.run(args);
+    ok = ok and session.run(args);
           ok = ok and session.cleanup(args);
 	}
       else
@@ -109,6 +109,8 @@ main(int argc, char* argv[])
       std::cerr << e.what() << '\n';
       ok = false;
     }
+
+  std::cerr << "ALL done!\n";
 
   return ok? 0 : 1;
 }
