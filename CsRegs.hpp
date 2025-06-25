@@ -1223,7 +1223,7 @@ namespace WdRiscv
     /// them.
     bool configCsrByUser(std::string_view name, bool implemented, URV resetValue,
 			 URV mask, URV pokeMask, bool shared, bool isDebug,
-                         bool isHypervisor);
+                         bool isHExt);
 
     /// Configure CSR. Return true on success and false on failure.
     bool configCsr(CsrNumber csr, bool implemented, URV resetValue,
@@ -2417,6 +2417,8 @@ namespace WdRiscv
     std::vector<InterruptCause> mInterrupts_;
     std::vector<InterruptCause> sInterrupts_;
     std::vector<InterruptCause> vsInterrupts_;
+
+    std::vector<CsrNumber> customH_;   // Custom CSR maked as belonging to H extension.
 
     bool seiPin_ = false;
   };

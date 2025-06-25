@@ -835,6 +835,9 @@ CsRegs<URV>::enableHypervisorMode(bool flag)
 		       CN::VSEPC, CN::VSCAUSE, CN::VSTVAL, CN::VSIP, CN::VSATP })
       enableCsr(csrn, flag);
 
+  for (auto csrn : customH_)
+    enableCsr(csrn, flag);
+
   // Enable/disable MPV and GVA bits
   {
     uint64_t hyperBits;
@@ -2261,7 +2264,7 @@ template <typename URV>
 bool
 CsRegs<URV>::configCsrByUser(std::string_view name, bool implemented, URV resetValue,
 			     URV mask, URV pokeMask, bool shared, bool isDebug,
-                             bool isHypervisor)
+                             bool isHExt)
 {
   auto iter = nameToNumber_.find(name);
   if (iter == nameToNumber_.end())
@@ -2284,14 +2287,14 @@ CsRegs<URV>::configCsrByUser(std::string_view name, bool implemented, URV resetV
   else
     csr->setIsDebug(isDebug);
 
-  if (isHypervisor)
+  if (isHExt)
     {
       if (not isCustomCsr(csrn))
         {
-          std::cerr << "Error: cannot mark non-custom CSR " << name << " as hypervisor\n";
+          std::cerr << "Error: cannot mark non-custom CSR " << name << " as h-extension\n";
           return false;
         }
-      csr->setHypervisor(isHypervisor);
+      customH_.push_back(csrn);
     }
 
   // Make user choice to disable a CSR sticky.

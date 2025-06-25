@@ -230,7 +230,7 @@ applyCsrConfig(Hart<URV>& hart, std::string_view nm, const nlohmann::json& conf,
 {
   unsigned errors = 0;
   URV reset = 0, mask = 0, pokeMask = 0;
-  bool exists = true, shared = false, isDebug = false, isHyper = false;
+  bool exists = true, shared = false, isDebug = false, isHExt = false;
 
   std::string name(nm);
   if (name == "dscratch")
@@ -270,8 +270,8 @@ applyCsrConfig(Hart<URV>& hart, std::string_view nm, const nlohmann::json& conf,
   if (conf.contains("is_debug"))
     getJsonBoolean(name + ".is_debug", conf.at("is_debug"), isDebug) or errors++;
 
-  if (conf.contains("is_hypervisor"))
-    getJsonBoolean(name + ".is_hyper", conf.at("is_hypervisor"), isHyper) or errors++;
+  if (conf.contains("is_h_extension"))
+    getJsonBoolean(name + ".is_h_extension", conf.at("is_h_extension"), isHExt) or errors++;
 
 
   // If number present and csr is not defined, then define a new
@@ -345,7 +345,7 @@ applyCsrConfig(Hart<URV>& hart, std::string_view nm, const nlohmann::json& conf,
   if (errors)
     return false;
 
-  if (not hart.configCsrByUser(name, exists, reset, mask, pokeMask, shared, isDebug, isHyper))
+  if (not hart.configCsrByUser(name, exists, reset, mask, pokeMask, shared, isDebug, isHExt))
     {
       std::cerr << "Error: Invalid CSR (" << name << ") in config file.\n";
       return false;
