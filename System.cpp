@@ -576,19 +576,8 @@ System<URV>::saveSnapshot(const std::string& dir)
     return false;
 
   Filesystem::path memPath = dirPath / "memory";
-
-  if(compressionType_ == "lz4"){
-    if (not memory_->saveSnapshot_lz4(memPath.string(), usedBlocks))
-      return false;
-  }
-  else if (compressionType_ == "gzip") {
-    if (not memory_->saveSnapshot_gzip(memPath.string(), usedBlocks))
-      return false;
-  }
-  else {
-    std::cerr << "Error: Invalid compression type: " << compressionType_ << std::endl;
+  if (not memory_->saveSnapshot(memPath.string(), usedBlocks))
     return false;
-  }
 
   Filesystem::path fdPath = dirPath / "fd";
   if (not syscall.saveFileDescriptors(fdPath.string()))
@@ -1373,7 +1362,7 @@ System<URV>::batchRun(std::vector<FILE*>& traceFiles, bool waitAll, uint64_t ste
       } snap;
 
       std::atomic<bool> result = true;
-  
+
       if (hartCount() == 1)
         {
           auto& hart = *ithHart(0);
@@ -1653,18 +1642,8 @@ System<URV>::loadSnapshot(const std::string& snapDir, bool restoreTrace)
     }
 
   Filesystem::path memPath = dirPath / "memory";
-  if (decompressionType_  == "lz4"){
-    if (not memory_->loadSnapshot_lz4(memPath.string(), usedBlocks))
-      return false;
-    }
-    else if (decompressionType_ == "gzip") {
-      if (not memory_->loadSnapshot_gzip(memPath.string(), usedBlocks))
-        return false;
-    }
-    else {
-      std::cerr << "Error: Invalid decompression type: " << decompressionType_ << std::endl;
-      return false;
-    }
+  if (not memory_->loadSnapshot(memPath.string(), usedBlocks))
+    return false;
 
   // Rearm CLINT time compare.
   for (auto hartPtr : sysHarts_)
