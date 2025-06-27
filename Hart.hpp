@@ -2064,6 +2064,11 @@ namespace WdRiscv
     {
       walks.clear();
       walks = isInstr? virtMem_.getFetchWalks() : virtMem_.getDataWalks();
+      if (steeEnabled_)
+        for (auto &walk: walks)
+          for (auto& item : walk)
+            if (item.type_ == VirtMem::WalkEntry::Type::PA)
+              item.addr_ = stee_.clearSecureBits(item.addr_);
     }
 
     /// Return PMP manager associated with this hart.
