@@ -3917,9 +3917,9 @@ Hart<URV>::postCsrUpdate(CsrNumber csr, URV val, URV lastVal)
     updateCachedHvictl();
 
   // FIXME: support mtimecmp
-  if (csr == CN::TIME or
-      csr == CN::STIMECMP or csr == CN::VSTIMECMP or
-      csr == CN::HTIMEDELTA)
+  if (csr == CN::TIME or csr == CN::STIMECMP or csr == CN::VSTIMECMP or
+      csr == CN::HTIMEDELTA or csr == CN::MENVCFG or
+      csr == CN::HENVCFG)  // MENVCFG/HENVCFG may enable/disbale STIMECMP/VSTIMECMP.
     processTimerInterrupt();
 
   effectiveMie_ = csRegs_.effectiveMie();
