@@ -2166,7 +2166,7 @@ Hart<URV>::deviceRead(uint64_t pa, unsigned size, uint64_t& val)
       uint32_t val32 = 0;
       if (not aplic_->read(pa, size, val32))
         {
-          std::cerr << "Error: unsupported APLIC read: address = 0x" <<
+          std::cerr << "Warning: unsupported APLIC read: address = 0x" <<
             std::hex << pa << std::dec << ", size = " << size << " bytes\n";
         }
       val = val32;
@@ -2208,7 +2208,7 @@ Hart<URV>::deviceWrite(uint64_t pa, STORE_TYPE storeVal)
       uint32_t val32 = storeVal;
       if (not aplic_->write(pa, sizeof(storeVal), val32))
         {
-          std::cerr << "Error: unsupported APLIC write: address = 0x" <<
+          std::cerr << "Warning: unsupported APLIC write: address = 0x" <<
             std::hex << pa << std::dec << ", size = " << sizeof(storeVal) <<
             " bytes, data = 0x" << std::hex << uint64_t(storeVal) << std::dec << "\n";
         }
