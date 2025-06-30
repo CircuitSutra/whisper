@@ -73,6 +73,7 @@ Hart<URV>::execVqdot_vv(const DecodedInst* di)
 
       vecRegs_.write(vd, ix, destGroup, dest);
     }
+  postVecSuccess(di);
 }
 
 
@@ -130,6 +131,7 @@ Hart<URV>::execVqdot_vx(const DecodedInst* di)
 
       vecRegs_.write(vd, ix, destGroup, dest);
     }
+  postVecSuccess(di);
 }
 
 
@@ -186,6 +188,7 @@ Hart<URV>::execVqdotu_vv(const DecodedInst* di)
 
       vecRegs_.write(vd, ix, destGroup, dest);
     }
+  postVecSuccess(di);
 }
 
 
@@ -243,6 +246,7 @@ Hart<URV>::execVqdotu_vx(const DecodedInst* di)
 
       vecRegs_.write(vd, ix, destGroup, dest);
     }
+  postVecSuccess(di);
 }
 
 
@@ -300,6 +304,7 @@ Hart<URV>::execVqdotsu_vv(const DecodedInst* di)
 
       vecRegs_.write(vd, ix, destGroup, dest);
     }
+  postVecSuccess(di);
 }
 
 
@@ -357,6 +362,7 @@ Hart<URV>::execVqdotsu_vx(const DecodedInst* di)
 
       vecRegs_.write(vd, ix, destGroup, dest);
     }
+  postVecSuccess(di);
 }
 
 
@@ -414,6 +420,7 @@ Hart<URV>::execVqdotus_vx(const DecodedInst* di)
 
       vecRegs_.write(vd, ix, destGroup, dest);
     }
+  postVecSuccess(di);
 }
 
 
