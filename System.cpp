@@ -20,7 +20,6 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
-#include "Filesystem.hpp"
 #include "Hart.hpp"
 #include "Core.hpp"
 #include "SparseMem.hpp"
@@ -601,6 +600,9 @@ System<URV>::saveSnapshot(const std::string& dir)
 
   Filesystem::path imsicPath = dirPath / "imsic";
   if (not imsicMgr_.saveSnapshot(imsicPath))
+    return false;
+
+  if (not saveAplicSnapshot(dirPath))
     return false;
 
   return true;
@@ -1743,6 +1745,369 @@ System<URV>::loadSnapshot(const std::string& snapDir, bool restoreTrace)
   if (not imsicMgr_.loadSnapshot(imsicPath))
     return false;
 
+  if (not loadAplicSnapshot(dirPath))
+    return false;
+
+  return true;
+}
+
+
+template <typename URV>
+bool
+System<URV>::saveAplicSnapshot(const Filesystem::path& snapDir)
+{
+  if (not aplic_)
+    return true;
+
+  auto filepath = snapDir / "aplic-source-states";
+  std::ofstream ofs(filepath);
+  if (not ofs)
+    {
+      std::cerr << "Error: failed to open snapshot file for writing: " << filepath << "\n";
+      return false;
+    }
+  unsigned nsources = aplic_->numSources();
+  for (unsigned i = 1; i <= nsources; i++)
+    {
+      bool state = aplic_->getSourceState(i);
+      if (state)
+        ofs << i << " " << state << "\n";
+    }
+
+  auto domainsPath = snapDir / "aplic-domains";
+  if (not Filesystem::is_directory(domainsPath) and
+      not Filesystem::create_directories(domainsPath))
+    {
+      std::cerr << "Error: failed to create subdirectory for snapshots of APLIC domains: " << domainsPath << "\n";
+      return false;
+    }
+  return saveAplicDomainSnapshot(domainsPath, aplic_->root(), nsources);
+}
+
+
+template <typename URV>
+bool
+System<URV>::saveAplicDomainSnapshot(const Filesystem::path& snapDir, std::shared_ptr<TT_APLIC::Domain> domain, unsigned nsources)
+{
+  auto filepath = snapDir / domain->name();
+  std::ofstream ofs(filepath);
+  if (not ofs)
+    {
+      std::cerr << "Error: failed to open snapshot file for writing: " << filepath << "\n";
+      return false;
+    }
+  ofs << std::hex;
+
+  uint32_t domaincfg = domain->peekDomaincfg();
+  if (domaincfg)
+    ofs << "domaincfg 0x" << domaincfg << "\n";
+
+  for (unsigned i = 1; i <= nsources; i++)
+    {
+      uint32_t sourcecfg = domain->peekSourcecfg(i);
+      if (sourcecfg != 0)
+        ofs << "sourcecfg " << std::to_string(i) << " 0x" << sourcecfg << "\n";
+    }
+
+  for (unsigned i = 1; i <= nsources; i++)
+    {
+      uint32_t target = domain->peekTarget(i);
+      if (target != 0)
+        ofs << "target " << std::to_string(i) << " 0x" << target << "\n";
+    }
+
+  for (unsigned i = 0; i < nsources/32; i++)
+    {
+      uint32_t setip = domain->peekSetip(i);
+      for (unsigned j = 0; j < 32; j++)
+        {
+          if ((setip >> j) & 1)
+            ofs << "setipnum 0x" << i*32 + j << "\n";
+        }
+    }
+
+  for (unsigned i = 0; i < nsources/32; i++)
+    {
+      uint32_t setie = domain->peekSetie(i);
+      for (unsigned j = 0; j < 32; j++)
+        {
+          if ((setie >> j) & 1)
+            ofs << "setienum 0x" << i*32 + j << "\n";
+        }
+    }
+
+  uint32_t genmsi = domain->peekGenmsi();
+  if (genmsi)
+    ofs << "genmsi 0x" << genmsi << "\n";
+
+  if (domain->parent() == nullptr)
+    {
+      uint32_t mmsiaddrcfg  = domain->peekMmsiaddrcfg();
+      uint32_t mmsiaddrcfgh = domain->peekMmsiaddrcfgh();
+      uint32_t smsiaddrcfg  = domain->peekSmsiaddrcfg();
+      uint32_t smsiaddrcfgh = domain->peekSmsiaddrcfgh();
+      if (mmsiaddrcfg)
+        ofs << "mmsiaddrcfg 0x"  << mmsiaddrcfg << "\n";
+      if (mmsiaddrcfgh)
+        ofs << "mmsiaddrcfgh 0x" << mmsiaddrcfgh << "\n";
+      if (smsiaddrcfg)
+        ofs << "smsiaddrcfg 0x"  << smsiaddrcfg << "\n";
+      if (smsiaddrcfgh)
+        ofs << "smsiaddrcfgh 0x" << smsiaddrcfgh << "\n";
+    }
+
+  for (auto hartIndex : domain->hartIndices())
+    {
+      bool xeipBit = domain->peekXeip(hartIndex);
+      if (xeipBit)
+        ofs << "xeip " << std::dec << hartIndex << std::hex << " " << xeipBit << "\n";
+    }
+
+  for (auto hartIndex : domain->hartIndices())
+    {
+      uint32_t idelivery = domain->peekIdelivery(hartIndex);
+      uint32_t iforce = domain->peekIforce(hartIndex);
+      uint32_t ithreshold = domain->peekIthreshold(hartIndex);
+      uint32_t topi = domain->peekTopi(hartIndex);
+      if (idelivery)
+        ofs << "idelivery " << std::dec << hartIndex << std::hex << " " << idelivery << "\n";
+      if (iforce)
+        ofs << "iforce " << std::dec << hartIndex << std::hex << " " << iforce << "\n";
+      if (ithreshold)
+        ofs << "ithreshold " << std::dec << hartIndex << std::hex << " 0x" << ithreshold << "\n";
+      if (topi)
+        ofs << "topi " << std::dec << hartIndex << std::hex << " 0x" << topi << "\n";
+    }
+
+  for (auto child : *domain)
+    {
+      if (not saveAplicDomainSnapshot(snapDir, child, nsources))
+        return false;
+    }
+  return true;
+}
+
+
+static std::string
+stripComment(const std::string& line)
+{
+    size_t pos = line.find('#');
+    if (pos != std::string::npos)
+        return line.substr(0, pos);
+    return line;
+}
+
+
+template <typename URV>
+bool
+System<URV>::loadAplicSnapshot(const Filesystem::path& snapDir)
+{
+  if (not aplic_)
+    return true;
+  auto filepath = snapDir / "aplic-source-states";
+  std::ifstream ifs(filepath);
+  if (not ifs)
+    {
+      std::cerr << "Error: failed to open snapshot file " << filepath << "\n";
+      return false;
+    }
+
+  unsigned nsources = aplic_->numSources();
+  std::string line;
+  int lineno = 0;
+  while (std::getline(ifs, line))
+    {
+      lineno++;
+      std::string data = stripComment(line);
+      boost::algorithm::trim(data);
+      if (data.empty())
+        continue;
+      std::istringstream iss(data);
+      int state;
+      unsigned source_id;
+      if (not (iss >> source_id >> state))
+        {
+          std::cerr << "Error: failed to parse APLIC snapshot file " << filepath << " line " << lineno << ": \n" << line << '\n';
+          return false;
+        }
+      std::string dummy;
+      if (iss >> dummy)
+        {
+          std::cerr << "Error: failed to parse APLIC snapshot file " << filepath << " line " << lineno << ": "
+                    << "unexpected tokens\n";
+          return false;
+        }
+      if (source_id < 1 or source_id > nsources)
+        {
+          std::cerr << "Error: failed to parse APLIC snapshot file " << filepath << " line " << lineno << ": "
+                    << source_id << " is not a valid source id\n";
+          return false;
+        }
+      if (state != 0 and state != 1)
+        {
+          std::cerr << "Error: failed to parse APLIC snapshot file " << filepath << " line " << lineno << ": "
+                    << state << " is not a valid source state\n";
+          return false;
+        }
+      aplic_->setSourceState(source_id, state);
+    }
+
+  return loadAplicDomainSnapshot(snapDir / "aplic-domains", aplic_->root(), nsources);
+}
+
+
+enum class AplicRegister {
+  DOMAINCFG,
+  SOURCECFG,
+  TARGET,
+  SETIPNUM,
+  SETIENUM,
+  GENMSI,
+  MMSIADDRCFG,
+  MMSIADDRCFGH,
+  SMSIADDRCFG,
+  SMSIADDRCFGH,
+  IDELIVERY,
+  IFORCE,
+  ITHRESHOLD,
+  TOPI,
+  XEIP,
+};
+
+static bool
+parseAplicRegisterName(const std::string& name, AplicRegister& reg, bool& hasSourceId, bool& hasHartIndex)
+{
+  hasSourceId = false;
+  hasHartIndex = false;
+
+  using AR = AplicRegister;
+  if      (name == "domaincfg")     { reg = AR::DOMAINCFG;                          }
+  else if (name == "sourcecfg")     { reg = AR::SOURCECFG;    hasSourceId = true;   }
+  else if (name == "target")        { reg = AR::TARGET;       hasSourceId = true;   }
+  else if (name == "setipnum")      { reg = AR::SETIPNUM;                           }
+  else if (name == "setienum")      { reg = AR::SETIENUM;                           }
+  else if (name == "genmsi")        { reg = AR::GENMSI;                             }
+  else if (name == "mmsiaddrcfg")   { reg = AR::MMSIADDRCFG;                        }
+  else if (name == "mmsiaddrcfgh")  { reg = AR::MMSIADDRCFGH;                       }
+  else if (name == "smsiaddrcfg")   { reg = AR::SMSIADDRCFG;                        }
+  else if (name == "smsiaddrcfgh")  { reg = AR::SMSIADDRCFGH;                       }
+  else if (name == "idelivery")     { reg = AR::IDELIVERY;    hasHartIndex = true;  }
+  else if (name == "iforce")        { reg = AR::IFORCE;       hasHartIndex = true;  }
+  else if (name == "ithreshold")    { reg = AR::ITHRESHOLD;   hasHartIndex = true;  }
+  else if (name == "topi")          { reg = AR::TOPI;         hasHartIndex = true;  }
+  else if (name == "xeip")          { reg = AR::XEIP;         hasHartIndex = true;  }
+  else return false;
+
+  return true;
+}
+
+
+template <typename URV>
+bool
+System<URV>::loadAplicDomainSnapshot(const Filesystem::path& snapDir, std::shared_ptr<TT_APLIC::Domain> domain, unsigned nsources)
+{
+  auto filepath = snapDir / domain->name();
+  std::ifstream ifs(filepath);
+  if (not ifs)
+    {
+      std::cerr << "Error: failed to open snapshot file " << filepath << "\n";
+      return false;
+    }
+
+  std::string line;
+  int lineno = 0;
+  while (std::getline(ifs, line))
+    {
+      lineno++;
+      std::string data = stripComment(line);
+      boost::algorithm::trim(data);
+      if (data.empty())
+        continue;
+      std::istringstream iss(data);
+      iss >> std::hex;
+      std::string name;
+      uint32_t value;
+      if (not (iss >> name))
+        {
+          std::cerr << "Error: failed to parse domain snapshot file " << filepath << " line " << lineno << ": \n" << line << '\n';
+          return false;
+        }
+      AplicRegister reg;
+      bool hasSourceId;
+      bool hasHartIndex;
+      if (not parseAplicRegisterName(name, reg, hasSourceId, hasHartIndex))
+        {
+          std::cerr << "Error: failed to parse domain snapshot file " << filepath << " line " << lineno << ": '"
+                    << name << "' is not a valid APLIC register name\n";
+          return false;
+        }
+      unsigned sourceId;
+      if (hasSourceId)
+        {
+          iss >> std::dec;
+          if (not (iss >> sourceId))
+            {
+              std::cerr << "Error: failed to parse domain snapshot file " << filepath << " line " << lineno << ": \n" << line << '\n';
+              return false;
+            }
+          iss >> std::hex;
+          if (sourceId < 1 && sourceId > nsources)
+            {
+              std::cerr << "Error: invalid source id in domain snapshot file " << filepath << " line " << lineno << ": \n" << line << '\n';
+              return false;
+            }
+        }
+      unsigned hartIndex;
+      if (hasHartIndex)
+        {
+          iss >> std::dec;
+          if (not (iss >> hartIndex))
+            {
+              std::cerr << "Error: failed to parse domain snapshot file " << filepath << " line " << lineno << ": \n" << line << '\n';
+              return false;
+            }
+          iss >> std::hex;
+        }
+      if (not (iss >> value))
+        {
+          std::cerr << "Error: failed to parse domain snapshot file " << filepath << " line " << lineno << ": \n" << line << '\n';
+          return false;
+        }
+      std::string dummy;
+      if (iss >> dummy)
+        {
+          std::cerr << "Error: failed to parse domain snapshot file " << filepath << " line " << lineno << ": "
+                    << "unexpected tokens\n";
+          return false;
+        }
+
+      using AR = AplicRegister;
+      switch (reg)
+        {
+          case AR::DOMAINCFG:     domain->pokeDomaincfg(value); break;
+          case AR::SOURCECFG:     domain->pokeSourcecfg(sourceId, value); break;
+          case AR::TARGET:        domain->pokeTarget(sourceId, value); break;
+          case AR::SETIPNUM:      domain->pokeSetipnum(value); break;
+          case AR::SETIENUM:      domain->pokeSetienum(value); break;
+          case AR::GENMSI:        domain->pokeGenmsi(value); break;
+          case AR::MMSIADDRCFG:   domain->pokeMmsiaddrcfg(value); break;
+          case AR::MMSIADDRCFGH:  domain->pokeMmsiaddrcfgh(value); break;
+          case AR::SMSIADDRCFG:   domain->pokeSmsiaddrcfg(value); break;
+          case AR::SMSIADDRCFGH:  domain->pokeSmsiaddrcfgh(value); break;
+          case AR::IDELIVERY:     domain->pokeIdelivery(hartIndex, value); break;
+          case AR::IFORCE:        domain->pokeIforce(hartIndex, value); break;
+          case AR::ITHRESHOLD:    domain->pokeIthreshold(hartIndex, value); break;
+          case AR::TOPI:          domain->pokeTopi(hartIndex, value); break;
+          case AR::XEIP:          domain->pokeXeip(hartIndex, value); break;
+          default: assert(false);
+        }
+    }
+
+  for (auto child : *domain)
+    {
+      if (not loadAplicDomainSnapshot(snapDir, child, nsources))
+        return false;
+    }
   return true;
 }
 

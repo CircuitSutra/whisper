@@ -526,6 +526,43 @@ public:
 
     void writeClaimi(unsigned /*hart_index*/, uint32_t /*value*/) {}
 
+    uint32_t peekDomaincfg()            { return domaincfg_.value; }
+    uint32_t peekSourcecfg(unsigned i)  { return sourcecfg_.at(i).value; }
+    uint32_t peekMmsiaddrcfg()          { return mmsiaddrcfg_; }
+    uint32_t peekMmsiaddrcfgh()         { return mmsiaddrcfgh_.value; }
+    uint32_t peekSmsiaddrcfg()          { return smsiaddrcfg_; }
+    uint32_t peekSmsiaddrcfgh()         { return smsiaddrcfgh_.value; }
+    uint32_t peekSetip(unsigned i)      { return setip_.at(i); }
+    uint32_t peekSetie(unsigned i)      { return setie_.at(i); }
+    uint32_t peekGenmsi()               { return genmsi_.value; }
+    uint32_t peekTarget(unsigned i)     { return target_.at(i).value; }
+
+    void pokeDomaincfg(uint32_t value)              { domaincfg_.value = value; }
+    void pokeSourcecfg(unsigned i, uint32_t value)  { sourcecfg_[i].value = value; }
+    void pokeMmsiaddrcfg(uint32_t value)            { mmsiaddrcfg_ = value; }
+    void pokeMmsiaddrcfgh(uint32_t value)           { mmsiaddrcfgh_.value = value; }
+    void pokeSmsiaddrcfg(uint32_t value)            { smsiaddrcfg_ = value; }
+    void pokeSmsiaddrcfgh(uint32_t value)           { smsiaddrcfgh_.value = value; }
+    void pokeSetip(unsigned i, uint32_t value)      { setip_.at(i) = value; }
+    void pokeSetipnum(uint32_t value)               { setip_.at(value/32) |= 1u << (value % 32); }
+    void pokeSetie(unsigned i, uint32_t value)      { setie_.at(i) = value; }
+    void pokeSetienum(uint32_t value)               { setie_.at(value/32) |= 1u << (value % 32); }
+    void pokeGenmsi(uint32_t value)                 { genmsi_.value = value; }
+    void pokeTarget(unsigned i, uint32_t value)     { target_.at(i).value = value; }
+
+    uint32_t peekIdelivery(unsigned hart_index)  { return idcs_.at(hart_index).idelivery; }
+    uint32_t peekIforce(unsigned hart_index)     { return idcs_.at(hart_index).iforce; }
+    uint32_t peekIthreshold(unsigned hart_index) { return idcs_.at(hart_index).ithreshold; }
+    uint32_t peekTopi(unsigned hart_index)       { return idcs_.at(hart_index).topi.value; }
+
+    void pokeIdelivery(unsigned hart_index, uint32_t value)  { idcs_.at(hart_index).idelivery = value; }
+    void pokeIforce(unsigned hart_index, uint32_t value)     { idcs_.at(hart_index).iforce = value; }
+    void pokeIthreshold(unsigned hart_index, uint32_t value) { idcs_.at(hart_index).ithreshold = value; }
+    void pokeTopi(unsigned hart_index, uint32_t value)       { idcs_.at(hart_index).topi.value = value; }
+
+    bool peekXeip(unsigned i)           { return xeip_bits_.at(i); }
+    void pokeXeip(unsigned i, bool bit) { xeip_bits_.at(i) = bit; }
+
 private:
     Domain(
         const Aplic *aplic,

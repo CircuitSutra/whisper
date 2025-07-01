@@ -20,6 +20,7 @@
 #include <functional>
 #include <string_view>
 #include <unordered_map>
+#include "Filesystem.hpp"
 #include "Memory.hpp"
 #include "Imsic.hpp"
 #include "Syscall.hpp"
@@ -457,6 +458,11 @@ namespace WdRiscv
     { snapDir_ = snapDir; }
 
   private:
+
+    bool saveAplicSnapshot(const Filesystem::path& snapDir);
+    bool saveAplicDomainSnapshot(const Filesystem::path& snapDir, std::shared_ptr<TT_APLIC::Domain> domain, unsigned nsources);
+    bool loadAplicSnapshot(const Filesystem::path& snapDir);
+    bool loadAplicDomainSnapshot(const Filesystem::path& snapDir, std::shared_ptr<TT_APLIC::Domain> domain, unsigned nsources);
 
     unsigned hartCount_;
     unsigned hartsPerCore_;
