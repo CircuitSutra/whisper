@@ -977,10 +977,8 @@ Memory::loadSnapshot(const std::string & filename,
       prevAddr = blk.first + blk.second;
       uint64_t addr = blk.first;
 
-      std::cerr << "*";
       while (remainingSize) // read in chunk due to gzread limitation
         {
-          std::cerr << "-";
           fflush(stdout);
           size_t currentChunk = std::min(remainingSize, maxChunk);
           int resp = gzread(gzin, temp.data(), currentChunk);
@@ -1012,7 +1010,7 @@ Memory::loadSnapshot(const std::string & filename,
     std::cerr << "Warning: Memory::loadSnapshot: Snapshot data size smaller than memory size\n";
 
   gzclose(gzin);
-  std::cerr << "Error: \nloadSnapshot finished\n";
+  std::cerr << "Info: loadSnapshot finished\n";
   return success;
 }
 
