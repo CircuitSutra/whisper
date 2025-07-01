@@ -2794,12 +2794,18 @@ HartConfig::configHarts(System<URV>& system, bool userMode, bool verbose) const
     if (not getJsonBoolean(tag, config_ -> at(tag), enableMcm))
       return false;
 
+  tag = "enable_mcm_cache";
+  bool enableMcmCache = true;
+  if (config_ -> contains(tag))
+    if (not getJsonBoolean(tag, config_ -> at(tag), enableMcmCache))
+      return false;
+
   // Parse enable_ppo, it it is missing all PPO rules are enabled.
   std::vector<unsigned> enabledPpos;
   if (not getEnabledPpos(enabledPpos))
     return false;
 
-  if (enableMcm and not system.enableMcm(mbLineSize, checkAll, enabledPpos))
+  if (enableMcm and not system.enableMcm(mbLineSize, checkAll, enableMcmCache, enabledPpos))
     return false;
 
   tag = "enable_tso";
@@ -3039,6 +3045,16 @@ HartConfig::getMcmCheckAll(bool& ca) const
   if (not config_ -> contains(tag))
     return false;
   return getJsonBoolean(tag, config_ -> at(tag), ca);
+}
+
+
+bool
+HartConfig::getMcmEnableCache(bool& cache) const
+{
+  constexpr std::string_view tag = "enable_mcm_cache";
+  if (not config_ -> contains(tag))
+    return false;
+  return getJsonBoolean(tag, config_ -> at(tag), cache);
 }
 
 

@@ -27,6 +27,7 @@
 #include "pci/virtio/Blk.hpp"
 #include "aplic/Aplic.hpp"
 #include "Uart8250.hpp"
+#include "Cache.hpp"
 
 
 namespace TT_PERF
@@ -312,11 +313,11 @@ namespace WdRiscv
     /// non-server/non-interactive mode or if used after execution has started. The
     /// mergeBuffserSize is the merge buffer line size in bytes. Only the PPO rules with
     /// numbers in the enabledPpos vector are enabled.
-    bool enableMcm(unsigned mbSize, bool mbLineCheckAll,
+    bool enableMcm(unsigned mbSize, bool mbLineCheckAll, bool mcmCache,
 		   const std::vector<unsigned>& enabledPpos);
 
     /// Similar to preceding method but with all PPO rules enabled/disabled.
-    bool enableMcm(unsigned mbSize, bool mbLineCheckAll, bool enablePpos);
+    bool enableMcm(unsigned mbSize, bool mbLineCheckAll, bool mcmCache, bool enablePpos);
 
     /// Terminate MCM. Experimental. This unlikely to be useful except for executing one
     /// extra instruction at the end of a test to simplify some debugging.
@@ -373,9 +374,9 @@ namespace WdRiscv
                      unsigned size, uint64_t data, unsigned elem, unsigned field);
 
     /// Initiate a write for a store instruction bypassing the merge
-    /// buffer.
+    /// buffer. When the cache flag is false, we should bypass the cache as well.
     bool mcmBypass(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t addr,
-                   unsigned size, uint64_t data, unsigned elem, unsigned field);
+                   unsigned size, uint64_t data, unsigned elem, unsigned field, bool cache);
 
     /// Initiate a fetch of a line from memory into the isntruction
     /// cache.
@@ -383,6 +384,17 @@ namespace WdRiscv
 
     /// Initiate an eviction of a line from the instruction cache.
     bool mcmIEvict(Hart<URV>& hart, uint64_t time, uint64_t addr);
+
+    /// Initiate a fetch of a line from memory into the data
+    /// cache.
+    bool mcmDFetch(Hart<URV>& hart, uint64_t time, uint64_t addr);
+
+    /// Initiate an eviction of a line from the data cache.
+    bool mcmDEvict(Hart<URV>& hart, uint64_t time, uint64_t addr);
+
+    /// Initiate a writeback of a line from the data cache. If data
+    /// written back does not match RTL, we raise an error.
+    bool mcmDWriteback(Hart<URV>& hart, uint64_t time, uint64_t addr, const std::vector<uint8_t>& rtlData);
 
     /// Initiate an instruction retire.
     bool mcmRetire(Hart<URV>& hart, uint64_t time, uint64_t tag,
@@ -466,6 +478,11 @@ namespace WdRiscv
     std::vector<std::shared_ptr<IoDevice>> ioDevs_;
     std::shared_ptr<Pci> pci_;
     std::shared_ptr<TT_APLIC::Aplic> aplic_;
+
+    // We assume coherent data cache and non-coherent instruction caches. If the
+    // I-cache were coherent, then this oculd be simplified into one cache model.
+    std::shared_ptr<TT_CACHE::Cache> fetchCache_;
+    std::shared_ptr<TT_CACHE::Cache> dataCache_;
 
     // Name, size, and address in memory of a binary file.
     typedef std::tuple<std::string, uint64_t, uint64_t> BinaryFile;

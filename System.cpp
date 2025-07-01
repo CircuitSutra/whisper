@@ -952,7 +952,7 @@ System<URV>::addPciDevices(const std::vector<std::string>& devs)
 
 template <typename URV>
 bool
-System<URV>::enableMcm(unsigned mbLineSize, bool mbLineCheckAll,
+System<URV>::enableMcm(unsigned mbLineSize, bool mbLineCheckAll, bool mcmCache,
 		       const std::vector<unsigned>& enabledPpos)
 {
   if (mbLineSize != 0)
@@ -969,6 +969,29 @@ System<URV>::enableMcm(unsigned mbLineSize, bool mbLineCheckAll,
 
   mcm_->enablePpo(false);
 
+  // For easier handling of CMOs. I-cache is considered non-coherent.
+  // FIXME: Make mcmCache apply to fetchCache as well.
+  fetchCache_ = std::make_shared<TT_CACHE::Cache>();
+  auto fetchMemRead = [this](uint64_t addr, uint64_t& value) {
+    if (dataCache_)
+      return dataCache_->read(addr, value)? true : this->memory_->peek(addr, value, false);
+    else
+      return this->memory_->peek(addr, value, false);
+  };
+  fetchCache_->addMemReadCallback(fetchMemRead);
+  if (mcmCache)
+    {
+      dataCache_ = std::make_shared<TT_CACHE::Cache>();
+      auto dataMemRead = [this](uint64_t addr, uint64_t& value) {
+        return this->memory_->peek(addr, value, false);
+      };
+      auto memWrite = [this](uint64_t addr, uint64_t value) {
+        return this->memory_->poke(addr, value, false);
+      };
+      dataCache_->addMemReadCallback(dataMemRead);
+      dataCache_->addMemWriteCallback(memWrite);
+    }
+
   for (auto ppoIx : enabledPpos)
     if (ppoIx < Mcm<URV>::PpoRule::Limit)
       {
@@ -978,7 +1001,7 @@ System<URV>::enableMcm(unsigned mbLineSize, bool mbLineCheckAll,
       }
 
   for (auto& hart :  sysHarts_)
-    hart->setMcm(mcm_);
+    hart->setMcm(mcm_, fetchCache_, dataCache_);
 
   return true;
 }
@@ -986,7 +1009,7 @@ System<URV>::enableMcm(unsigned mbLineSize, bool mbLineCheckAll,
 
 template <typename URV>
 bool
-System<URV>::enableMcm(unsigned mbLineSize, bool mbLineCheckAll, bool enablePpos)
+System<URV>::enableMcm(unsigned mbLineSize, bool mbLineCheckAll, bool mcmCache, bool enablePpos)
 {
   if (mbLineSize != 0)
     if (not isPowerOf2(mbLineSize) or mbLineSize > 512)
@@ -1000,6 +1023,28 @@ System<URV>::enableMcm(unsigned mbLineSize, bool mbLineCheckAll, bool enablePpos
   mbSize_ = mbLineSize;
   mcm_->setCheckWholeMbLine(mbLineCheckAll);
 
+  // For easier handling of CMOs.
+  fetchCache_ = std::make_shared<TT_CACHE::Cache>();
+  auto fetchMemRead = [this](uint64_t addr, uint64_t& value) {
+    if (dataCache_)
+      return dataCache_->read(addr, value)? true : this->memory_->peek(addr, value, false);
+    else
+      return this->memory_->peek(addr, value, false);
+  };
+  fetchCache_->addMemReadCallback(fetchMemRead);
+  if (mcmCache)
+    {
+      dataCache_ = std::make_shared<TT_CACHE::Cache>();
+      auto dataMemRead = [this](uint64_t addr, uint64_t& value) {
+        return this->memory_->peek(addr, value, false);
+      };
+      auto memWrite = [this](uint64_t addr, uint64_t value) {
+        return this->memory_->poke(addr, value, false);
+      };
+      dataCache_->addMemReadCallback(dataMemRead);
+      dataCache_->addMemWriteCallback(memWrite);
+    }
+
   typedef typename Mcm<URV>::PpoRule Rule;
 
   for (unsigned ix = 0; ix < Rule::Io; ++ix)   // Temporary: Disable IO rule.
@@ -1009,7 +1054,7 @@ System<URV>::enableMcm(unsigned mbLineSize, bool mbLineCheckAll, bool enablePpos
     }
 
   for (auto& hart :  sysHarts_)
-    hart->setMcm(mcm_);
+    hart->setMcm(mcm_, fetchCache_, dataCache_);
 
   return true;
 }
@@ -1034,7 +1079,7 @@ System<URV>::endMcm()
     }
 
   for (auto& hart :  sysHarts_)
-    hart->setMcm(nullptr);
+    hart->setMcm(nullptr, nullptr, nullptr);
   mcm_ = nullptr;
 }
 
@@ -1088,7 +1133,8 @@ System<URV>::mcmMbWrite(Hart<URV>& hart, uint64_t time, uint64_t addr,
 {
   if (not mcm_)
     return false;
-  return mcm_->mergeBufferWrite(hart, time, addr, data, mask, skipCheck);
+  bool ok = dataCache_? hart.template mcmCacheInsert<McmMem::Data>(addr) : true;
+  return ok and mcm_->mergeBufferWrite(hart, time, addr, data, mask, skipCheck);
 }
 
 
@@ -1106,11 +1152,12 @@ System<URV>::mcmMbInsert(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t 
 template <typename URV>
 bool
 System<URV>::mcmBypass(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t addr,
-                       unsigned size, uint64_t data, unsigned elem, unsigned field)
+                       unsigned size, uint64_t data, unsigned elem, unsigned field, bool cache)
 {
   if (not mcm_)
     return false;
-  return mcm_->bypassOp(hart, time, tag, addr, size, data, elem, field);
+  bool ok = (dataCache_ and cache)? hart.template mcmCacheInsert<McmMem::Data>(addr) : true;
+  return ok and mcm_->bypassOp(hart, time, tag, addr, size, data, elem, field, cache);
 }
 
 
@@ -1118,9 +1165,9 @@ template <typename URV>
 bool
 System<URV>::mcmIFetch(Hart<URV>& hart, uint64_t /*time*/, uint64_t addr)
 {
-  if (not mcm_)
+  if (not mcm_ or not fetchCache_)
     return false;
-  return hart.mcmIFetch(addr);
+  return hart.template mcmCacheInsert<McmMem::Fetch>(addr);
 }
 
 
@@ -1128,9 +1175,39 @@ template <typename URV>
 bool
 System<URV>::mcmIEvict(Hart<URV>& hart, uint64_t /*time*/, uint64_t addr)
 {
-  if (not mcm_)
+  if (not mcm_ or not fetchCache_)
     return false;
-  return hart.mcmIEvict(addr);
+  return hart.template mcmCacheEvict<McmMem::Fetch>(addr);
+}
+
+
+template <typename URV>
+bool
+System<URV>::mcmDFetch(Hart<URV>& hart, uint64_t /*time*/, uint64_t addr)
+{
+  if (not mcm_ or not fetchCache_)
+    return false;
+  return hart.template mcmCacheInsert<McmMem::Data>(addr);
+}
+
+
+template <typename URV>
+bool
+System<URV>::mcmDEvict(Hart<URV>& hart, uint64_t /*time*/, uint64_t addr)
+{
+  if (not mcm_ or not dataCache_)
+    return false;
+  return hart.template mcmCacheEvict<McmMem::Data>(addr);
+}
+
+
+template <typename URV>
+bool
+System<URV>::mcmDWriteback(Hart<URV>& hart, uint64_t /*time*/, uint64_t addr, const std::vector<uint8_t>& rtlData)
+{
+  if (not mcm_ or not dataCache_)
+    return false;
+  return hart.template mcmCacheWriteback<McmMem::Data>(addr, rtlData);
 }
 
 

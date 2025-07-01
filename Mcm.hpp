@@ -219,9 +219,10 @@ namespace WdRiscv
     bool readOp(Hart<URV>& hart, uint64_t time, uint64_t instrTag, uint64_t physAddr,
 		unsigned size, uint64_t rtlData, unsigned elemIx, unsigned field);
 
-    /// This is a write operation bypassing the merge buffer.
+    /// This is a write operation bypassing the merge buffer. The cache parameter indicates
+    /// whether the write operation should go to cache or memory.
     bool bypassOp(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa,
-                  unsigned size, uint64_t rtlData, unsigned elem, unsigned field);
+                  unsigned size, uint64_t rtlData, unsigned elem, unsigned field, bool cache);
 
     /// Initiate a merge buffer write.  All associated store write transactions are marked
     /// completed. Write instructions where all writes are complete are marked

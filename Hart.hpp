@@ -40,7 +40,7 @@
 #include "Disassembler.hpp"
 #include "util.hpp"
 #include "Imsic.hpp"
-#include "FetchCache.hpp"
+#include "Cache.hpp"
 #include "pci/Pci.hpp"
 #include "Stee.hpp"
 #include "PmaskManager.hpp"
@@ -63,6 +63,8 @@ namespace WdRiscv
   class InstEntry;
 
   enum class InstId : uint32_t;
+
+  enum class McmMem { Fetch, Data };
 
   /// Thrown by the simulator when a stop (store to to-host) is seen
   /// or when the target program reaches the exit system call.
@@ -119,7 +121,6 @@ namespace WdRiscv
     std::vector<CsrNumber> csrIx;   // Numbers of changed CSRs if any.
     std::vector<uint64_t> csrValue; // Values of changed CSRs if any.
   };
-
 
   /// Model a RISCV hart with integer registers of type URV (uint32_t
   /// for 32-bit registers and uint64_t for 64-bit registers).
@@ -915,16 +916,20 @@ namespace WdRiscv
     /// Return true on success and false on failure (address out of
     /// bounds, location not mapped, location not writable etc...)
     /// Bypass physical memory attribute checking if usePma is false.
-    bool pokeMemory(uint64_t addr, uint8_t val, bool usePma, bool skipFetch = false);
+    bool pokeMemory(uint64_t addr, uint8_t val, bool usePma,
+                    bool skipFetch = false, bool skipData = false, bool skipMem = false);
 
     /// Half-word version of the preceding method.
-    bool pokeMemory(uint64_t addr, uint16_t val, bool usePma, bool skipFetch = false);
+    bool pokeMemory(uint64_t addr, uint16_t val, bool usePma,
+                    bool skipFetch = false, bool skipData = false, bool skipMem = false);
 
     /// Word version of the preceding method.
-    bool pokeMemory(uint64_t addr, uint32_t val, bool usePma, bool skipFetch = false);
+    bool pokeMemory(uint64_t addr, uint32_t val, bool usePma,
+                    bool skipFetch = false, bool skipData = false, bool skipMem = false);
 
     /// Double-word version of the preceding method.
-    bool pokeMemory(uint64_t addr, uint64_t val, bool usePma, bool skipFetch = false);
+    bool pokeMemory(uint64_t addr, uint64_t val, bool usePma,
+                    bool skipFetch = false, bool skipData = false, bool skipMem = false);
 
     /// Define value of program counter after a reset.
     void defineResetPc(URV addr)
@@ -2188,7 +2193,9 @@ namespace WdRiscv
     { bbFile_ = file; bbLimit_ = instCount; }
 
     /// Enable memory consistency model.
-    void setMcm(std::shared_ptr<Mcm<URV>> mcm);
+    void setMcm(std::shared_ptr<Mcm<URV>> mcm,
+                std::shared_ptr<TT_CACHE::Cache> fetchCache,
+                std::shared_ptr<TT_CACHE::Cache> dataCache);
 
     typedef TT_PERF::PerfApi PerfApi;
 
@@ -2342,35 +2349,79 @@ namespace WdRiscv
     void setSwInterrupt(uint8_t value)
     { swInterrupt_.value_ = value; }
 
-    /// Fetch an instruction cache line.
-    bool mcmIFetch(uint64_t addr)
+    template <McmMem C>
+    constexpr TT_CACHE::Cache& getMcmCache() 
+    { return (C == McmMem::Fetch)? *fetchCache_ : *dataCache_; }
+
+    template <McmMem C>
+    constexpr const TT_CACHE::Cache& getMcmCache() const
+    { return (C == McmMem::Fetch)? *fetchCache_ : *dataCache_; }
+
+    /// Fetch a cache line.
+    template <McmMem C>
+    bool mcmCacheInsert(uint64_t addr)
     {
-      auto fetchMem =  [this](uint64_t addr, uint32_t& value) -> bool {
-	if (pmpEnabled_)
-	  {
-            pmpManager_.setAccReason(PmpManager::AccessReason::Fetch);
-	    const Pmp& pmp = pmpManager_.accessPmp(addr);
-	    if (not pmp.isExec(privMode_))
-	      return false;
-	  }
-	return this->memory_.readInst(addr, value);
-      };
-      bool ok = fetchCache_.addLine(addr, fetchMem);
+      auto& cache = getMcmCache<C>();
+      bool ok = cache.addLine(addr);
       if (not ok)
-	fetchCache_.removeLine(addr);
+        cache.removeLine(addr);
       return ok;
     }
 
-    /// Evict an instruction cache line.
-    bool mcmIEvict(uint64_t addr)
-    { fetchCache_.removeLine(addr); return true; }
+    /// Evict a cache line.
+    template <McmMem C>
+    bool mcmCacheEvict(uint64_t addr)
+    {
+      auto& cache = getMcmCache<C>();
+      cache.removeLine(addr);
+      return true;
+    }
+
+    /// Writes line into memory.
+    template <McmMem C>
+    bool mcmCacheWriteback(uint64_t addr, const std::vector<uint8_t>& rtlData)
+    {
+      static_assert(C == McmMem::Data);
+      auto& cache = getMcmCache<C>();
+      return cache.writebackLine(addr, rtlData);
+    }
 
     /// Poke given byte if corresponding line is in the cache. Otherwise, no-op.
-    void pokeFetchCache(uint64_t addr, uint8_t byte)
-    { fetchCache_.poke(addr, byte); }
+    template <McmMem C>
+    bool pokeMcmCache(uint64_t addr, uint8_t byte)
+    {
+      auto& cache = getMcmCache<C>();
+      return cache.poke(addr, byte);
+    }
+
+    /// Return data (if it exists) within cache. May perform multiple peeks
+    /// for cache-line crossing accesses.
+    template <McmMem C, typename SZ>
+    bool peekMcmCache(uint64_t addr, SZ& data) const
+    {
+      // const auto& cache = getMcmCache<C>();
+      if ((addr & (sizeof(SZ) - 1)) == 0)
+        {
+          if (not getMcmCache<C>().read(addr, data))
+            return memory_.peek(addr, data, false);
+          return true;
+        }
+      else
+        {
+          bool ok = true;
+          for (unsigned i = 0; i < sizeof(SZ); ++i)
+            {
+              uint8_t byte = 0;
+              if (not getMcmCache<C>().read(addr + i, byte))
+                ok = ok and memory_.peek(addr + i, byte, false);
+              data |= (SZ(byte) << (i*8));
+            }
+          return ok;
+        }
+    }
 
     /// Return pointer to the memory consistency model object.
-    std::shared_ptr<Mcm<URV>> mcm() 
+    std::shared_ptr<Mcm<URV>> mcm()
     { return mcm_; }
 
     /// Config vector engine for updating whole mask register for mask-producing
@@ -2414,7 +2465,7 @@ namespace WdRiscv
     /// given address (must be even) into inst. Return true on success.  Return false if
     /// the line of the given address is not in the cache.
     bool readInstFromFetchCache(uint64_t addr, uint16_t& inst) const
-    { return fetchCache_.read(addr, inst); }
+    { return fetchCache_->read<uint16_t>(addr, inst); }
 
     /// Configure the mask defining which bits of a physical address must be zero for the
     /// address to be considered valid when STEE (static truested execution environment)
@@ -5888,7 +5939,8 @@ namespace WdRiscv
     std::unordered_map<uint64_t, BbStat> basicBlocks_; // Map pc to basic-block frequency.
     FILE* bbFile_ = nullptr;            // Basic block file.
 
-    TT_FETCH_CACHE::FetchCache fetchCache_;
+    std::shared_ptr<TT_CACHE::Cache> fetchCache_;
+    std::shared_ptr<TT_CACHE::Cache> dataCache_;
 
     std::string branchTraceFile_;       // Branch trace file.
     struct BranchRecord

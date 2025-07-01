@@ -966,6 +966,14 @@ Interactive<URV>::pokeCommand(Hart<URV>& hart, const std::string& line,
       if (tokens.size() > 4)
 	if (not parseCmdLineNumber("size", tokens.at(4), size))
 	  return false;
+      bool cache = false;
+      if (tokens.size() > 5)
+        if (not parseCmdLineNumber("cache", tokens.at(5), cache))
+          return false;
+      bool skipMem = false;
+      if (tokens.size() > 5)
+        if (not parseCmdLineNumber("skipMem", tokens.at(5), skipMem))
+          return false;
       size_t addr = 0;
       if (not parseCmdLineNumber("address", addrStr, addr))
 	return false;
@@ -973,19 +981,19 @@ Interactive<URV>::pokeCommand(Hart<URV>& hart, const std::string& line,
       switch (size)
 	{
 	case 1:
-	  if (hart.pokeMemory(addr, uint8_t(value), usePma))
+	  if (hart.pokeMemory(addr, uint8_t(value), usePma, false, not cache, skipMem))
 	    return true;
 	  break;
 	case 2:
-	  if (hart.pokeMemory(addr, uint16_t(value), usePma))
+	  if (hart.pokeMemory(addr, uint16_t(value), usePma, false, not cache, skipMem))
 	    return true;
 	  break;
 	case 4:
-	  if (hart.pokeMemory(addr, uint32_t(value), usePma))
+	  if (hart.pokeMemory(addr, uint32_t(value), usePma, false, not cache, skipMem))
 	    return true;
 	  break;
 	case 8:
-	  if (hart.pokeMemory(addr, value, usePma))
+	  if (hart.pokeMemory(addr, value, usePma, false, not cache, skipMem))
 	    return true;
 	  break;
 	default:
@@ -1909,6 +1917,33 @@ Interactive<URV>::executeLine(const std::string& inLine, FILE* traceFile,
       return true;
     }
 
+  if (command == "mdfetch")
+    {
+      if (not mdfetchCommand(hart, line, tokens))
+	return false;
+      if (commandLog)
+	fprintf(commandLog, "%s\n", line.c_str());
+      return true;
+    }
+
+  if (command == "mdevict")
+    {
+      if (not mdevictCommand(hart, line, tokens))
+	return false;
+      if (commandLog)
+	fprintf(commandLog, "%s\n", line.c_str());
+      return true;
+    }
+
+  if (command == "mdwriteback")
+    {
+      if (not mdwritebackCommand(hart, line, tokens))
+	return false;
+      if (commandLog)
+	fprintf(commandLog, "%s\n", line.c_str());
+      return true;
+    }
+
   if (command == "mskipreadchk")
     {
       if (not mskipReadChkCommand(hart, line, tokens))
@@ -2452,12 +2487,17 @@ Interactive<URV>::mbbypassCommand(Hart<URV>& hart, const std::string& line,
     if (not parseCmdLineNumber("element-field", tokens.at(6), field))
       return false;
 
+  bool cache = false;
+  if (tokens.size() > 7)
+    if (not parseCmdLineNumber("cache", tokens.at(7), cache))
+      return false;
+
   if (size <= 8)
     {
       uint64_t data = 0;
       if (not parseCmdLineNumber("data", tokens.at(4), data))
 	return false;
-      return system_.mcmBypass(hart, this->time_, tag, addr, size, data, elem, field);
+      return system_.mcmBypass(hart, this->time_, tag, addr, size, data, elem, field, cache);
     }
 
   // mbbypass for a vector load, expected size is less than that of cache line (64).
@@ -2495,19 +2535,19 @@ Interactive<URV>::mbbypassCommand(Hart<URV>& hart, const std::string& line,
     {
       const uint64_t* vdata = reinterpret_cast<const uint64_t*> (bytes.data());
       for (unsigned i = 0; i < size and ok; i += 8, ++vdata, addr += 8)
-	ok = system_.mcmBypass(hart, this->time_, tag, addr, 8, *vdata, elem, field);
+	ok = system_.mcmBypass(hart, this->time_, tag, addr, 8, *vdata, elem, field, cache);
     }
   else if ((size & 0x3) == 0 and (addr & 0x3) == 0)
     {
       const uint32_t* vdata = reinterpret_cast<const uint32_t*> (bytes.data());
       for (unsigned i = 0; i < size and ok; i += 4, ++vdata, addr += 4)
-	ok = system_.mcmBypass(hart, this->time_, tag, addr, 4, *vdata, elem, field);
+	ok = system_.mcmBypass(hart, this->time_, tag, addr, 4, *vdata, elem, field, cache);
     }
   else
     {
       const uint8_t* vdata = bytes.data();
       for (unsigned i = 0; i < size and ok; ++i, ++vdata, ++addr)
-	ok = system_.mcmBypass(hart, this->time_, tag, addr, 1, *vdata, elem, field);
+	ok = system_.mcmBypass(hart, this->time_, tag, addr, 1, *vdata, elem, field, cache);
     }
 
   return ok;
@@ -2553,6 +2593,106 @@ Interactive<URV>::mievictCommand(Hart<URV>& hart, const std::string& line,
     return false;
 
   return system_.mcmIEvict(hart, this->time_, addr);
+}
+
+
+template <typename URV>
+bool
+Interactive<URV>::mdfetchCommand(Hart<URV>& hart, const std::string& line,
+				 const std::vector<std::string>& tokens)
+{
+  // Format: mdfetch <physical-address>
+  if (tokens.size() != 2)
+    {
+      cerr << "Invalid mdfetch command: " << line << '\n';
+      cerr << "  Expecting: mdfetch <addr>\n";
+      return false;
+    }
+
+  uint64_t addr = 0;
+  if (not parseCmdLineNumber("address", tokens.at(1), addr))
+    return false;
+
+  return system_.mcmDFetch(hart, this->time_, addr);
+}
+
+
+template <typename URV>
+bool
+Interactive<URV>::mdevictCommand(Hart<URV>& hart, const std::string& line,
+				 const std::vector<std::string>& tokens)
+{
+  // Format: mdevict <physical-address>
+  if (tokens.size() != 2)
+    {
+      cerr << "Invalid mdevict command: " << line << '\n';
+      cerr << "  Expecting: mdevict <addr>\n";
+      return false;
+    }
+
+  uint64_t addr = 0;
+  if (not parseCmdLineNumber("address", tokens.at(1), addr))
+    return false;
+
+  return system_.mcmDEvict(hart, this->time_, addr);
+}
+
+
+template <typename URV>
+bool
+Interactive<URV>::mdwritebackCommand(Hart<URV>& hart, const std::string& line,
+				      const std::vector<std::string>& tokens)
+{
+  // Format: mdevict <physical-address> < data>
+  if (tokens.size() != 3 and
+      tokens.size() != 2)
+    {
+      cerr << "Invalid mdwriteback command: " << line << '\n';
+      cerr << "  Expecting: mdwriteback <addr> [<data>]\n";
+      return false;
+    }
+
+  uint64_t addr = 0;
+  if (not parseCmdLineNumber("address", tokens.at(1), addr))
+    return false;
+
+
+  std::vector<uint8_t> data;
+  if (tokens.size() > 2)
+    {
+      std::string hexDigits = tokens.at(2);
+
+      if (not (hexDigits.starts_with("0x") or
+               hexDigits.starts_with("0X")))
+        {
+          cerr << "Error: mdwriteback data must begin with 0x: " << hexDigits << '\n';
+          return false;
+        }
+      hexDigits = hexDigits.substr(2);
+
+      if ((hexDigits.size() & 1) == 1)
+        {
+          cerr << "Error: mdwriteback hex digit count must be even\n";
+          return false;
+        }
+
+      for (size_t i = 0; i < hexDigits.size(); i += 2)
+        {
+          std::string byteStr = hexDigits.substr(i, 2);
+          char* end = nullptr;
+          unsigned value = strtoul(byteStr.c_str(), &end, 16);
+          if (end and *end)
+            {
+              cerr << "Error: Invalid hex digit(s) in mdwriteback data: " << byteStr << '\n';
+              return false;
+            }
+          data.push_back(value);
+        }
+
+      std::reverse(data.begin(), data.end()); // Least sig byte now first
+    }
+
+  return system_.mcmDWriteback(hart, this->time_, addr, data);
 }
 
 
