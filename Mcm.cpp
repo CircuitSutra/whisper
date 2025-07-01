@@ -873,27 +873,28 @@ Mcm<URV>::setProducerTime(const Hart<URV>& hart, McmInstr& instr)
 
 template <typename URV>
 static bool
-pokeHartMemory(Hart<URV>& hart, uint64_t physAddr, uint64_t data, unsigned size)
+pokeHartMemory(Hart<URV>& hart, uint64_t physAddr, uint64_t data, unsigned size, bool cache)
 {
   bool usePma = true;
   bool skipFetch = true;
+  bool skipData = not cache;
 
   if (size == 1)
-    return hart.pokeMemory(physAddr, uint8_t(data), usePma, skipFetch);
+    return hart.pokeMemory(physAddr, uint8_t(data), usePma, skipFetch, skipData);
 
   if (size == 2)
-    return hart.pokeMemory(physAddr, uint16_t(data), usePma, skipFetch);
+    return hart.pokeMemory(physAddr, uint16_t(data), usePma, skipFetch, skipData);
 
   if (size == 4)
-    return hart.pokeMemory(physAddr, uint32_t(data), usePma, skipFetch);
+    return hart.pokeMemory(physAddr, uint32_t(data), usePma, skipFetch, skipData);
 
   if (size == 8)
-    return hart.pokeMemory(physAddr, uint64_t(data), usePma, skipFetch);
+    return hart.pokeMemory(physAddr, uint64_t(data), usePma, skipFetch, skipData);
 
   if (size < 8)
     {
       for (unsigned i = 0; i < size; ++i)
-	if (not hart.pokeMemory(physAddr + i, uint8_t(data >> (8*i)), usePma, skipFetch))
+	if (not hart.pokeMemory(physAddr + i, uint8_t(data >> (8*i)), usePma, skipFetch, skipData))
 	  return false;
       return true;
     }
@@ -976,7 +977,7 @@ Mcm<URV>::mergeBufferInsert(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64
       // We commit the RTL data to memory but we check them against whisper data (in
       // checkStoreData). This is simpler than committing part of whisper instruction
       // data.
-      if (not pokeHartMemory(hart, pa, rtlData, op.size_))
+      if (not pokeHartMemory(hart, pa, rtlData, op.size_, true))
 	result = false;
     }
 
@@ -987,7 +988,7 @@ Mcm<URV>::mergeBufferInsert(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64
 template <typename URV>
 bool
 Mcm<URV>::bypassOp(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa,
-                   unsigned size, uint64_t rtlData, unsigned elemIx, unsigned field)
+                   unsigned size, uint64_t rtlData, unsigned elemIx, unsigned field, bool cache)
 {
   if (not updateTime("Mcm::writeOp", time))
     return false;
@@ -1034,7 +1035,7 @@ Mcm<URV>::bypassOp(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa,
   instr->addMemOp(sysMemOps_.size());
   sysMemOps_.push_back(op);
 
-  result = pokeHartMemory(hart, pa, rtlData, size) and result;
+  result = pokeHartMemory(hart, pa, rtlData, size, cache) and result;
   
   instr->complete_ = checkStoreComplete(hartIx, *instr);
   if (instr->complete_)
@@ -1588,7 +1589,7 @@ Mcm<URV>::mergeBufferWrite(Hart<URV>& hart, uint64_t time, uint64_t physAddr,
             }
 
           assert(write.size_ <= 8);
-          pokeHartMemory(hart, write.pa_, write.rtlData_, write.size_);
+          pokeHartMemory(hart, write.pa_, write.rtlData_, write.size_, true);
 
           unsigned ix = write.pa_ - physAddr;
           for (unsigned i = 0; i < write.size_; ++i)

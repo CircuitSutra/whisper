@@ -541,6 +541,8 @@ Args::parseCmdLineArgs(std::span<char*> argv)
 	("mcmls", po::value<std::string>(),
 	 "Memory consistency checker merge buffer line size. If set to zero then "
 	 "write operations are not buffered and will happen as soon a received.")
+        ("dismcmcache", po::bool_switch(&this->dismc),
+         "Disables memory consistency checker cache model.")
 	("steesr", po::value<std::string>(),
 	 "Static trusted execution environment secure range: A colon separated pair of numbers"
 	 " defining the range of memory addresses considered secure. Secure access bit must"
@@ -735,7 +737,7 @@ Args::parseDumpMem(const std::string& arg)
 
   StringVec tokens;
   boost::split(tokens, arg, boost::is_any_of(":"));
-  
+
   this->eorMemDump = tokens[0];
   if ((tokens.size() %2) != 1 or tokens.size() == 1)
     {

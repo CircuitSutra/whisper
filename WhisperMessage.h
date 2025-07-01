@@ -24,7 +24,8 @@ enum WhisperMessageType
     Peek, Poke, Step, Until, Change, ChangeCount, Quit, Invalid, Reset, Nmi, ClearNmi,
     EnterDebug, ExitDebug, LoadFinished, CancelDiv, CancelLr, DumpMemory, McmRead,
     McmInsert, McmWrite, McmEnd, PageTableWalk, Translate, CheckInterrupt, McmBypass,
-    SeiPin, McmIFetch, McmIEvict, McmSkipReadChk, PmpEntry, PmaEntry, InjectException
+    SeiPin, McmIFetch, McmIEvict, McmDFetch, McmDEvict, McmDWriteback, McmSkipReadChk,
+    PmpEntry, PmaEntry, InjectException
   };
 
 
@@ -92,6 +93,8 @@ union WhisperFlags
     bool     virt      : 1;  // virtual mode before last instruction
     bool     debug     : 1;  // true if hart is in debug mode
     bool     load      : 1;  // true if last instructions reads data memory
+    bool     cache     : 1;    // true if poke mem should access mcm data cache
     bool     cancelled : 1;  // true if trap, or enter-debug-mode because of trigger
+    bool     skipMem   : 1;    // true if poke mem should not access memory
   } bits;
 };

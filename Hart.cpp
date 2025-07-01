@@ -20,6 +20,7 @@
 #include <mutex>
 #include <array>
 #include <atomic>
+#include <numeric>
 #include <cstring>
 #include <ctime>
 #include <poll.h>
@@ -321,7 +322,9 @@ Hart<URV>::setupVirtMemCallbacks()
       }
       
     // Proceed with normal memory read.
-    if (not memory_.read(addr, data))
+    if (not ((mcm_ and dataCache_)?
+          peekMemory(addr, data, false) :
+          memory_.read(addr, data)))
       return false;
     if (bigEndian)
       data = util::byteswap(data);
@@ -344,7 +347,7 @@ Hart<URV>::setupVirtMemCallbacks()
       value = util::byteswap(value);
     if (not memory_.hasReserveAttribute(addr))
       return false;
-    return memory_.write(hartIx_, addr, value);
+    return (mcm_ and dataCache_)? pokeMemory(addr, value, false) : memory_.write(hartIx_, addr, value);
   });
 
   virtMem_.setIsReadableCallback([this](uint64_t addr, PrivilegeMode pm) -> bool {
@@ -1102,7 +1105,10 @@ template <typename URV>
 bool
 Hart<URV>::peekMemory(uint64_t address, uint8_t& val, bool usePma) const
 {
-  return memory_.peek(address, val, usePma);
+  if (mcm_ and dataCache_)
+    return peekMcmCache<McmMem::Data>(address, val);
+  else
+    return memory_.peek(address, val, usePma);
 }
 
 
@@ -1110,7 +1116,10 @@ template <typename URV>
 bool
 Hart<URV>::peekMemory(uint64_t address, uint16_t& val, bool usePma) const
 {
-  return memory_.peek(address, val, usePma);
+  if (mcm_ and dataCache_)
+    return peekMcmCache<McmMem::Data>(address, val);
+  else
+    return memory_.peek(address, val, usePma);
 }
 
 
@@ -1118,7 +1127,10 @@ template <typename URV>
 bool
 Hart<URV>::peekMemory(uint64_t address, uint32_t& val, bool usePma) const
 {
-  return memory_.peek(address, val, usePma);
+  if (mcm_ and dataCache_)
+    return peekMcmCache<McmMem::Data>(address, val);
+  else
+    return memory_.peek(address, val, usePma);
 }
 
 
@@ -1126,8 +1138,11 @@ template <typename URV>
 bool
 Hart<URV>::peekMemory(uint64_t address, uint64_t& val, bool usePma) const
 {
-  if (memory_.peek(address, val, usePma))
-    return true;
+  if (mcm_ and dataCache_)
+    return peekMcmCache<McmMem::Data>(address, val); 
+  else
+    if (memory_.peek(address, val, usePma))
+      return true;
 
   uint32_t high = 0, low = 0;
   if (memory_.peek(address, low, usePma) and memory_.peek(address + 4, high, usePma))
@@ -1142,23 +1157,29 @@ Hart<URV>::peekMemory(uint64_t address, uint64_t& val, bool usePma) const
 
 template <typename URV>
 bool
-Hart<URV>::pokeMemory(uint64_t addr, uint8_t val, bool usePma, bool skipFetch)
+Hart<URV>::pokeMemory(uint64_t addr, uint8_t val, bool usePma, bool skipFetch, bool skipData, bool skipMem)
 {
   std::unique_lock lock(memory_.amoMutex_);
 
   memory_.invalidateOtherHartLr(hartIx_, addr, sizeof(val));
   invalidateDecodeCache(addr, sizeof(val));
 
-  if (not skipFetch)
-    pokeFetchCache(addr, val);
+  if (mcm_ and not skipFetch and fetchCache_)
+    pokeMcmCache<McmMem::Fetch>(addr, val);
 
-  return memory_.poke(addr, val, usePma);
+  bool ok = false;
+  if (mcm_ and not skipData and dataCache_)
+    ok = pokeMcmCache<McmMem::Data>(addr, val);
+
+  if (not skipMem and not ok)
+    ok = memory_.poke(addr, val, usePma);
+  return ok;
 }
 
 
 template <typename URV>
 bool
-Hart<URV>::pokeMemory(uint64_t addr, uint16_t val, bool usePma, bool skipFetch)
+Hart<URV>::pokeMemory(uint64_t addr, uint16_t val, bool usePma, bool skipFetch, bool skipData, bool skipMem)
 {
   std::unique_lock lock(memory_.amoMutex_);
 
@@ -1171,19 +1192,39 @@ Hart<URV>::pokeMemory(uint64_t addr, uint16_t val, bool usePma, bool skipFetch)
       return true;
     }
 
-  if (not skipFetch)
+  if (mcm_ and not skipFetch and fetchCache_)
     {
-      pokeFetchCache(addr, uint8_t(val));
-      pokeFetchCache(addr + 1, uint8_t(val >> 8));
+      pokeMcmCache<McmMem::Fetch>(addr, uint8_t(val));
+      pokeMcmCache<McmMem::Fetch>(addr + 1, uint8_t(val >> 8));
     }
 
-  return memory_.poke(addr, val, usePma);
+  std::array<bool, sizeof(val)> b{false};
+  if (mcm_ and not skipData and dataCache_)
+    {
+      for (unsigned i = 0; i < sizeof(val); ++i)
+        b[i] = pokeMcmCache<McmMem::Data>(addr + i, uint8_t(val >> (i*8)));
+    }
+
+  bool ok = std::reduce(b.begin(), b.end(), true, std::logical_and<>());
+  if (not skipMem and not ok)
+    {
+      if (skipData)
+        ok = memory_.poke(addr, val, usePma);
+      else
+        {
+          for (unsigned i = 0; i < sizeof(val); ++i)
+            if (not b[i])
+              b[i] = memory_.poke(addr + i, uint8_t(val >> (i*8)), usePma);
+          ok = std::reduce(b.begin(), b.end(), true, std::logical_and<>());
+        }
+    }
+  return ok;
 }
 
 
 template <typename URV>
 bool
-Hart<URV>::pokeMemory(uint64_t addr, uint32_t val, bool usePma, bool skipFetch)
+Hart<URV>::pokeMemory(uint64_t addr, uint32_t val, bool usePma, bool skipFetch, bool skipData, bool skipMem)
 {
   // We allow poke to bypass masking for memory mapped registers
   // otherwise, there is no way for external driver to clear bits that
@@ -1200,17 +1241,38 @@ Hart<URV>::pokeMemory(uint64_t addr, uint32_t val, bool usePma, bool skipFetch)
       return true;
     }
 
-  if (not skipFetch)
+  if (mcm_ and not skipFetch and fetchCache_)
     for (unsigned i = 0; i < sizeof(val); ++i)
-      pokeFetchCache(addr + i, uint8_t(val >> (i*8)));
+      pokeMcmCache<McmMem::Fetch>(addr + i, uint8_t(val >> (i*8)));
 
-  return memory_.poke(addr, val, usePma);
+  std::array<bool, sizeof(val)> b{false};
+  if (mcm_ and not skipData and dataCache_)
+    {
+      for (unsigned i = 0; i < sizeof(val); ++i)
+        b[i] = pokeMcmCache<McmMem::Data>(addr + i, uint8_t(val >> (i*8)));
+    }
+
+  bool ok = std::reduce(b.begin(), b.end(), true, std::logical_and<>());
+  if (not skipMem and not ok)
+    {
+      if (skipData)
+        ok = memory_.poke(addr, val, usePma);
+      else
+        {
+          for (unsigned i = 0; i < sizeof(val); ++i)
+            if (not b[i])
+              b[i] = memory_.poke(addr + i, uint8_t(val >> (i*8)), usePma);
+          ok = std::reduce(b.begin(), b.end(), true, std::logical_and<>());
+        }
+    }
+
+  return ok;
 }
 
 
 template <typename URV>
 bool
-Hart<URV>::pokeMemory(uint64_t addr, uint64_t val, bool usePma, bool skipFetch)
+Hart<URV>::pokeMemory(uint64_t addr, uint64_t val, bool usePma, bool skipFetch, bool skipData, bool skipMem)
 {
   std::unique_lock lock(memory_.amoMutex_);
 
@@ -1223,11 +1285,32 @@ Hart<URV>::pokeMemory(uint64_t addr, uint64_t val, bool usePma, bool skipFetch)
       return true;
     }
 
-  if (not skipFetch)
+  if (mcm_ and not skipFetch and fetchCache_)
     for (unsigned i = 0; i < sizeof(val); ++i)
-      pokeFetchCache(addr + i, uint8_t(val >> (i*8)));
+      pokeMcmCache<McmMem::Fetch>(addr + i, uint8_t(val >> (i*8)));
 
-  return memory_.poke(addr, val, usePma);
+  std::array<bool, sizeof(val)> b{false};
+  if (mcm_ and not skipData and dataCache_)
+    {
+      for (unsigned i = 0; i < sizeof(val); ++i)
+        b[i] = pokeMcmCache<McmMem::Data>(addr + i, uint8_t(val >> (i*8)));
+    }
+
+  bool ok = std::reduce(b.begin(), b.end(), true, std::logical_and<>());
+  if (not skipMem and not ok)
+    {
+      if (skipData)
+        ok = memory_.poke(addr, val, usePma);
+      else
+        {
+          for (unsigned i = 0; i < sizeof(val); ++i)
+            if (not b[i])
+              b[i] = memory_.poke(addr + i, uint8_t(val >> (i*8)), usePma);
+          ok = std::reduce(b.begin(), b.end(), true, std::logical_and<>());
+        }
+    }
+
+  return ok;
 }
 
 
@@ -2780,7 +2863,7 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr,
   if (not memory_.readInst(physAddr, half))
     return ExceptionCause::INST_ACC_FAULT;
 
-  if (mcm_)
+  if (mcm_ and fetchCache_)
     {
       // If line is io or non-cachable, we cache it anyway counting on the test-bench
       // evicting it as soon as the RTL gets out of that line.
@@ -2844,7 +2927,7 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr,
       return ExceptionCause::INST_ACC_FAULT;
     }
 
-  if (mcm_)
+  if (mcm_ and fetchCache_)
     {
       // If line is io or non-cachable, we cache it anyway counting on the test-bench
       // evicting it as soon as the RTL gets out of that line.
@@ -5930,10 +6013,13 @@ Hart<URV>::run(FILE* file)
 
 template <typename URV>
 void
-Hart<URV>::setMcm(std::shared_ptr<Mcm<URV>> mcm)
+Hart<URV>::setMcm(std::shared_ptr<Mcm<URV>> mcm, std::shared_ptr<TT_CACHE::Cache> fetchCache,
+                  std::shared_ptr<TT_CACHE::Cache> dataCache)
 {
   mcm_ = std::move(mcm);
   ooo_ = mcm_ != nullptr or perfApi_ != nullptr;
+  fetchCache_ = fetchCache;
+  dataCache_ = dataCache;
 }
 
 
@@ -10512,8 +10598,8 @@ Hart<URV>::execFencei(const DecodedInst* di)
       return;
     }
 
-  if (mcm_)
-    fetchCache_.clear();
+  if (mcm_ and fetchCache_)
+    fetchCache_->clear();
 
   // invalidateDecodeCache();  // No need for this. We invalidate on each write.
 }
@@ -10711,7 +10797,7 @@ Hart<URV>::execSfence_vma(const DecodedInst* di)
 
 #if 0
   if (mcm_)
-    fetchCache_.clear();
+    fetchCache_->clear();
 
   if (di->op0() == 0)
     invalidateDecodeCache();

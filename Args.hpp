@@ -162,6 +162,7 @@ namespace WdRiscv
     bool mcm = false;        // Memory consistency checks.
     std::optional<bool> noPpo;      // Skip PPO checks in MCM.
     bool mcmca = false;      // Memory consistency checks: check all bytes of merge buffer.
+    bool dismc = false;      // Memory consistency check disable caches.
     bool perfApi = false;    // Performance model API.
     bool reportub = false;         // Report used blocks with sparse memory.
     bool quitOnAnyHart = false;    // True if run quits when any hart finishes.

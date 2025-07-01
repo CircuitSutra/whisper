@@ -393,36 +393,7 @@ static void defineHart(M m)
           return str;
         }, py::arg("inst"), py::doc("Disassemble 32-bit instruction."))
     .def("__getattr__", py::overload_cast<Hart<T>&, const std::string&>(&attr<T>))
-    .def("__setattr__", py::overload_cast<Hart<T>&, const std::string&, const py::object&>(&attr<T>))
-    .def("mcm_read", [](Hart<T>& self, uint64_t time, uint64_t tag, uint64_t addr,
-                        unsigned size, uint64_t data, unsigned elemIx, unsigned field) {
-          if (not self.mcm())
-            return false;
-          return self.mcm()->readOp(self, time, tag, addr, size, data, elemIx, field);
-        }, py::doc("MCM read operation."))
-    .def("mcm_mb_write", [](Hart<T>& self, uint64_t time, uint64_t addr,
-                            const std::vector<uint8_t>& data,
-                            const std::vector<bool>& mask) {
-          if (not self.mcm())
-            return false;
-          return self.mcm()->mergeBufferWrite(self, time, addr, data, mask);
-        }, py::doc("MCM merge buffer write operation."))
-    .def("mcm_mb_insert", [](Hart<T>& self, uint64_t time, uint64_t tag,
-                             uint64_t addr, unsigned size, uint64_t data,
-                             unsigned elem, unsigned field) {
-          if (not self.mcm())
-            return false;
-          return self.mcm()->mergeBufferInsert(self, time, tag, addr, size, data, elem, field);
-        }, py::doc("MCM merge buffer insert operation."))
-    .def("mcm_bypass", [](Hart<T>& self, uint64_t time, uint64_t tag,
-                          uint64_t addr, unsigned size, uint64_t data,
-                          unsigned elem, unsigned field) {
-          if (not self.mcm())
-            return false;
-          return self.mcm()->bypassOp(self, time, tag, addr, size, data, elem, field);
-        }, py::doc("MCM merge buffer bypass operation."))
-    .def("mcm_ifetch", &Hart<T>::mcmIFetch, py::doc("MCM instruction fetch operation."))
-    .def("mcm_ievict", &Hart<T>::mcmIEvict, py::doc("MCM instruction cache eviction operation."));
+    .def("__setattr__", py::overload_cast<Hart<T>&, const std::string&, const py::object&>(&attr<T>));
 };
 
 
