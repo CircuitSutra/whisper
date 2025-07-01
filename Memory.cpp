@@ -977,8 +977,10 @@ Memory::loadSnapshot(const std::string & filename,
       prevAddr = blk.first + blk.second;
       uint64_t addr = blk.first;
 
+      std::cerr << "*";
       while (remainingSize) // read in chunk due to gzread limitation
         {
+          std::cerr << "-";
           fflush(stdout);
           size_t currentChunk = std::min(remainingSize, maxChunk);
           int resp = gzread(gzin, temp.data(), currentChunk);
@@ -1002,6 +1004,7 @@ Memory::loadSnapshot(const std::string & filename,
       if (not success)
         break;
     }
+  std::cerr << "\n";
 
   if (not success)
     std::cerr << "Error: Memory::loadSnapshot failed - read from " << filename
