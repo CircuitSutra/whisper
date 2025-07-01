@@ -601,10 +601,8 @@ namespace WdRiscv
     /// If this trigger is enabled and is of type icount, then make it
     /// count down returning true if its value becomes zero. Return
     /// false otherwise.
-    bool instCountdown(PrivilegeMode mode, bool virtMode)
+    bool instCountdown()
     {
-      if (not matchInstCount(mode, virtMode))
-        return false;
       Icount<URV>& icount = data1_.icount_;
 
       if (icount.count_)

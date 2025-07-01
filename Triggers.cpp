@@ -406,7 +406,7 @@ Triggers<URV>::icountTriggerFired(PrivilegeMode mode, bool virtMode, bool interr
   if (tcontrolEnabled_)
     skip = mode == PrivilegeMode::Machine and not mmodeEnabled_;
 
-  bool hit = false;
+  bool fire = false;
 
   for (auto& trig : triggers_)
     {
@@ -418,16 +418,18 @@ Triggers<URV>::icountTriggerFired(PrivilegeMode mode, bool virtMode, bool interr
 
       if (trig.data1_.icount_.pending_)
         {
-          hit = true;
+          fire = true;
           // Icount doesn't have a chain bit, we just use it to indicate
           // this trigger is tripped.
-          trig.setTripped(hit);
+          trig.setTripped(fire);
+          trig.setHit(true);
+          trig.setLocalHit(true);
         }
 
       trig.data1_.icount_.pending_ = false;
     }
 
-  return hit;
+  return fire;
 }
 
 
@@ -442,20 +444,19 @@ Triggers<URV>::evaluateIcount(PrivilegeMode mode, bool virtMode, bool interruptE
 
   for (auto& trig : triggers_)
     {
+      if (not trig.matchInstCount(mode, virtMode))
+        continue;
+
       if (trig.isModified() and not icountOnModified_)
 	continue; // Trigger was written by current instruction.
 
-      if (not trig.instCountdown(mode, virtMode))
+      if (not trig.instCountdown())
         continue;
 
       if (not trig.isEnterDebugOnHit() and skip)
 	continue;  // Cannot hit in machine mode.
 
-      if (not trig.data1_.icount_.pending_)
-        continue;
-
-      trig.setHit(true);
-      trig.setLocalHit(true);
+      assert(trig.data1_.icount_.pending_);
     }
 }
 
