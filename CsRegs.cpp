@@ -306,26 +306,21 @@ CsRegs<URV>::writeMvip(URV value)
   auto mvien = getImplementedCsr(CsrNumber::MVIEN);
   auto mip = getImplementedCsr(CsrNumber::MIP);
 
-  URV mipMask = 0;
+  URV mipMask = 0;  // Bits that are updated in MIP.
 
   if (mvien and mip)
     {
-      // Bit 1 of MVIP is an alias to bit 1 in MIP if bit 1 of MVIEN is 0.
-      // Bit 9 aliasing applied in effectiveMip()
-      URV mvienVal = mvien->read();
-      mipMask = mvienVal;
+      // If aliasing is on, we write bits 1 and 5 of MIP.
 
-      // When bit 1 of MVIEN is 1, do not write MIP. Keep original value.
+      // MIP[1] aliases MVIP[1] when MVIEN[1] is zero.
       URV b1 = URV(0x2);
-      mipMask ^= b1;
+      mipMask |= b1 & ~mvien->read();
 
-      // Bit STIE (5) of MVIP is an alias to bit 5 of MIP if bit 5 of MIP is writable.
-      // Othrwise, it is zero.
+      // MIP[5] aliases MVIP[5] if MIP[5] is writable; otherwise MVIP[5] is zero.
       URV b5 = URV(0x20);  // Bit 5 mask
       if ((mip->getWriteMask() & b5) != 0)   // Bit 5 writable in mip
 	mipMask |= b5;
 
-      mipMask &= b1 | b5;
       if (mipMask)
         {
           mip->write((mip->read() & ~mipMask) | (value & mipMask));
@@ -333,8 +328,13 @@ CsRegs<URV>::writeMvip(URV value)
         }
     }
 
-  // Where MIP was written MVIP does not change.
-  mvip->write((mvip->read() & mipMask) | (value & ~mipMask));
+  // In bits 0 to 12, always write bits 1 and 9, never write bit 5.
+  URV mvipMask = 0x202;
+
+  // In the remaining bits (13 to 63), always write.
+  mvipMask |= ~URV(0x1fff);
+
+  mvip->write((mvip->read() & ~mvipMask) | (value & mvipMask));
   recordWrite(CsrNumber::MVIP);
   return true;
 }
@@ -4561,11 +4561,13 @@ CsRegs<URV>::updateVirtInterrupt(URV value, bool poke)
       URV b9 = 0x200;
       mask |= b9 & ~mvienVal;  // BIT 9 updated in MVIP if it is zero in MVIEN.
 
+#if 0
       // Bit STIE (5) of MVIP is an alias to bit 5 of MIP if bit 5 of MIP is writable.
       // Othrwise, it is zero.
       URV b5 = URV(0x20);  // Bit 5 mask
       if ((mip->getWriteMask() & b5) != 0)   // Bit 5 writable in mip
 	mask |= b5;
+#endif
 
       // Write aliasing bits.
       auto prev = mvip->read();
