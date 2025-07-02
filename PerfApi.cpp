@@ -591,8 +591,8 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
 
   packet.retired_ = true;
 
-  // AMOs drain at retire. Same for SC if more than one hart.
-  bool drainAtRetire = packet.isAmo() or (packet.isSc() and system_.hartCount() > 1);
+  // AMO/SC drains at retire if more than 1 hart.
+  bool drainAtRetire = (packet.isSc() or packet.isAmo()) and system_.hartCount() > 1;
   if (drainAtRetire)
     {
       uint64_t sva = 0, spa1 = 0, spa2 = 0, sval = 0;
@@ -613,7 +613,9 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
 
   // Erase packet from packet map. Stores erased at drain time.
   auto& packetMap = hartPacketMaps_.at(hartIx);
-  if (not packet.isStore() and not di.isVectorStore() and not di.isCbo_zero())
+
+  bool skipPacketErase = packet.isStore() or di.isVectorStore() or di.isCbo_zero() or ((di.isAmo() or di.isSc()) and system_.hartCount() == 1);
+  if (not skipPacketErase)
     packetMap.erase(packet.tag());
 
   return true;
@@ -793,15 +795,15 @@ PerfApi::drainStore(unsigned hartIx, uint64_t time, uint64_t tag)
   auto& packet = *pacPtr;
 
   auto& di = packet.di_;
-  if (not di.isStore() and not di.isVectorStore() and not di.isCbo_zero())
+  if (not di.isStore() and not di.isVectorStore() and not di.isCbo_zero() and not di.isAmo() and not di.isSc())
     {
       std::cerr << "Error: Hart=" << hartIx << " time=" << time << " tag=" << tag
 		<< " Draining a non-store instruction\n";
       return false;
     }
 
-  // AMOs drained at retire. Same of SC if more than 1 hart.
-  bool skipDrain = packet.isAmo() or (packet.isSc() and system_.hartCount() > 1);
+  // AMO/SC drained at retire if more than 1 hart.
+  bool skipDrain = (packet.isSc() or packet.isAmo()) and system_.hartCount() > 1;
 
   if (skipDrain)
     assert(packet.drained());   // AMO/SC must be already retired.
@@ -890,7 +892,7 @@ PerfApi::getLoadData(unsigned hartIx, uint64_t tag, uint64_t va, uint64_t pa1,
   for (auto& kv : storeMap)
     {
       auto stTag = kv.first;
-      if (stTag > tag)
+      if (stTag >= tag)
 	break;
 
       auto& stPac = *(kv.second);
@@ -1710,7 +1712,7 @@ PerfApi::updatePacketDataAddress(Hart64& hart, InstrPac& packet)
       auto& storeMap =  hartStoreMaps_.at(hartIx);
       auto tag = packet.tag();
 
-      bool skipStoreMap = packet.isAmo() or (packet.isSc() and system_.hartCount() > 1);
+      bool skipStoreMap = (packet.isSc() or packet.isAmo()) and system_.hartCount() > 1;
 
       if (di.isCbo_zero())
         {
@@ -1728,7 +1730,7 @@ PerfApi::updatePacketDataAddress(Hart64& hart, InstrPac& packet)
           // FIX What to do about device access? Do we allow mixed device/non-device
           // access?
         }
-      else if (di.isStore() and not skipStoreMap)
+      else if ((di.isStore() or di.isAmo()) and not skipStoreMap)
 	{
 	  storeMap[tag] = getInstructionPacket(hartIx, tag);
           uint64_t dpa = packet.dpa_;
