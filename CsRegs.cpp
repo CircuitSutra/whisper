@@ -5806,9 +5806,11 @@ CsRegs<URV>::updateVsieVsipMasks()
 
       // If LCOF bit changes from writable to non-writable, we clear it before changing
       // the mask.
+#if 0
       if ((csr->getWriteMask() & ~mask) & lcofMask)
         csr->poke(csr->read() & ~lcofMask);
-          
+#endif
+
       csr->setWriteMask(mask);
       csr->setReadMask(mask);
     }
