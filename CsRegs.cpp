@@ -5164,7 +5164,7 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
   // auto sip = getImplementedCsr(CsrNumber::SIP);
   auto hvip = getImplementedCsr(CsrNumber::HVIP);
   auto mip = getImplementedCsr(CsrNumber::MIP);
-  // auto vsip = getImplementedCsr(CsrNumber::VSIP);
+  auto vsip = getImplementedCsr(CsrNumber::VSIP);
   auto vsie = getImplementedCsr(CsrNumber::VSIE);
   auto hideleg = getImplementedCsr(CsrNumber::HIDELEG);
   auto hvien = getImplementedCsr(CsrNumber::HVIEN);
@@ -5269,9 +5269,11 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
       // Bits 13-63 of VSIP is not aliasing with HIP.
       if (hvip)
         {
-          URV mask = ~URV(0x1fff);
+          URV mask = ~URV(0x1fff);  // Bits to be updated in SIP/HVIP
           if (hideleg)
             mask &= hideleg->read();
+          if (vsip)
+            mask &= vsip->getWriteMask();
 
           URV sip; readSip(sip);
           URV val = (value & mask) | (sip & ~mask);
@@ -5279,6 +5281,8 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
             writeSip(val);
 
           mask = ~URV(0x1fff);
+          if (vsip)
+            mask &= vsip->getWriteMask();
           if (hideleg and hvien)
             mask &= ~hideleg->read() & hvien->read();
           updateCsr(hvip, (value & mask) | (hvip->read() & ~mask), false /*poke*/);
@@ -5774,7 +5778,7 @@ CsRegs<URV>::updateVsieVsipMasks()
   using CN = CsrNumber;
 
   auto hideleg = getImplementedCsr(CsrNumber::HIDELEG);
-  auto hvien = getImplementedCsr(CsrNumber::HIDELEG);
+  auto hvien = getImplementedCsr(CsrNumber::HVIEN);
 
   URV mask = 0;  // Mask of writable bits of VSIP/VSIE
 
