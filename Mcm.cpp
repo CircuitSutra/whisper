@@ -2020,7 +2020,7 @@ Mcm<URV>::checkVecStoreData(Hart<URV>& hart, const McmInstr& store) const
 	 << " mismatch on vector store: vec-reg=" << unsigned(ref.reg_)
 	 << " elem=" << unsigned(ref.ix_);
     if (ref.field_)
-      cerr << "Error:  seg=" << unsigned(ref.field_);
+      cerr << " seg=" << unsigned(ref.field_);
   };
 
   // 4. Compare RTL data to reference data.
@@ -2036,7 +2036,7 @@ Mcm<URV>::checkVecStoreData(Hart<URV>& hart, const McmInstr& store) const
 	      if (store.complete_)
 		{
 		  printError(hartId, store.tag_, ref);
-		  cerr << "Error:  whisper-addr=0x" << std::hex << addr << std::dec
+		  cerr << " whisper-addr=0x" << std::hex << addr << std::dec
 		       << " RTL-addr=none\n";
 		  return false;
 		}
@@ -2047,7 +2047,7 @@ Mcm<URV>::checkVecStoreData(Hart<URV>& hart, const McmInstr& store) const
 	  if (rtlAddr != addr)
 	    {
 	      printError(hartId, store.tag_, ref);
-	      cerr << "Error:  whisper-addr=0x" << std::hex << addr << " RTL-addr=0x"
+	      cerr << " whisper-addr=0x" << std::hex << addr << " RTL-addr=0x"
 		   << rtlAddr << std::dec << '\n';
 	      return false;
 	    }
@@ -2055,7 +2055,7 @@ Mcm<URV>::checkVecStoreData(Hart<URV>& hart, const McmInstr& store) const
 	  if (rtlVal != val)
 	    {
 	      printError(hartId, store.tag_, ref);
-	      cerr << "Error:  addr=0x" << std::hex << addr << " whisper-value=0x"
+	      cerr << " addr=0x" << std::hex << addr << " whisper-value=0x"
 		   << unsigned(val) << " RTL-value=0x" << unsigned(rtlVal)
 		   << std::dec << '\n';
 	      return false;
