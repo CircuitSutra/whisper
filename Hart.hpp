@@ -2792,7 +2792,10 @@ namespace WdRiscv
       if (pa1 == pa2)
 	{
 	  if (not memory_.read(pa1, value))
-	    assert(0 && "Error: Assertion failed");
+            {
+              std::cerr << "Hart::memRead failed on pa" << std::hex << pa1 << std::dec << '\n';
+              // assert(0 && "Error: Assertion failed");
+            }
 	  if (steeInsec1_)
 	    value = 0;
 	  if (bigEnd_)
@@ -2815,7 +2818,12 @@ namespace WdRiscv
 	      byte = 0;
 	    value |= LOAD_TYPE(byte) << 8*destIx;
 	  }
-	else assert(0 && "Error: Assertion failed");
+	else
+          {
+            std::cerr << "Hart::memRead failed on pa 0x" << std::hex << (pa1+i) << std::dec << '\n';
+            // assert(0 && "Error: Assertion failed");
+          }
+
       for (unsigned i = 0; i < size2; ++i, ++destIx)
 	if (memory_.read(pa2 + i, byte))
 	  {
@@ -2823,7 +2831,11 @@ namespace WdRiscv
 	      byte = 0;
 	    value |= LOAD_TYPE(byte) << 8*destIx;
 	  }
-	else assert(0 && "Error: Assertion failed");
+	else
+          {
+            std::cerr << "Hart::memRead failed on pa 0x" << std::hex << (pa2+i) << std::dec << '\n';
+            // assert(0 && "Error: Assertion failed");
+          }
 
       if (bigEnd_)
 	value = util::byteswap(value);
