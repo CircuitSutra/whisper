@@ -4414,7 +4414,7 @@ Mcm<URV>::ppoRule5(Hart<URV>& hart, const McmInstr& instrB) const
 	}
     }
 
-  auto earlyB = earliestOpTime(instrB);
+  auto earlyB = effectiveMinTime(hart, instrB);
 
   for (auto iter = sysMemOps_.rbegin(); iter != sysMemOps_.rend(); ++iter)
     {
