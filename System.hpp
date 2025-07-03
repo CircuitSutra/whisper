@@ -296,7 +296,7 @@ namespace WdRiscv
 		     uint64_t sbase, uint64_t sstride,
 		     unsigned guests, const std::vector<unsigned>& ids,
                      const std::vector<unsigned>& thresholdMasks,
-                     bool maplic, bool saplic, bool gaplic, bool trace);
+                     bool maplic, bool saplic, bool trace);
 
     /// If flag
     void configMfileAplic(bool flag);

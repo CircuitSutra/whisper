@@ -663,7 +663,7 @@ System<URV>::configImsic(uint64_t mbase, uint64_t mstride,
 			 uint64_t sbase, uint64_t sstride,
 			 unsigned guests, const std::vector<unsigned>& idsVec,
                          const std::vector<unsigned>& tmVec, // Threshold masks
-                         bool maplic, bool saplic, bool gaplic, bool trace)
+                         bool maplic, bool saplic, bool trace)
 {
   using std::cerr;
 
@@ -766,7 +766,7 @@ System<URV>::configImsic(uint64_t mbase, uint64_t mstride,
 
   bool ok = imsicMgr_.configureMachine(mbase, mstride, idsVec.at(0), tmVec.at(0), maplic);
   ok = imsicMgr_.configureSupervisor(sbase, sstride, idsVec.at(1), tmVec.at(1), saplic) and ok;
-  ok = imsicMgr_.configureGuests(guests, idsVec.at(2), tmVec.at(2), gaplic) and ok;
+  ok = imsicMgr_.configureGuests(guests, idsVec.at(2), tmVec.at(2)) and ok;
   if (not ok)
     {
       cerr << "Error: Failed to configure IMSIC.\n";
