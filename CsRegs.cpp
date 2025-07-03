@@ -893,17 +893,7 @@ CsRegs<URV>::enableHypervisorMode(bool flag)
 
   if (flag)
     {
-      auto hideleg = getImplementedCsr(CsrNumber::HIDELEG);
-      assert(hideleg);
-
-      auto vsip = getImplementedCsr(CsrNumber::VSIP);
-      auto vsie = getImplementedCsr(CsrNumber::VSIE);
-      URV mask = 0x222;   // Bits VSEIP, VSTIP, and VSSIP of VSIP
-      mask &= (hideleg->read() >> 1);
-      if (vsip)
-	vsip->setReadMask(mask);
-      if (vsie)
-	vsie->setReadMask(mask);
+      updateVsieVsipMasks();
     }
 
   // If hypervisor is off, related bits in MEDELEG are read-only-zero (bits 23:20 and 10).
@@ -5207,16 +5197,7 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
       URV mask = (hideleg->read() & 0x1fff) >> 1;  // HIDELEG affects bits 0 to 12.
       if (hvien)
         mask |= hvien->read() & ~URV(0x1fff); // HVIEN affects bits 13 to 63.
-      if (vsip)
-        {
-          vsip->setReadMask(mask);
-          vsip->setWriteMask(mask & ~URV(0x220));  // Bits 9 & 5 are not writable.
-        }
-      if (vsie)
-        {
-          vsie->setReadMask(mask);
-          vsie->setWriteMask(mask);
-        }
+      updateVsieVsipMasks();
     }
   else if (num == CsrNumber::MIP)
     {
@@ -5288,9 +5269,11 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
       // Bits 13-63 of VSIP is not aliasing with HIP.
       if (hvip)
         {
-          URV mask = ~URV(0x1fff);
+          URV mask = ~URV(0x1fff);  // Bits to be updated in SIP/HVIP
           if (hideleg)
             mask &= hideleg->read();
+          if (vsip)
+            mask &= vsip->getWriteMask();
 
           URV sip; readSip(sip);
           URV val = (value & mask) | (sip & ~mask);
@@ -5298,6 +5281,8 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
             writeSip(val);
 
           mask = ~URV(0x1fff);
+          if (vsip)
+            mask &= vsip->getWriteMask();
           if (hideleg and hvien)
             mask &= ~hideleg->read() & hvien->read();
           updateCsr(hvip, (value & mask) | (hvip->read() & ~mask), false /*poke*/);
@@ -5763,7 +5748,7 @@ CsRegs<URV>::updateLcofMask()
   if (not hyperEnabled_)
     return;
 
-  for ( auto csrn : { CN::HVIP, CN::HVIEN, CN::VSIE, CN::VSIP } )
+  for ( auto csrn : { CN::HVIP, CN::HVIEN } )
     {
       auto csr = getImplementedCsr(csrn);
       if (csr)
@@ -5780,6 +5765,54 @@ CsRegs<URV>::updateLcofMask()
 	      csr->setWriteMask((csr->getWriteMask() & ~lcofMask));
 	    }
 	}
+    }
+
+  updateVsieVsipMasks();
+}
+
+
+template <typename URV>
+void
+CsRegs<URV>::updateVsieVsipMasks()
+{
+  using CN = CsrNumber;
+
+  auto hideleg = getImplementedCsr(CsrNumber::HIDELEG);
+  auto hvien = getImplementedCsr(CsrNumber::HVIEN);
+
+  URV mask = 0;  // Mask of writable bits of VSIP/VSIE
+
+  if (hideleg)
+    mask = (hideleg->read() & 0x1fff) >> 1;  // HIDELEG affets bits 0 to 12,
+
+  URV lcofMask = URV(1) << URV(InterruptCause::LCOF);
+  bool lcofOn = mcdelegEnabled_ and cofEnabled_ and aiaEnabled_;
+
+  if (hvien)
+    {
+      mask |= hvien->read() & ~URV(0x1fff);  // HVIEN affects bits 13 to 63.
+      lcofOn = lcofOn and ((hvien->read() & lcofMask) != 0);
+      if (lcofOn)
+        mask |= lcofMask;
+      else
+        mask &= ~lcofMask;
+    }
+
+  for (auto csrn : { CN::VSIE, CN::VSIP } )
+    {
+      auto csr = getImplementedCsr(csrn);
+      if (not csr)
+        continue;
+
+      // If LCOF bit changes from writable to non-writable, we clear it before changing
+      // the mask.
+#if 0
+      if ((csr->getWriteMask() & ~mask) & lcofMask)
+        csr->poke(csr->read() & ~lcofMask);
+#endif
+
+      csr->setWriteMask(mask);
+      csr->setReadMask(mask);
     }
 }
 

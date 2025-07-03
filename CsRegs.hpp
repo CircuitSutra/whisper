@@ -2364,6 +2364,10 @@ namespace WdRiscv
       vsInterrupts_ = vsInterrupts;
     }
 
+    /// Modify read/write masks of VSIP/VSIE according to HVIEN/HIDELEG and
+    /// the state of the Sscofpmf extension.
+    void updateVsieVsipMasks();
+
   private:
 
     bool rv32_ = sizeof(URV) == 4;
