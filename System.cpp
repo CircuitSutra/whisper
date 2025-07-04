@@ -1754,7 +1754,7 @@ System<URV>::loadSnapshot(const std::string& snapDir, bool restoreTrace)
 
 template <typename URV>
 bool
-System<URV>::saveAplicSnapshot(const Filesystem::path& snapDir)
+System<URV>::saveAplicSnapshot(const Filesystem::path& snapDir) const
 {
   if (not aplic_)
     return true;
@@ -1787,7 +1787,7 @@ System<URV>::saveAplicSnapshot(const Filesystem::path& snapDir)
 
 template <typename URV>
 bool
-System<URV>::saveAplicDomainSnapshot(const Filesystem::path& snapDir, std::shared_ptr<TT_APLIC::Domain> domain, unsigned nsources)
+System<URV>::saveAplicDomainSnapshot(const Filesystem::path& snapDir, std::shared_ptr<TT_APLIC::Domain> domain, unsigned nsources) const
 {
   auto filepath = snapDir / domain->name();
   std::ofstream ofs(filepath);

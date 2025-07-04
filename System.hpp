@@ -459,8 +459,8 @@ namespace WdRiscv
 
   private:
 
-    bool saveAplicSnapshot(const Filesystem::path& snapDir);
-    bool saveAplicDomainSnapshot(const Filesystem::path& snapDir, std::shared_ptr<TT_APLIC::Domain> domain, unsigned nsources);
+    bool saveAplicSnapshot(const Filesystem::path& snapDir) const;
+    bool saveAplicDomainSnapshot(const Filesystem::path& snapDir, std::shared_ptr<TT_APLIC::Domain> domain, unsigned nsources) const;
     bool loadAplicSnapshot(const Filesystem::path& snapDir);
     bool loadAplicDomainSnapshot(const Filesystem::path& snapDir, std::shared_ptr<TT_APLIC::Domain> domain, unsigned nsources);
 
