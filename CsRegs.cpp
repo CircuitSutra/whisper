@@ -4954,7 +4954,7 @@ CsRegs<URV>::addHypervisorFields()
   setCsrFields(Csrn::HIDELEG, {{"hideleg", xlen}});
   setCsrFields(Csrn::HVIP,
       {{"zero", 2}, {"VSSIP", 1}, {"zero", 3}, {"VSTIP", 1},
-       {"zero", 3}, {"VSEIP", 1}, {"zero", 5}});
+       {"zero", 3}, {"VSEIP", 1}, {"zero", 2}, {"LCOFIP", 1}, {"zero", xlen - 14}});
   setCsrFields(Csrn::HIE,
       {{"zero", 2}, {"VSSIE", 1}, {"zero", 3}, {"VSTIE", 1}, {"zero", 3},
        {"VSEIE", 1}, {"zero", 1}, {"SGEIE", 1}, {"zero", xlen - 14}});
@@ -5108,7 +5108,7 @@ CsRegs<URV>::addAiaFields()
   setCsrFields(Csrn::VSISELECT,
       {{"select", xlen}});
   setCsrFields(Csrn::HVICTL,
-      {{"iprio", 8}, {"ipriom", 1}, {"dpr", 1}, {"zero", 8}, {"iid", 12}, {"vti", 1}, {"zero", xlen - 31}});
+      {{"iprio", 8}, {"ipriom", 1}, {"dpr", 1}, {"zero", 6}, {"iid", 12}, {"vti", 1}, {"zero", xlen - 31}});
   setCsrFields(Csrn::HVIEN,
       {{"zero", 13}, {"lcofip", 1}, {"zero", xlen - 14}});
   setCsrFields(Csrn::HVIPRIO1,
