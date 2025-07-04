@@ -115,6 +115,10 @@ namespace WdRiscv
 
     void write(uint64_t addr, uint32_t value) override;
 
+    bool saveSnapshot(const std::string& filename) const override;
+
+    bool loadSnapshot(const std::string& filename) override;
+
   private:
     static const constexpr size_t FIFO_SIZE = 1024;
 

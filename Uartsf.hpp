@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iostream>
 #include <thread>
 #include <atomic>
 #include <mutex>
@@ -21,6 +22,18 @@ namespace WdRiscv
     uint32_t read(uint64_t addr) override;
 
     void write(uint64_t addr, uint32_t value) override;
+
+    bool saveSnapshot([[maybe_unused]] const std::string& filename) const override
+    {
+      std::cerr << "Uartsf::saveSnapshot() not implemented\n";
+      return false;
+    }
+
+    bool loadSnapshot([[maybe_unused]]const std::string& filename) override
+    {
+      std::cerr << "Uartsf::loadSnapshot() not implemented\n";
+      return false;
+    }
 
   private:
 
