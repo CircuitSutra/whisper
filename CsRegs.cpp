@@ -4954,7 +4954,7 @@ CsRegs<URV>::addHypervisorFields()
   setCsrFields(Csrn::HIDELEG, {{"hideleg", xlen}});
   setCsrFields(Csrn::HVIP,
       {{"zero", 2}, {"VSSIP", 1}, {"zero", 3}, {"VSTIP", 1},
-       {"zero", 3}, {"VSEIP", 1}, {"zero", 5}});
+       {"zero", 3}, {"VSEIP", 1}, {"zero", 2}, {"LCOFIP", 1}, {"zero", xlen - 14}});
   setCsrFields(Csrn::HIE,
       {{"zero", 2}, {"VSSIE", 1}, {"zero", 3}, {"VSTIE", 1}, {"zero", 3},
        {"VSEIE", 1}, {"zero", 1}, {"SGEIE", 1}, {"zero", xlen - 14}});
