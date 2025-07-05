@@ -2164,34 +2164,7 @@ Hart<URV>::deviceRead(uint64_t pa, unsigned size, uint64_t& val)
   val = 0;
   if (isAclintAddr(pa))
     {
-      if (isAclintMtimeAddr(pa))
-	{
-	  val = getTime();
-	  return;
-	}
-
-      if (size == 1)
-	{
-	  uint8_t u8 = 0;
-	  memRead(pa, pa, u8);
-	  val = u8;
-	}
-      else if (size == 2)
-	{
-	  uint16_t u16 = 0;
-	  memRead(pa, pa, u16);
-	  val = u16;
-	}
-      else if (size == 4)
-	{
-	  uint32_t u32 = 0;
-	  memRead(pa, pa, u32);
-	  val = u32;
-	}
-      else if (size == 8)
-	memRead(pa, pa, val);
-      else
-	assert(0 && "Error: Assertion failed");
+      processClintRead(pa, size, val);
       return;
     }
 
@@ -2604,6 +2577,59 @@ Hart<URV>::writeForStore(uint64_t virtAddr, uint64_t pa1, uint64_t pa2, STORE_TY
   memPeek(pa1, pa2, temp, false /*usePma*/);
   ldStData_ = temp;
   return true;
+}
+
+
+template <typename URV>
+void
+Hart<URV>::processClintRead(uint64_t addr, unsigned size, uint64_t& val)
+{
+  val = 0;
+
+  if (size != 4 and size != 8)
+    return;    // Size must be 4 or 8.
+
+  if ((addr & 3) != 0)
+    return;    // Address must be word aligned.
+
+  if (addr >= aclintMtimeStart_ and addr < aclintMtimeEnd_)
+    {
+      uint64_t tt = getTime();
+
+      if (size == 4)
+        {
+          if ((addr & 7) == 0)       // Addr is double word aligned, matches time register.
+            val = (tt << 32) >> 32;  // Clear top 32 bits.
+          else                       // Addr is word aligned, matches top word of time register.
+            val = tt >> 32;          // Keep top 32 btis.
+        }
+      else if (size == 8 and (addr & 7) == 0)   // Exact match of time register address.
+        val = tt;
+      return;  // Timer.
+    }
+
+  if (addr >= aclintSwStart_ and addr < aclintSwEnd_)
+    {
+      if (size == 4)
+        {
+          uint32_t u32 = 0;
+          peekMemory(addr, u32, true /*usePma*/);
+          val = u32;
+        }
+      return;
+    }
+
+  if (addr >= aclintMtimeCmpStart_ and addr < aclintMtimeCmpEnd_)
+    {
+      if (size == 4)
+        {
+          uint32_t u32 = 0;
+          peekMemory(addr, u32, true /*usePma*/);
+          val = u32;
+        }
+      else if (size == 8 and (addr & 7) == 0)
+        peekMemory(addr, val, true /*usePma*/);
+    }
 }
 
 

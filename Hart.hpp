@@ -3572,14 +3572,17 @@ namespace WdRiscv
     bool minstretEnabled() const
     { return prevPerfControl_ & 0x4; }
 
-    /// Called to check if a CLINT memory mapped register is written.
+    /// Called when a CLINT address is written.
     /// Clear/set software-interrupt bit in the MIP CSR of
     /// corresponding hart if all the conditions are met. Set timer
     /// limit if timer-limit register is written. Update stVal: if location
     /// is outside the range of valid harts, set stVal to zero.  If it is
     /// in the software interrupt range then keep it least sig bit and zero
     /// the rest.
-    void processClintWrite(uint64_t addr, unsigned stSize, URV& stVal);
+    void processClintWrite(uint64_t addr, unsigned size, URV& stVal);
+
+    /// Called when a CLINT address is read.
+    void processClintRead(uint64_t addr, unsigned size, uint64_t& val);
 
     /// Mask to extract shift amount from a integer register value to use
     /// in shift instructions. This returns 0x1f in 32-bit more and 0x3f
