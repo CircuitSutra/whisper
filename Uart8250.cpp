@@ -302,6 +302,13 @@ bool Uart8250::saveSnapshot(const std::string& filename) const
   ofs << "dll 0x" << (int) dll_ << "\n";
   ofs << "dlm 0x" << (int) dlm_ << "\n";
   ofs << "psd 0x" << (int) psd_ << "\n";
+
+  auto rx_fifo_copy = rx_fifo;
+  while (!rx_fifo_copy.empty()) {
+      ofs << "rx_fifo " << (int) rx_fifo_copy.front() << "\n";
+      rx_fifo_copy.pop();
+  }
+
   return true;
 }
 
@@ -361,6 +368,7 @@ bool Uart8250::loadSnapshot(const std::string& filename)
       else if (regName == "dll") dll_ = value;
       else if (regName == "dlm") dlm_ = value;
       else if (regName == "psd") psd_ = value;
+      else if (regName == "rx_fifo") rx_fifo.push(value);
       else
         {
           std::cerr << "Error: failed to parse UART snapshot file " << filename << " line " << lineno << ": '"
