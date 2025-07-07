@@ -4027,8 +4027,10 @@ CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode) const
         {
           HvictlFields hvf = hvictl->read();
 
+          // See section 6.3.3 of interrupt spec.
+
           URV prio = 0;
-          if ((vs >> unsigned(IC::S_EXTERNAL)) & 1)
+          if ((vs >> unsigned(IC::S_EXTERNAL)) & 1)  // A: Bit 9 is 1 in VSIP and VSIE.
             {
               unsigned id = 0;
               if (imsic_)
@@ -4042,19 +4044,22 @@ CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode) const
                 }
               if (id != 0)
                 {
+                  // First case of 6.3.3: A and VGEIN valid and VSTOPEI not zero.
                   prio = id;
                   if (prio > 255)
                     value = (unsigned(IC::S_EXTERNAL) << 16) | 255; // prio greater than 255
                   else
-                    value = (unsigned(IC::S_EXTERNAL) << 16) | prio; // prior always non-zero
+                    value = (unsigned(IC::S_EXTERNAL) << 16) | prio; // prio always non-zero
                 }
               else if (hvf.bits_.IID == unsigned(IC::S_EXTERNAL) and hvf.bits_.IPRIO != 0)
                 {
+                  // Second case of 6.3.3.: A and VGEIN is 0 and IID is 9 and IPRIO != 0
                   prio = hvf.bits_.IPRIO; // prio always within 1 <= prio <= 255
                   value = (unsigned(IC::S_EXTERNAL) << 16) | prio;
                 }
               else
                 {
+                  // Third case: Neither first or second case applies.
                   prio = 256;
                   value = (unsigned(IC::S_EXTERNAL) << 16) | 255; // prio greater than 255
                 }
@@ -4062,6 +4067,7 @@ CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode) const
 
           if (not hvf.bits_.VTI)
             {
+              // Fourth case of 6.3.3.
               URV value2 = 0;
               URV prio2 = 0;
               unsigned iid2 = highestIidPrio(vs & ~(URV(1) << unsigned(IC::S_EXTERNAL)), PM::Supervisor, false);
@@ -4104,6 +4110,7 @@ CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode) const
             }
           else if (hvf.bits_.VTI and hvf.bits_.IID != unsigned(IC::S_EXTERNAL))
             {
+              // Fifth case of 6.3.3.
               // Priority solely determined by DPR
               // What's interesting is IID=0 is actually valid here.
               URV value2 = 0;
