@@ -287,6 +287,8 @@ Hart<URV>::checkFpSewLmulVstart(const DecodedInst* di, bool wide,
 	}
     }
 
+  ok = ok and checkRoundingModeCommon(di);
+
   // Clear soft-float library or x86 exception flags
   clearSimulatorFpFlags();
 
@@ -8927,7 +8929,7 @@ Hart<URV>::execVfmv_f_s(const DecodedInst* di)
   if (not checkSewLmulVstart(di))
     return;
 
-  if (di->isMasked())
+  if (di->isMasked() or not checkRoundingModeCommon(di))
     {
       postVecFail(di);
       return;
@@ -8996,7 +8998,7 @@ Hart<URV>::execVfmv_s_f(const DecodedInst* di)
   if (not checkSewLmulVstart(di))
     return;
 
-  if (di->isMasked())
+  if (di->isMasked() or not checkRoundingModeCommon(di))
     {
       postVecFail(di);
       return;
@@ -16157,9 +16159,6 @@ Hart<URV>::execVfmacc_vf(const DecodedInst* di)
   if (not checkVecFpInst(di))
     return;
 
-  clearSimulatorFpFlags();
-  setSimulatorRoundingMode(getFpRoundingMode());
-
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  f1 = di->op1(),  vs2 = di->op2();
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
@@ -17237,7 +17236,7 @@ Hart<URV>::execVfmerge_vfm(const DecodedInst* di)
   unsigned vd = di->op0(),  vs1 = di->op1(),  rs2 = di->op2();
 
   // Must be masked, dest must not overlap v0. Source must not overlap v0.
-  if (not di->isMasked() or vd == 0 or vs1 == 0)
+  if (not di->isMasked() or vd == 0 or vs1 == 0 or not checkRoundingModeCommon(di))
     {
       postVecFail(di);
       return;
@@ -17304,7 +17303,7 @@ Hart<URV>::execVfmv_v_f(const DecodedInst* di)
   if (not checkSewLmulVstart(di))
     return;
 
-  if (di->isMasked())
+  if (di->isMasked() or not checkRoundingModeCommon(di))
     {
       postVecFail(di);
       return;
@@ -18557,7 +18556,7 @@ Hart<URV>::execVfwcvt_f_xu_v(const DecodedInst* di)
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
   ElementWidth dsew, sew = vecRegs_.elemWidth();
 
-  if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
+  if (not vecRegs_.isDoubleWideLegal(sew, dsew, group) or not checkRoundingModeCommon(di))
     {
       postVecFail(di);
       return;
@@ -18642,7 +18641,7 @@ Hart<URV>::execVfwcvt_f_x_v(const DecodedInst* di)
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
   ElementWidth dsew, sew = vecRegs_.elemWidth();
 
-  if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
+  if (not vecRegs_.isDoubleWideLegal(sew, dsew, group) or not checkRoundingModeCommon(di))
     {
       postVecFail(di);
       return;
@@ -18803,7 +18802,7 @@ Hart<URV>::execVfncvt_xu_f_w(const DecodedInst* di)
   unsigned elems = vecRegs_.elemMax();
   ElementWidth sew = vecRegs_.elemWidth();
 
-  if (not vecRegs_.isDoubleWideLegal(sew, group))
+  if (not vecRegs_.isDoubleWideLegal(sew, group) or not checkRoundingModeCommon(di))
     {
       postVecFail(di);
       return;
@@ -18885,7 +18884,7 @@ Hart<URV>::execVfncvt_x_f_w(const DecodedInst* di)
   unsigned elems = vecRegs_.elemMax();
   ElementWidth sew = vecRegs_.elemWidth();
 
-  if (not vecRegs_.isDoubleWideLegal(sew, group))
+  if (not vecRegs_.isDoubleWideLegal(sew, group) or not checkRoundingModeCommon(di))
     {
       postVecFail(di);
       return;
@@ -18924,6 +18923,12 @@ Hart<URV>::execVfncvt_rtz_xu_f_w(const DecodedInst* di)
   // Double-wide float to unsigned
   if (not checkVecIntInst(di))
     return;
+
+  if (not checkRoundingModeCommon(di))
+    {
+      postVecFail(di);
+      return;
+    }
 
   clearSimulatorFpFlags();
   setSimulatorRoundingMode(RoundingMode::Zero);
@@ -18973,6 +18978,12 @@ Hart<URV>::execVfncvt_rtz_x_f_w(const DecodedInst* di)
   // double-wide float to int
   if (not checkVecIntInst(di))
     return;
+
+  if (not checkRoundingModeCommon(di))
+    {
+      postVecFail(di);
+      return;
+    }
 
   clearSimulatorFpFlags();
   setSimulatorRoundingMode(RoundingMode::Zero);
@@ -19475,6 +19486,12 @@ Hart<URV>::execVfredusum_vs(const DecodedInst* di)
   ElementWidth sew = vecRegs_.elemWidth();
   bool masked = di->isMasked();
 
+  if (not checkRoundingModeCommon(di))
+    {
+      postVecFail(di);
+      return;
+    }
+
   if (not checkRedOpVsEmul(di))
     return;
 
@@ -19547,6 +19564,12 @@ Hart<URV>::execVfredosum_vs(const DecodedInst* di)
   unsigned elems = vecRegs_.elemCount();
   ElementWidth sew = vecRegs_.elemWidth();
   bool masked = di->isMasked();
+
+  if (not checkRoundingModeCommon(di))
+    {
+      postVecFail(di);
+      return;
+    }
 
   if (not checkRedOpVsEmul(di))
     return;
@@ -19622,6 +19645,12 @@ Hart<URV>::execVfredmin_vs(const DecodedInst* di)
   ElementWidth sew = vecRegs_.elemWidth();
   bool masked = di->isMasked();
 
+  if (not checkRoundingModeCommon(di))
+    {
+      postVecFail(di);
+      return;
+    }
+
   if (not checkRedOpVsEmul(di))
     return;
 
@@ -19694,6 +19723,12 @@ Hart<URV>::execVfredmax_vs(const DecodedInst* di)
   unsigned elems = vecRegs_.elemCount();
   ElementWidth sew = vecRegs_.elemWidth();
   bool masked = di->isMasked();
+
+  if (not checkRoundingModeCommon(di))
+    {
+      postVecFail(di);
+      return;
+    }
 
   if (not checkRedOpVsEmul(di))
     return;
@@ -19841,6 +19876,12 @@ Hart<URV>::execVfwredusum_vs(const DecodedInst* di)
   unsigned elems = vecRegs_.elemCount();
   bool masked = di->isMasked();
 
+  if (not checkRoundingModeCommon(di))
+    {
+      postVecFail(di);
+      return;
+    }
+
   if (not checkWideRedOpVsEmul(di))
     return;
 
@@ -19922,6 +19963,12 @@ Hart<URV>::execVfwredosum_vs(const DecodedInst* di)
 
   unsigned elems = vecRegs_.elemCount();
   bool masked = di->isMasked();
+
+  if (not checkRoundingModeCommon(di))
+    {
+      postVecFail(di);
+      return;
+    }
 
   if (not checkWideRedOpVsEmul(di))
     return;
