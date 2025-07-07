@@ -2081,6 +2081,8 @@ CsRegs<URV>::write(CsrNumber csrn, PrivilegeMode mode, URV value)
     value = legalizePmacfg(prev, value);
   else if (num == CN::SRMCFG)
     value = legalizeSrmcfg(csr, prev, value);
+  else if (num == CN::MENVCFG or num == CN::HENVCFG or num == CN::SENVCFG)
+    value = legalizeEnvcfg(prev, value);
   else if (num == CN::MNSTATUS)
     {
       using MNF = MnstatusFields;
@@ -4330,6 +4332,19 @@ CsRegs<URV>::legalizeSrmcfg(Csr<URV>* csr, URV prev, URV next) const
   if (nf.bits_.mcid_ != masked.bits_.mcid_)
     nf.bits_.mcid_ = pf.bits_.mcid_;
 
+  return nf.value_;
+}
+
+
+template <typename URV>
+URV
+CsRegs<URV>::legalizeEnvcfg(URV prev, URV next) const
+{
+  MenvcfgFields<URV> pf(prev);  // Previous value of envcfg csr.
+  MenvcfgFields<URV> nf(next);  // Value to be written.
+
+  if (nf.bits_.CBIE == 2)
+    nf.bits_.CBIE = pf.bits_.CBIE;   // New value reserved. Keep old.
   return nf.value_;
 }
 
