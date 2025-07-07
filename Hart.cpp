@@ -3185,7 +3185,7 @@ isGvaTrap(bool virtMode, unsigned causeCode)
 }
 
 
-/// Return true if given trap number corresponds to a gust page fault.
+/// Return true if given trap number corresponds to a guest page fault.
 bool
 isGpaTrap(unsigned causeCode)
 {
@@ -3356,9 +3356,12 @@ Hart<URV>::initiateTrap(const DecodedInst* di, bool interrupt,
   bool gva = isRvh() and not interrupt and (hyperLs_ or isGvaTrap(gvaVirtMode, cause));
   if (origVirtMode  and  cause == unsigned(EC::HARDWARE_ERROR)  and not  interrupt)
     gva = true;
-  else if (lastEbreak_ and clearMtvalOnEbreak_)
-    gva = false;
-  else if (not lastEbreak_ and (cause == unsigned(EC::BREAKP)) and not dataAddrTrig_) // icount trigger
+  else if (lastEbreak_)
+    {
+      if (clearMtvalOnEbreak_)
+        gva = false;
+    }
+  else if ((cause == unsigned(EC::BREAKP)) and icountTrig_) // icount trigger
     gva = false;
 
   // Update status register saving xIE in xPIE and previous privilege
@@ -5411,11 +5414,14 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
 
           if (sdtrigOn_ and icountTriggerFired())
             {
+              icountTrig_ = true;
               if (takeTriggerAction(traceFile, currPc_, 0, instCounter_, nullptr /*di*/))
                 {
                   evaluateDebugStep();
+                  icountTrig_ = false;
                   return true;
                 }
+              icountTrig_ = false;
               continue;
             }
 
@@ -6386,9 +6392,11 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
 
       if (sdtrigOn_ and icountTriggerFired())
         {
+          icountTrig_ = true;
           takeTriggerAction(traceFile, currPc_, 0, instCounter_, nullptr /*di*/);
           evaluateDebugStep();
           injectException_ = ExceptionCause::NONE;
+          icountTrig_ = false;
           return;
         }
 

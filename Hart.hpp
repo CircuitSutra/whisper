@@ -5707,6 +5707,7 @@ namespace WdRiscv
     bool hasInterrupt_ = false;      // True if there is an interrupt.
     bool triggerTripped_ = false;    // True if a trigger trips.
     bool dataAddrTrig_ = false;      // True if data address trigger hit.
+    bool icountTrig_ = false;        // True if icount trigger hit.
 
     bool lastBranchTaken_ = false; // Useful for performance counters
     bool misalignedLdSt_ = false;  // Useful for performance counters
