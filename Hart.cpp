@@ -153,6 +153,7 @@ Hart<URV>::~Hart()
     saveBranchTrace(branchTraceFile_);
 }
 
+
 template <typename URV>
 void Hart<URV>::filterMachineInterrupts(bool verbose) {
   // Get the poke masks for the MIP and MIE CSRs.
@@ -175,7 +176,7 @@ void Hart<URV>::filterMachineInterrupts(bool verbose) {
     for (unsigned bitPos = 0; bitPos < sizeof(URV) * 8; ++bitPos) {
       if (combinedMask & (URV(1) << bitPos)) {
         if (userCauses.find(bitPos) == userCauses.end()) {
-          std::cerr << "Error: Interrupt cause " << bitPos
+          std::cerr << "Warning: Interrupt cause " << bitPos
                     << " is allowed by hardware mask but not provided in configuration.\n";
         }
       }

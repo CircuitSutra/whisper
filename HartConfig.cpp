@@ -228,6 +228,8 @@ static
 bool
 applyCsrConfig(Hart<URV>& hart, std::string_view nm, const nlohmann::json& conf, bool verbose)
 {
+  using std::cerr;
+
   unsigned errors = 0;
   URV reset = 0, mask = 0, pokeMask = 0;
   bool exists = true, shared = false, isDebug = false, isHExt = false;
@@ -287,11 +289,11 @@ applyCsrConfig(Hart<URV>& hart, std::string_view nm, const nlohmann::json& conf,
 	    {
 	      if (csr->getNumber() != CsrNumber(number))
 		{
-		  std::cerr << "Error: Invalid config file entry for CSR "
-			    << name << ": Number (0x" << std::hex << number
-			    << ") does not match that of previous definition ("
-			    << "0x" << unsigned(csr->getNumber())
-			    << ")\n" << std::dec;
+		  cerr << "Error: Invalid config file entry for CSR "
+                       << name << ": Number (0x" << std::hex << number
+                       << ") does not match that of previous definition ("
+                       << "0x" << unsigned(csr->getNumber())
+                       << ")\n" << std::dec;
 		  return false;
 		}
 	      // If number matches we configure below
@@ -303,9 +305,9 @@ applyCsrConfig(Hart<URV>& hart, std::string_view nm, const nlohmann::json& conf,
 	    }
 	  else
 	    {
-	      std::cerr << "Error: Invalid config file CSR definition with name "
-			<< name << " and number 0x" << std::hex << number
-			<< ": Number already in use\n" << std::dec;
+	      cerr << "Error: Invalid config file CSR definition with name "
+                   << name << " and number 0x" << std::hex << number
+                   << ": Number already in use\n" << std::dec;
 	      return false;
 	    }
 	}
@@ -313,8 +315,8 @@ applyCsrConfig(Hart<URV>& hart, std::string_view nm, const nlohmann::json& conf,
 
   if (not csr)
     {
-      std::cerr << "Error: A CSR number must be provided in configuration of non-standard CSR "
-		<< name << '\n';
+      cerr << "Error: A CSR number must be provided in configuration of non-standard CSR "
+           << name << '\n';
       return false;
     }
   bool exists0 = csr->isImplemented();
@@ -325,20 +327,20 @@ applyCsrConfig(Hart<URV>& hart, std::string_view nm, const nlohmann::json& conf,
 
   if (name == "mhartid" or name == "vlenb")
     {
-      std::cerr << "Warning: CSR " << name << " cannot be configured.\n";
+      cerr << "Warning: CSR " << name << " cannot be configured.\n";
       return true;
     }
 
   if (name == "sstatus")
     {
-      std::cerr << "Warning: CSR sstatus is a shadow of mstatus and cannot be configured.\n";
+      cerr << "Warning: CSR sstatus is a shadow of mstatus and cannot be configured.\n";
       return true;
     }
 
   if (debug0 and not isDebug)
     {
       if (verbose)
-        std::cerr << "Warning: CSR " << name << " cannot be marked as not debug-mode.\n";
+        cerr << "Warning: CSR " << name << " cannot be marked as not debug-mode.\n";
       isDebug = true;
     }
 
@@ -347,15 +349,15 @@ applyCsrConfig(Hart<URV>& hart, std::string_view nm, const nlohmann::json& conf,
 
   if (not hart.configCsrByUser(name, exists, reset, mask, pokeMask, shared, isDebug, isHExt))
     {
-      std::cerr << "Error: Invalid CSR (" << name << ") in config file.\n";
+      cerr << "Error: Invalid CSR (" << name << ") in config file.\n";
       return false;
     }
 
   if ((mask & pokeMask) != mask and hart.sysHartIndex() == 0)
     {
-      std::cerr << "Warning: For CSR " << name << " poke mask (0x" << std::hex << pokeMask
-		<< ") is not a superset of write\n  mask (0x" << mask << std::dec << ")."
-		<< " Only bits set in both masks will be writable by CSR instructions.\n";
+      cerr << "Warning: For CSR " << name << " poke mask (0x" << std::hex << pokeMask
+           << ") is not a superset of write\n  mask (0x" << mask << std::dec << ")."
+           << " Only bits set in both masks will be writable by CSR instructions.\n";
     }
 
   if (name == "misa")
@@ -364,14 +366,14 @@ applyCsrConfig(Hart<URV>& hart, std::string_view nm, const nlohmann::json& conf,
       URV extBits = (URV(1) << 26) - 1;
       URV writeable = extBits & mask, writeableReset = extBits & mask & reset;
       if (writeable != writeableReset and hart.sysHartIndex() == 0)
-	std::cerr << "Warning: Reset value of MISA should be 0x"
-		  << std::hex << (reset | writeable) << std::dec
-		  << " to be compatible with write mask.\n";
+	cerr << "Warning: Reset value of MISA should be 0x"
+             << std::hex << (reset | writeable) << std::dec
+             << " to be compatible with write mask.\n";
       if ((writeable & (URV(1) << ('E' - 'A'))) and hart.sysHartIndex() == 0)
-	std::cerr << "Warning: Bit E of MISA cannot be writebale.\n";
+	cerr << "Warning: Bit E of MISA cannot be writebale.\n";
       if ((reset & (1 << ('S' - 'A'))) and not (reset & (1 << ('U' - 'A'))))
         {
-          std::cerr << "Error: Invalid MISA in config file: cannot have S=1 and U=0.\n";
+          cerr << "Error: Invalid MISA in config file: cannot have S=1 and U=0.\n";
           return false;
         }
     }
@@ -380,28 +382,22 @@ applyCsrConfig(Hart<URV>& hart, std::string_view nm, const nlohmann::json& conf,
     {
       if (exists0 != exists or reset0 != reset or mask0 != mask or pokeMask0 != pokeMask)
 	{
-	  std::cerr << "Warning: Configuration of CSR (" << name <<
-	    ") changed in config file:\n";
+	  cerr << "Warning: Configuration of CSR (" << name << ") changed in config file:\n";
 
 	  if (exists0 != exists)
-	    std::cerr << "Warning:   implemented: " << exists0 << " to "
-		      << exists << '\n';
+	    cerr << "  implemented: " << exists0 << " to " << exists << '\n';
 
 	  if (shared0 != shared)
-	    std::cerr << "Warning:   shared: " << shared0 << " to "
-		      << shared << '\n';
+	    cerr << "  shared: " << shared0 << " to " << shared << '\n';
 
 	  if (reset0 != reset)
-	    std::cerr << "Warning:   reset: 0x" << std::hex << reset0
-		      << " to 0x" << reset << '\n' << std::dec;
+	    cerr << "  reset: 0x" << std::hex << reset0 << " to 0x" << reset << '\n' << std::dec;
 
 	  if (mask0 != mask)
-	    std::cerr << "Warning:   mask: 0x" << std::hex << mask0
-		      << " to 0x" << mask << '\n' << std::dec;
+	    cerr << "  mask: 0x" << std::hex << mask0 << " to 0x" << mask << '\n' << std::dec;
 
 	  if (pokeMask0 != pokeMask)
-	    std::cerr << "Warning:   poke_mask: " << std::hex << pokeMask0
-		      << " to 0x" << pokeMask << '\n' << std::dec;
+	    cerr << "  poke_mask: " << std::hex << pokeMask0 << " to 0x" << pokeMask << '\n' << std::dec;
 	}
     }
 
@@ -2843,7 +2839,7 @@ HartConfig::configHarts(System<URV>& system, bool userMode, bool verbose) const
             return false;
 
           if (not uart.contains("channel"))
-              std::cerr << "Error: Missing uart channel. Using " << channel << ". "
+              std::cerr << "Warning: Missing uart channel. Using " << channel << ". "
                 << "Valid channels: stdio, pty, unix:<server socket path>, or a"
                 << "semicolon separated list of those.\n";
           else
