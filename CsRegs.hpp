@@ -2368,6 +2368,11 @@ namespace WdRiscv
     /// the state of the Sscofpmf extension.
     void updateVsieVsipMasks();
 
+    /// Return true if value virtual timer has expired: time + delta >= limit where time,
+    /// delta, and limit are respectively the values of the TIME, HTIMEDELTA, and
+    /// VSTIMECMP CSRs.
+    bool virtTimerExpired() const;
+
   private:
 
     bool rv32_ = sizeof(URV) == 4;
