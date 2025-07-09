@@ -5838,12 +5838,15 @@ CsRegs<URV>::virtTimerExpired() const
 {
   using CN = CsrNumber;
 
+  if (not henvcfgStce())
+    return false;
+
   auto time = getImplementedCsr(CN::TIME);
   auto htimedelta = getImplementedCsr(CN::HTIMEDELTA);
   auto vstimecmp = getImplementedCsr(CN::VSTIMECMP);
 
   if (not time  or  not htimedelta  or  not vstimecmp)
-    return true;
+    return false;
 
   return time->read() + htimedelta->read() >= vstimecmp->read();
 }

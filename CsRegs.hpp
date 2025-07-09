@@ -2075,7 +2075,7 @@ namespace WdRiscv
 
     /// Return the value of the STCE bit of the HENVCFG CSR. Return
     /// false if CSR is not implemented
-    bool henvcfgStce()
+    bool henvcfgStce() const
     {
       auto csr = getImplementedCsr(rv32_? CsrNumber::HENVCFGH : CsrNumber::HENVCFG);
       if (not csr)
