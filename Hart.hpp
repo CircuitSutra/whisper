@@ -140,7 +140,7 @@ namespace WdRiscv
     /// within a system of cores -- see sysHartIndex method) and
     /// associate it with the given memory. The MHARTID is configured as
     /// a read-only CSR with a reset value of hartId.
-    Hart(unsigned hartIx, URV hartId, Memory& memory, Syscall<URV>& syscall, uint64_t& time);
+    Hart(unsigned hartIx, URV hartId, unsigned numHarts, Memory& memory, Syscall<URV>& syscall, std::atomic<uint64_t>& time);
 
     /// Destructor.
     ~Hart();
@@ -2628,8 +2628,11 @@ namespace WdRiscv
       // The test bench will sometime disable auto-incrementing the timer.
       if (autoIncrementTimer_)
         {
-          ++timeSample_;
-          time_ += not (timeSample_ & ((URV(1) << timeDownSample_) - 1));
+          timeSample_++;
+          if (timeSample_ >= (URV(1) << timeDownSample_) * numHarts_) {
+            time_.fetch_add(1, std::memory_order_relaxed);
+            timeSample_ = 0;
+          }
         }
     }
 
@@ -2640,8 +2643,12 @@ namespace WdRiscv
       // The test bench will sometime disable auto-incrementing the timer.
       if (autoIncrementTimer_)
         {
-          time_ -= not (timeSample_ & ((URV(1) << timeDownSample_) - 1));
-          --timeSample_;
+          if (timeSample_) {
+            timeSample_--;
+            return;
+          }
+          timeSample_ = (URV(1) << timeDownSample_) * numHarts_ - 1;
+          time_.fetch_sub(1, std::memory_order_relaxed);
         }
     }
 
@@ -5647,6 +5654,7 @@ namespace WdRiscv
     }
 
     unsigned hartIx_ = 0;        // Hart ix in system, see sysHartIndex method.
+    unsigned numHarts_;          // Number of Harts in the system.
     Memory& memory_;
     IntRegs<URV> intRegs_;       // Integer register file.
     CsRegs<URV> csRegs_;         // Control and status registers.
@@ -5726,10 +5734,10 @@ namespace WdRiscv
     unsigned cacheLineSize_ = 64;
     unsigned cacheLineShift_ = 6;
 
-    uint64_t& time_;             // Only hart 0 increments this value.
+    bool autoIncrementTimer_ = true;
+    std::atomic<uint64_t>& time_;  // All harts increment this value.
     uint64_t timeDownSample_ = 0;
     uint64_t timeSample_ = 0;
-    bool autoIncrementTimer_ = true;
 
     uint64_t retiredInsts_ = 0;  // Proxy for minstret CSR.
     uint64_t cycleCount_ = 0;    // Proxy for mcycle CSR.

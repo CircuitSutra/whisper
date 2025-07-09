@@ -639,7 +639,7 @@ loadUsedMemBlocks(const std::string& filename,
 
 static
 bool
-loadTime(const std::string& filename, uint64_t& time)
+loadTime(const std::string& filename, std::atomic<uint64_t>& time)
 {
   std::ifstream ifs(filename);
   if (not ifs)

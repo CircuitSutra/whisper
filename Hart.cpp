@@ -85,8 +85,8 @@ parseNumber(std::string_view numberStr, TYPE& number)
 
 
 template <typename URV>
-Hart<URV>::Hart(unsigned hartIx, URV hartId, Memory& memory, Syscall<URV>& syscall, uint64_t& time)
-  : hartIx_(hartIx), memory_(memory), intRegs_(32),
+Hart<URV>::Hart(unsigned hartIx, URV hartId, unsigned numHarts, Memory& memory, Syscall<URV>& syscall, std::atomic<uint64_t>& time)
+  : hartIx_(hartIx), numHarts_(numHarts), memory_(memory), intRegs_(32),
     fpRegs_(32),
     syscall_(syscall),
     time_(time),
@@ -296,7 +296,7 @@ Hart<URV>::tieCsrs()
       csRegs_.findCsr(CsrNumber::INSTRET)->tie(&retiredInsts_);
       csRegs_.findCsr(CsrNumber::CYCLE)->tie(&cycleCount_);
 
-      csRegs_.findCsr(CsrNumber::TIME)->tie(&time_);
+      csRegs_.findCsr(CsrNumber::TIME)->tie(reinterpret_cast<URV*>(&time_));
 
       csRegs_.findCsr(CsrNumber::STIMECMP)->tie(&stimecmp_);
       csRegs_.findCsr(CsrNumber::VSTIMECMP)->tie(&vstimecmp_);
@@ -2626,30 +2626,27 @@ Hart<URV>::processClintWrite(uint64_t addr, unsigned stSize, URV& storeVal)
     }
   else if (addr >= aclintMtimeStart_ and addr < aclintMtimeEnd_)
     {
-      uint64_t tm;
       if (stSize == 4)
-        {
-          if ((addr & 7) == 0)
-            {
-              tm = (time_ >> 32) << 32; // Clear low 32
-              tm |= uint32_t(storeVal);
-              time_ = tm;
-            }
-          else if ((addr & 3) == 0)
-            {
-              tm = (time_ << 32) >> 32; // Clear high 32
-              tm |= uint64_t(storeVal) << 32;
-              time_ = tm;
-            }
-        }
+      {
+        uint64_t orig, desired;
+        do {
+          orig = time_.load(std::memory_order_relaxed);
+      
+          if ((addr & 7) == 0)  // low 32
+            desired = (orig & 0xFFFFFFFF00000000ULL) | (uint32_t)storeVal;
+          else if ((addr & 3) == 0)  // high 32
+            desired = (orig & 0x00000000FFFFFFFFULL) | ((uint64_t)storeVal << 32);
+          else
+            return; // Misaligned 4-byte access
+        } while (!time_.compare_exchange_weak(orig, desired, std::memory_order_relaxed));
+      }
       else if (stSize == 8)
-        {
-          if ((addr & 7) == 0)
-            {
-              time_ = storeVal;
-            }
-        }
-      return;  // Timer.
+      {
+        if ((addr & 7) == 0)  // aligned 64-bit write
+          time_.store(storeVal, std::memory_order_relaxed);
+        else
+          return; // Misaligned 8-byte write
+      }
     }
   else if (addr >= aclintMtimeCmpStart_ and addr < aclintMtimeCmpEnd_)
     {
@@ -5389,8 +5386,7 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
 	  static std::mutex execMutex;
 	  auto lock = (ownTrace_ or !traceFile)? std::unique_lock<std::mutex>() : std::unique_lock<std::mutex>(execMutex);
 
-          if (not hartIx_)
-	    tickTime();  // Hart 0 increments timer.
+	    tickTime();
 
           uint32_t inst = 0;
 	  currPc_ = pc_;
@@ -5724,7 +5720,6 @@ Hart<URV>::simpleRunWithLimit()
          instCounter_ < instLim and
          retInstCounter_ < retInstLim)
     {
-      if (not hartIx_)
 	tickTime();
 
       resetExecInfo();
@@ -5785,7 +5780,6 @@ Hart<URV>::simpleRunNoLimit()
 {
   while (noUserStop)
     {
-      if (not hartIx_)
 	tickTime();
 
       currPc_ = pc_;
@@ -6358,7 +6352,6 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
 
   try
     {
-      if (not hartIx_)
 	tickTime();
 
       uint32_t inst = 0;
