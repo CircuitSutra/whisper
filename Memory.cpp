@@ -1005,10 +1005,8 @@ Memory::saveSnapshot_lz4(const std::string& filename,
   uint64_t prevAddr = 0;
   (void)prevAddr;
   bool success = true;
-  int block_count = -1;
   for (const auto& blk: usedBlocks)
     {
-      block_count++;
 #ifndef MEM_CALLBACKS
       if (blk.first >= size_)
 	{
@@ -1286,11 +1284,11 @@ Memory::loadSnapshot_lz4(const std::string & filename,
   FILE *in = fopen(filename.c_str(), "rb");
   // Check if the file was opened successfully 
 
-  if (not in) 
-   {
-    std::cerr << "Error: Memory::loadSnapshot_lz4 failed - cannot open " << filename << " for read\n";
-    return false;
-  }
+  if (not in)
+    {
+      std::cerr << "Error: Memory::loadSnapshot_lz4 failed - cannot open " << filename << " for read\n";
+      return false;
+    }
 
   // Read the entire file into the src_buffer 
   // Get the size of the file 
@@ -1303,7 +1301,11 @@ Memory::loadSnapshot_lz4(const std::string & filename,
   uint8_t* src_buffer_end = src_buffer + src_size;
 
   // Read the file into the source buffer 
-  fread(src_buffer, 1, src_size, in);
+  if (not fread(src_buffer, 1, src_size, in))
+    {
+      std::cerr << "Error: Memory::loadSnapshot_lz4 failed - cannot read " << filename << "\n";
+      return false;
+    }
 
   std::vector<uint32_t> temp;
 
@@ -1311,10 +1313,7 @@ Memory::loadSnapshot_lz4(const std::string & filename,
   bool success = true;
   uint64_t prevAddr = 0;
   (void)prevAddr;
-  size_t remainingSize = 0;
-
   int block_count = -1;
-
   for (const auto& blk: usedBlocks)
     {
       block_count++;
@@ -1327,7 +1326,7 @@ Memory::loadSnapshot_lz4(const std::string & filename,
 	  break;
 	}
 #endif
-      remainingSize = blk.second;
+      size_t remainingSize = blk.second;
 #ifndef MEM_CALLBACKS
       if (remainingSize > size_ or size_ - remainingSize < blk.first)
 	{
@@ -1351,12 +1350,12 @@ Memory::loadSnapshot_lz4(const std::string & filename,
       // Decompress the frame 
       success = decompress_frame_lz4(&src_buffer, temp, blk.second);
       // Check if the decompression was successful 
-      if(not success) 
-       {
-        std::cerr << "Decompressing BLOCK: " << block_count << " BLOCK size: " << blk.second << " Block Adderss : " << blk.first << "\n";
-        std::cerr << "Error: Memory::loadSnapshot_lz4 failed - decompression failed\n";
-        break;
-      }
+      if(not success)
+        {
+          std::cerr << "Decompressing BLOCK: " << block_count << " Block size: " << blk.second << " Block Address : " << blk.first << "\n";
+          std::cerr << "Error: Memory::loadSnapshot_lz4 failed - decompression failed\n";
+          break;
+        }
 
       //Check if the src_buffer has reached beyond the end of the file 
       if(src_buffer > src_buffer_end) 
