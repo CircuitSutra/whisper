@@ -1797,6 +1797,9 @@ namespace WdRiscv
     /// Legalize an SRMCFG value. Return legalized value.
     URV legalizeSrmcfg(Csr<URV>* csr, URV current, URV value) const;
 
+    /// Legalize a MENVCFG/SENVCFG/HENVCFG value. Return legalized value.
+    URV legalizeEnvcfg(URV current, URV value) const;
+
     /// Update scountovf, matching OF bit of given mhpmevent CSR.
     void updateScountovfValue(CsrNumber mhpmevent);
 
