@@ -2078,7 +2078,7 @@ namespace WdRiscv
 
     /// Return the value of the STCE bit of the HENVCFG CSR. Return
     /// false if CSR is not implemented
-    bool henvcfgStce()
+    bool henvcfgStce() const
     {
       auto csr = getImplementedCsr(rv32_? CsrNumber::HENVCFGH : CsrNumber::HENVCFG);
       if (not csr)
@@ -2370,6 +2370,11 @@ namespace WdRiscv
     /// Modify read/write masks of VSIP/VSIE according to HVIEN/HIDELEG and
     /// the state of the Sscofpmf extension.
     void updateVsieVsipMasks();
+
+    /// Return true if value virtual timer has expired: time + delta >= limit where time,
+    /// delta, and limit are respectively the values of the TIME, HTIMEDELTA, and
+    /// VSTIMECMP CSRs.
+    bool virtTimerExpired() const;
 
   private:
 

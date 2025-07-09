@@ -5223,9 +5223,11 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
     }
   else if (num == CsrNumber::MIP)
     {
-      // Updating MIP is reflected into HIP. (VSIP aliasing is in readVsip).
-      URV val = mip->read() & hieMask;
-      hip->poke(val | (hip->read() & ~hieMask));
+      // Updating MIP is reflected into HIP for bit 2. (VSIP aliasing is in readVsip).
+      URV val = mip->read();
+      URV mask = 0x4; // Bit 2
+      if (hip)
+        hip->poke((val & mask) | (hip->read() & ~mask));
 
       // FIXME: could reflect bits 13-63
     }
@@ -5237,8 +5239,7 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
     }
   else if (num == CsrNumber::HVIP)
     {
-      // Writing HVIP injects values into HIP. FIX : Need to logical-or external values
-      // for VSEIP and VSTIP.
+      // Writing HVIP injects values into HIP.
       if (hip)
 	{
 	  // Bit 10 (VSEIP) of HIP is the or of bit 10 of HVIP and HGEIP bit selected by
@@ -5247,7 +5248,9 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
 	  unsigned vgein = hsf.bits_.VGEIN;
 	  unsigned bit = (hgeip->read() >> vgein) & 1;  // Bit of HGEIP selected by VGEIN
           URV hipMask = 0x444;  // Mask of bits injected into HIP.
-	  value = value | (bit << 10);  // Or HGEIP bit selected by GVEIN.
+	  value |=  bit << 10;  // Or HGEIP bit selected by GVEIN.
+          if (virtTimerExpired())
+            value |= 1 << 6;    // Or VSTIP (bit 6) if time + htimedelta >= vstimecmp.
 	  hip->poke((hip->read() & ~hipMask) | (value & hipMask));
 	}
     }
@@ -5441,18 +5444,17 @@ CsRegs<URV>::hyperPoke(Csr<URV>* csr)
   if (num == CsrNumber::MIP)
     {
       // Updating MIP is reflected into HIP/VSIP.
-      URV val = mip->read() & hieMask;
+      URV val = mip->read();
+      URV mask = 0x4; // Bit 2
       if (hip)
-	{
-	  hip->poke(val | (hip->read() & ~hieMask));
-	  hipUpdated = true;
-	}
+        hip->poke((val & mask) | (hip->read() & ~mask));
     }
   else if (num == CsrNumber::HIP)
     {
-      URV val = hip->read() & hieMask;
-      // Updating HIP is reflected into MIP/VSIP.
-      mip->poke(val | (mip->read() & ~hieMask));
+      URV val = mip->read();
+      URV mask = 0x4; // Bit 2
+      if (hip)
+        hip->poke((val & mask) | (hip->read() & ~mask));
     }
   else if (num == CsrNumber::HVIP)
     {
@@ -5460,12 +5462,16 @@ CsRegs<URV>::hyperPoke(Csr<URV>* csr)
       // logical-or external values for VSEIP and VSTIP.
       if (hip)
         {
+	  // Bit 10 (VSEIP) of HIP is the or of bit 10 of HVIP and HGEIP bit selected by
+	  // GVEIN. Bits 2, 6 and 10 are injected into HIP. What about bits 13 to 63.
 	  HstatusFields<URV> hsf(hstatus->read());
 	  unsigned vgein = hsf.bits_.VGEIN;
 	  unsigned bit = (hgeip->read() >> vgein) & 1;  // Bit of HGEIP selected by VGEIN
-	  value = value | (bit << 10);
-          hip->poke(value);
-          hipUpdated = true;
+          URV hipMask = 0x444;  // Mask of bits injected into HIP.
+	  value |=  bit << 10;  // Or HGEIP bit selected by GVEIN.
+          if (virtTimerExpired())
+            value |= 1 << 6;    // Or VSTIP (bit 6) if time + htimedelta >= vstimecmp.
+	  hip->poke((hip->read() & ~hipMask) | (value & hipMask));
         }
     }
   else if (num == CsrNumber::HGEIP or num == CsrNumber::HGEIE or
@@ -5836,6 +5842,26 @@ CsRegs<URV>::updateVsieVsipMasks()
       csr->setWriteMask(mask);
       csr->setReadMask(mask);
     }
+}
+
+
+template <typename URV>
+bool
+CsRegs<URV>::virtTimerExpired() const
+{
+  using CN = CsrNumber;
+
+  if (not henvcfgStce())
+    return false;
+
+  auto time = getImplementedCsr(CN::TIME);
+  auto htimedelta = getImplementedCsr(CN::HTIMEDELTA);
+  auto vstimecmp = getImplementedCsr(CN::VSTIMECMP);
+
+  if (not time  or  not htimedelta  or  not vstimecmp)
+    return false;
+
+  return time->read() + htimedelta->read() >= vstimecmp->read();
 }
 
 
