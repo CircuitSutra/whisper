@@ -31,6 +31,7 @@
 #endif
 #include "Memory.hpp"
 #include "wideint.hpp"
+#include <iomanip>
 
 using namespace WdRiscv;
 
@@ -253,8 +254,6 @@ Memory::loadBinaryFile(const std::string& fileName, uint64_t addr)
 }
 
 
-#if LZ4_COMPRESS
-
 std::pair<std::unique_ptr<uint8_t[]>, size_t>
 Memory::loadFile(const std::string& filename)
 {
@@ -275,6 +274,7 @@ Memory::loadFile(const std::string& filename)
 
 #define BLOCK_SIZE (4*1024*1024)
 
+#if LZ4_COMPRESS
 bool
 Memory::loadLz4File(const std::string& fileName, uint64_t addr)
 {
@@ -354,9 +354,7 @@ Memory::loadLz4File(const std::string& fileName, uint64_t addr)
 
   return true;
 }
-
 #endif
-
 
 bool
 Memory::loadElfSegment(ELFIO::elfio& reader, int segIx, uint64_t& end)
@@ -836,9 +834,10 @@ Memory::isSymbolInElfFile(const std::string& path, const std::string& target)
 
 
 bool
-Memory::saveSnapshot(const std::string& filename,
+Memory::saveSnapshot_gzip(const std::string& filename,
                      const std::vector<std::pair<uint64_t,uint64_t>>& usedBlocks) const
 {
+
   constexpr size_t maxChunk = size_t(1) << 28;
 
   // Open binary file for write (compressed) and check success.
@@ -924,9 +923,156 @@ Memory::saveSnapshot(const std::string& filename,
   return success;
 }
 
+#if LZ4_COMPRESS
+bool compress_lz4(FILE* out, const uint8_t* buffer, size_t mem_block_size) {
+  // Check for the file pointer 
+  if (not out) 
+   {
+    std::cerr << "Error: Memory::lz4_compress failed - cannot open file for write\n";
+    return false;
+  }
+ 
+  // Set up the frame info for LZ4 compression
+  LZ4F_frameInfo_t frame_info = {
+    .blockSizeID = LZ4F_max4MB,                    // Use the largest block size (4MB)
+    .blockMode = LZ4F_blockIndependent,            // Blocks are compressed independently (better for parallelism)
+    .contentChecksumFlag = LZ4F_contentChecksumEnabled, // Enable content checksum for end-to-end integrity
+    .frameType = LZ4F_frame,                       // Standard LZ4 frame
+    .contentSize = mem_block_size,                // Total size of uncompressed data (optional but helps decompressor)
+    .dictID = 0,                                   // No external dictionary used
+    .blockChecksumFlag = LZ4F_blockChecksumEnabled // Enable per-block checksums (detect block-level corruption)
+  };
+
+  // Set up LZ4 compression preferences
+  LZ4F_preferences_t frame_preferences = {
+    .frameInfo = frame_info,       // Attach the frame info defined above
+    .compressionLevel = 0,         // Fastest compression (0 = default)
+    .autoFlush = 1,                // Automatically flush at the end of each block
+    .favorDecSpeed = 0,            // Favor compression ratio (not decompression speed)
+    .reserved = {0}                // Must be zeroed for compatibility
+  };
+
+  // Get the max size of the destination buffer 
+  size_t dst_size = LZ4F_compressFrameBound(mem_block_size, &frame_preferences);
+  // Make the dst buffer, unique pointer 
+  std::vector<uint8_t> dst(dst_size);
+  // std::unique_ptr<uint8_t[]> dst(new uint8_t[dst_size]);
+  // Compress the data in the buffer [src] into the dst buffer 
+  size_t compressed_size = LZ4F_compressFrame(dst.data(), dst_size, buffer, mem_block_size, &frame_preferences);
+
+  // Check if there was an error in compression
+  if (LZ4F_isError(compressed_size)) 
+   {
+    std::cerr << "Error: Memory::saveSnapshot failed - LZ4 Compression Error: " << LZ4F_getErrorName(compressed_size) << "\n";
+    return false;
+  }
+
+  // Check if 0 was returned, i.e nothing was written into the dst buffer 
+  if (compressed_size == 0) 
+   {
+    std::cerr << "Error: Memory::saveSnapshot failed - Non-zero value returned \n"
+          << "dst size: " << dst_size << ", "
+          << "mem_block_size: " << mem_block_size << ", "
+          << "compressed_size: " << compressed_size << "\n";
+    return false;
+  }
+
+  // Write the compressed data into the file 
+  fwrite(dst.data(), 1, compressed_size, out);
+  return true;
+}
 
 bool
-Memory::loadSnapshot(const std::string & filename,
+Memory::saveSnapshot_lz4(const std::string& filename,
+                     const std::vector<std::pair<uint64_t,uint64_t>>& usedBlocks) const
+{
+
+  // Open binary file for write (compressed) and check success.
+  std::cerr << "Info: saveSnapshot_lz4 starts..\n";
+  // Open the file to append the data 
+  FILE *out = fopen(filename.c_str(), "wb");
+  // Check if the file was opened successfully 
+  if (not out)
+    {
+      std::cerr << "Error: Memory::saveSnapshot failed - cannot open " << filename
+                << " for write\n";
+      return false;
+    }
+
+  std::vector<uint32_t> temp;  // To collect sparse memory data.
+
+  // write the simulated memory into the file and check success
+  uint64_t prevAddr = 0;
+  (void)prevAddr;
+  bool success = true;
+  int block_count = -1;
+  for (const auto& blk: usedBlocks)
+    {
+      block_count++;
+#ifndef MEM_CALLBACKS
+      if (blk.first >= size_)
+	{
+	  std::cerr << "Error: Memory::saveSnapshot: Block address (0x" << std::hex << blk.first
+		    << ") out of bounds (0x" << size_ << ")\n" << std::dec;
+	  success = false;
+	  break;
+	}
+#endif
+
+      size_t remainingSize = blk.second;
+#ifndef MEM_CALLBACKS
+      if (remainingSize > size_ or size_ - remainingSize < blk.first)
+	{
+	  std::cerr << "Error: Memory::saveSnapshot: Block at (0x" << std::hex << blk.first
+		    << std::dec << ") extends beyond memory bound\n";
+	  success = false;
+	  break;
+	}
+#endif
+
+      assert(prevAddr <= blk.first);
+      prevAddr = blk.first + blk.second;
+
+#ifdef MEM_CALLBACKS
+      temp.resize(remainingSize);
+      assert((blk.first & 3) == 0);
+      assert((remainingSize & 3) == 0);
+      size_t wordCount = remainingSize / 4;
+      uint64_t addr = blk.first;
+      for (size_t i = 0; i < wordCount; ++i, addr += 4)
+	{
+	  uint32_t x = 0;
+	  peek(addr, x, false);
+	  temp.at(i) = x;
+	}
+      uint8_t* buffer = reinterpret_cast<uint8_t*>(temp.data());
+#else
+      uint8_t* buffer = data_ + blk.first;
+#endif
+      std::cerr << "*";
+
+      // Compress the data in the block 
+      // Buffer Contains the sim memory 
+      // blk.second has the size 
+      bool success = compress_lz4(out, buffer, blk.second);
+
+      if (not success)
+        break;
+    }
+  // Close the file 
+  fclose(out);
+
+  if (not success)
+    std::cerr << "Error: Memory::saveSnapshot failed - write into " << filename; 
+  
+  std::cerr << "Info: \nsaveSnapshot finished\n";
+  return success;
+}
+#endif
+
+
+bool
+Memory::loadSnapshot_gzip(const std::string & filename,
                      const std::vector<std::pair<uint64_t,uint64_t>>& usedBlocks)
 {
   constexpr size_t maxChunk = size_t(1) << 28;  // This must match saveSnapshot
@@ -1017,6 +1163,229 @@ Memory::loadSnapshot(const std::string & filename,
   return success;
 }
 
+#if LZ4_COMPRESS
+// src_buffer - buffer with the contents of the compressed lz4 file 
+// dst_buffer - buffer with the decompressed data 
+// mem_block_size - size of the decompressed data 
+
+bool decompress_frame_lz4(uint8_t** src_buffer, std::vector<uint32_t>& dst_buffer, size_t mem_block_size) {
+  // Get the frame info for lz4 decompression
+  // Get a decompresstion context 
+  
+  LZ4F_dctx* dctx; 
+  // Error checking 
+  size_t error = LZ4F_createDecompressionContext(&dctx, LZ4F_VERSION); 
+
+  // Check if there was an error in creating a decompression context 
+  if (LZ4F_isError(error)) 
+   {
+    std::cerr << "Error: Memory::decompress_lz4 failed - LZ4 Unable to create decompression context: " << LZ4F_getErrorName(error) << "\n";
+    return false;
+  }
+
+  struct DctxGuard {
+    LZ4F_dctx* dctx;
+    DctxGuard(LZ4F_dctx* dctx) : dctx(dctx) {}
+    ~DctxGuard() { LZ4F_freeDecompressionContext(dctx); }
+  };
+
+  // RAII for decompression context 
+  DctxGuard dctxGuard(dctx);
+
+  // Get decomrpession preferences 
+  LZ4F_decompressOptions_t decompress_options = {
+    .stableDst = 1,
+    .reserved = {0, 0}
+  };
+
+  size_t frame_size = LZ4F_HEADER_SIZE_MAX; // Setting the frame size variable to the max lz4 frame size 
+  LZ4F_frameInfo_t frame_info;
+
+  // Read the frame 
+  error = LZ4F_getFrameInfo(dctx, &frame_info, *src_buffer, &frame_size);
+
+  // Check if there was an error : 
+  if (LZ4F_isError(error)) 
+   {
+    std::cerr << "Error: Memory::decompress_lz4 failed - LZ4 Frame Error: " << LZ4F_getErrorName(error) << "\n";
+    return false;
+  }
+
+  // frame_size will now contain the size of the frame 
+  // Increment the src buffer by the size of the frame consumed 
+  *src_buffer += frame_size;
+
+  // frame_info will now contain the size of the de-compressed data in the frame. 
+  // Check the size of the content in the frame and the size of the mem block 
+  if(frame_info.contentSize != mem_block_size) 
+   {
+    std::cerr << "Error: Memory::decompress_frame_lz4 failed - Content size mismatch: " << frame_info.contentSize << " != " << mem_block_size << " (frame_size: " << frame_size << ")\n"; 
+    return false;
+  }
+  
+  // Get the decompressed data 
+  // Content size + lz4_max_header_size + 1 CRC byte 
+  size_t dst_size = frame_info.contentSize + LZ4F_HEADER_SIZE_MAX + 1;
+  
+  // Resize the dst_buffer to the correct size, dst_size is in bytes. 
+  dst_buffer.resize(dst_size / 4);
+
+  // Decompress "src_size" bytes from the src_buffer 
+  // When a frame is fully decoded, @return will be 0 (no more data expected).
+  // When provided with more bytes than necessary to decode a frame,
+  // dst_size >>> size of the compressed frame in the src_buffer. 
+
+  size_t src_size = dst_size;    
+  // Decompress the frame into dst_buffer 
+  error = LZ4F_decompress(dctx, dst_buffer.data(), &dst_size, *src_buffer, &src_size, &decompress_options); 
+
+  // Check for error 
+  if(LZ4F_isError(error))
+   {
+      std::cerr << "ERROR: decompress_file failed - LZ4F_decompressFrame failed: " << LZ4F_getErrorName(error) << "\n";
+      return false; 
+  }
+
+  // Make sure the error is 0 
+  if(error != 0)
+   {
+      std::cerr << "Decompress_file Non-zero value returned :  " << error <<  "\n";; 
+      return false; 
+  }
+
+  dst_buffer.resize(dst_size / 4);
+
+
+  // Check if the size of the decomrpessed data is equal to the contentSize 
+  if(dst_buffer.size() * 4 != mem_block_size) 
+    {
+    std::cerr << "Error: Memory::decompress_frame_lz4 failed - Decompressed data size mismatch: \n"
+              << "dst_buffer.size(): " << dst_buffer.size() << "\n"
+              << "dst_buffer bytes: " << dst_buffer.size() * 4 << "\n\n"
+              << "mem block bytes: " << mem_block_size << "\n\n"
+              << "Content size from frame: " << frame_info.contentSize << "\n\n"
+              << "dst size: " << dst_size << "\n"
+              << "src size: " << src_size << "\n";
+    return false; 
+  }
+
+  // Increment the src_buffer by the size of the data read
+  *src_buffer += src_size; 
+
+  // Return true 
+  return true; 
+}
+
+bool
+Memory::loadSnapshot_lz4(const std::string & filename,
+                     const std::vector<std::pair<uint64_t,uint64_t>>& usedBlocks)
+{
+  std::cerr << "Info: loadSnapshot starts_lz4..\n";
+
+  // Open the file with the compressed data 
+  FILE *in = fopen(filename.c_str(), "rb");
+  // Check if the file was opened successfully 
+
+  if (not in) 
+   {
+    std::cerr << "Error: Memory::loadSnapshot_lz4 failed - cannot open " << filename << " for read\n";
+    return false;
+  }
+
+  // Read the entire file into the src_buffer 
+  // Get the size of the file 
+  fseek(in, 0, SEEK_END);
+  int src_size = ftell(in);
+  fseek(in, 0, SEEK_SET);
+
+  // Allocate memory for the source buffer 
+  uint8_t* src_buffer = (uint8_t*)malloc(src_size);
+  uint8_t* src_buffer_end = src_buffer + src_size;
+
+  // Read the file into the source buffer 
+  fread(src_buffer, 1, src_size, in);
+
+  std::vector<uint32_t> temp;
+
+  // read (decompress) file into simulated memory and check success
+  bool success = true;
+  uint64_t prevAddr = 0;
+  (void)prevAddr;
+  size_t remainingSize = 0;
+
+  int block_count = -1;
+
+  for (const auto& blk: usedBlocks)
+    {
+      block_count++;
+#ifndef MEM_CALLBACKS
+      if (blk.first >= size_)
+	{
+	  std::cerr << "Error: Memory::loadSnapshot: Block address (0x" << std::hex << blk.first
+		    << ") out of bounds (0x" << size_ << ")\n" << std::dec;
+	  success = false;
+	  break;
+	}
+#endif
+      remainingSize = blk.second;
+#ifndef MEM_CALLBACKS
+      if (remainingSize > size_ or size_ - remainingSize < blk.first)
+	{
+	  std::cerr << "Error: Memory::loadSnapshot: Block at (0x" << std::hex << blk.first
+		    << ") extends beyond memory bound\n" << std::dec;
+	  success = false;
+	  break;
+	}
+#endif
+
+      assert((blk.first & 3) == 0);
+      assert((remainingSize & 3) == 0);
+      assert(prevAddr <= blk.first);
+
+      prevAddr = blk.first + blk.second;
+      uint64_t addr = blk.first;
+      std::cerr << "*";
+
+      temp.clear();
+
+      // Decompress the frame 
+      success = decompress_frame_lz4(&src_buffer, temp, blk.second);
+      // Check if the decompression was successful 
+      if(not success) 
+       {
+        std::cerr << "Decompressing BLOCK: " << block_count << " BLOCK size: " << blk.second << " Block Adderss : " << blk.first << "\n";
+        std::cerr << "Error: Memory::loadSnapshot_lz4 failed - decompression failed\n";
+        break;
+      }
+
+      //Check if the src_buffer has reached beyond the end of the file 
+      if(src_buffer > src_buffer_end) 
+       {
+        std::cerr << "Error: Memory::loadSnapshot_lz4 failed - src_buffer has reached beyond the end of the file\n";
+        success = false; 
+        break; 
+      }
+
+      int words = temp.size(); // temp is of type uint32_t, size = # words. 
+      for (int i = 0; i < words; ++i, addr += 4) 
+       { 
+        uint32_t prev = 0; 
+        peek(addr, prev, false); 
+        uint32_t curr = temp.at(i); 
+        if(curr != prev) 
+         {
+          poke(addr, curr);
+        } 
+      }
+    }
+
+  if (not success)
+    std::cerr << "Error: Memory::loadSnapshot failed - read from " << filename << " failed\n";
+
+  std::cerr << "Error: \nloadSnapshot finished\n";
+  return success;
+}
+#endif
 
 bool
 Memory::saveAddressTrace(std::string_view tag, const LineMap& lineMap,

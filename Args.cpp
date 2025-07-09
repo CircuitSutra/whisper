@@ -476,6 +476,10 @@ Args::parseCmdLineArgs(std::span<char*> argv)
         ("loadfromtrace", po::bool_switch(&this->loadFromTrace),
          "If true, also restore data-lines/instr-lines/branch-trace from a snapshot "
          "directory. This needs to be used in conjunction with --loadfrom.")
+        ("snapcompressiontype", po::value(&this->compressionType),
+         "Compression type for snapshots. Supported types are: lz4, gzip [default].")
+        ("snapdecompressiontype", po::value(&this->decompressionType),
+         "Decompression type for snapshots. Supported types are: lz4, gzip [default].")
 	("stdout", po::value(&this->stdoutFile),
 	 "Redirect standard output of newlib/Linux target program to this.")
 	("stderr", po::value(&this->stderrFile),

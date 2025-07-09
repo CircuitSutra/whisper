@@ -462,13 +462,25 @@ namespace WdRiscv
 
     /// Take a snapshot of the entire simulated memory into binary
     /// file. Return true on success or false on failure
-    bool saveSnapshot(const std::string& filename,
-                      const std::vector<std::pair<uint64_t,uint64_t>>& used_blocks) const;
+    bool saveSnapshot_gzip(const std::string& filename,
+                           const std::vector<std::pair<uint64_t,uint64_t>>& used_blocks) const;
 
     /// Load the simulated memory from snapshot binary file. Return
     /// true on success or false on failure
-    bool loadSnapshot(const std::string& filename,
-                      const std::vector<std::pair<uint64_t,uint64_t>>& used_blocks);
+    bool loadSnapshot_gzip(const std::string& filename,
+                           const std::vector<std::pair<uint64_t,uint64_t>>& used_blocks);
+
+#if LZ4_COMPRESS
+    // Take a snapshot of the entire simulated memory into binary using lz4 compression.
+    // Returns true on success or false on failure.
+    bool saveSnapshot_lz4(const std::string& filename,
+                          const std::vector<std::pair<uint64_t,uint64_t>>& used_blocks) const;
+
+    // Load the simulated memory from the snapshot binary file compressed with lz4.
+    // Returns true on success or false on failure.
+    bool loadSnapshot_lz4(const std::string& filename,
+                          const std::vector<std::pair<uint64_t,uint64_t>>& used_blocks);
+#endif
 
     /// If address tracing enabled, then write the accumulated data addresses into the
     /// given file. If skipClean is true, then skip lines that were never modified. If

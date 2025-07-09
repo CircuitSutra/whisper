@@ -332,6 +332,14 @@ The following is a brief description of the command line options:
     --loadfrom path
        Snapshot directory from which to restore a previously saved (snapshot)
        state.
+    
+    --snapcompressiontype [lz4 | gzip]
+      Specify which compression scheme to use to store the snapshot. 
+      If the flag is absent, gzip is used by default.
+
+    --snapdecompressiontype [lz4 | gzip]
+      Specify which decompression scheme to use to load the snapshot. 
+      If the flag is absent, gzip is used by default.
 
     --newlib
        Emulate limited emulation of newlib system calls. Done automatically 

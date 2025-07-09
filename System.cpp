@@ -575,8 +575,33 @@ System<URV>::saveSnapshot(const std::string& dir)
     return false;
 
   Filesystem::path memPath = dirPath / "memory";
-  if (not memory_->saveSnapshot(memPath.string(), usedBlocks))
-    return false;
+
+  if (snapCompressionType_ == "lz4")
+    {
+#if LZ4_COMPRESS
+      if (not memory_->saveSnapshot_lz4(memPath.string(), usedBlocks))
+        {
+          std::cerr << "Error in saving snapshot - lz4\n";
+          return false;
+        }
+#else
+      std::cerr << "Error: LZ4 compression is not enabled\n";
+      return false;
+#endif
+    }
+  else if (snapCompressionType_ == "gzip") 
+    {
+      if (not memory_->saveSnapshot_gzip(memPath.string(), usedBlocks))
+        {
+          std::cerr << "Error in saving snapshot - gzip\n";
+          return false;
+        }
+    }
+  else
+    {
+      std::cerr << "Error: Invalid compression type: " << snapCompressionType_ << "\n";
+      return false;
+    }
 
   Filesystem::path fdPath = dirPath / "fd";
   if (not syscall.saveFileDescriptors(fdPath.string()))
@@ -1721,8 +1746,26 @@ System<URV>::loadSnapshot(const std::string& snapDir, bool restoreTrace)
     }
 
   Filesystem::path memPath = dirPath / "memory";
-  if (not memory_->loadSnapshot(memPath.string(), usedBlocks))
-    return false;
+  if (snapDecompressionType_  == "lz4")
+    {
+#if LZ4_COMPRESS
+      if (not memory_->loadSnapshot_lz4(memPath.string(), usedBlocks))
+        return false;
+#else
+      std::cerr << "Error: LZ4 compression is not enabled\n";
+      return false;
+#endif
+    }
+  else if (snapDecompressionType_ == "gzip")
+    {
+      if (not memory_->loadSnapshot_gzip(memPath.string(), usedBlocks))
+        return false;
+    }
+  else
+    {
+      std::cerr << "Error: Invalid decompression type: " << snapDecompressionType_ << std::endl;
+      return false;
+    }
 
   // Rearm CLINT time compare.
   for (auto hartPtr : sysHarts_)

@@ -704,6 +704,10 @@ Session<URV>::applyCmdLineArgs(const Args& args, Hart<URV>& hart,
   unsigned errors = 0;
 
   auto& system = *system_;
+  
+  // Set the compression and decompression types for the system
+  system.setCompressionType(args.compressionType);
+  system.setDecompressionType(args.decompressionType);
 
   if (clib)  // Linux or Newlib enabled.
     sanitizeStackPointer(hart, args.verbose);
