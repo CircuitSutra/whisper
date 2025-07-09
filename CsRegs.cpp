@@ -5429,12 +5429,10 @@ CsRegs<URV>::hyperPoke(Csr<URV>* csr)
   if (num == CsrNumber::MIP)
     {
       // Updating MIP is reflected into HIP/VSIP.
-      URV val = mip->read() & hieMask;
+      URV val = mip->read();
+      URV mask = 0x4; // Bit 2
       if (hip)
-	{
-	  hip->poke(val | (hip->read() & ~hieMask));
-	  hipUpdated = true;
-	}
+        hip->poke((val & mask) | (hip->read() & ~mask));
     }
   else if (num == CsrNumber::HIP)
     {

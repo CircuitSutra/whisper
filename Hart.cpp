@@ -6295,22 +6295,33 @@ Hart<URV>::processTimerInterrupt()
     }
 
   // Deliver/clear virtual supervisor timer from vstimecmp CSR.
+  URV vstipMask = URV(1) << URV(IC::VS_TIMER);
   if (vstimecmpActive_)
     {
       if ((time_ + htimedelta_) >= vstimecmp_)
-        mipVal = mipVal | (URV(1) << URV(IC::VS_TIMER));
+        mipVal = mipVal | vstipMask;
       else
         {
-          mipVal = mipVal & ~(URV(1) << URV(IC::VS_TIMER));
           // Bits HIP.VSTIP (alias of MIP.VSTIP) is the logical-OR
           // of HVIP.VSTIP and the timer interrupt signal
           // resulting from vstimecmp. Section 9.2.3 of priv sepc.
-          mipVal |= csRegs_.peekHvip() & (URV(1) << URV(IC::VS_TIMER));
+          mipVal = (mipVal & ~vstipMask) | (csRegs_.peekHvip() & vstipMask);
         }
     }
+  else
+    mipVal = (mipVal & ~vstipMask) | (csRegs_.peekHvip() & vstipMask);
 
   if (mipVal != prev)
     csRegs_.poke(CsrNumber::MIP, mipVal);
+
+  // HIP.VSTIP aliases MIP.VSTIP
+  auto hip = csRegs_.getImplementedCsr(CsrNumber::HIP);
+  if (hip)
+    {
+      auto hipVal = hip->read();
+      if ((mipVal & vstipMask) != (hipVal & vstipMask))
+        hip->poke((hip->read() & ~vstipMask) | (mipVal & vstipMask));
+    }
 }
 
 
