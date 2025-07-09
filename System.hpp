@@ -457,6 +457,12 @@ namespace WdRiscv
     void setSnapshotDir(const std::string& snapDir)
     { snapDir_ = snapDir; }
 
+    void setCompressionType(const std::string& compressionType)
+    { snapCompressionType_ = compressionType; }
+
+    void setDecompressionType(const std::string& decompressionType)
+    { snapDecompressionType_ = decompressionType; }
+
   private:
 
     bool saveAplicSnapshot(const Filesystem::path& snapDir) const;
@@ -496,5 +502,7 @@ namespace WdRiscv
 
     std::string snapDir_ = "snapshot"; // Directory to save snapshots.
     std::atomic<int> snapIx_ = -1;
+    std::string snapCompressionType_ = "gzip";
+    std::string snapDecompressionType_ = "gzip";
   };
 }
