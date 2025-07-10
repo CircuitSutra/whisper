@@ -1338,8 +1338,9 @@ Memory::loadSnapshot_lz4(const std::string & filename,
 #endif
 
       assert((blk.first & 3) == 0);
-      assert((remainingSize & 3) == 0);
       assert(prevAddr <= blk.first);
+      if ((remainingSize & 3) != 0)
+        assert(0);
 
       prevAddr = blk.first + blk.second;
       uint64_t addr = blk.first;
