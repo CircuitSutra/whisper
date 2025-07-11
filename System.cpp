@@ -155,7 +155,7 @@ System<URV>::defineUart(const std::string& type, uint64_t addr, uint64_t size,
           return nullptr;
         }
 
-        std::cerr << "Error: System::defineUart: Listening on unix socket: " << filename << "\n";
+        std::cerr << "Info: System::defineUart: Listening on unix socket: " << filename << "\n";
         std::unique_ptr<SocketChannel> channel;
         try {
           channel = std::make_unique<SocketChannel>(server_fd);
