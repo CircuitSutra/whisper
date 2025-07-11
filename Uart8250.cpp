@@ -261,7 +261,10 @@ void Uart8250::write(uint64_t addr, uint32_t value) {
       case 0: {
         uint8_t byte = value;
         if (byte) {
-          channel_->write(byte);
+          if (mcr_ & (1 << 4))
+            rx_fifo.push(byte);
+          else
+            channel_->write(byte);
         }
         interruptUpdate();
       }
