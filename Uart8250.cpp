@@ -63,18 +63,17 @@ size_t FDChannel::read(uint8_t *arr, size_t n) {
 
         if (is_tty_)
           for (size_t i = 0; i < static_cast<size_t>(count); i++) {
-            static uint8_t prev = 0;
             const uint8_t c = arr[i];
 
             // Force a stop if control-a x is seen.
-            if (prev == 1 and c == 'x') {
+            if (prev_ == 1 and c == 'x') {
               // It is implementation defined whether destructors get called
               // before the program exits due to an unhandled exception, so we
               // restore termios before throwing
               restoreTermios();
               throw std::runtime_error("Keyboard stop");
             }
-            prev = c;
+            prev_ = c;
           }
 
         return count;

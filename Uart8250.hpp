@@ -50,6 +50,7 @@ namespace WdRiscv
     struct pollfd pollfds_[2];
     bool is_tty_;
     std::unique_ptr<termios> original_termios_;
+    uint8_t prev_ = 0;  // Previous character for control sequence detection
   };
 
 
