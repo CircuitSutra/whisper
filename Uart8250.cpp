@@ -1,5 +1,8 @@
 #include <cassert>
 #include <iostream>
+#include <fstream>
+#include <sstream>
+#include <boost/algorithm/string.hpp>
 #include <unistd.h>
 #include <poll.h>
 #include <termios.h>
@@ -43,7 +46,11 @@ size_t FDChannel::read(uint8_t *arr, size_t n) {
     {
       // Terminated
       if ((pollfds_[1].revents & POLLIN))
-        return 0;
+        {
+          char buf;
+          ::read(terminate_pipe_[0], &buf, 1);
+          return 0;
+        }
 
       if ((pollfds_[0].revents & POLLIN) != 0)
       {
@@ -164,10 +171,10 @@ Uart8250::Uart8250(uint64_t addr, uint64_t size,
   : IoDevice("uart8250", addr, size, aplic, iid), channel_(std::move(channel))
 {
   if (enableInput)
-    this->enableInput();
+    this->enable();
 }
 
-Uart8250::~Uart8250()
+void Uart8250::disable()
 {
   terminate_ = true;
   channel_->terminate();
@@ -175,7 +182,14 @@ Uart8250::~Uart8250()
     inThread_.join();
 }
 
-void Uart8250::enableInput() {
+Uart8250::~Uart8250()
+{
+  if (not terminate_)
+    disable();
+}
+
+void Uart8250::enable() {
+  terminate_ = false;
   auto func = [this]() { this->monitorInput(); };
   inThread_ = std::thread(func);
 }
@@ -247,7 +261,10 @@ void Uart8250::write(uint64_t addr, uint32_t value) {
       case 0: {
         uint8_t byte = value;
         if (byte) {
-          channel_->write(byte);
+          if (mcr_ & (1 << 4))
+            rx_fifo.push(byte);
+          else
+            channel_->write(byte);
         }
         interruptUpdate();
       }
@@ -279,7 +296,102 @@ void Uart8250::write(uint64_t addr, uint32_t value) {
   }
 }
 
+bool Uart8250::saveSnapshot(const std::string& filename) const
+{
+  std::ofstream ofs(filename);
+  if (not ofs)
+    {
+      std::cerr << "Error: failed to open snapshot file for writing: " << filename << "\n";
+      return false;
+    }
+  ofs << std::hex;
+  ofs << "ier 0x" << (int) ier_ << "\n";
+  ofs << "iir 0x" << (int) iir_ << "\n";
+  ofs << "lcr 0x" << (int) lcr_ << "\n";
+  ofs << "mcr 0x" << (int) mcr_ << "\n";
+  ofs << "lsr 0x" << (int) lsr_ << "\n";
+  ofs << "msr 0x" << (int) msr_ << "\n";
+  ofs << "scr 0x" << (int) scr_ << "\n";
+  ofs << "fcr 0x" << (int) fcr_ << "\n";
+  ofs << "dll 0x" << (int) dll_ << "\n";
+  ofs << "dlm 0x" << (int) dlm_ << "\n";
+  ofs << "psd 0x" << (int) psd_ << "\n";
 
+  auto rx_fifo_copy = rx_fifo;
+  while (!rx_fifo_copy.empty()) {
+      ofs << "rx_fifo " << (int) rx_fifo_copy.front() << "\n";
+      rx_fifo_copy.pop();
+  }
+
+  return true;
+}
+
+
+static std::string
+stripComment(const std::string& line)
+{
+    size_t pos = line.find('#');
+    if (pos != std::string::npos)
+        return line.substr(0, pos);
+    return line;
+}
+
+
+bool Uart8250::loadSnapshot(const std::string& filename)
+{
+  std::ifstream ifs(filename);
+  if (not ifs)
+    {
+      std::cerr << "Error: failed to open snapshot file " << filename << "\n";
+      return false;
+    }
+
+  std::string line;
+  int lineno = 0;
+  while (std::getline(ifs, line))
+    {
+      lineno++;
+      std::string data = stripComment(line);
+      boost::algorithm::trim(data);
+      if (data.empty())
+        continue;
+      std::istringstream iss(data);
+      iss >> std::hex;
+      std::string regName;
+      unsigned value;
+      if (not (iss >> regName >> value))
+        {
+          std::cerr << "Error: failed to parse UART snapshot file " << filename << " line " << lineno << ": \n" << line << '\n';
+          return false;
+        }
+      std::string dummy;
+      if (iss >> dummy)
+        {
+          std::cerr << "Error: failed to parse UART snapshot file " << filename << " line " << lineno << ": "
+                    << "unexpected tokens\n";
+          return false;
+        }
+      if      (regName == "ier") ier_ = value;
+      else if (regName == "iir") iir_ = value;
+      else if (regName == "lcr") lcr_ = value;
+      else if (regName == "mcr") mcr_ = value;
+      else if (regName == "lsr") lsr_ = value;
+      else if (regName == "msr") msr_ = value;
+      else if (regName == "scr") scr_ = value;
+      else if (regName == "fcr") fcr_ = value;
+      else if (regName == "dll") dll_ = value;
+      else if (regName == "dlm") dlm_ = value;
+      else if (regName == "psd") psd_ = value;
+      else if (regName == "rx_fifo") rx_fifo.push(value);
+      else
+        {
+          std::cerr << "Error: failed to parse UART snapshot file " << filename << " line " << lineno << ": '"
+                  << regName << "' is not a valid UART register name\n";
+          return false;
+        }
+    }
+  return true;
+}
 
 void Uart8250::monitorInput() {
   while (true) {

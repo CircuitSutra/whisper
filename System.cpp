@@ -20,6 +20,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
+#include <set>
 #include "Hart.hpp"
 #include "Core.hpp"
 #include "SparseMem.hpp"
@@ -533,6 +534,9 @@ template <typename URV>
 bool
 System<URV>::saveSnapshot(const std::string& dir)
 {
+  for (auto dev : ioDevs_)
+    dev->disable();
+
   Filesystem::path dirPath = dir;
   if (not Filesystem::is_directory(dirPath))
     if (not Filesystem::create_directories(dirPath))
@@ -630,6 +634,22 @@ System<URV>::saveSnapshot(const std::string& dir)
   if (not saveAplicSnapshot(dirPath))
     return false;
 
+  std::set<std::string_view> ioDevTypes;
+  for (auto dev : ioDevs_)
+    {
+      if (ioDevTypes.count(dev->type()))
+        {
+          std::cerr << "Error: currently cannot save snapshots for multiple devices of the same type, " <<  dev->type() << '\n';
+          return false;
+        }
+      ioDevTypes.insert(dev->type());
+      Filesystem::path devPath = dirPath / dev->type();
+      if (not dev->saveSnapshot(devPath))
+        return false;
+    }
+
+  for (auto dev : ioDevs_)
+    dev->enable();
   return true;
 }
 
@@ -1790,6 +1810,20 @@ System<URV>::loadSnapshot(const std::string& snapDir, bool restoreTrace)
 
   if (not loadAplicSnapshot(dirPath))
     return false;
+
+  std::set<std::string_view> ioDevTypes;
+  for (auto dev : ioDevs_)
+    {
+      if (ioDevTypes.count(dev->type()))
+        {
+          std::cerr << "Error: currently cannot load snapshots for multiple devices of the same type, " <<  dev->type() << '\n';
+          return false;
+        }
+      ioDevTypes.insert(dev->type());
+      Filesystem::path devPath = dirPath / dev->type();
+      if (not dev->loadSnapshot(devPath))
+        return false;
+    }
 
   return true;
 }

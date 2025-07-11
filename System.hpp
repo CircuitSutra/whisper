@@ -275,7 +275,7 @@ namespace WdRiscv
     {
       for (auto& dev : ioDevs_)
         if (dev->type() == "uart8250")
-          static_cast<Uart8250*>(dev.get())->enableInput();
+          dev->enable();
     }
 
     /// Return the memory page size.
