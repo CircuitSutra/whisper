@@ -19,7 +19,7 @@
 using namespace WdRiscv;
 
 FDChannel::FDChannel(int in_fd, int out_fd)
-  : in_fd_(in_fd), out_fd_(out_fd)
+  : in_fd_(in_fd), out_fd_(out_fd), is_tty_(isatty(in_fd_))
 {
   if (pipe(terminate_pipe_))
     throw std::runtime_error("FDChannel: Failed to get termination pipe\n");
@@ -29,9 +29,10 @@ FDChannel::FDChannel(int in_fd, int out_fd)
   pollfds_[1].fd = terminate_pipe_[0];
   pollfds_[1].events = POLLIN;
 
-  if (isatty(in_fd_)) {
-    struct termios term;
-    tcgetattr(in_fd_, &term);
+  if (is_tty_) {
+    original_termios_ = std::make_unique<struct termios>();
+    tcgetattr(in_fd_, original_termios_.get());
+    struct termios term = *original_termios_;
     cfmakeraw(&term);
     term.c_lflag &= ~ECHO;
     tcsetattr(in_fd_, 0, &term);
@@ -59,14 +60,19 @@ size_t FDChannel::read(uint8_t *arr, size_t n) {
         if (count < 0)
           throw std::runtime_error("FDChannel: Failed to read from in_fd_\n");
 
-        if (isatty(in_fd_))
+        if (is_tty_)
           for (size_t i = 0; i < static_cast<size_t>(count); i++) {
             static uint8_t prev = 0;
             const uint8_t c = arr[i];
 
             // Force a stop if control-a x is seen.
-            if (prev == 1 and c == 'x')
+            if (prev == 1 and c == 'x') {
+              // It is implementation defined whether destructors get called
+              // before the program exits due to an unhandled exception, so we
+              // restore termios before throwing
+              restoreTermios();
               throw std::runtime_error("Keyboard stop");
+            }
             prev = c;
           }
 
@@ -100,7 +106,15 @@ void FDChannel::terminate() {
     std::cerr << "Info: FDChannel::terminate: write failed\n";
 }
 
+void FDChannel::restoreTermios() {
+  if (is_tty_ && original_termios_) {
+    tcsetattr(in_fd_, TCSANOW, original_termios_.get());
+  }
+}
+
 FDChannel::~FDChannel() {
+  restoreTermios();
+  
   for (uint8_t i = 0; i < 2; i++) {
     if (terminate_pipe_[i] != -1)
       close(terminate_pipe_[i]);

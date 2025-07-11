@@ -8,6 +8,9 @@
 #include <poll.h>
 #include "IoDevice.hpp"
 
+// Forward declaring termios becausing including termios.h leaks macro
+// VSTART that conflicts with VSTART in CsrNumber::VSTART.
+struct termios;
 
 namespace WdRiscv
 {
@@ -33,16 +36,20 @@ namespace WdRiscv
   class FDChannel : public UartChannel {
   public:
     FDChannel(int in_fd, int out_fd);
-    ~FDChannel();
+    ~FDChannel() override;
 
     size_t read(uint8_t *buf, size_t size) override;
     void write(uint8_t byte) override;
     void terminate() override;
 
   private:
+    void restoreTermios();
+    
     int in_fd_, out_fd_;
     int terminate_pipe_[2] = {-1, -1};
     struct pollfd pollfds_[2];
+    bool is_tty_;
+    std::unique_ptr<termios> original_termios_;
   };
 
 
