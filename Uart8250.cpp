@@ -35,6 +35,7 @@ FDChannel::FDChannel(int in_fd, int out_fd)
     struct termios term = *original_termios_;
     cfmakeraw(&term);
     term.c_lflag &= ~ECHO;
+    term.c_oflag |= OPOST | ONLCR;
     tcsetattr(in_fd_, 0, &term);
   }
 }
