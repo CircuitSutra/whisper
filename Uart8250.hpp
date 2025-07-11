@@ -113,7 +113,7 @@ namespace WdRiscv
   {
   public:
 
-    Uart8250(uint64_t addr, uint64_t size, std::shared_ptr<TT_APLIC::Aplic> aplic, uint32_t iid, std::unique_ptr<UartChannel> channel, bool enableInput = true);
+    Uart8250(uint64_t addr, uint64_t size, std::shared_ptr<TT_APLIC::Aplic> aplic, uint32_t iid, std::unique_ptr<UartChannel> channel, bool enableInput = true, unsigned regShift = 2);
 
     ~Uart8250() override;
 
@@ -133,6 +133,7 @@ namespace WdRiscv
     static const constexpr size_t FIFO_SIZE = 1024;
 
     std::unique_ptr<UartChannel> channel_;
+    unsigned regShift_ = 2;  // Register shift value (default 2 for 4-byte spacing: 1 << 2 = 4)
 
     /// Update the interrupt status based on the current state of the Uart
     void interruptUpdate();

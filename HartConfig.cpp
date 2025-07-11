@@ -2832,6 +2832,7 @@ HartConfig::configHarts(System<URV>& system, bool userMode, bool verbose) const
 		
       uint32_t iid = 0;
       std::string channel = "pty";
+      unsigned regShift = 2;  // Default to shift 2 (4-byte spacing: 1 << 2 = 4)
       if (type == "uart8250")
         {
           if (uart.contains("iid") &&
@@ -2844,9 +2845,22 @@ HartConfig::configHarts(System<URV>& system, bool userMode, bool verbose) const
                 << "semicolon separated list of those.\n";
           else
             channel = uart.at("channel").get<std::string>();
+
+          if (uart.contains("reg_shift"))
+            {
+              if (not getJsonUnsigned(util::join("", tag, ".reg_shift"), uart.at("reg_shift"), regShift))
+                return false;
+            }
+        }
+      else if (type == "uartsf")
+        {
+          if (uart.contains("reg_shift"))
+            {
+              std::cerr << "Warning: reg_shift parameter is not supported for uartsf UART type and will be ignored.\n";
+            }
         }
 
-      if (not system.defineUart(type, addr, size, iid, channel))
+      if (not system.defineUart(type, addr, size, iid, channel, regShift))
 	return false;
     }
 

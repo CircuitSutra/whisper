@@ -181,8 +181,8 @@ void ForkChannel::terminate() {
 
 Uart8250::Uart8250(uint64_t addr, uint64_t size,
     std::shared_ptr<TT_APLIC::Aplic> aplic, uint32_t iid,
-    std::unique_ptr<UartChannel> channel, bool enableInput)
-  : IoDevice("uart8250", addr, size, aplic, iid), channel_(std::move(channel))
+    std::unique_ptr<UartChannel> channel, bool enableInput, unsigned regShift)
+  : IoDevice("uart8250", addr, size, aplic, iid), channel_(std::move(channel)), regShift_(regShift)
 {
   if (enableInput)
     this->enable();
@@ -225,7 +225,7 @@ void Uart8250::interruptUpdate() {
 }
 
 uint32_t Uart8250::read(uint64_t addr) {
-  uint64_t offset = (addr - address()) / 4;
+  uint64_t offset = (addr - address()) >> regShift_;
   bool dlab = lcr_ & 0x80;
 
   if (dlab == 0) {
@@ -267,7 +267,7 @@ uint32_t Uart8250::read(uint64_t addr) {
 }
 
 void Uart8250::write(uint64_t addr, uint32_t value) {
-  uint64_t offset = (addr - address()) / 4;
+  uint64_t offset = (addr - address()) >> regShift_;
   bool dlab = lcr_ & 0x80;
 
   if (dlab == 0) {
