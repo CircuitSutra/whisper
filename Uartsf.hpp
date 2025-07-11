@@ -19,6 +19,10 @@ namespace WdRiscv
 
     ~Uartsf() override;
 
+    void enable() override {}
+
+    void disable() override {}
+
     uint32_t read(uint64_t addr) override;
 
     void write(uint64_t addr, uint32_t value) override;

@@ -32,6 +32,10 @@ namespace WdRiscv
     /// device range.
     virtual void write(uint64_t addr, uint32_t value) = 0;
 
+    virtual void enable() = 0;
+
+    virtual void disable() = 0;
+
     virtual bool saveSnapshot(const std::string& filename) const = 0;
 
     virtual bool loadSnapshot(const std::string& filename) = 0;

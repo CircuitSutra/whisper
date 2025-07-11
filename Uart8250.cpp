@@ -46,7 +46,11 @@ size_t FDChannel::read(uint8_t *arr, size_t n) {
     {
       // Terminated
       if ((pollfds_[1].revents & POLLIN))
-        return 0;
+        {
+          char buf;
+          ::read(terminate_pipe_[0], &buf, 1);
+          return 0;
+        }
 
       if ((pollfds_[0].revents & POLLIN) != 0)
       {
@@ -167,10 +171,10 @@ Uart8250::Uart8250(uint64_t addr, uint64_t size,
   : IoDevice("uart8250", addr, size, aplic, iid), channel_(std::move(channel))
 {
   if (enableInput)
-    this->enableInput();
+    this->enable();
 }
 
-Uart8250::~Uart8250()
+void Uart8250::disable()
 {
   terminate_ = true;
   channel_->terminate();
@@ -178,7 +182,14 @@ Uart8250::~Uart8250()
     inThread_.join();
 }
 
-void Uart8250::enableInput() {
+Uart8250::~Uart8250()
+{
+  if (not terminate_)
+    disable();
+}
+
+void Uart8250::enable() {
+  terminate_ = false;
   auto func = [this]() { this->monitorInput(); };
   inThread_ = std::thread(func);
 }

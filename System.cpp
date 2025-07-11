@@ -533,6 +533,9 @@ template <typename URV>
 bool
 System<URV>::saveSnapshot(const std::string& dir)
 {
+  for (auto dev : ioDevs_)
+    dev->disable();
+
   Filesystem::path dirPath = dir;
   if (not Filesystem::is_directory(dirPath))
     if (not Filesystem::create_directories(dirPath))
@@ -614,6 +617,8 @@ System<URV>::saveSnapshot(const std::string& dir)
       devId++;
     }
 
+  for (auto dev : ioDevs_)
+    dev->enable();
   return true;
 }
 

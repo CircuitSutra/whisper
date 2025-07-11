@@ -109,7 +109,9 @@ namespace WdRiscv
 
     ~Uart8250() override;
 
-    void enableInput();
+    void enable() override;
+
+    void disable() override;
 
     uint32_t read(uint64_t addr) override;
 
