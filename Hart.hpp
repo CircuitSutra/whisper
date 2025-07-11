@@ -2799,7 +2799,10 @@ namespace WdRiscv
       if (pa1 == pa2)
 	{
 	  if (not memory_.read(pa1, value))
-	    assert(0 && "Error: Assertion failed");
+            {
+              std::cerr << "Hart::memRead failed on pa" << std::hex << pa1 << std::dec << '\n';
+              // assert(0 && "Error: Assertion failed");
+            }
 	  if (steeInsec1_)
 	    value = 0;
 	  if (bigEnd_)
@@ -2822,7 +2825,12 @@ namespace WdRiscv
 	      byte = 0;
 	    value |= LOAD_TYPE(byte) << 8*destIx;
 	  }
-	else assert(0 && "Error: Assertion failed");
+	else
+          {
+            std::cerr << "Hart::memRead failed on pa 0x" << std::hex << (pa1+i) << std::dec << '\n';
+            // assert(0 && "Error: Assertion failed");
+          }
+
       for (unsigned i = 0; i < size2; ++i, ++destIx)
 	if (memory_.read(pa2 + i, byte))
 	  {
@@ -2830,7 +2838,11 @@ namespace WdRiscv
 	      byte = 0;
 	    value |= LOAD_TYPE(byte) << 8*destIx;
 	  }
-	else assert(0 && "Error: Assertion failed");
+	else
+          {
+            std::cerr << "Hart::memRead failed on pa 0x" << std::hex << (pa2+i) << std::dec << '\n';
+            // assert(0 && "Error: Assertion failed");
+          }
 
       if (bigEnd_)
 	value = util::byteswap(value);
@@ -3567,14 +3579,17 @@ namespace WdRiscv
     bool minstretEnabled() const
     { return prevPerfControl_ & 0x4; }
 
-    /// Called to check if a CLINT memory mapped register is written.
+    /// Called when a CLINT address is written.
     /// Clear/set software-interrupt bit in the MIP CSR of
     /// corresponding hart if all the conditions are met. Set timer
     /// limit if timer-limit register is written. Update stVal: if location
     /// is outside the range of valid harts, set stVal to zero.  If it is
     /// in the software interrupt range then keep it least sig bit and zero
     /// the rest.
-    void processClintWrite(uint64_t addr, unsigned stSize, URV& stVal);
+    void processClintWrite(uint64_t addr, unsigned size, URV& stVal);
+
+    /// Called when a CLINT address is read.
+    void processClintRead(uint64_t addr, unsigned size, uint64_t& val);
 
     /// Mask to extract shift amount from a integer register value to use
     /// in shift instructions. This returns 0x1f in 32-bit more and 0x3f
