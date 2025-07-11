@@ -97,7 +97,7 @@ System<URV>::System(unsigned coreCount, unsigned hartsPerCore,
 template <typename URV>
 bool
 System<URV>::defineUart(const std::string& type, uint64_t addr, uint64_t size,
-    uint32_t iid, const std::string& channel_type)
+    uint32_t iid, const std::string& channel_type, unsigned regShift)
 {
   std::shared_ptr<IoDevice> dev;
 
@@ -155,7 +155,7 @@ System<URV>::defineUart(const std::string& type, uint64_t addr, uint64_t size,
           return nullptr;
         }
 
-        std::cerr << "Error: System::defineUart: Listening on unix socket: " << filename << "\n";
+        std::cerr << "Info: System::defineUart: Listening on unix socket: " << filename << "\n";
         std::unique_ptr<SocketChannel> channel;
         try {
           channel = std::make_unique<SocketChannel>(server_fd);
@@ -190,7 +190,7 @@ System<URV>::defineUart(const std::string& type, uint64_t addr, uint64_t size,
     std::unique_ptr<UartChannel> channel = createChannel(channel_type);
     if (!channel)
       return false;
-    dev = std::make_shared<Uart8250>(addr, size, aplic_, iid, std::move(channel), false);
+    dev = std::make_shared<Uart8250>(addr, size, aplic_, iid, std::move(channel), false, regShift);
   }
   else
   {
