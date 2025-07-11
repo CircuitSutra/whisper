@@ -48,7 +48,7 @@ size_t FDChannel::read(uint8_t *arr, size_t n) {
       if ((pollfds_[1].revents & POLLIN))
         {
           char buf;
-          ::read(terminate_pipe_[0], &buf, 1);
+          (void) ::read(terminate_pipe_[0], &buf, 1);
           return 0;
         }
 
