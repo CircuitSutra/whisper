@@ -4025,6 +4025,8 @@ Hart<URV>::postCsrUpdate(CsrNumber csr, URV val, URV lastVal)
 
   if (csr == CN::HVICTL)
     updateCachedHvictl();
+  else if (csr == CN::MVIEN or csr == CN::MIDELEG)
+    csRegs_.updateHidelegMasks();
 
   // FIXME: support mtimecmp
   if (csr == CN::TIME or csr == CN::STIMECMP or csr == CN::VSTIMECMP or

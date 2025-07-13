@@ -341,29 +341,19 @@ CsRegs<URV>::writeMvip(URV value)
 
 
 template <typename URV>
-bool
-CsRegs<URV>::writeMvien(URV value)
+void
+CsRegs<URV>::updateHidelegMasks()
 {
   auto mvien = getImplementedCsr(CsrNumber::MVIEN);
-  if (not mvien)
-    return false;
-
-  mvien->write(value);
-  recordWrite(CsrNumber::MVIEN);
-
-  // Bits 13-63 are read-only zero in hideleg if both
-  // mideleg/mvien are not set.
   auto mideleg = getImplementedCsr(CsrNumber::MIDELEG);
   auto hideleg = getImplementedCsr(CsrNumber::HIDELEG);
-  if (mideleg and hideleg)
-    {
-      URV mask = URV(0x1fff);
-      hideleg->setReadMask((hideleg->getReadMask() & mask) |
-                           (mideleg->read() & value & ~mask));
-      hideleg->write(hideleg->read());
-    }
+  if (not mvien or not mideleg or not hideleg)
+    return;
 
-  return true;
+  // HIDELEG is read-only-zero where MVIEN and MIDELEG are both zero. Section 5.3 of
+  // interrupt spec.
+  URV readMask = mvien->read() | mideleg->read();
+  hideleg->setReadMask(readMask);
 }
 
 
@@ -2015,8 +2005,6 @@ CsRegs<URV>::write(CsrNumber csrn, PrivilegeMode mode, URV value)
     return writeSie(value);
   if (num == CN::MVIP)
     return writeMvip(value);
-  if (num == CN::MVIEN)
-    return writeMvien(value);
   if (aiaEnabled_ and num == CN::MIP)
     {
       if (updateVirtInterrupt(value, false))
@@ -3138,6 +3126,7 @@ CsRegs<URV>::defineHypervisorRegs()
   pokeMask = mask;
   csr = defineCsr("hideleg",     Csrn::HIDELEG,     !mand, !imp, 0, mask, pokeMask);
   csr->setHypervisor(true);
+  updateHidelegMasks();  // HIDELEG depends on MIDELEG and MVIEN.
 
   pokeMask = mask = 0x1444;     // Bits SGEIP, VSEIP, VSTIP, and VSSIP writeable.
   csr = defineCsr("hie",         Csrn::HIE,         !mand, !imp, 0, mask, pokeMask);
@@ -3472,6 +3461,8 @@ CsRegs<URV>::defineAiaRegs()
     }
 
   addAiaFields();
+
+  updateHidelegMasks();  // HIDELEG depeneds on MVIEN and MIDELEG.
 }
 
 

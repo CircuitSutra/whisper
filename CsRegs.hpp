@@ -1721,8 +1721,9 @@ namespace WdRiscv
     /// Helper to write method.
     bool writeMvip(URV value);
 
-    /// Helper to write method.
-    bool writeMvien(URV value);
+    /// Called whenever MVIEN or MIDELEG change to make HIDELEG read-only-zero where
+    /// bot MVIEN and MIDELEG are zero.
+    void updateHidelegMasks();
 
     /// Adjust the value of TIME/TIMEH by adding the time delta in
     /// virtual mode.
