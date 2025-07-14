@@ -663,7 +663,7 @@ namespace TT_IMSIC      // TensTorrent Incoming Message Signaled Interrupt Contr
                     std::vector<std::vector<std::pair<unsigned, unsigned>>>& gselects,
                     std::vector<unsigned>& minterrupts,
                     std::vector<unsigned>& sinterrupts,
-                    std::vector<std::vector<unsigned>> ginterrupts) const
+                    std::vector<std::vector<unsigned>>& ginterrupts) const
     {
       if (not trace_)
         return;
