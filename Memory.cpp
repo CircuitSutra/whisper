@@ -943,6 +943,9 @@ bool compress_lz4(FILE* out, const uint8_t* buffer, size_t mem_block_size) {
     .blockChecksumFlag = LZ4F_blockChecksumEnabled // Enable per-block checksums (detect block-level corruption)
   };
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+
   // Set up LZ4 compression preferences
   LZ4F_preferences_t frame_preferences = {
     .frameInfo = frame_info,       // Attach the frame info defined above
@@ -950,6 +953,8 @@ bool compress_lz4(FILE* out, const uint8_t* buffer, size_t mem_block_size) {
     .autoFlush = 1,                // Automatically flush at the end of each block
     .favorDecSpeed = 0             // Favor compression ratio (not decompression speed)
   };
+
+#pragma GCC diagnostic pop
 
   // Get the max size of the destination buffer 
   size_t dst_size = LZ4F_compressFrameBound(mem_block_size, &frame_preferences);
@@ -1189,10 +1194,15 @@ bool decompress_frame_lz4(uint8_t** src_buffer, std::vector<uint32_t>& dst_buffe
   // RAII for decompression context 
   DctxGuard dctxGuard(dctx);
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+
   // Get decomrpession preferences 
   LZ4F_decompressOptions_t decompress_options = {
     .stableDst = 1,
   };
+
+#pragma GCC diagnostic pop
 
   size_t frame_size = LZ4F_HEADER_SIZE_MAX; // Setting the frame size variable to the max lz4 frame size 
   LZ4F_frameInfo_t frame_info;
