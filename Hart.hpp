@@ -586,7 +586,13 @@ namespace WdRiscv
       auto [pm, virt] = effLdStMode(hyper);
       bool bare = virtMem_.mode() == VirtMem::Mode::Bare;
       if (virt)
-        bare = virtMem_.vsMode() == VirtMem::Mode::Bare;
+        {
+          bare = virtMem_.vsMode() == VirtMem::Mode::Bare;
+          if (virtMem_.stage1ExecReadable())
+            return addr;   // If MXR, pointer masking does not apply.
+        }
+      else if (virtMem_.execReadable())
+        return addr;  // If MXR, pointer masking does not apply.
       return pmaskManager_.applyPointerMask(addr, pm, virt, isLoad, bare);
     }
 
