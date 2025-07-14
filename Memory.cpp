@@ -948,8 +948,7 @@ bool compress_lz4(FILE* out, const uint8_t* buffer, size_t mem_block_size) {
     .frameInfo = frame_info,       // Attach the frame info defined above
     .compressionLevel = 0,         // Fastest compression (0 = default)
     .autoFlush = 1,                // Automatically flush at the end of each block
-    .favorDecSpeed = 0,            // Favor compression ratio (not decompression speed)
-    .reserved = {0}                // Must be zeroed for compatibility
+    .favorDecSpeed = 0             // Favor compression ratio (not decompression speed)
   };
 
   // Get the max size of the destination buffer 
@@ -1193,7 +1192,6 @@ bool decompress_frame_lz4(uint8_t** src_buffer, std::vector<uint32_t>& dst_buffe
   // Get decomrpession preferences 
   LZ4F_decompressOptions_t decompress_options = {
     .stableDst = 1,
-    .reserved = {0, 0}
   };
 
   size_t frame_size = LZ4F_HEADER_SIZE_MAX; // Setting the frame size variable to the max lz4 frame size 
