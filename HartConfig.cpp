@@ -1065,8 +1065,20 @@ applyVectorConfig(Hart<URV>& hart, const nlohmann::json& config)
   if (vconf.contains(tag))
     {
       bool flag = false;
-      getJsonBoolean(tag, vconf.at(tag), flag) or errors++;
-      hart.configVectorAlwaysMarkDirty(flag);
+      if (not getJsonBoolean(tag, vconf.at(tag), flag))
+        errors++;
+      else
+        hart.configVectorAlwaysMarkDirty(flag);
+    }
+
+  tag = "vmvr_ignore_vill";
+  if (vconf.contains(tag))
+    {
+      bool flag = false;
+      if (not getJsonBoolean(tag, vconf.at(tag), flag))
+        errors++;
+      else
+        hart.configVmvrIgnoreVill(flag);
     }
 
   return errors == 0;

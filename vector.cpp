@@ -308,10 +308,22 @@ Hart<URV>::checkSewLmulVstart(const DecodedInst* di)
 {
   // vector extension must be enabled, mstatus.fs must not be off, sew/lmul must
   // be legal, vtype.vill must not be set.
-  if (not preVecExec() or not vecRegs_.legalConfig())
+  if (not preVecExec())
     {
       postVecFail(di);
       return false;
+    }
+
+  if (not ((di->instId() == InstId::vmv1r_v or
+            di->instId() == InstId::vmv2r_v or
+            di->instId() == InstId::vmv4r_v or
+            di->instId() == InstId::vmv8r_v) and vecRegs_.vmvrIgnoreVill_))
+    {
+      if (not vecRegs_.legalConfig())
+        {
+          postVecFail(di);
+          return false;
+        }
     }
 
   // Trap on use of non-zero vstart for arithmetic vector ops.

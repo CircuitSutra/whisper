@@ -2457,9 +2457,14 @@ namespace WdRiscv
     void configVectorFpUnorderedSumCanonical(ElementWidth ew, bool flag)
     { vecRegs_.configVectorFpUnorderedSumCanonical(ew, flag); }
 
-    /// If flag is true, we always mark vector state as dirty when instruction would update vector register, regardless of whether the register is updated.
+    /// If flag is true, we always mark vector state as dirty when instruction would update vector register,
+    /// regardless of whether the register is updated.
     void configVectorAlwaysMarkDirty(bool flag)
     { vecRegs_.configAlwaysMarkDirty(flag); }
+
+    /// If flag is true, vmv<nr>r.v instructions ignore vtype.vill setting.
+    void configVmvrIgnoreVill(bool flag)
+    { vecRegs_.configVmvrIgnoreVill(flag); }
 
     /// Support memory consistency model (MCM) instruction cache. Read 2 bytes from the
     /// given address (must be even) into inst. Return true on success.  Return false if
