@@ -5801,7 +5801,10 @@ CsRegs<URV>::updateVsieVsipMasks()
   URV mask = 0;  // Mask of writable bits of VSIP/VSIE
 
   if (hideleg)
-    mask = (hideleg->read() & 0x1fff) >> 1;  // HIDELEG affets bits 0 to 12,
+    {
+      mask = (hideleg->read() & 0x1fff) >> 1;   // HIDELEG shifted affets bits 0 to 12.
+      mask |= hideleg->read() & ~URV(0x1fff);   // HIDELEG affects bits 13 to 63.
+    }
 
   URV lcofMask = URV(1) << URV(InterruptCause::LCOF);
   bool lcofOn = mcdelegEnabled_ and cofEnabled_ and aiaEnabled_;
