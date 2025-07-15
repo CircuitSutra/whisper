@@ -927,6 +927,7 @@ CsRegs<URV>::enableHypervisorMode(bool flag)
   enableSsqosid(ssqosidOn_);   // To activate/deactivate SRMCFG.
 
   triggers_.enableHypervisor(flag);
+  updateHidelegMasks();
 }
 
 
@@ -1260,6 +1261,7 @@ CsRegs<URV>::enableAia(bool flag)
     }
 
   updateLcofMask();
+  updateHidelegMasks();
 }
 
 
@@ -3126,7 +3128,6 @@ CsRegs<URV>::defineHypervisorRegs()
   pokeMask = mask;
   csr = defineCsr("hideleg",     Csrn::HIDELEG,     !mand, !imp, 0, mask, pokeMask);
   csr->setHypervisor(true);
-  updateHidelegMasks();  // HIDELEG depends on MIDELEG and MVIEN.
 
   pokeMask = mask = 0x1444;     // Bits SGEIP, VSEIP, VSTIP, and VSSIP writeable.
   csr = defineCsr("hie",         Csrn::HIE,         !mand, !imp, 0, mask, pokeMask);
@@ -3461,8 +3462,6 @@ CsRegs<URV>::defineAiaRegs()
     }
 
   addAiaFields();
-
-  updateHidelegMasks();  // HIDELEG depeneds on MVIEN and MIDELEG.
 }
 
 
