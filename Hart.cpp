@@ -2243,6 +2243,7 @@ Hart<URV>::deviceWrite(uint64_t pa, STORE_TYPE storeVal)
     {
       URV val = storeVal;
       processClintWrite(pa, sizeof(storeVal), val);
+      processTimerInterrupt();  // In case TIMER or TIMECMP was written in ACLINT.
       storeVal = val;
       memWrite(pa, pa, storeVal);
       return;
