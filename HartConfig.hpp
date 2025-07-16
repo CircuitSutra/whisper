@@ -124,6 +124,10 @@ namespace WdRiscv
     /// on success and false on failure (config is missing).
     bool getMcmCheckAll(bool& checkAll) const;
 
+    /// Set enableCache to the mcm cache enable flag returning true
+    /// on success and false on failure (config is missing).
+    bool getMcmEnableCache(bool& enableCache) const;
+
     /// Set hartIdOffset to the hart-id offset configuration field
     /// returning true on success and false on failure. Cores will be
     /// associated with start ids 0, hartIdOffset, 2*hartIdOffset, ...

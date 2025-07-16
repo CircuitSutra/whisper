@@ -553,6 +553,10 @@ namespace WdRiscv
     bool stage1ExecReadable() const
     { return s1ExecReadable_; }
 
+    /// Return the executable-readable state (MXR bit is MSTATUS).
+    bool execReadable() const
+    { return execReadable_; }
+
     /// Allow supervisor-mode code to access user-mode pages (supports SUM
     /// bit in MSTATUS).
     void setSum(bool flag)

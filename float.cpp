@@ -202,6 +202,11 @@ bool
 Hart<URV>::checkRoundingModeCommon(const DecodedInst* di)
 {
   RoundingMode riscvMode = effectiveRoundingMode(di->roundingMode());
+
+  // All vector fp instructions rely on a valid value in FRM.
+  if (di->isVector())
+    riscvMode = getFpRoundingMode();
+
   if (riscvMode >= RoundingMode::Invalid1)
     {
       illegalInst(di);

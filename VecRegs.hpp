@@ -455,6 +455,15 @@ namespace WdRiscv
     void configVectorFpUnorderedSumCanonical(ElementWidth ew, bool flag)
     { fpUnorderedSumCanonical_.at(uint32_t(ew)) = flag; }
 
+    /// If flag is true, we always mark vector state as dirty when instruction would update vector register,
+    /// regardless of whether the register is updated.
+    void configAlwaysMarkDirty(bool flag)
+    { alwaysMarkDirty_ = flag; }
+
+    /// If flag is true, vmv<nr>r.v instructions ignore vtype.vill setting.
+    void configVmvrIgnoreVill(bool flag)
+    { vmvrIgnoreVill_ = flag; }
+
     /// Return true if elems/vstart is a multiple of EGS or if it is legalized to be a
     /// multiple of egs. Return false if legalization is not enabled and elems/vstart is
     /// not a multiple of EGS. This is for some vector-crypto instructions.
@@ -890,13 +899,15 @@ namespace WdRiscv
     bool maskAgnOnes_ = true; // True if ones written in masked elems when mask agnostic.
     bool tailAgnOnes_ = true; // True if ones written in tail elems when mask agnostic.
     bool updateWholeMask_ = false;  // True if mask instructions update whole mask reg.
-    bool trapVtype_ = false; // If true trap invalid vtype; else set VTYPE.VILL.
+    bool trapVtype_ = false; // If true, trap invalid vtype; else set VTYPE.VILL.
+    bool alwaysMarkDirty_ = false; // If true, always mark VS dirty when instruction would write to vector register.
     std::vector<bool> fpUnorderedSumTreeRed_; // True if unordered fp reduction should use a reduction tree computation
     std::vector<bool> fpUnorderedSumCanonical_; // True if unordered fp reduction should apply NaN canonicalization.
     bool legalizeVsetvlAvl_ = false; // If true legalize VL to VLMAX if vtype is legal (if applicable).
     bool legalizeVsetvliAvl_ = false; // If true legalize VL to VLMAX if vtype is legal (if applicable).
     bool legalizeForEgs_ = false;
     bool partialSegUpdate_ = false;
+    bool vmvrIgnoreVill_ = false; // If true, allow vmv*r.v instructions to execute when vill is set.
 
     uint32_t groupX8_ = 8;    // Group multiplier as a number scaled by 8.
     uint32_t sewInBits_ = 8;  // SEW expressed in bits (Byte corresponds to 8).

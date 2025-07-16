@@ -60,11 +60,11 @@ namespace WdRiscv
     /// Return pointer to TLB entry associated with given virtual page
     /// number and address space identifier.
     /// Return nullptr if no such entry.
-    TlbEntry* findEntry(uint64_t pageNum, uint32_t asid)
+    TlbEntry* findEntry(uint64_t pageNum, uint32_t asid, uint32_t wid)
     {
       auto* entry = getEntry(pageNum);
 
-      if (entry and entry->valid_ and entry->virtPageNum_ == pageNum)
+      if (entry and entry->valid_ and entry->virtPageNum_ == pageNum and entry->wid_ == wid)
         if (entry->global_ or entry->asid_ == asid)
             return entry;
       return nullptr;
@@ -73,12 +73,13 @@ namespace WdRiscv
     /// Return pointer to TLB entry associated with given virtual page
     /// number, address space identifier, and virtual machine identifier.
     /// Return nullptr if no such entry.
-    TlbEntry* findEntry(uint64_t pageNum, uint32_t asid, uint32_t vmid)
+    TlbEntry* findEntry(uint64_t pageNum, uint32_t asid, uint32_t vmid, uint32_t wid)
     {
       auto* entry = getEntry(pageNum);
 
       if (entry and entry->valid_ and entry->virtPageNum_ == pageNum and
-          entry->vmid_ == vmid and (entry->global_ or entry->asid_ == asid))
+          entry->vmid_ == vmid and entry->wid_ == wid and
+          (entry->global_ or entry->asid_ == asid))
         return entry;
       return nullptr;
     }
@@ -87,9 +88,9 @@ namespace WdRiscv
     /// number and address space identifier. Update entry time of
     /// access and increment time if entry is found. Return nullptr if
     /// no such entry.
-    TlbEntry* findEntryUpdateTime(uint64_t pageNum, uint32_t asid)
+    TlbEntry* findEntryUpdateTime(uint64_t pageNum, uint32_t asid, uint32_t wid)
     {
-      auto* entry = findEntry(pageNum, asid);
+      auto* entry = findEntry(pageNum, asid, wid);
       if (entry)
         {
           ++entry->counter_;
@@ -102,9 +103,9 @@ namespace WdRiscv
     /// number and address space identifier. Update entry time of
     /// access and increment time if entry is found. Return nullptr if
     /// no such entry.
-    TlbEntry* findEntryUpdateTime(uint64_t pageNum, uint32_t asid, uint32_t vmid)
+    TlbEntry* findEntryUpdateTime(uint64_t pageNum, uint32_t asid, uint32_t vmid, uint32_t wid)
     {
-      auto* entry = findEntry(pageNum, asid, vmid);
+      auto* entry = findEntry(pageNum, asid, vmid, wid);
       if (entry)
         {
           ++entry->counter_;
@@ -208,6 +209,9 @@ namespace WdRiscv
     /// Invalidate every entry matching given virtual page number.
     void invalidateVirtualPage(uint64_t vpn, uint32_t wid)
     {
+      unsigned maxSize = 0;   // Size in 4k-bytes of largest entry covering vpn.
+      uint64_t vpnOfMax = 0;
+
       for (auto& entry : entries_)
         {
           unsigned size = sizeIn4kBytes(mode_, entry.level_);
@@ -215,8 +219,26 @@ namespace WdRiscv
           if (entry.wid_ == wid and entry.virtPageNum_ <= vpn and
               vpn < entry.virtPageNum_ + size)
             {
+              if (size > maxSize)
+                {
+                  maxSize = size;
+                  vpnOfMax = entry.virtPageNum_;
+                }
               entry.valid_ = false;
               entry.counter_ = 0;
+            }
+        }
+
+      // Invalidate subpages covered by super-page.  FIX make configurable.
+      if (maxSize > 1)
+        {
+          for (auto& entry : entries_)
+            {
+              if (entry.wid_ == wid and vpnOfMax <= vpn and vpn < vpnOfMax + maxSize)
+                {
+                  entry.valid_ = false;
+                  entry.counter_ = 0;
+                }
             }
         }
     }
@@ -225,6 +247,8 @@ namespace WdRiscv
     /// identifer except for global entries.
     void invalidateVirtualPageAsid(uint64_t vpn, uint32_t asid, uint32_t wid)
     {
+      unsigned maxSize = 0;   // Size in 4k-bytes of largest entry covering vpn.
+      uint64_t vpnOfMax = 0;
       for (auto& entry : entries_)
         {
           unsigned size = sizeIn4kBytes(mode_, entry.level_);
@@ -232,8 +256,27 @@ namespace WdRiscv
           if (entry.virtPageNum_ <= vpn and vpn < entry.virtPageNum_ + size and
               entry.asid_ == asid and entry.wid_ == wid and not entry.global_)
             {
+              if (size > maxSize)
+                {
+                  maxSize = size;
+                  vpnOfMax = entry.virtPageNum_;
+                }
               entry.valid_ = false;
               entry.counter_ = 0;
+            }
+        }
+
+      // Invalidate subpages covered by super-page.  FIX make configurable.
+      if (maxSize > 1)
+        {
+          for (auto& entry : entries_)
+            {
+              if (vpnOfMax <= vpn and vpn < vpnOfMax + maxSize and
+                  entry.asid_ == asid and entry.wid_ == wid and not entry.global_)
+                {
+                  entry.valid_ = false;
+                  entry.counter_ = 0;
+                }
             }
         }
     }
@@ -242,6 +285,8 @@ namespace WdRiscv
     /// identifer except for global entries.
     void invalidateVirtualPageVmid(uint64_t vpn, uint32_t vmid, uint32_t wid)
     {
+      unsigned maxSize = 0;   // Size in 4k-bytes of largest entry covering vpn.
+      uint64_t vpnOfMax = 0;
       for (auto& entry : entries_)
         {
           unsigned size = sizeIn4kBytes(mode_, entry.level_);
@@ -249,8 +294,27 @@ namespace WdRiscv
           if (entry.virtPageNum_ <= vpn and vpn < entry.virtPageNum_ + size and
               entry.vmid_ == vmid and entry.wid_ == wid)
             {
+              if (size > maxSize)
+                {
+                  maxSize = size;
+                  vpnOfMax = entry.virtPageNum_;
+                }
               entry.valid_ = false;
               entry.counter_ = 0;
+            }
+        }
+
+      // Invalidate subpages covered by super-page.  FIX make configurable.
+      if (maxSize > 1)
+        {
+          for (auto& entry : entries_)
+            {
+              if (vpnOfMax <= vpn and vpn < vpnOfMax + maxSize and
+                  entry.vmid_ == vmid and entry.wid_ == wid)
+                {
+                  entry.valid_ = false;
+                  entry.counter_ = 0;
+                }
             }
         }
     }
@@ -260,6 +324,8 @@ namespace WdRiscv
     void invalidateVirtualPageAsidVmid(uint64_t vpn, uint32_t asid, uint32_t vmid,
                                        uint32_t wid)
     {
+      unsigned maxSize = 0;   // Size in 4k-bytes of largest entry covering vpn.
+      uint64_t vpnOfMax = 0;
       for (auto& entry : entries_)
         {
           unsigned size = sizeIn4kBytes(mode_, entry.level_);
@@ -268,8 +334,28 @@ namespace WdRiscv
               entry.vmid_ == vmid and entry.asid_ == asid and entry.wid_ == wid and
               not entry.global_)
             {
+              if (size > maxSize)
+                {
+                  maxSize = size;
+                  vpnOfMax = entry.virtPageNum_;
+                }
               entry.valid_ = false;
               entry.counter_ = 0;
+            }
+        }
+
+      // Invalidate subpages covered by super-page.  FIX make configurable.
+      if (maxSize > 1)
+        {
+          for (auto& entry : entries_)
+            {
+              if (vpnOfMax <= vpn and vpn < vpnOfMax + maxSize and
+                  entry.vmid_ == vmid and entry.asid_ == asid and entry.wid_ == wid and
+                  not entry.global_)
+                {
+                  entry.valid_ = false;
+                  entry.counter_ = 0;
+                }
             }
         }
     }

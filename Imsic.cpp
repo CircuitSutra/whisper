@@ -233,13 +233,13 @@ ImsicMgr::configureSupervisor(uint64_t addr, uint64_t stride, unsigned ids,
 
 
 bool
-ImsicMgr::configureGuests(unsigned n, unsigned ids, unsigned thresholdMax, bool aplic)
+ImsicMgr::configureGuests(unsigned n, unsigned ids, unsigned thresholdMax)
 {
   if (sstride_ < (n+1) * pageSize_)
     return false;  // No enough space.
 
   for (auto imsic : imsics_)
-    imsic->configureGuests(n, ids, pageSize_, thresholdMax, aplic);
+    imsic->configureGuests(n, ids, pageSize_, thresholdMax);
 
   return true;
 }

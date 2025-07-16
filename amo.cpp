@@ -347,6 +347,9 @@ Hart<URV>::storeConditional(const DecodedInst* di, URV virtAddr, STORE_TYPE stor
       ldStDataTriggerHit(storeVal, timing, isLd);
     }
 
+  if (triggerTripped_)
+    return false;
+
   // Misaligned store causes an exception.
   constexpr unsigned alignMask = sizeof(STORE_TYPE) - 1;
   bool misal = virtAddr & alignMask;

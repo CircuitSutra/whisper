@@ -1,184 +1,192 @@
-// Copyright 2020 Western Digital Corporation or its affiliates.
-// 
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-// 
-//     http://www.apache.org/licenses/LICENSE-2.0
-// 
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 #pragma once
 
-#include <cstdint>
-#include <string>
+#include <cassert>
+#include <unordered_map>
+#include <cmath>
 #include <vector>
+#include <cstdint>
+#include <functional>
 
-
-namespace WdRiscv
+namespace TT_CACHE
 {
 
-  /// Model a cache. This is for the support of the performance model.
-  /// We keep track of the addresses of the lines in the cache.  We
-  /// do not keep track of the data.
+  /// Model a generic cache. This is for MCM purposes.
   class Cache
   {
   public:
 
-    /// Replacement policy.
-    enum Policy { RANDOM, LRU };
-
-    /// Define a cache with the given total data size and line size
-    /// (all sizes in bytes and refer to the data part of the cache
-    /// and not the tags) and set-associativity. The total-size must
-    /// be a power of 2 and must be a multiple of the line-size. The
-    /// line-size and set-size must also be powers of 2. Peformance
-    /// will degrade significanlty (quadratic cost) if set size is
-    /// larger than 64.
-    ///
-    /// Typical total-size: 2*1024*1024  (2 MB)
-    /// Typical line-size: 64 bytes
-    /// Typical set-size: 8 (8-way set associative)
-    ///
-    /// Cache consists of l lines (l = size/lineSize) organized in s
-    /// sets (s = l/setSize) each set contains setSize lines. An
-    /// address is mapped to a memory-line ml (ml = address/lineSize)
-    /// which is mapped to a set index (ml % s), then all the lines in
-    /// that set are searched for that memory-line.
-    Cache(uint64_t totalSize, unsigned lineSize, unsigned setSize);
-
-    ~Cache();
-
-    /// Insert line overlapping given address into the cache. Return
-    /// true on a hit (line already in cache) and false otherwise
-    /// (line inserted in cache).
-    bool insert(uint64_t addr)
+    Cache(unsigned lineSize = 64)
+      : lineSize_(lineSize)
     {
-      uint64_t lineNumber = getLineNumber(addr);
-      uint64_t setIndex = getSetIndex(lineNumber);
-      auto& lines = linesPerSet_.at(setIndex);
-      accesses_++;
+      assert(lineSize > 0 and (lineSize % 8) == 0);
+      lineShift_ = std::log2(lineSize);
+    }
 
-      // Find line number or oldest entry.
-      size_t bestIx = 0;
-      bool hit = false;
-      for (size_t ix = 0; ix < lines.size(); ++ix)
+    /// Add a line to the cache. Data is obtained by calling fetchMem
+    /// for the words of the line. Return true on success. Return false
+    /// if any of the memory reads fails. If the line already exists,
+    /// we don't do anything.
+    bool addLine(uint64_t addr)
+    {
+      if (not memRead_)
+        return false;
+
+      uint64_t lineNum = addr >> lineShift_;
+      if (data_.contains(lineNum))
+        return true;
+      auto& vec = data_[lineNum];
+      vec.resize(lineSize_);
+      bool ok = true;
+      unsigned dwords = lineSize_ / sizeof(uint64_t);
+      addr = lineNum << lineShift_;
+      for (unsigned i = 0; i < dwords; ++i, addr += sizeof(uint64_t))
+	{
+	  uint64_t val = 0;
+	  ok = memRead_(addr, val) and ok;
+	  unsigned j = i * sizeof(uint64_t);
+	  vec.at(j) = val;
+	  vec.at(j + 1) = val >> 8;
+	  vec.at(j + 2) = val >> 16;
+	  vec.at(j + 3) = val >> 24;
+	  vec.at(j + 4) = val >> 32;
+	  vec.at(j + 5) = val >> 40;
+	  vec.at(j + 6) = val >> 48;
+	  vec.at(j + 7) = val >> 56;
+	}
+      return ok;
+    }
+
+    bool writebackLine(uint64_t addr, const std::vector<uint8_t>& rtlData)
+    {
+      if (not memWrite_)
+        return false;
+
+      if (rtlData.size() and rtlData.size() != lineSize_)
         {
-          auto& entry = lines[ix];
-          if (entry.tag_ == lineNumber)
-            {
-              hits_++;
-              bestIx = ix;
-	      hit = true;
-              break;
-            }
-          if (not entry.valid() or
-              (lines[bestIx].valid() and entry.time_ < lines[bestIx].time_))
-	    bestIx = ix;
+          std::cerr << "Error: writeback line size " << rtlData.size() << " does"
+                       " not match cache line size " << lineSize_ << '\n';
+          return false;
         }
 
-      lines[bestIx].tag_ = lineNumber;
-      lines[bestIx].time_ = time_++;
-      return hit;
+      bool skipCheck = rtlData.size() == 0;
+      uint64_t lineNum = addr >> lineShift_;
+
+      if (not data_.contains(lineNum))
+        return false;
+      auto& vec = data_.at(lineNum);
+      bool ok = true;
+      unsigned dwords = lineSize_ / sizeof(uint64_t);
+      addr = lineNum << lineShift_;
+      for (unsigned i = 0; i < dwords; ++i, addr += sizeof(uint64_t))
+	{
+          unsigned j = i * sizeof(uint64_t);
+          uint64_t val = uint64_t(vec.at(j));
+          val |= uint64_t(vec.at(j + 1)) << 8;
+          val |= uint64_t(vec.at(j + 2)) << 16;
+          val |= uint64_t(vec.at(j + 3)) << 24;
+          val |= uint64_t(vec.at(j + 4)) << 32;
+          val |= uint64_t(vec.at(j + 5)) << 40;
+          val |= uint64_t(vec.at(j + 6)) << 48;
+          val |= uint64_t(vec.at(j + 7)) << 56;
+
+          if (not skipCheck)
+            {
+              uint64_t rtlVal = uint64_t(rtlData.at(j));
+              rtlVal |= uint64_t(rtlData.at(j + 1)) << 8;
+              rtlVal |= uint64_t(rtlData.at(j + 2)) << 16;
+              rtlVal |= uint64_t(rtlData.at(j + 3)) << 24;
+              rtlVal |= uint64_t(rtlData.at(j + 4)) << 32;
+              rtlVal |= uint64_t(rtlData.at(j + 5)) << 40;
+              rtlVal |= uint64_t(rtlData.at(j + 6)) << 48;
+              rtlVal |= uint64_t(rtlData.at(j + 7)) << 56;
+
+              if (val != rtlVal)
+                {
+                  std::cerr << "Error: Failed writeback comparison for dword " << i
+                            << " Whisper: " << std::hex << val << " RTL: " << rtlVal << '\n' << std::dec;
+                  ok = false;
+                }
+            }
+
+	  ok = memWrite_(addr, val) and ok;
+        }
+      return ok;
     }
 
-    /// Invalidate line overlapping given address.
-    void invalidate(uint64_t addr)
+    /// Remove from this cashe the line contining the given address.
+    /// No-op if line is not in cache.
+    void removeLine(uint64_t addr)
     {
-      uint64_t lineNumber = getLineNumber(addr);
-      uint64_t setIndex = getSetIndex(lineNumber);
-
-      auto& lines = linesPerSet_.at(setIndex);
-      for (auto& entry : lines)
-        if (entry.tag_ == lineNumber)
-          entry.invalidate();
+      uint64_t lineNum = addr >> lineShift_;
+      data_.erase(lineNum);
     }
 
-    /// Return true if line overlapping given address is present in
-    /// the cache updating the access time of the line; return flase
-    /// otherwise. A line is present after it is inserted and until it
-    /// is evicted or invalidated.
-    bool access(uint64_t addr)
+    /// Read into inst the 2-bytes at the given address. Return true on success. Return
+    /// false if addr + size would cross cacheline or does not exist.
+    template <typename SZ>
+    bool read(uint64_t addr, SZ& data) const
     {
-      uint64_t lineNumber = getLineNumber(addr);
-      uint64_t setIndex = getSetIndex(lineNumber);
-      auto& lines = linesPerSet_.at(setIndex);
-      accesses_++;
+      uint64_t lineNum = addr >> lineShift_;
+      uint64_t lineNum2 = (addr + sizeof(SZ) - 1) >> lineShift_;
 
-      for (auto& entry : lines)
-        if (entry.tag_ == lineNumber)
-          {
-            hits_++;
-            entry.time_ = time_++;
-            return true;
-          }
-      return false;
+      if (lineNum != lineNum2)
+        return false;
+      if (not data_.contains(lineNum))
+        return false;
+      auto& vec = data_.at(lineNum);
+      unsigned byteIx = addr % lineSize_;
+      if constexpr (sizeof(SZ) >= sizeof(uint8_t))
+        data = vec.at(byteIx);
+      if constexpr (sizeof(SZ) >= sizeof(uint16_t))
+        data |= (uint16_t(vec.at(byteIx + 1)) << 8);
+      if constexpr (sizeof(SZ) >= sizeof(uint32_t))
+        {
+          data |= (uint32_t(vec.at(byteIx + 2)) << 16);
+          data |= (uint32_t(vec.at(byteIx + 3)) << 24);
+        }
+      if constexpr (sizeof(SZ) >= sizeof(uint64_t))
+        {
+          data |= (uint64_t(vec.at(byteIx + 4)) << 32);
+          data |= (uint64_t(vec.at(byteIx + 5)) << 40);
+          data |= (uint64_t(vec.at(byteIx + 6)) << 48);
+          data |= (uint64_t(vec.at(byteIx + 7)) << 56);
+        }
+      return true;
     }
 
-    /// Return number of times caches has been accessed.
-    uint64_t accessCount() const
-    { return accesses_; }
+    /// Poke byte if given address is in the cache. Return false
+    /// otherwise.
+    bool poke(uint64_t addr, uint8_t byte)
+    {
+      uint64_t lineNum = addr >> lineShift_;
+      if (not data_.contains(lineNum))
+        return false;
+      unsigned byteIx = addr % lineSize_;
+      data_.at(lineNum)[byteIx] = byte;
+      return true;
+    }
 
-    uint64_t hitCount() const
-    { return hits_; }
+    /// Callback to read from memory.
+    void addMemReadCallback(const std::function<bool(uint64_t, uint64_t&)> memRead)
+    { memRead_ = memRead; }
 
-    /// Fill the given vector (cleared on entry) with the addresses of
-    /// the lines curently in the cache in descending order (oldest
-    /// one first) by age.
-    void getLineAddresses(std::vector<uint64_t>& result) const;
+    /// Callback to write tomemory.
+    void addMemWriteCallback(const std::function<bool(uint64_t, uint64_t)> memWrite)
+    { memWrite_ = memWrite; }
 
-    /// Take a snapshot of the cache tags into the given file. Return
-    /// true on success or false on failure
-    bool saveSnapshot(const std::string& path) const;
-
-    /// Load the cache tags from the snapshot file. Return true on
-    /// success and fase on failure.
-    bool loadSnapshot(const std::string& path);
-
-    /// Return the line number corresponding to the given address.
-    uint64_t getLineNumber(uint64_t addr) const
-    { return addr >> lineNumberShift_; }
-
-    /// Return the line-size-aligned address corresponding to the
-    /// given address.
-    uint64_t alignToLine(uint64_t addr) const
-    { return (addr >> lineNumberShift_) << lineNumberShift_; }
-
-  protected:
-
-    /// Cache is organized as an array of sets. Return the index of the
-    /// set corresponding to the given line number.
-    uint64_t getSetIndex(uint64_t lineNumber) const
-    { return lineNumber & setIndexMask_; }
+    /// Empty cache.
+    void clear()
+    { data_.clear(); }
 
   private:
 
-    struct Entry
-    {
-      uint64_t tag_ = ~uint64_t(0);
-      uint64_t time_ = 0;
-
-      bool valid() const { return tag_ != ~uint64_t(0); }
-      void invalidate() { tag_ = ~uint64_t(0); }
-    };
-
-    /// Cache lines in a set.
-    using LinesInSet = std::vector<Entry>;
-
-    /// Map a set index (memory-line-address modulo setCount) to
-    /// the corresponding set of lines,
-    std::vector<LinesInSet> linesPerSet_;
-
-    uint64_t time_ = 0;
-    unsigned setSize_ = 0;
-    unsigned lineNumberShift_ = 0;
-    unsigned setIndexMask_ = 0;
-
-    uint64_t hits_ = 0;
-    uint64_t accesses_ = 0;
+    unsigned lineSize_ = 64;
+    unsigned lineShift_ = 6;
+    std::unordered_map< uint64_t, std::vector<uint8_t>> data_;
+    std::function<bool(uint64_t, uint64_t&)> memRead_;
+    std::function<bool(uint64_t, uint64_t)> memWrite_;
   };
+
 }
+
+

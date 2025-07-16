@@ -40,7 +40,7 @@
 #include "Disassembler.hpp"
 #include "util.hpp"
 #include "Imsic.hpp"
-#include "FetchCache.hpp"
+#include "Cache.hpp"
 #include "pci/Pci.hpp"
 #include "Stee.hpp"
 #include "PmaskManager.hpp"
@@ -63,6 +63,8 @@ namespace WdRiscv
   class InstEntry;
 
   enum class InstId : uint32_t;
+
+  enum class McmMem { Fetch, Data };
 
   /// Thrown by the simulator when a stop (store to to-host) is seen
   /// or when the target program reaches the exit system call.
@@ -120,7 +122,6 @@ namespace WdRiscv
     std::vector<uint64_t> csrValue; // Values of changed CSRs if any.
   };
 
-
   /// Model a RISCV hart with integer registers of type URV (uint32_t
   /// for 32-bit registers and uint64_t for 64-bit registers).
   template <typename URV_>
@@ -139,7 +140,7 @@ namespace WdRiscv
     /// within a system of cores -- see sysHartIndex method) and
     /// associate it with the given memory. The MHARTID is configured as
     /// a read-only CSR with a reset value of hartId.
-    Hart(unsigned hartIx, URV hartId, Memory& memory, Syscall<URV>& syscall, uint64_t& time);
+    Hart(unsigned hartIx, URV hartId, unsigned numHarts, Memory& memory, Syscall<URV>& syscall, std::atomic<uint64_t>& time);
 
     /// Destructor.
     ~Hart();
@@ -332,7 +333,7 @@ namespace WdRiscv
 
     /// Configure given CSR. Return true on success and false if no such CSR.
     bool configCsrByUser(std::string_view name, bool implemented, URV resetValue, URV mask,
-			 URV pokeMask, bool shared, bool isDebug);
+			 URV pokeMask, bool shared, bool isDebug, bool isHExt);
 
     /// Configure given CSR. Return true on success and false if no such CSR.
     bool configCsr(std::string_view name, bool implemented, URV resetValue, URV mask,
@@ -585,7 +586,13 @@ namespace WdRiscv
       auto [pm, virt] = effLdStMode(hyper);
       bool bare = virtMem_.mode() == VirtMem::Mode::Bare;
       if (virt)
-        bare = virtMem_.vsMode() == VirtMem::Mode::Bare;
+        {
+          bare = virtMem_.vsMode() == VirtMem::Mode::Bare;
+          if (virtMem_.stage1ExecReadable())
+            return addr;   // If MXR, pointer masking does not apply.
+        }
+      else if (virtMem_.execReadable())
+        return addr;  // If MXR, pointer masking does not apply.
       return pmaskManager_.applyPointerMask(addr, pm, virt, isLoad, bare);
     }
 
@@ -915,16 +922,20 @@ namespace WdRiscv
     /// Return true on success and false on failure (address out of
     /// bounds, location not mapped, location not writable etc...)
     /// Bypass physical memory attribute checking if usePma is false.
-    bool pokeMemory(uint64_t addr, uint8_t val, bool usePma, bool skipFetch = false);
+    bool pokeMemory(uint64_t addr, uint8_t val, bool usePma,
+                    bool skipFetch = false, bool skipData = false, bool skipMem = false);
 
     /// Half-word version of the preceding method.
-    bool pokeMemory(uint64_t addr, uint16_t val, bool usePma, bool skipFetch = false);
+    bool pokeMemory(uint64_t addr, uint16_t val, bool usePma,
+                    bool skipFetch = false, bool skipData = false, bool skipMem = false);
 
     /// Word version of the preceding method.
-    bool pokeMemory(uint64_t addr, uint32_t val, bool usePma, bool skipFetch = false);
+    bool pokeMemory(uint64_t addr, uint32_t val, bool usePma,
+                    bool skipFetch = false, bool skipData = false, bool skipMem = false);
 
     /// Double-word version of the preceding method.
-    bool pokeMemory(uint64_t addr, uint64_t val, bool usePma, bool skipFetch = false);
+    bool pokeMemory(uint64_t addr, uint64_t val, bool usePma,
+                    bool skipFetch = false, bool skipData = false, bool skipMem = false);
 
     /// Define value of program counter after a reset.
     void defineResetPc(URV addr)
@@ -1057,6 +1068,10 @@ namespace WdRiscv
     /// (had an exception or encoutered an interrupt).
     bool lastInstructionTrapped() const
     { return hasException_ or hasInterrupt_; }
+
+    /// Return true if has NMI pending.
+    bool hasNmiPending() const
+    { return nmiPending_; }
 
     /// Return true if the last execution instruction entered debug
     /// mode because of a trigger or ebreak or if interrupt/exception.
@@ -2060,6 +2075,11 @@ namespace WdRiscv
     {
       walks.clear();
       walks = isInstr? virtMem_.getFetchWalks() : virtMem_.getDataWalks();
+      if (steeEnabled_)
+        for (auto &walk: walks)
+          for (auto& item : walk)
+            if (item.type_ == VirtMem::WalkEntry::Type::PA)
+              item.addr_ = stee_.clearSecureBits(item.addr_);
     }
 
     /// Return PMP manager associated with this hart.
@@ -2179,7 +2199,9 @@ namespace WdRiscv
     { bbFile_ = file; bbLimit_ = instCount; }
 
     /// Enable memory consistency model.
-    void setMcm(std::shared_ptr<Mcm<URV>> mcm);
+    void setMcm(std::shared_ptr<Mcm<URV>> mcm,
+                std::shared_ptr<TT_CACHE::Cache> fetchCache,
+                std::shared_ptr<TT_CACHE::Cache> dataCache);
 
     typedef TT_PERF::PerfApi PerfApi;
 
@@ -2333,35 +2355,79 @@ namespace WdRiscv
     void setSwInterrupt(uint8_t value)
     { swInterrupt_.value_ = value; }
 
-    /// Fetch an instruction cache line.
-    bool mcmIFetch(uint64_t addr)
+    template <McmMem C>
+    constexpr TT_CACHE::Cache& getMcmCache() 
+    { return (C == McmMem::Fetch)? *fetchCache_ : *dataCache_; }
+
+    template <McmMem C>
+    constexpr const TT_CACHE::Cache& getMcmCache() const
+    { return (C == McmMem::Fetch)? *fetchCache_ : *dataCache_; }
+
+    /// Fetch a cache line.
+    template <McmMem C>
+    bool mcmCacheInsert(uint64_t addr)
     {
-      auto fetchMem =  [this](uint64_t addr, uint32_t& value) -> bool {
-	if (pmpEnabled_)
-	  {
-            pmpManager_.setAccReason(PmpManager::AccessReason::Fetch);
-	    const Pmp& pmp = pmpManager_.accessPmp(addr);
-	    if (not pmp.isExec(privMode_))
-	      return false;
-	  }
-	return this->memory_.readInst(addr, value);
-      };
-      bool ok = fetchCache_.addLine(addr, fetchMem);
+      auto& cache = getMcmCache<C>();
+      bool ok = cache.addLine(addr);
       if (not ok)
-	fetchCache_.removeLine(addr);
+        cache.removeLine(addr);
       return ok;
     }
 
-    /// Evict an instruction cache line.
-    bool mcmIEvict(uint64_t addr)
-    { fetchCache_.removeLine(addr); return true; }
+    /// Evict a cache line.
+    template <McmMem C>
+    bool mcmCacheEvict(uint64_t addr)
+    {
+      auto& cache = getMcmCache<C>();
+      cache.removeLine(addr);
+      return true;
+    }
+
+    /// Writes line into memory.
+    template <McmMem C>
+    bool mcmCacheWriteback(uint64_t addr, const std::vector<uint8_t>& rtlData)
+    {
+      static_assert(C == McmMem::Data);
+      auto& cache = getMcmCache<C>();
+      return cache.writebackLine(addr, rtlData);
+    }
 
     /// Poke given byte if corresponding line is in the cache. Otherwise, no-op.
-    void pokeFetchCache(uint64_t addr, uint8_t byte)
-    { fetchCache_.poke(addr, byte); }
+    template <McmMem C>
+    bool pokeMcmCache(uint64_t addr, uint8_t byte)
+    {
+      auto& cache = getMcmCache<C>();
+      return cache.poke(addr, byte);
+    }
+
+    /// Return data (if it exists) within cache. May perform multiple peeks
+    /// for cache-line crossing accesses.
+    template <McmMem C, typename SZ>
+    bool peekMcmCache(uint64_t addr, SZ& data) const
+    {
+      // const auto& cache = getMcmCache<C>();
+      if ((addr & (sizeof(SZ) - 1)) == 0)
+        {
+          if (not getMcmCache<C>().read(addr, data))
+            return memory_.peek(addr, data, false);
+          return true;
+        }
+      else
+        {
+          bool ok = true;
+          for (unsigned i = 0; i < sizeof(SZ); ++i)
+            {
+              uint8_t byte = 0;
+              if (not getMcmCache<C>().read(addr + i, byte))
+                ok = ok and memory_.peek(addr + i, byte, false);
+              data |= (SZ(byte) << (i*8));
+            }
+          return ok;
+        }
+    }
 
     /// Return pointer to the memory consistency model object.
-    std::shared_ptr<Mcm<URV>> mcm() 
+    std::shared_ptr<Mcm<URV>> mcm()
     { return mcm_; }
 
     /// Config vector engine for updating whole mask register for mask-producing
@@ -2397,11 +2463,20 @@ namespace WdRiscv
     void configVectorFpUnorderedSumCanonical(ElementWidth ew, bool flag)
     { vecRegs_.configVectorFpUnorderedSumCanonical(ew, flag); }
 
+    /// If flag is true, we always mark vector state as dirty when instruction would update vector register,
+    /// regardless of whether the register is updated.
+    void configVectorAlwaysMarkDirty(bool flag)
+    { vecRegs_.configAlwaysMarkDirty(flag); }
+
+    /// If flag is true, vmv<nr>r.v instructions ignore vtype.vill setting.
+    void configVmvrIgnoreVill(bool flag)
+    { vecRegs_.configVmvrIgnoreVill(flag); }
+
     /// Support memory consistency model (MCM) instruction cache. Read 2 bytes from the
     /// given address (must be even) into inst. Return true on success.  Return false if
     /// the line of the given address is not in the cache.
     bool readInstFromFetchCache(uint64_t addr, uint16_t& inst) const
-    { return fetchCache_.read(addr, inst); }
+    { return fetchCache_->read<uint16_t>(addr, inst); }
 
     /// Configure the mask defining which bits of a physical address must be zero for the
     /// address to be considered valid when STEE (static truested execution environment)
@@ -2564,8 +2639,11 @@ namespace WdRiscv
       // The test bench will sometime disable auto-incrementing the timer.
       if (autoIncrementTimer_)
         {
-          ++timeSample_;
-          time_ += not (timeSample_ & ((URV(1) << timeDownSample_) - 1));
+          timeSample_++;
+          if (timeSample_ >= (URV(1) << timeDownSample_) * numHarts_) {
+            time_.fetch_add(1, std::memory_order_relaxed);
+            timeSample_ = 0;
+          }
         }
     }
 
@@ -2576,8 +2654,12 @@ namespace WdRiscv
       // The test bench will sometime disable auto-incrementing the timer.
       if (autoIncrementTimer_)
         {
-          time_ -= not (timeSample_ & ((URV(1) << timeDownSample_) - 1));
-          --timeSample_;
+          if (timeSample_) {
+            timeSample_--;
+            return;
+          }
+          timeSample_ = (URV(1) << timeDownSample_) * numHarts_ - 1;
+          time_.fetch_sub(1, std::memory_order_relaxed);
         }
     }
 
@@ -2728,7 +2810,10 @@ namespace WdRiscv
       if (pa1 == pa2)
 	{
 	  if (not memory_.read(pa1, value))
-	    assert(0 && "Error: Assertion failed");
+            {
+              std::cerr << "Hart::memRead failed on pa" << std::hex << pa1 << std::dec << '\n';
+              // assert(0 && "Error: Assertion failed");
+            }
 	  if (steeInsec1_)
 	    value = 0;
 	  if (bigEnd_)
@@ -2751,7 +2836,12 @@ namespace WdRiscv
 	      byte = 0;
 	    value |= LOAD_TYPE(byte) << 8*destIx;
 	  }
-	else assert(0 && "Error: Assertion failed");
+	else
+          {
+            std::cerr << "Hart::memRead failed on pa 0x" << std::hex << (pa1+i) << std::dec << '\n';
+            // assert(0 && "Error: Assertion failed");
+          }
+
       for (unsigned i = 0; i < size2; ++i, ++destIx)
 	if (memory_.read(pa2 + i, byte))
 	  {
@@ -2759,7 +2849,11 @@ namespace WdRiscv
 	      byte = 0;
 	    value |= LOAD_TYPE(byte) << 8*destIx;
 	  }
-	else assert(0 && "Error: Assertion failed");
+	else
+          {
+            std::cerr << "Hart::memRead failed on pa 0x" << std::hex << (pa2+i) << std::dec << '\n';
+            // assert(0 && "Error: Assertion failed");
+          }
 
       if (bigEnd_)
 	value = util::byteswap(value);
@@ -3496,14 +3590,17 @@ namespace WdRiscv
     bool minstretEnabled() const
     { return prevPerfControl_ & 0x4; }
 
-    /// Called to check if a CLINT memory mapped register is written.
+    /// Called when a CLINT address is written.
     /// Clear/set software-interrupt bit in the MIP CSR of
     /// corresponding hart if all the conditions are met. Set timer
     /// limit if timer-limit register is written. Update stVal: if location
     /// is outside the range of valid harts, set stVal to zero.  If it is
     /// in the software interrupt range then keep it least sig bit and zero
     /// the rest.
-    void processClintWrite(uint64_t addr, unsigned stSize, URV& stVal);
+    void processClintWrite(uint64_t addr, unsigned size, URV& stVal);
+
+    /// Called when a CLINT address is read.
+    void processClintRead(uint64_t addr, unsigned size, uint64_t& val);
 
     /// Mask to extract shift amount from a integer register value to use
     /// in shift instructions. This returns 0x1f in 32-bit more and 0x3f
@@ -3657,8 +3754,8 @@ namespace WdRiscv
 
     /// Called at the end of successful vector instruction to clear the
     /// vstart register and mark VS dirty if a vector register was
-    /// updated.
-    void postVecSuccess();
+    /// updated or if configured to always mark dirty.
+    void postVecSuccess(const DecodedInst* di);
 
     /// Called at the end of a trapping vector instruction to mark VS
     /// dirty if a vector register was updated.
@@ -5583,6 +5680,7 @@ namespace WdRiscv
     }
 
     unsigned hartIx_ = 0;        // Hart ix in system, see sysHartIndex method.
+    unsigned numHarts_;          // Number of Harts in the system.
     Memory& memory_;
     IntRegs<URV> intRegs_;       // Integer register file.
     CsRegs<URV> csRegs_;         // Control and status registers.
@@ -5643,6 +5741,7 @@ namespace WdRiscv
     bool hasInterrupt_ = false;      // True if there is an interrupt.
     bool triggerTripped_ = false;    // True if a trigger trips.
     bool dataAddrTrig_ = false;      // True if data address trigger hit.
+    bool icountTrig_ = false;        // True if icount trigger hit.
 
     bool lastBranchTaken_ = false; // Useful for performance counters
     bool misalignedLdSt_ = false;  // Useful for performance counters
@@ -5662,10 +5761,10 @@ namespace WdRiscv
     unsigned cacheLineSize_ = 64;
     unsigned cacheLineShift_ = 6;
 
-    uint64_t& time_;             // Only hart 0 increments this value.
+    bool autoIncrementTimer_ = true;
+    std::atomic<uint64_t>& time_;  // All harts increment this value.
     uint64_t timeDownSample_ = 0;
     uint64_t timeSample_ = 0;
-    bool autoIncrementTimer_ = true;
 
     uint64_t retiredInsts_ = 0;  // Proxy for minstret CSR.
     uint64_t cycleCount_ = 0;    // Proxy for mcycle CSR.
@@ -5875,7 +5974,8 @@ namespace WdRiscv
     std::unordered_map<uint64_t, BbStat> basicBlocks_; // Map pc to basic-block frequency.
     FILE* bbFile_ = nullptr;            // Basic block file.
 
-    TT_FETCH_CACHE::FetchCache fetchCache_;
+    std::shared_ptr<TT_CACHE::Cache> fetchCache_;
+    std::shared_ptr<TT_CACHE::Cache> dataCache_;
 
     std::string branchTraceFile_;       // Branch trace file.
     struct BranchRecord

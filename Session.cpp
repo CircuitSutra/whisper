@@ -704,6 +704,10 @@ Session<URV>::applyCmdLineArgs(const Args& args, Hart<URV>& hart,
   unsigned errors = 0;
 
   auto& system = *system_;
+  
+  // Set the compression and decompression types for the system
+  system.setCompressionType(args.compressionType);
+  system.setDecompressionType(args.decompressionType);
 
   if (clib)  // Linux or Newlib enabled.
     sanitizeStackPointer(hart, args.verbose);
@@ -893,10 +897,14 @@ Session<URV>::applyCmdLineArgs(const Args& args, Hart<URV>& hart,
       config.getMcmCheckAll(checkAll);
       if (args.mcmca)
 	checkAll = true;
+      bool enableCaches = true;
+      config.getMcmEnableCache(enableCaches);
+      if (args.dismc)
+        enableCaches = false;
 
       if (args.noPpo)
 	{
-	  if (not system.enableMcm(mcmLineSize, checkAll, false /*enablePpos*/))
+	  if (not system.enableMcm(mcmLineSize, checkAll, enableCaches, false /*enablePpos*/))
 	    errors++;
 	}
       else
@@ -904,7 +912,7 @@ Session<URV>::applyCmdLineArgs(const Args& args, Hart<URV>& hart,
 	  std::vector<unsigned> enabledPpos;
 	  if (not config.getEnabledPpos(enabledPpos))
 	    errors++;
-	  else if (not system.enableMcm(mcmLineSize, checkAll, enabledPpos))
+	  else if (not system.enableMcm(mcmLineSize, checkAll, enableCaches, enabledPpos))
 	    errors++;
 	}
     }

@@ -8,6 +8,9 @@
 #include <poll.h>
 #include "IoDevice.hpp"
 
+// Forward declaring termios becausing including termios.h leaks macro
+// VSTART that conflicts with VSTART in CsrNumber::VSTART.
+struct termios;
 
 namespace WdRiscv
 {
@@ -33,16 +36,21 @@ namespace WdRiscv
   class FDChannel : public UartChannel {
   public:
     FDChannel(int in_fd, int out_fd);
-    ~FDChannel();
+    ~FDChannel() override;
 
     size_t read(uint8_t *buf, size_t size) override;
     void write(uint8_t byte) override;
     void terminate() override;
 
   private:
+    void restoreTermios();
+    
     int in_fd_, out_fd_;
     int terminate_pipe_[2] = {-1, -1};
     struct pollfd pollfds_[2];
+    bool is_tty_;
+    std::unique_ptr<termios> original_termios_;
+    uint8_t prev_ = 0;  // Previous character for control sequence detection
   };
 
 
@@ -105,20 +113,27 @@ namespace WdRiscv
   {
   public:
 
-    Uart8250(uint64_t addr, uint64_t size, std::shared_ptr<TT_APLIC::Aplic> aplic, uint32_t iid, std::unique_ptr<UartChannel> channel, bool enableInput = true);
+    Uart8250(uint64_t addr, uint64_t size, std::shared_ptr<TT_APLIC::Aplic> aplic, uint32_t iid, std::unique_ptr<UartChannel> channel, bool enableInput = true, unsigned regShift = 2);
 
     ~Uart8250() override;
 
-    void enableInput();
+    void enable() override;
+
+    void disable() override;
 
     uint32_t read(uint64_t addr) override;
 
     void write(uint64_t addr, uint32_t value) override;
 
+    bool saveSnapshot(const std::string& filename) const override;
+
+    bool loadSnapshot(const std::string& filename) override;
+
   private:
     static const constexpr size_t FIFO_SIZE = 1024;
 
     std::unique_ptr<UartChannel> channel_;
+    unsigned regShift_ = 2;  // Register shift value (default 2 for 4-byte spacing: 1 << 2 = 4)
 
     /// Update the interrupt status based on the current state of the Uart
     void interruptUpdate();
