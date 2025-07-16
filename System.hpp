@@ -20,6 +20,7 @@
 #include <functional>
 #include <string_view>
 #include <unordered_map>
+#include "Filesystem.hpp"
 #include "Memory.hpp"
 #include "Imsic.hpp"
 #include "Syscall.hpp"
@@ -27,6 +28,7 @@
 #include "pci/virtio/Blk.hpp"
 #include "aplic/Aplic.hpp"
 #include "Uart8250.hpp"
+#include "Cache.hpp"
 
 
 namespace TT_PERF
@@ -266,14 +268,14 @@ namespace WdRiscv
     /// space for it. Return true on success and false if type is not supported (supported
     /// types: uartsf, uart8250).
     bool defineUart(const std::string& type, uint64_t addr, uint64_t size,
-		    uint32_t iid, const std::string& channel);
+		    uint32_t iid, const std::string& channel, unsigned regShift = 2);
 
     /// Enable UART input. This is useful in non-interactive mode.
     void enableUartInput()
     {
       for (auto& dev : ioDevs_)
         if (dev->type() == "uart8250")
-          static_cast<Uart8250*>(dev.get())->enableInput();
+          dev->enable();
     }
 
     /// Return the memory page size.
@@ -294,7 +296,7 @@ namespace WdRiscv
 		     uint64_t sbase, uint64_t sstride,
 		     unsigned guests, const std::vector<unsigned>& ids,
                      const std::vector<unsigned>& thresholdMasks,
-                     bool maplic, bool saplic, bool gaplic, bool trace);
+                     bool maplic, bool saplic, bool trace);
 
     /// If flag
     void configMfileAplic(bool flag);
@@ -312,11 +314,11 @@ namespace WdRiscv
     /// non-server/non-interactive mode or if used after execution has started. The
     /// mergeBuffserSize is the merge buffer line size in bytes. Only the PPO rules with
     /// numbers in the enabledPpos vector are enabled.
-    bool enableMcm(unsigned mbSize, bool mbLineCheckAll,
+    bool enableMcm(unsigned mbSize, bool mbLineCheckAll, bool mcmCache,
 		   const std::vector<unsigned>& enabledPpos);
 
     /// Similar to preceding method but with all PPO rules enabled/disabled.
-    bool enableMcm(unsigned mbSize, bool mbLineCheckAll, bool enablePpos);
+    bool enableMcm(unsigned mbSize, bool mbLineCheckAll, bool mcmCache, bool enablePpos);
 
     /// Terminate MCM. Experimental. This unlikely to be useful except for executing one
     /// extra instruction at the end of a test to simplify some debugging.
@@ -373,9 +375,9 @@ namespace WdRiscv
                      unsigned size, uint64_t data, unsigned elem, unsigned field);
 
     /// Initiate a write for a store instruction bypassing the merge
-    /// buffer.
+    /// buffer. When the cache flag is false, we should bypass the cache as well.
     bool mcmBypass(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t addr,
-                   unsigned size, uint64_t data, unsigned elem, unsigned field);
+                   unsigned size, uint64_t data, unsigned elem, unsigned field, bool cache);
 
     /// Initiate a fetch of a line from memory into the isntruction
     /// cache.
@@ -383,6 +385,17 @@ namespace WdRiscv
 
     /// Initiate an eviction of a line from the instruction cache.
     bool mcmIEvict(Hart<URV>& hart, uint64_t time, uint64_t addr);
+
+    /// Initiate a fetch of a line from memory into the data
+    /// cache.
+    bool mcmDFetch(Hart<URV>& hart, uint64_t time, uint64_t addr);
+
+    /// Initiate an eviction of a line from the data cache.
+    bool mcmDEvict(Hart<URV>& hart, uint64_t time, uint64_t addr);
+
+    /// Initiate a writeback of a line from the data cache. If data
+    /// written back does not match RTL, we raise an error.
+    bool mcmDWriteback(Hart<URV>& hart, uint64_t time, uint64_t addr, const std::vector<uint8_t>& rtlData);
 
     /// Initiate an instruction retire.
     bool mcmRetire(Hart<URV>& hart, uint64_t time, uint64_t tag,
@@ -444,12 +457,23 @@ namespace WdRiscv
     void setSnapshotDir(const std::string& snapDir)
     { snapDir_ = snapDir; }
 
+    void setCompressionType(const std::string& compressionType)
+    { snapCompressionType_ = compressionType; }
+
+    void setDecompressionType(const std::string& decompressionType)
+    { snapDecompressionType_ = decompressionType; }
+
   private:
+
+    bool saveAplicSnapshot(const Filesystem::path& snapDir) const;
+    bool saveAplicDomainSnapshot(const Filesystem::path& snapDir, std::shared_ptr<TT_APLIC::Domain> domain, unsigned nsources) const;
+    bool loadAplicSnapshot(const Filesystem::path& snapDir);
+    bool loadAplicDomainSnapshot(const Filesystem::path& snapDir, std::shared_ptr<TT_APLIC::Domain> domain, unsigned nsources);
 
     unsigned hartCount_;
     unsigned hartsPerCore_;
     TT_IMSIC::ImsicMgr imsicMgr_;
-    uint64_t time_;
+    std::atomic<uint64_t> time_;
 
     std::vector< std::shared_ptr<CoreClass> > cores_;
     std::vector< std::shared_ptr<HartClass> > sysHarts_; // All harts in system.
@@ -467,11 +491,18 @@ namespace WdRiscv
     std::shared_ptr<Pci> pci_;
     std::shared_ptr<TT_APLIC::Aplic> aplic_;
 
+    // We assume coherent data cache and non-coherent instruction caches. If the
+    // I-cache were coherent, then this oculd be simplified into one cache model.
+    std::shared_ptr<TT_CACHE::Cache> fetchCache_;
+    std::shared_ptr<TT_CACHE::Cache> dataCache_;
+
     // Name, size, and address in memory of a binary file.
     typedef std::tuple<std::string, uint64_t, uint64_t> BinaryFile;
     std::vector<BinaryFile> binaryFiles_;
 
     std::string snapDir_ = "snapshot"; // Directory to save snapshots.
     std::atomic<int> snapIx_ = -1;
+    std::string snapCompressionType_ = "gzip";
+    std::string snapDecompressionType_ = "gzip";
   };
 }

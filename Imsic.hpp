@@ -399,7 +399,7 @@ namespace TT_IMSIC      // TensTorrent Incoming Message Signaled Interrupt Contr
     /// file must be configured before the guests files are
     /// configured. The parameter g must not exceed 64.
     void configureGuests(unsigned g, unsigned n, unsigned pageSize,
-                         unsigned thresholdMask, bool aplic)
+                         unsigned thresholdMask)
     {
       assert(g <= 64);
       assert(sfile_.isConfigured());
@@ -409,7 +409,7 @@ namespace TT_IMSIC      // TensTorrent Incoming Message Signaled Interrupt Contr
       uint64_t addr = sfile_.address() + pageSize;
       for (size_t i = 1; i < gfiles_.size(); ++i)
 	{
-	  gfiles_.at(i).configure(addr, n, pageSize, thresholdMask, aplic);
+	  gfiles_.at(i).configure(addr, n, pageSize, thresholdMask, false /*aplic*/);
 	  addr += pageSize;
 	}
     }
@@ -663,7 +663,7 @@ namespace TT_IMSIC      // TensTorrent Incoming Message Signaled Interrupt Contr
                     std::vector<std::vector<std::pair<unsigned, unsigned>>>& gselects,
                     std::vector<unsigned>& minterrupts,
                     std::vector<unsigned>& sinterrupts,
-                    std::vector<std::vector<unsigned>> ginterrupts) const
+                    std::vector<std::vector<unsigned>>& ginterrupts) const
     {
       if (not trace_)
         return;
@@ -803,7 +803,7 @@ namespace TT_IMSIC      // TensTorrent Incoming Message Signaled Interrupt Contr
     /// Return true on success and false on failure. Fail if
     /// supervisor files are not configured or if n is larger than 64
     /// or if ids is not a multiple of 64.
-    bool configureGuests(unsigned n, unsigned ids, unsigned thresholdMask, bool aplic);
+    bool configureGuests(unsigned n, unsigned ids, unsigned thresholdMask);
 
     /// Return true if given address is covered by any of the configured
     /// IMSIC files.

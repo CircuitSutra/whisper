@@ -406,7 +406,7 @@ Triggers<URV>::icountTriggerFired(PrivilegeMode mode, bool virtMode, bool interr
   if (tcontrolEnabled_)
     skip = mode == PrivilegeMode::Machine and not mmodeEnabled_;
 
-  bool hit = false;
+  bool fire = false;
 
   for (auto& trig : triggers_)
     {
@@ -418,16 +418,18 @@ Triggers<URV>::icountTriggerFired(PrivilegeMode mode, bool virtMode, bool interr
 
       if (trig.data1_.icount_.pending_)
         {
-          hit = true;
+          fire = true;
           // Icount doesn't have a chain bit, we just use it to indicate
           // this trigger is tripped.
-          trig.setTripped(hit);
+          trig.setTripped(fire);
+          trig.setHit(true);
+          trig.setLocalHit(true);
         }
 
       trig.data1_.icount_.pending_ = false;
     }
 
-  return hit;
+  return fire;
 }
 
 
@@ -442,20 +444,19 @@ Triggers<URV>::evaluateIcount(PrivilegeMode mode, bool virtMode, bool interruptE
 
   for (auto& trig : triggers_)
     {
+      if (not trig.matchInstCount(mode, virtMode))
+        continue;
+
       if (trig.isModified() and not icountOnModified_)
 	continue; // Trigger was written by current instruction.
 
-      if (not trig.instCountdown(mode, virtMode))
+      if (not trig.instCountdown())
         continue;
 
       if (not trig.isEnterDebugOnHit() and skip)
 	continue;  // Cannot hit in machine mode.
 
-      if (not trig.data1_.icount_.pending_)
-        continue;
-
-      trig.setHit(true);
-      trig.setLocalHit(true);
+      assert(trig.data1_.icount_.pending_);
     }
 }
 
@@ -488,11 +489,20 @@ Triggers<URV>::expTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool 
       if (mode == PM::Machine and not etrig.m_)
 	continue;
 
-      if (mode == PM::Supervisor and not virtMode and not etrig.s_)
-	continue;
-
-      if (mode == PrivilegeMode::User and not virtMode and not etrig.u_)
-	continue;
+      if (not virtMode)
+        {
+          if (mode == PM::Supervisor and not etrig.s_)
+            continue;
+          if (mode == PrivilegeMode::User and not etrig.u_)
+            continue;
+        }
+      else
+        {
+          if (mode == PM::Supervisor and not etrig.vs_)
+            continue;
+          if (mode == PrivilegeMode::User and not etrig.vu_)
+            continue;
+        }
 
       if (mode == PrivilegeMode::Reserved)
 	continue;
@@ -512,7 +522,8 @@ Triggers<URV>::expTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool 
 
 template <typename URV>
 bool
-Triggers<URV>::intTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool interruptEnabled)
+Triggers<URV>::intTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool interruptEnabled,
+                             bool isNmi)
 {
   // Check if we should skip tripping because of reentrant behavior. 
   bool skip = not interruptEnabled;
@@ -537,14 +548,26 @@ Triggers<URV>::intTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool 
 
       auto& itrig = trigger.data1_.itrigger_;
 
+      if (itrig.nmi_ != isNmi)
+        continue;
+
       if (mode == PM::Machine and not itrig.m_)
 	continue;
 
-      if (mode == PM::Supervisor and not virtMode and not itrig.s_)
-	continue;
-
-      if (mode == PrivilegeMode::User and not virtMode and not itrig.u_)
-	continue;
+      if (not virtMode)
+        {
+          if (mode == PM::Supervisor and not itrig.s_)
+            continue;
+          if (mode == PrivilegeMode::User and not itrig.u_)
+            continue;
+        }
+      else
+        {
+          if (mode == PM::Supervisor and not itrig.vs_)
+            continue;
+          if (mode == PrivilegeMode::User and not itrig.vu_)
+            continue;
+        }
 
       if (mode == PrivilegeMode::Reserved)
 	continue;

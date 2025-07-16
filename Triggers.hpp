@@ -380,9 +380,19 @@ namespace WdRiscv
         }
       else if (data1_.isInstCount())
 	{
-	  if (not data1_.dmodeOnly() and (data1_.mcontrol_.action_ == 1))
+	  if (not data1_.dmodeOnly() and (data1_.icount_.action_ == 1))
 	    data1_.icount_.action_ = 0;
 	}
+      else if (data1_.isItrigger())
+        {
+	  if (not data1_.dmodeOnly() and (data1_.itrigger_.action_ == 1))
+	    data1_.itrigger_.action_ = 0;
+        }
+      else if (data1_.isEtrigger())
+        {
+	  if (not data1_.dmodeOnly() and (data1_.etrigger_.action_ == 1))
+	    data1_.etrigger_.action_ = 0;
+        }
 
       return true;
     }
@@ -487,13 +497,32 @@ namespace WdRiscv
       if (data1_.isAddrData())
         {
           if (data1_.isMcontrol())
-            return data1_.mcontrol_.m_ or data1_.mcontrol_.s_ or data1_.mcontrol_.u_;
-          else
-            return data1_.mcontrol6_.m_ or data1_.mcontrol6_.s_ or data1_.mcontrol6_.u_ or
-                   data1_.mcontrol6_.vs_ or data1_.mcontrol6_.vu_;
+            {
+              auto& ctl = data1_.mcontrol_;
+              return ctl.m_ or ctl.s_ or ctl.u_;
+            }
+          auto& ctl6 = data1_.mcontrol6_;
+          return ctl6.m_ or ctl6.s_ or ctl6.u_ or ctl6.vs_ or ctl6.vu_;
         }
+
       if (data1_.isInstCount())
-	return data1_.icount_.m_ or data1_.icount_.s_ or data1_.icount_.u_;
+        {
+          auto& ctl = data1_.icount_;
+          return ctl.m_ or ctl.s_ or ctl.u_ or ctl.vs_ or ctl.vu_;
+        }
+
+      if (data1_.isItrigger())
+        {
+          auto& ctl = data1_.itrigger_;
+          return ctl.m_ or ctl.s_ or ctl.u_ or ctl.vs_ or ctl.vu_ or ctl.nmi_;
+        }
+
+      if (data1_.isEtrigger())
+        {
+          auto& ctl = data1_.etrigger_;
+          return ctl.m_ or ctl.s_ or ctl.u_ or ctl.vs_ or ctl.vu_;
+        }
+
       return false;
     }
 
@@ -572,10 +601,8 @@ namespace WdRiscv
     /// If this trigger is enabled and is of type icount, then make it
     /// count down returning true if its value becomes zero. Return
     /// false otherwise.
-    bool instCountdown(PrivilegeMode mode, bool virtMode)
+    bool instCountdown()
     {
-      if (not matchInstCount(mode, virtMode))
-        return false;
       Icount<URV>& icount = data1_.icount_;
 
       if (icount.count_)
@@ -935,7 +962,8 @@ namespace WdRiscv
     bool expTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool interruptEnabled);
 
     /// Return true if any of the interrupt-triggers (itrigger) trips.
-    bool intTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool interruptEnabled);
+    bool intTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool interruptEnabled,
+                       bool isNmi);
 
     /// Return the tigger at the given index. Reurn None if index is out of bounds.
     TriggerType triggerType(URV trigger) const

@@ -342,11 +342,14 @@ Hart<URV>::printDecodedInstTrace(const DecodedInst& di, uint64_t tag, std::strin
           unsigned num_nibbles = vecInfo.elemSize_*2;
 	  std::ostringstream oss;
 	  auto& elems = vecInfo.elems_;
+          auto sep = "";
 	  for (uint64_t i = 0; i < elems.size(); ++i)
 	    {
 	      auto& einfo = elems.at(i);
-	      if (i > 0)
-		oss << ";";
+              if (not vecInfo.isLoad_ and einfo.skip_)
+                continue;  // Non-active vector store element.
+              oss << sep;
+              sep = ";";
 	      oss << "0x" << std::hex << einfo.va_;
 	      if (einfo.pa_ != einfo.va_)
 		oss << ":0x" << einfo.pa_;
@@ -418,12 +421,13 @@ Hart<URV>::printDecodedInstTrace(const DecodedInst& di, uint64_t tag, std::strin
   // Process memory diff.
   if (di.instId() == InstId::cbo_zero and not hasException_)
     {
+      uint64_t addr = cacheLineAlign(ldStAddr_);
       for (unsigned i = 0; i < cacheLineSize_; i += sizeof(URV))
 	{
 	  if (pending)
 	    fprintf(out, "  +\n");
 	  formatInstTrace<URV>(out, tag, *this, instSV, 'm',
-			       URV(ldStAddr_ + i), URV(0), tmp);
+			       URV(addr + i), URV(0), tmp);
 	  pending = true;
 	}
     }

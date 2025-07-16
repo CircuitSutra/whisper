@@ -426,19 +426,6 @@ namespace WdRiscv
     static bool isSymbolInElfFile(const std::string& path,
 				  const std::string& target);
 
-    /// This is for performance modeling. Enable a highest level cache
-    /// with given size, line size, and set associativity.  Any
-    /// previously enabled cache is deleted.  Return true on success
-    /// and false if the sizes are not powers of 2 or if any of them
-    /// is zero, or if they are too large (more than 64 MB for cache
-    /// size, more than 1024 for line size, and more than 64 for
-    /// associativity). This has no impact on functionality.
-    bool configureCache(uint64_t size, unsigned lineSize,
-                        unsigned setAssociativity);
-
-    /// Delete currently configured cache.
-    void deleteCache();
-
     /// Define read memory callback. This (along with defineWriteMemoryCallback) allows
     /// the caller to bypass the memory model with their own.
     void defineReadMemoryCallback(
@@ -475,13 +462,25 @@ namespace WdRiscv
 
     /// Take a snapshot of the entire simulated memory into binary
     /// file. Return true on success or false on failure
-    bool saveSnapshot(const std::string& filename,
-                      const std::vector<std::pair<uint64_t,uint64_t>>& used_blocks) const;
+    bool saveSnapshot_gzip(const std::string& filename,
+                           const std::vector<std::pair<uint64_t,uint64_t>>& used_blocks) const;
 
     /// Load the simulated memory from snapshot binary file. Return
     /// true on success or false on failure
-    bool loadSnapshot(const std::string& filename,
-                      const std::vector<std::pair<uint64_t,uint64_t>>& used_blocks);
+    bool loadSnapshot_gzip(const std::string& filename,
+                           const std::vector<std::pair<uint64_t,uint64_t>>& used_blocks);
+
+#if LZ4_COMPRESS
+    // Take a snapshot of the entire simulated memory into binary using lz4 compression.
+    // Returns true on success or false on failure.
+    bool saveSnapshot_lz4(const std::string& filename,
+                          const std::vector<std::pair<uint64_t,uint64_t>>& used_blocks) const;
+
+    // Load the simulated memory from the snapshot binary file compressed with lz4.
+    // Returns true on success or false on failure.
+    bool loadSnapshot_lz4(const std::string& filename,
+                          const std::vector<std::pair<uint64_t,uint64_t>>& used_blocks);
+#endif
 
     /// If address tracing enabled, then write the accumulated data addresses into the
     /// given file. If skipClean is true, then skip lines that were never modified. If

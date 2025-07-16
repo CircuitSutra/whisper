@@ -190,11 +190,13 @@ Server<URV>::pokeCommand(const WhisperMessage& req, WhisperMessage& reply, Hart<
     case 'm':
       {
         bool usePma = false; // Ignore phsical memory attributes.
+        bool cache = WhisperFlags{req.flags}.bits.cache;
+        bool skipMem = WhisperFlags{req.flags}.bits.skipMem;
 
 	if (req.size == 0)
 	  {
 	    // Default size is 4 bytes.
-	    if (hart.pokeMemory(req.address, uint32_t(req.value), usePma))
+	    if (hart.pokeMemory(req.address, uint32_t(req.value), usePma, false, not cache, skipMem))
 	      return true;
 	  }
 	else
@@ -202,19 +204,19 @@ Server<URV>::pokeCommand(const WhisperMessage& req, WhisperMessage& reply, Hart<
 	    switch (req.size)
 	      {
 	      case 1:
-		if (hart.pokeMemory(req.address, uint8_t(req.value), usePma))
+		if (hart.pokeMemory(req.address, uint8_t(req.value), usePma, false, not cache, skipMem))
 		  return true;
 		break;
 	      case 2:
-		if (hart.pokeMemory(req.address, uint16_t(req.value), usePma))
+		if (hart.pokeMemory(req.address, uint16_t(req.value), usePma, false, not cache, skipMem))
 		  return true;
 		break;
 	      case 4:
-		if (hart.pokeMemory(req.address, uint32_t(req.value), usePma))
+		if (hart.pokeMemory(req.address, uint32_t(req.value), usePma, false, not cache, skipMem))
 		  return true;
 		break;
 	      case 8:
-		if (hart.pokeMemory(req.address, uint64_t(req.value), usePma))
+		if (hart.pokeMemory(req.address, uint64_t(req.value), usePma, false, not cache, skipMem))
 		  return true;
 		break;
 	      default:
@@ -695,6 +697,7 @@ Server<URV>::stepCommand(const WhisperMessage& req,
   flags.bits.virt = hart.lastVirtMode();
   flags.bits.debug = prevDebug;
   flags.bits.load = di.isLoad() or di.isAmo() or di.isVectorLoad();
+  flags.bits.cancelled = hart.lastInstructionCancelled();
   reply.flags = flags.value;
 
   if (reenterDebug)
@@ -895,11 +898,11 @@ Server<URV>::mcmBypassCommand(const WhisperMessage& req, WhisperMessage& reply,
 
   if (req.size <= 8)
     {
-      ok = system_.mcmBypass(hart, req.time, req.instrTag, req.address, req.size, req.value, elem, field);
+      ok = system_.mcmBypass(hart, req.time, req.instrTag, req.address, req.size, req.value, elem, field, WhisperFlags{req.flags}.bits.cache);
 
       if (cmdLog)
-	fprintf(cmdLog, "hart=%" PRIu32 " time=%" PRIu64 " mbbypass %" PRIu64 " 0x%" PRIx64 " %" PRIu32 " 0x%" PRIx64 " %d %d\n",
-		hartId, req.time, req.instrTag, req.address, req.size, req.value, elem, field);
+	fprintf(cmdLog, "hart=%" PRIu32 " time=%" PRIu64 " mbbypass %" PRIu64 " 0x%" PRIx64 " %" PRIu32 " 0x%" PRIx64 " %d %d %d\n",
+		hartId, req.time, req.instrTag, req.address, req.size, req.value, elem, field, WhisperFlags{req.flags}.bits.cache);
     }
   else
     {
@@ -913,23 +916,24 @@ Server<URV>::mcmBypassCommand(const WhisperMessage& req, WhisperMessage& reply,
 	{
 	  // For speed, use double-word insert when possible, else word, else byte.
 	  uint64_t size = req.size, time = req.time, tag = req.instrTag, addr = req.address;
+          bool cache = WhisperFlags{req.flags}.bits.cache;
 	  if ((size & 0x7) == 0 and (addr & 0x7) == 0)
 	    {
 	      const uint64_t* data = reinterpret_cast<const uint64_t*>(req.buffer.data());
 	      for (unsigned i = 0; i < size and ok; i += 8, ++data)
-		ok = system_.mcmBypass(hart, time, tag, addr + i, 8, *data, elem, field);
+		ok = system_.mcmBypass(hart, time, tag, addr + i, 8, *data, elem, field, cache);
 	    }
 	  else if ((size & 0x3) == 0 and (addr & 0x3) == 0)
 	    {
 	      const uint32_t* data = reinterpret_cast<const uint32_t*>(req.buffer.data());
 	      for (unsigned i = 0; i < size and ok; i += 4, ++data)
-		ok = system_.mcmBypass(hart, time, tag, addr + i, 4, *data, elem, field);
+		ok = system_.mcmBypass(hart, time, tag, addr + i, 4, *data, elem, field, cache);
 	    }
 	  else
 	    {
 	      const uint8_t* data = reinterpret_cast<const uint8_t*>(req.buffer.data());
 	      for (unsigned i = 0; i < size and ok; ++i, ++data)
-		ok = system_.mcmBypass(hart, time, tag, addr + i, 1, *data, elem, field);
+		ok = system_.mcmBypass(hart, time, tag, addr + i, 1, *data, elem, field, cache);
 	    }
 
 	  if (cmdLog)
@@ -942,7 +946,7 @@ Server<URV>::mcmBypassCommand(const WhisperMessage& req, WhisperMessage& reply,
 		  unsigned val = data[i-1];
 		  fprintf(cmdLog, "%02x", val);
 		}
-	      fprintf(cmdLog, " %d %d\n", elem, field);
+	      fprintf(cmdLog, " %d %d %d\n", elem, field, WhisperFlags{req.flags}.bits.cache);
 	    }
 	}
     }
@@ -1104,7 +1108,8 @@ Server<URV>::interact(const WhisperMessage& msg, WhisperMessage& reply, FILE* tr
         return true;
 
       case Poke:
-        pokeCommand(msg, reply, hart);
+        if (not pokeCommand(msg, reply, hart))
+          reply.type = Invalid;
         if (commandLog)
           {
             if (msg.resource == 'p')
@@ -1132,7 +1137,9 @@ Server<URV>::interact(const WhisperMessage& msg, WhisperMessage& reply, FILE* tr
 			hartId, msg.resource, uintmax_t(msg.address),
 			uintmax_t(msg.value));
 		if (msg.resource == 'm' and msg.size != 0)
-		  fprintf(commandLog, " %d", int(msg.size));
+		  fprintf(commandLog, " %d 0x%" PRIu8 " 0x%" PRIu8, int(msg.size),
+                          WhisperFlags{msg.flags}.bits.cache,
+                          WhisperFlags{msg.flags}.bits.skipMem);
                 fprintf(commandLog, " # ts=%s tag=%s", timeStamp.c_str(), msg.tag.data());
 		fprintf(commandLog, "\n");
 	      }
@@ -1372,6 +1379,43 @@ Server<URV>::interact(const WhisperMessage& msg, WhisperMessage& reply, FILE* tr
                   hartId, msg.time, msg.address);
         if (not system_.mcmIEvict(hart, msg.time, msg.address))
           reply.type = Invalid;
+	break;
+
+      case McmDFetch:
+        if (commandLog)
+          fprintf(commandLog, "hart=%" PRIu32 " time=%" PRIu64 " mdfetch 0x%" PRIx64 "\n",
+                  hartId, msg.time, msg.address);
+        if (not system_.mcmDFetch(hart, msg.time, msg.address))
+          reply.type = Invalid;
+	break;
+
+      case McmDEvict:
+        if (commandLog)
+          fprintf(commandLog, "hart=%" PRIu32 " time=%" PRIu64 " mdevict 0x%" PRIx64 "\n",
+                  hartId, msg.time, msg.address);
+        if (not system_.mcmDEvict(hart, msg.time, msg.address))
+          reply.type = Invalid;
+	break;
+
+      case McmDWriteback:
+          {
+            std::vector<uint8_t> data(msg.size);
+            for (size_t i = 0; i < msg.size; ++i)
+              data.at(i) = msg.buffer.at(i);
+
+            if (commandLog)
+              {
+                fprintf(commandLog, "hart=%" PRIu32 " time=%" PRIu64 " mdwriteback 0x%" PRIx64,
+                        hartId, msg.time, msg.address);
+                if (data.size() > 0)
+                  fprintf(commandLog, " 0x");
+                for (unsigned i = data.size(); i > 0; --i)
+                  fprintf(commandLog, "%02x", data.at(i-1));
+                fprintf(commandLog, "\n");
+              }
+            if (not system_.mcmDWriteback(hart, msg.time, msg.address, data))
+              reply.type = Invalid;
+          }
 	break;
 
       case McmSkipReadChk:

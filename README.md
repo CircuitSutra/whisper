@@ -332,6 +332,14 @@ The following is a brief description of the command line options:
     --loadfrom path
        Snapshot directory from which to restore a previously saved (snapshot)
        state.
+    
+    --snapcompressiontype [lz4 | gzip]
+      Specify which compression scheme to use to store the snapshot. 
+      If the flag is absent, gzip is used by default.
+
+    --snapdecompressiontype [lz4 | gzip]
+      Specify which decompression scheme to use to load the snapshot. 
+      If the flag is absent, gzip is used by default.
 
     --newlib
        Emulate limited emulation of newlib system calls. Done automatically 
@@ -752,6 +760,7 @@ The vector configuration is an object with the following fields:
 * tt_fp_usum_tree_reduction: for each EEW, enables Tenstorrent tree reduction-style vfredusum/vfwredusum, default is false.
 * fp_usum_nan_canonicalize: for each EEW, enables NaN canonicalization of vfredusum/vfwredusum result, default is false.
 * partial_segment_update: partially commit the fields of a load/store segment encountering an exception/trigger-hit at a given index when true and commit no field in the case of an exception when false, default is false.
+* always_mark_dirty: if a vector instruction would write to a vector register, always mark vector state dirty regardless of whether the instruction updates the vector register.
 
 Example:
 ```

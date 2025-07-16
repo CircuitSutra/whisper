@@ -151,7 +151,7 @@ RVCORE_SRCS := IntRegs.cpp CsRegs.cpp FpRegs.cpp instforms.cpp \
             PerfRegs.cpp gdb.cpp HartConfig.cpp \
             Server.cpp Interactive.cpp Disassembler.cpp printTrace.cpp \
             Syscall.cpp PmaManager.cpp DecodedInst.cpp snapshot.cpp \
-            PmpManager.cpp Core.cpp System.cpp Cache.cpp \
+            PmpManager.cpp Core.cpp System.cpp \
             VecRegs.cpp vector.cpp wideint.cpp float.cpp bitmanip.cpp \
             amo.cpp SparseMem.cpp InstProfile.cpp Isa.cpp Mcm.cpp \
             crypto.cpp Decoder.cpp Trace.cpp cbo.cpp Uart8250.cpp \
@@ -226,4 +226,3 @@ cscope:
 .FORCE:
 
 .PHONY: all install install-py clean help cscope .FORCE
-

@@ -873,27 +873,28 @@ Mcm<URV>::setProducerTime(const Hart<URV>& hart, McmInstr& instr)
 
 template <typename URV>
 static bool
-pokeHartMemory(Hart<URV>& hart, uint64_t physAddr, uint64_t data, unsigned size)
+pokeHartMemory(Hart<URV>& hart, uint64_t physAddr, uint64_t data, unsigned size, bool cache)
 {
   bool usePma = true;
   bool skipFetch = true;
+  bool skipData = not cache;
 
   if (size == 1)
-    return hart.pokeMemory(physAddr, uint8_t(data), usePma, skipFetch);
+    return hart.pokeMemory(physAddr, uint8_t(data), usePma, skipFetch, skipData);
 
   if (size == 2)
-    return hart.pokeMemory(physAddr, uint16_t(data), usePma, skipFetch);
+    return hart.pokeMemory(physAddr, uint16_t(data), usePma, skipFetch, skipData);
 
   if (size == 4)
-    return hart.pokeMemory(physAddr, uint32_t(data), usePma, skipFetch);
+    return hart.pokeMemory(physAddr, uint32_t(data), usePma, skipFetch, skipData);
 
   if (size == 8)
-    return hart.pokeMemory(physAddr, uint64_t(data), usePma, skipFetch);
+    return hart.pokeMemory(physAddr, uint64_t(data), usePma, skipFetch, skipData);
 
   if (size < 8)
     {
       for (unsigned i = 0; i < size; ++i)
-	if (not hart.pokeMemory(physAddr + i, uint8_t(data >> (8*i)), usePma, skipFetch))
+	if (not hart.pokeMemory(physAddr + i, uint8_t(data >> (8*i)), usePma, skipFetch, skipData))
 	  return false;
       return true;
     }
@@ -976,7 +977,7 @@ Mcm<URV>::mergeBufferInsert(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64
       // We commit the RTL data to memory but we check them against whisper data (in
       // checkStoreData). This is simpler than committing part of whisper instruction
       // data.
-      if (not pokeHartMemory(hart, pa, rtlData, op.size_))
+      if (not pokeHartMemory(hart, pa, rtlData, op.size_, true))
 	result = false;
     }
 
@@ -987,7 +988,7 @@ Mcm<URV>::mergeBufferInsert(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64
 template <typename URV>
 bool
 Mcm<URV>::bypassOp(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa,
-                   unsigned size, uint64_t rtlData, unsigned elemIx, unsigned field)
+                   unsigned size, uint64_t rtlData, unsigned elemIx, unsigned field, bool cache)
 {
   if (not updateTime("Mcm::writeOp", time))
     return false;
@@ -1034,7 +1035,7 @@ Mcm<URV>::bypassOp(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa,
   instr->addMemOp(sysMemOps_.size());
   sysMemOps_.push_back(op);
 
-  result = pokeHartMemory(hart, pa, rtlData, size) and result;
+  result = pokeHartMemory(hart, pa, rtlData, size, cache) and result;
   
   instr->complete_ = checkStoreComplete(hartIx, *instr);
   if (instr->complete_)
@@ -1588,7 +1589,7 @@ Mcm<URV>::mergeBufferWrite(Hart<URV>& hart, uint64_t time, uint64_t physAddr,
             }
 
           assert(write.size_ <= 8);
-          pokeHartMemory(hart, write.pa_, write.rtlData_, write.size_);
+          pokeHartMemory(hart, write.pa_, write.rtlData_, write.size_, true);
 
           unsigned ix = write.pa_ - physAddr;
           for (unsigned i = 0; i < write.size_; ++i)
@@ -1831,9 +1832,14 @@ Mcm<URV>::checkRtlWrite(unsigned hartId, const McmInstr& instr,
 {
   if (instr.size_ == 0)
     {
-      cerr << "Error: Merge buffer insert for a non-store instruction: "
-	   << "Hart-id=" << hartId << " time=" << time_ << " tag=" << instr.tag_
-	   << '\n';
+      cerr << "Error: Hart-id=" << hartId << " time=" << op.time_ << " tag="
+           << instr.tag_;
+      if (instr.di_.isSc())
+        cerr << " merge buffer " << (op.bypass_ ? "bypass" : "insert")
+             << " operation for a non-successful store-conditional instruction\n";
+      else
+        cerr << " merge buffer insert/bypass for a non-store instruction\n";
+
       return false;
     }
 
@@ -2014,7 +2020,7 @@ Mcm<URV>::checkVecStoreData(Hart<URV>& hart, const McmInstr& store) const
 	 << " mismatch on vector store: vec-reg=" << unsigned(ref.reg_)
 	 << " elem=" << unsigned(ref.ix_);
     if (ref.field_)
-      cerr << "Error:  seg=" << unsigned(ref.field_);
+      cerr << " seg=" << unsigned(ref.field_);
   };
 
   // 4. Compare RTL data to reference data.
@@ -2030,7 +2036,7 @@ Mcm<URV>::checkVecStoreData(Hart<URV>& hart, const McmInstr& store) const
 	      if (store.complete_)
 		{
 		  printError(hartId, store.tag_, ref);
-		  cerr << "Error:  whisper-addr=0x" << std::hex << addr << std::dec
+		  cerr << " whisper-addr=0x" << std::hex << addr << std::dec
 		       << " RTL-addr=none\n";
 		  return false;
 		}
@@ -2041,7 +2047,7 @@ Mcm<URV>::checkVecStoreData(Hart<URV>& hart, const McmInstr& store) const
 	  if (rtlAddr != addr)
 	    {
 	      printError(hartId, store.tag_, ref);
-	      cerr << "Error:  whisper-addr=0x" << std::hex << addr << " RTL-addr=0x"
+	      cerr << " whisper-addr=0x" << std::hex << addr << " RTL-addr=0x"
 		   << rtlAddr << std::dec << '\n';
 	      return false;
 	    }
@@ -2049,7 +2055,7 @@ Mcm<URV>::checkVecStoreData(Hart<URV>& hart, const McmInstr& store) const
 	  if (rtlVal != val)
 	    {
 	      printError(hartId, store.tag_, ref);
-	      cerr << "Error:  addr=0x" << std::hex << addr << " whisper-value=0x"
+	      cerr << " addr=0x" << std::hex << addr << " whisper-value=0x"
 		   << unsigned(val) << " RTL-value=0x" << unsigned(rtlVal)
 		   << std::dec << '\n';
 	      return false;
@@ -3065,9 +3071,12 @@ Mcm<URV>::vecStoreToReadForward(const McmInstr& store, MemoryOp& readOp, uint64_
 	if (vecRef.overlaps(byteAddr))
 	  refCount++;
 
+      if (refCount == 0)
+        continue;
+
       // We cannot forward if last overlapping write drains before read.
       bool drained = false;
-      uint64_t lastWopTime = store.retireTime_;
+      uint64_t lastWopTime = time_;  // In case no write ops.
       if (refCount == writeCount and writeCount != 0)
 	{
 	  const auto& lastWop = sysMemOps_.at(lastWopIx);
@@ -3162,9 +3171,9 @@ Mcm<URV>::storeToReadForward(const McmInstr& store, MemoryOp& readOp, uint64_t& 
 	continue;  // Cannot forward from a drained write.
 
       if (fwdTime == 0)
-	fwdTime = store.retireTime_;  // Happens if store.memOps_ empty.
+	fwdTime = time_;  // Happens if store.memOps_ empty.
 
-      uint64_t offset = fwdTime - readOp.time_;
+      uint64_t offset = fwdTime > readOp.time_ ? fwdTime - readOp.time_ : 0;
       uint16_t off16 = static_cast<uint16_t>(offset);  // TOD: Use gsl
       readOp.fwOffset_.at(rix) = std::max(readOp.fwOffset_.at(rix), off16);
 
@@ -3788,8 +3797,8 @@ Mcm<URV>::ppoRule2(Hart<URV>& hart, const McmInstr& instrB) const
 	  if (remoteOp.isCanceled() or remoteOp.hartIx_ == hartIx or remoteOp.isRead_)
 	    continue;
 
-	  // Check the of bytes of the remote write. If the address of any of them
-	  // overlaps A and B and corresponding time is between times of A and B, we fail.
+	  // Check the bytes of the remote write. If the address of any of them overlaps A
+	  // and B and corresponding time is between times of A and B, we fail.
 	  for (unsigned byteIx = 0; byteIx < remoteOp.size_; ++byteIx)
 	    {
 	      uint64_t addr = remoteOp.pa_ + byteIx;
@@ -3858,10 +3867,8 @@ Mcm<URV>::ppoRule3(Hart<URV>& hart, const McmInstr& instrB) const
 	break;
 
       const auto& instrA =  instrVec.at(op.tag_);
-      if (instrA.isCanceled() or not instrA.isRetired())
-	continue;
-
-      if (not instrA.isStore_ or not overlaps(instrA, instrB))
+      if (instrA.isCanceled() or not instrA.isRetired() or not instrA.isStore_ or
+          not overlaps(instrA, instrB))
 	continue;
 
       // Check if a byte of B is written by A.
@@ -3876,12 +3883,17 @@ Mcm<URV>::ppoRule3(Hart<URV>& hart, const McmInstr& instrB) const
               if (not overlaps(instrA, op))
                 continue;
 	      if (not instrA.di_.isAtomic())
-		locallyWritten.insert(addr);
-              else if (op.time_ < latestOpTime(instrA))
+                {
+                  locallyWritten.insert(addr);
+                  continue;
+                }
+              
+              uint64_t aTime = instrA.complete_ ? latestOpTime(instrA) : ~uint64_t(0);
+              if (op.time_ < aTime)
 		{
 		  cerr << "Error: PPO rule 3 failed: hart-id=" << hart.hartId() << " tag1="
 		       << instrA.tag_ << " tag2=" << instrB.tag_ << " time1="
-		       << latestOpTime(instrA) << " time2=" << op.time_
+		       << aTime << " time2=" << op.time_
 		       << '\n';
 		  return false;
 		}
@@ -4402,7 +4414,7 @@ Mcm<URV>::ppoRule5(Hart<URV>& hart, const McmInstr& instrB) const
 	}
     }
 
-  auto earlyB = earliestOpTime(instrB);
+  auto earlyB = effectiveMinTime(hart, instrB);
 
   for (auto iter = sysMemOps_.rbegin(); iter != sysMemOps_.rend(); ++iter)
     {
@@ -5170,9 +5182,10 @@ Mcm<URV>::ppoRule13(Hart<URV>& hart, const McmInstr& instrB) const
       if (ap.isMemory())
 	if (not ap.complete_ or isBeforeInMemoryTime(instrB, ap))
 	  {
+            uint64_t apTime = ap.complete_ ? latestOpTime(ap) : ~uint64_t(0);
 	    cerr << "Error: PPO rule 13 failed: hart-id=" << hart.hartId() << " tag1="
 		 << mapt << " tag2=" << instrB.tag_ << " mtag=" << mTag
-		 << " time1=" << latestOpTime(ap) << " time2=" << earlyB << '\n';
+		 << " time1=" << apTime << " time2=" << earlyB << '\n';
 	    return false;
 	  }
 

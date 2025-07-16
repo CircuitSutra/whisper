@@ -663,6 +663,54 @@
 		}
 	    }
       },
+      "aplic": {
+          "type": "object",
+	  "properties" : {
+              "num_sources": {
+                  "type": "integer",
+		  "description": "number of interrupt sources coming into the APLIC",
+	      },
+              "domains": {
+                  "type": "object",
+		  "description": "collection of domains in the APLIC",
+                  "properties": {
+                      "<domain_name>" : {
+                          "type": "object",
+                          "description" : "parameters of the domain",
+                          "properties": {
+                              "parent" : {
+                                  "type" : "string",
+                                  "description" : "name of parent domain or null if root domain",
+                              },
+                              "is_machine" : {
+                                  "$ref": "#/definitions/bool_or_bool_string",
+                                  "description" : "machine privilege domain when true; otherwise, supervisor"
+                              },
+                              "base" : {
+                                  "#/definitions/int_or_hex_string",
+                                  "description" : "base address of domain memory region",
+                              },
+                              "size": {
+                                  "#/definitions/int_or_hex_string",
+                                  "description" : "size of domain memory region",
+                              }
+                              "hart_indices" : {
+                                  "type" : "array",
+                                  "items" {
+                                      "$ref": "#/definitions/int_or_hex_string",
+                                      "description" : "harts belonging to the domain, this is relevant for direct delivery"
+                                  }
+                              },
+                              "child_index" : {
+                                  "#/definitions/int_or_hex_string",
+                                  "description" : "order of a domain within its parent, not needed if a domain has no sibling, if a domain A, has two sub-domains B and C, then B and C should be assigned a child_index each from indices 0 and 1 according to their order."
+                              }
+                          }
+                      }
+                  }
+	      }
+	  }
+      },
       "pci": {
           "type" : "object",
           "properties" : {

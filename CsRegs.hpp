@@ -951,6 +951,10 @@ namespace WdRiscv
     void attachImsic(std::shared_ptr<TT_IMSIC::Imsic> imsic)
     { imsic_ = imsic; }
 
+    /// Return true if the given CSR number corresponds to a custom CSR (See table 3 of
+    /// section 2.2 of the privileged spec version 20241017).
+    bool isCustomCsr(CsrNumber num) const;
+
   protected:
 
     /// Advance a csr number by the given amount (add amount to number).
@@ -1103,9 +1107,9 @@ namespace WdRiscv
     }
 
     /// Similar to instAddrTriggerHit but for interrupt triggers.
-    bool intTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool ie)
+    bool intTriggerHit(URV cause, PrivilegeMode mode, bool virtMode, bool ie, bool isNmi = false)
     {
-      bool chainHit = triggers_.intTriggerHit(cause, mode, virtMode, ie);
+      bool chainHit = triggers_.intTriggerHit(cause, mode, virtMode, ie, isNmi);
       URV tselect = 0;
       peek(CsrNumber::TSELECT, tselect);
       if (triggers_.getLocalHit(tselect))
@@ -1218,7 +1222,8 @@ namespace WdRiscv
     /// csr (implemented == false) as user-disabled so that internal code cannot enable
     /// them.
     bool configCsrByUser(std::string_view name, bool implemented, URV resetValue,
-			 URV mask, URV pokeMask, bool shared, bool isDebug);
+			 URV mask, URV pokeMask, bool shared, bool isDebug,
+                         bool isHExt);
 
     /// Configure CSR. Return true on success and false on failure.
     bool configCsr(CsrNumber csr, bool implemented, URV resetValue,
@@ -1708,13 +1713,17 @@ namespace WdRiscv
     bool readSie(URV& value) const;
 
     /// Helper to read method.
+    bool readVsip(URV& value) const;
+
+    /// Helper to read method.
     bool readMvip(URV& value) const;
 
     /// Helper to write method.
     bool writeMvip(URV value);
 
-    /// Helper to write method.
-    bool writeMvien(URV value);
+    /// Called whenever MVIEN or MIDELEG change to make HIDELEG read-only-zero where
+    /// bot MVIEN and MIDELEG are zero.
+    void updateHidelegMasks();
 
     /// Adjust the value of TIME/TIMEH by adding the time delta in
     /// virtual mode.
@@ -1788,6 +1797,9 @@ namespace WdRiscv
 
     /// Legalize an SRMCFG value. Return legalized value.
     URV legalizeSrmcfg(Csr<URV>* csr, URV current, URV value) const;
+
+    /// Legalize a MENVCFG/SENVCFG/HENVCFG value. Return legalized value.
+    URV legalizeEnvcfg(URV current, URV value) const;
 
     /// Update scountovf, matching OF bit of given mhpmevent CSR.
     void updateScountovfValue(CsrNumber mhpmevent);
@@ -2067,7 +2079,7 @@ namespace WdRiscv
 
     /// Return the value of the STCE bit of the HENVCFG CSR. Return
     /// false if CSR is not implemented
-    bool henvcfgStce()
+    bool henvcfgStce() const
     {
       auto csr = getImplementedCsr(rv32_? CsrNumber::HENVCFGH : CsrNumber::HENVCFG);
       if (not csr)
@@ -2356,6 +2368,15 @@ namespace WdRiscv
       vsInterrupts_ = vsInterrupts;
     }
 
+    /// Modify read/write masks of VSIP/VSIE according to HVIEN/HIDELEG and
+    /// the state of the Sscofpmf extension.
+    void updateVsieVsipMasks();
+
+    /// Return true if value virtual timer has expired: time + delta >= limit where time,
+    /// delta, and limit are respectively the values of the TIME, HTIMEDELTA, and
+    /// VSTIMECMP CSRs.
+    bool virtTimerExpired() const;
+
   private:
 
     bool rv32_ = sizeof(URV) == 4;
@@ -2409,6 +2430,8 @@ namespace WdRiscv
     std::vector<InterruptCause> mInterrupts_;
     std::vector<InterruptCause> sInterrupts_;
     std::vector<InterruptCause> vsInterrupts_;
+
+    std::vector<CsrNumber> customH_;   // Custom CSR maked as belonging to H extension.
 
     bool seiPin_ = false;
   };
