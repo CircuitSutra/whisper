@@ -479,6 +479,13 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
       return nullptr;
     }
 
+    /// Return number of instruction packets in the given hart.
+    size_t getInstructionPacketCount(unsigned hartIx) const
+    {
+      auto& packetMap = hartPacketMaps_.at(hartIx);
+      return packetMap.size();
+    }
+
     /// Flush an instruction and all older instructions at the given hart. Restore
     /// dependency chain (register renaming) to the way it was before the flushed
     /// instructions were decoded.
