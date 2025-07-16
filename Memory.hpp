@@ -760,7 +760,7 @@ namespace WdRiscv
       uint64_t value_ = 0;
     };
 
-    uint64_t size_;        // Size of memory in bytes.
+    uint64_t size_;      // Size of memory in bytes.
     uint8_t* data_;      // Pointer to memory data.
 
     uint64_t pageSize_    = UINT64_C(4)*1024;   // Must be a power of 2.

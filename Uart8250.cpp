@@ -355,10 +355,7 @@ bool Uart8250::loadSnapshot(const std::string& filename)
 {
   std::ifstream ifs(filename);
   if (not ifs)
-    {
-      std::cerr << "Error: failed to open snapshot file " << filename << "\n";
-      return false;
-    }
+    std::cerr << "Warning: failed to open snapshot file " << filename << "\n";
 
   std::string line;
   int lineno = 0;

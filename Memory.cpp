@@ -1214,10 +1214,10 @@ bool decompress_frame_lz4(uint8_t** src_buffer, std::vector<uint32_t>& dst_buffe
 
   // Check if there was an error : 
   if (LZ4F_isError(error)) 
-   {
-    std::cerr << "Error: Memory::decompress_lz4 failed - LZ4 Frame Error: " << LZ4F_getErrorName(error) << "\n";
-    return false;
-  }
+    {
+      std::cerr << "Error: Memory::decompress_lz4 failed - LZ4 Frame Error: " << LZ4F_getErrorName(error) << "\n";
+      return false;
+    }
 
   // frame_size will now contain the size of the frame 
   // Increment the src buffer by the size of the frame consumed 
@@ -1225,11 +1225,11 @@ bool decompress_frame_lz4(uint8_t** src_buffer, std::vector<uint32_t>& dst_buffe
 
   // frame_info will now contain the size of the de-compressed data in the frame. 
   // Check the size of the content in the frame and the size of the mem block 
-  if(frame_info.contentSize != mem_block_size) 
-   {
-    std::cerr << "Error: Memory::decompress_frame_lz4 failed - Content size mismatch: " << frame_info.contentSize << " != " << mem_block_size << " (frame_size: " << frame_size << ")\n"; 
-    return false;
-  }
+  if (frame_info.contentSize != mem_block_size) 
+    {
+      std::cerr << "Error: Memory::decompress_frame_lz4 failed - Content size mismatch: " << frame_info.contentSize << " != " << mem_block_size << " (frame_size: " << frame_size << ")\n"; 
+      return false;
+    }
   
   // Get the decompressed data 
   // Content size + lz4_max_header_size + 1 CRC byte 
@@ -1248,34 +1248,34 @@ bool decompress_frame_lz4(uint8_t** src_buffer, std::vector<uint32_t>& dst_buffe
   error = LZ4F_decompress(dctx, dst_buffer.data(), &dst_size, *src_buffer, &src_size, &decompress_options); 
 
   // Check for error 
-  if(LZ4F_isError(error))
-   {
-      std::cerr << "ERROR: decompress_file failed - LZ4F_decompressFrame failed: " << LZ4F_getErrorName(error) << "\n";
+  if (LZ4F_isError(error))
+    {
+      std::cerr << "Error: decompress_file failed - LZ4F_decompressFrame failed: " << LZ4F_getErrorName(error) << "\n";
       return false; 
-  }
+    }
 
   // Make sure the error is 0 
-  if(error != 0)
-   {
+  if (error != 0)
+    {
       std::cerr << "Decompress_file Non-zero value returned :  " << error <<  "\n";; 
       return false; 
-  }
+    }
 
   dst_buffer.resize(dst_size / 4);
 
 
   // Check if the size of the decomrpessed data is equal to the contentSize 
-  if(dst_buffer.size() * 4 != mem_block_size) 
+  if (dst_buffer.size() * 4 != mem_block_size) 
     {
-    std::cerr << "Error: Memory::decompress_frame_lz4 failed - Decompressed data size mismatch: \n"
-              << "dst_buffer.size(): " << dst_buffer.size() << "\n"
-              << "dst_buffer bytes: " << dst_buffer.size() * 4 << "\n\n"
-              << "mem block bytes: " << mem_block_size << "\n\n"
-              << "Content size from frame: " << frame_info.contentSize << "\n\n"
-              << "dst size: " << dst_size << "\n"
-              << "src size: " << src_size << "\n";
-    return false; 
-  }
+      std::cerr << "Error: Memory::decompress_frame_lz4 failed - Decompressed data size mismatch: \n"
+                << "dst_buffer.size(): " << dst_buffer.size() << "\n"
+                << "dst_buffer bytes: " << dst_buffer.size() * 4 << "\n\n"
+                << "mem block bytes: " << mem_block_size << "\n\n"
+                << "Content size from frame: " << frame_info.contentSize << "\n\n"
+                << "dst size: " << dst_size << "\n"
+                << "src size: " << src_size << "\n";
+      return false; 
+    }
 
   // Increment the src_buffer by the size of the data read
   *src_buffer += src_size; 
