@@ -493,7 +493,8 @@ namespace WdRiscv
 
     // We assume coherent data cache and non-coherent instruction caches. If the
     // I-cache were coherent, then this oculd be simplified into one cache model.
-    std::shared_ptr<TT_CACHE::Cache> fetchCache_;
+    // This also makes each instruction cache local to the hart.
+    // std::shared_ptr<TT_CACHE::Cache> fetchCache_;
     std::shared_ptr<TT_CACHE::Cache> dataCache_;
 
     // Name, size, and address in memory of a binary file.

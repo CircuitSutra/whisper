@@ -1018,14 +1018,6 @@ System<URV>::enableMcm(unsigned mbLineSize, bool mbLineCheckAll, bool mcmCache,
 
   // For easier handling of CMOs. I-cache is considered non-coherent.
   // FIXME: Make mcmCache apply to fetchCache as well.
-  fetchCache_ = std::make_shared<TT_CACHE::Cache>();
-  auto fetchMemRead = [this](uint64_t addr, uint64_t& value) {
-    if (dataCache_)
-      return dataCache_->read(addr, value)? true : this->memory_->peek(addr, value, false);
-    else
-      return this->memory_->peek(addr, value, false);
-  };
-  fetchCache_->addMemReadCallback(fetchMemRead);
   if (mcmCache)
     {
       dataCache_ = std::make_shared<TT_CACHE::Cache>();
@@ -1048,7 +1040,17 @@ System<URV>::enableMcm(unsigned mbLineSize, bool mbLineCheckAll, bool mcmCache,
       }
 
   for (auto& hart :  sysHarts_)
-    hart->setMcm(mcm_, fetchCache_, dataCache_);
+    {
+      auto fetchCache = std::make_shared<TT_CACHE::Cache>();
+      auto fetchMemRead = [this](uint64_t addr, uint64_t& value) {
+        if (dataCache_)
+          return dataCache_->read(addr, value)? true : this->memory_->peek(addr, value, false);
+        else
+          return this->memory_->peek(addr, value, false);
+      };
+      fetchCache->addMemReadCallback(fetchMemRead);
+      hart->setMcm(mcm_, fetchCache, dataCache_);
+    }
 
   return true;
 }
@@ -1071,14 +1073,6 @@ System<URV>::enableMcm(unsigned mbLineSize, bool mbLineCheckAll, bool mcmCache, 
   mcm_->setCheckWholeMbLine(mbLineCheckAll);
 
   // For easier handling of CMOs.
-  fetchCache_ = std::make_shared<TT_CACHE::Cache>();
-  auto fetchMemRead = [this](uint64_t addr, uint64_t& value) {
-    if (dataCache_)
-      return dataCache_->read(addr, value)? true : this->memory_->peek(addr, value, false);
-    else
-      return this->memory_->peek(addr, value, false);
-  };
-  fetchCache_->addMemReadCallback(fetchMemRead);
   if (mcmCache)
     {
       dataCache_ = std::make_shared<TT_CACHE::Cache>();
@@ -1101,7 +1095,17 @@ System<URV>::enableMcm(unsigned mbLineSize, bool mbLineCheckAll, bool mcmCache, 
     }
 
   for (auto& hart :  sysHarts_)
-    hart->setMcm(mcm_, fetchCache_, dataCache_);
+  {
+    auto fetchCache = std::make_shared<TT_CACHE::Cache>();
+    auto fetchMemRead = [this](uint64_t addr, uint64_t& value) {
+      if (dataCache_)
+        return dataCache_->read(addr, value)? true : this->memory_->peek(addr, value, false);
+      else
+        return this->memory_->peek(addr, value, false);
+    };
+    fetchCache->addMemReadCallback(fetchMemRead);
+    hart->setMcm(mcm_, fetchCache, dataCache_);
+  }
 
   return true;
 }
@@ -1212,7 +1216,7 @@ template <typename URV>
 bool
 System<URV>::mcmIFetch(Hart<URV>& hart, uint64_t /*time*/, uint64_t addr)
 {
-  if (not mcm_ or not fetchCache_)
+  if (not mcm_)
     return false;
   return hart.template mcmCacheInsert<McmMem::Fetch>(addr);
 }
@@ -1222,7 +1226,7 @@ template <typename URV>
 bool
 System<URV>::mcmIEvict(Hart<URV>& hart, uint64_t /*time*/, uint64_t addr)
 {
-  if (not mcm_ or not fetchCache_)
+  if (not mcm_)
     return false;
   return hart.template mcmCacheEvict<McmMem::Fetch>(addr);
 }
@@ -1232,7 +1236,7 @@ template <typename URV>
 bool
 System<URV>::mcmDFetch(Hart<URV>& hart, uint64_t /*time*/, uint64_t addr)
 {
-  if (not mcm_ or not fetchCache_)
+  if (not mcm_)
     return false;
   return hart.template mcmCacheInsert<McmMem::Data>(addr);
 }
