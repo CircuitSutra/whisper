@@ -5376,13 +5376,14 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
     }
   else if (num == CsrNumber::MIE)
     {
-      // Updating MIE is reflected into HIE/VSIE.
+      // Updating MIE is reflected into aliased bits of HIE in bits 0-12.
       URV val = (mie->read() & hieMask);
       URV hieVal = val | (hie->read() & ~hieMask);
       updateCsr(hie, hieVal, false /*poke*/);
 
-      // Bits 13-63 may be aliasing with VSIE.
-      URV mask = hideleg->read();
+      // Updating MIE is refelected into aliased bigs of VSIE.
+      URV mask = hideleg->read(); 
+      val = mie->read();
       val = (sInterruptToVs(vsie->read()) & ~mask) | (val & mask);
       updateCsr(vsie, vsInterruptToS(val), true /*write*/);
     }
