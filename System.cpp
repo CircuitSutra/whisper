@@ -1984,10 +1984,7 @@ System<URV>::loadAplicSnapshot(const Filesystem::path& snapDir)
   auto filepath = snapDir / "aplic-source-states";
   std::ifstream ifs(filepath);
   if (not ifs)
-    {
-      std::cerr << "Error: failed to open snapshot file " << filepath << "\n";
-      return false;
-    }
+    std::cerr << "Warning: failed to open snapshot file " << filepath << "\n";
 
   unsigned nsources = aplic_->numSources();
   std::string line;
@@ -2086,10 +2083,7 @@ System<URV>::loadAplicDomainSnapshot(const Filesystem::path& snapDir, std::share
   auto filepath = snapDir / domain->name();
   std::ifstream ifs(filepath);
   if (not ifs)
-    {
-      std::cerr << "Error: failed to open snapshot file " << filepath << "\n";
-      return false;
-    }
+    std::cerr << "Warning: failed to open snapshot file " << filepath << "\n";
 
   std::string line;
   int lineno = 0;
