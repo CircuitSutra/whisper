@@ -246,8 +246,7 @@ CsRegs<URV>::readVsip(URV& value) const
 
   // For bits 13 to 64, VSIP is aliased to SIP when HIDELEG is 1, or is aliased to
   // HVIP when HVIEN is 1, or is zero.
-  auto sip = getImplementedCsr(CsrNumber::SIP);
-  auto sipVal = sip ? sip->read() : URV(0);
+  URV sipVal = 0; readSip(sipVal);  // Cannot use sip->read() otherwise we miss MVIP aliasing.
 
   auto hvip = getImplementedCsr(CsrNumber::HVIP);
   auto hvipVal = hvip ? hvip->read() : URV(0);
