@@ -5382,7 +5382,7 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
       updateCsr(hie, hieVal, false /*poke*/);
 
       // Updating MIE is refelected into aliased bits of VSIE.
-      URV mask = hideleg->read() and mideleg->read();
+      URV mask = hideleg->read() & mideleg->read();
       val = mie->read();
       val = (sInterruptToVs(vsie->read()) & ~mask) | (val & mask);
       updateCsr(vsie, vsInterruptToS(val), true /*write*/);
