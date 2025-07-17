@@ -5178,6 +5178,7 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
   auto vsip = getImplementedCsr(CsrNumber::VSIP);
   auto vsie = getImplementedCsr(CsrNumber::VSIE);
   auto hideleg = getImplementedCsr(CsrNumber::HIDELEG);
+  auto mideleg = getImplementedCsr(CsrNumber::MIDELEG);
   auto hvien = getImplementedCsr(CsrNumber::HVIEN);
   auto hstatus = getImplementedCsr(CsrNumber::HSTATUS);
   auto hgeip = getImplementedCsr(CsrNumber::HGEIP); // HGEIP isn't write-able
@@ -5380,8 +5381,8 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
       URV hieVal = val | (hie->read() & ~hieMask);
       updateCsr(hie, hieVal, false /*poke*/);
 
-      // Updating MIE is refelected into aliased bigs of VSIE.
-      URV mask = hideleg->read(); 
+      // Updating MIE is refelected into aliased bits of VSIE.
+      URV mask = hideleg->read() and mideleg->read();
       val = mie->read();
       val = (sInterruptToVs(vsie->read()) & ~mask) | (val & mask);
       updateCsr(vsie, vsInterruptToS(val), true /*write*/);
