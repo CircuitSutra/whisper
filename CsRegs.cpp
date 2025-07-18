@@ -1469,7 +1469,7 @@ CsRegs<URV>::writeSip(URV value, bool recordWr)
   if (mideleg and mvien and mvip)
     {
       // Bits 5 and 9 are not writable in SIP even when aliased to MVIP.
-      URV mvipMask = mvien->read() & ~mideleg->read();
+      URV mvipMask = mvien->read() & ~mideleg->read() & ~URV(0x220);
       sipMask &= ~ mvipMask;  // Don't write SIP where SIP is an alias to MVIP
 
       mvip->write((mvip->read() & ~mvipMask) | (value & mvipMask)); // Write MVIP instead.
