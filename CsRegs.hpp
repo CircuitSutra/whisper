@@ -641,6 +641,12 @@ namespace WdRiscv
     void registerPostReset(std::function<void(Csr<URV>&)> func)
     { postReset_.push_back(func); }
 
+    /// Chnage the write mask of this CSR. Bits set in the mask will be writable by CSR
+    /// instructions assumbing they are implemented (corresponding poke mask bits are also
+    /// set). Bits cleared in the mask will not be writable.
+    void setWriteMask(URV mask)
+    { writeMask_ = mask; }
+
     /// Get field width of CSR
     unsigned width(std::string_view field) const
     {
@@ -750,9 +756,6 @@ namespace WdRiscv
 
     void pokeNoMask(URV v)
     { *valuePtr_ = v; }
-
-    void setWriteMask(URV mask)
-    { writeMask_ = mask; }
 
     void setReadMask(URV mask)
     { readMask_ = mask; }
