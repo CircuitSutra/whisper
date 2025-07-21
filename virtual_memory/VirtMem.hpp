@@ -236,6 +236,12 @@ namespace WdRiscv
     const std::vector<std::vector<WalkEntry>>& getDataWalks() const
     { return dataWalks_; }
 
+    void setFetchWalks(const std::vector<std::vector<WalkEntry>>& walks)
+    { fetchWalks_ = walks; }
+
+    void setDataWalks(const std::vector<std::vector<WalkEntry>>& walks)
+    { dataWalks_ = walks; }
+
     /// Clear trace of page table walk
     void clearPageTableWalk()
     {

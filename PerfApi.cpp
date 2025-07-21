@@ -354,6 +354,10 @@ PerfApi::execute(unsigned hartIx, uint64_t time, uint64_t tag)
 	}
     }
 
+  // Collect the page table walks.
+  packet.fetchWalks_ = hart.virtMem().getFetchWalks();
+  packet.dataWalks_ = hart.virtMem().getDataWalks();
+
   return true;
 }
 
@@ -529,7 +533,16 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
     }
 
   hart.setInstructionCount(tag - 1);
-  hart.singleStep(traceFiles_.at(hartIx));
+  auto traceFile = traceFiles_.at(hartIx);
+
+  hart.singleStep(nullptr);
+
+  if (traceFile)
+    {
+      hart.virtMem().setFetchWalks(packet.fetchWalks_);  // We print the walk from execute.
+      hart.virtMem().setFetchWalks(packet.dataWalks_);
+      hart.printInstCsvTrace(packet.di_, traceFile);
+    }
 
   // Sanity check. Results at execute and retire must match.
 #if 1
@@ -538,37 +551,7 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
 #endif
 
   // Undo renaming of destination registers.
-  auto& producers = hartRegProducers_.at(hartIx);
-  for (size_t i = 0; i < packet.operandCount_; ++i)
-    {
-      using OM = WdRiscv::OperandMode;
-      using OT = WdRiscv::OperandType;
-
-      auto& op = packet.operands_.at(i);
-
-      auto mode = op.mode;
-      if (mode == OM::Write or mode == OM::ReadWrite)
-	{
-	  unsigned regNum = op.number;
-          auto type = op.type;
-	  unsigned gri = globalRegIx(type, regNum);
-          if (type != OT::VecReg)
-            {
-              auto& producer = producers.at(gri);
-              if (producer and producer->tag() == packet.tag())
-                producer = nullptr;
-            }
-          else
-            {
-              for (unsigned n = 0; n < op.lmul; ++n)
-                {
-                  auto& producer = producers.at(gri + n);
-                  if (producer and producer->tag() == packet.tag())
-                    producer = nullptr;
-                }
-            }
-	}
-    }
+  undoDestRegRename(hartIx, packet);
 
   bool trap = hart.lastInstructionTrapped();
   packet.trap_ = packet.trap_ or trap;
@@ -2039,6 +2022,43 @@ PerfApi::getVecOpsLmul(Hart64& hart, InstrPac& packet)
 
     default:
       break;
+    }
+}
+
+
+void
+PerfApi::undoDestRegRename(unsigned hartIx, const InstrPac& packet)
+{
+  auto& producers = hartRegProducers_.at(hartIx);
+  for (size_t i = 0; i < packet.operandCount_; ++i)
+    {
+      using OM = WdRiscv::OperandMode;
+      using OT = WdRiscv::OperandType;
+
+      auto& op = packet.operands_.at(i);
+
+      auto mode = op.mode;
+      if (mode == OM::Write or mode == OM::ReadWrite)
+	{
+	  unsigned regNum = op.number;
+          auto type = op.type;
+	  unsigned gri = globalRegIx(type, regNum);
+          if (type != OT::VecReg)
+            {
+              auto& producer = producers.at(gri);
+              if (producer and producer->tag() == packet.tag())
+                producer = nullptr;
+            }
+          else
+            {
+              for (unsigned n = 0; n < op.lmul; ++n)
+                {
+                  auto& producer = producers.at(gri + n);
+                  if (producer and producer->tag() == packet.tag())
+                    producer = nullptr;
+                }
+            }
+	}
     }
 }
 

@@ -369,6 +369,10 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     // if the element is skipped (maksed-off or tail-element).
     std::vector<VaPaSkip> vecAddrs_;
 
+    // Instruction and data page table walks associated with instruction.
+    std::vector<std::vector<WalkEntry>> fetchWalks_;
+    std::vector<std::vector<WalkEntry>> dataWalks_;
+
     uint64_t flushVa_ = 0;    // Redirect PC for packets that should be flushed.
 
     WdRiscv::DecodedInst di_; // decoded instruction.
@@ -562,6 +566,11 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     void flattenOperand(const Operand& op, std::vector<Operand>& flat) const;
 
   protected:
+
+    /// Helper to retire method. Destination registers of the given packet that renamed to
+    /// that packet get changed to point to the register file (they are no longer
+    /// renamed).
+    void undoDestRegRename(unsigned hartIx, const InstrPac& packet);
 
     /// Collect the register operand values for the instruction in the given packet. The
     /// values are either obtained from the register files or from the instructions in
