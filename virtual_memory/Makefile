@@ -4,6 +4,12 @@ CXXFLAGS = -std=c++20 -Wall -I. $(OFLAGS) -fPIC
 SRCS    = VirtMem.cpp Tlb.cpp
 OBJS    = $(SRCS:.cpp=.o)
 TARGET  = libvirtual_memory.a
+
+# Needed to link against boost libraries which were compiled using older ABI
+ifeq ($(BOOST_ROOT), /tools_vendor/FOSS/boost/1.82)
+  CXXFLAGS += -D_GLIBCXX_USE_CXX11_ABI=0
+endif
+
 .PHONY: all clean
 all: $(TARGET)
 $(TARGET): $(OBJS)
