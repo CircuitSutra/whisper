@@ -333,7 +333,7 @@ bool Uart8250::saveSnapshot(const std::string& filename) const
 
   auto rx_fifo_copy = rx_fifo;
   while (!rx_fifo_copy.empty()) {
-      ofs << "rx_fifo " << (int) rx_fifo_copy.front() << "\n";
+      ofs << "rx_fifo 0x" << (int) rx_fifo_copy.front() << "\n";
       rx_fifo_copy.pop();
   }
 

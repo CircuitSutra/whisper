@@ -328,7 +328,13 @@ namespace WdRiscv
     /// Find the control and status register with the given number.
     /// Return pointer to CSR on success and nullptr if no such
     /// register.
-    const Csr<URV>* findCsr(CsrNumber number)
+    const Csr<URV>* findCsr(CsrNumber number) const
+    { return csRegs_.findCsr(number); }
+
+    /// Find the control and status register with the given number.
+    /// Return pointer to CSR on success and nullptr if no such
+    /// register.
+    Csr<URV>* findCsr(CsrNumber number)
     { return csRegs_.findCsr(number); }
 
     /// Configure given CSR. Return true on success and false if no such CSR.

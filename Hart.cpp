@@ -348,7 +348,16 @@ Hart<URV>::setupVirtMemCallbacks()
       value = util::byteswap(value);
     if (not memory_.hasReserveAttribute(addr))
       return false;
-    return (mcm_ and dataCache_)? pokeMemory(addr, value, false) : memory_.write(hartIx_, addr, value);
+
+    if (mcm_ and dataCache_)
+      {
+        bool ok = true;
+        for (unsigned i = 0; i < sizeof(data); ++i)
+          ok = ok and pokeMcmCache<McmMem::Data>(addr +i, (data >> uint8_t(8*i)));
+        return ok;
+      }
+    else
+      return memory_.write(hartIx_, addr, value);
   });
 
   virtMem_.setIsReadableCallback([this](uint64_t addr, PrivilegeMode pm) -> bool {
