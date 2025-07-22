@@ -246,20 +246,20 @@ Session<URV>::getPrimaryConfigParameters(const Args& args, const HartConfig& con
   config.getHartsPerCore(hartsPerCore);
   if (args.harts)
     hartsPerCore = *args.harts;
-  if (hartsPerCore == 0 or hartsPerCore > 32)
+  if (hartsPerCore == 0 or hartsPerCore > 64)
     {
       std::cerr << "Error: Unsupported hart count: " << hartsPerCore;
-      std::cerr << "Error:  (1 to 32 currently supported)\n";
+      std::cerr << "Error:  (1 to 64 currently supported)\n";
       return false;
     }
 
   config.getCoreCount(coreCount);
   if (args.cores)
     coreCount = *args.cores;
-  if (coreCount == 0 or coreCount > 32)
+  if (coreCount == 0 or coreCount > 64)
     {
       std::cerr << "Error: Unsupported core count: " << coreCount;
-      std::cerr << "Error:  (1 to 32 currently supported)\n";
+      std::cerr << "Error:  (1 to 64 currently supported)\n";
       return false;
     }
 
