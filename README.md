@@ -601,10 +601,17 @@ It can be used for code completion and validation by adding the following to a c
 ## Configuration parameters
 
 ### cores
-Number of cores in simulated system.
+Number of cores in simulated system. Default is 1.
 
-### xlen
-Integer register size in bits.
+### harts
+Number of harts per core. Default is 1.
+
+### core_hart_id_offset
+Stride, s, between the value of MHARTID CSR of the first hart in one core and that of the
+first hart in the next core. Default is c*h where c and h are the number of cores and the
+number of harts per core respectively.  For example, if s/c/h are 7/2/3 then the values of
+MMHARTID CSRs in the system will be: 0 1 2   7 8 9.
+
 
 ### isa
 Enable instruction set architecture (isa) features.
