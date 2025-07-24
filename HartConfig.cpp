@@ -1081,6 +1081,16 @@ applyVectorConfig(Hart<URV>& hart, const nlohmann::json& config)
         hart.configVmvrIgnoreVill(flag);
     }
 
+  tag = "tt_clear_tval_vl_egs";
+  if (vconf.contains(tag))
+    {
+      bool flag = false;
+      if (not getJsonBoolean(tag, vconf.at(tag), flag))
+        errors++;
+      else
+        hart.enableClearMtvalOnEgs(flag);
+    }
+
   return errors == 0;
 }
 
