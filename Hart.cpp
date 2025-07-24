@@ -3374,6 +3374,9 @@ Hart<URV>::initiateTrap(const DecodedInst* di, bool interrupt,
   if (not csRegs_.write(causeNum, privMode_, causeRegVal))
     assert(0 and "Failed to write CAUSE register");
 
+  if (clearMtvalOnEgs_ and egsConstraint_)
+    info = 0;
+
   // Clear mtval on interrupts. Save synchronous exception info.
   if (not csRegs_.write(tvalNum, privMode_, info))
     assert(0 and "Failed to write TVAL register");

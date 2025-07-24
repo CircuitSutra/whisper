@@ -1901,6 +1901,11 @@ namespace WdRiscv
     void enableClearMtvalOnEbreak(bool flag)
     { clearMtvalOnEbreak_ = flag; }
 
+    /// Clear MTVAL if we take an exception because of a failed
+    /// vl multiple of egs constraint.
+    void enableClearMtvalOnEgs(bool flag)
+    { clearMtvalOnEgs_ = flag; }
+
     /// Clear MTINST/HTINST on cbo.inval if flag is true.
     void enableClearTinstOnCboInval(bool flag)
     { clearTinstOnCboInval_ = flag; }
@@ -5668,6 +5673,7 @@ namespace WdRiscv
       lastBreakpInterruptEnabled_ = sdtrigOn_? isBreakpInterruptEnabled() : false;
       ldStWrite_ = false;
       ldStAtomic_ = false;
+      egsConstraint_ = false;
       lastPageMode_ = virtMem_.mode();
       lastVsPageMode_ = virtMem_.vsMode();
       lastPageModeStage2_ = virtMem_.stage2Mode();
@@ -5860,7 +5866,9 @@ namespace WdRiscv
 
     bool clearMtvalOnIllInst_ = true;
     bool clearMtvalOnEbreak_ = true;
+    bool clearMtvalOnEgs_ = false;
     bool lastEbreak_ = false;
+    bool egsConstraint_ = false;
 
     bool clearTinstOnCboInval_ = false;
     bool clearTinstOnCboFlush_ = false;

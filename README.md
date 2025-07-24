@@ -768,6 +768,8 @@ The vector configuration is an object with the following fields:
 * fp_usum_nan_canonicalize: for each EEW, enables NaN canonicalization of vfredusum/vfwredusum result, default is false.
 * partial_segment_update: partially commit the fields of a load/store segment encountering an exception/trigger-hit at a given index when true and commit no field in the case of an exception when false, default is false.
 * always_mark_dirty: if a vector instruction would write to a vector register, always mark vector state dirty regardless of whether the instruction updates the vector register.
+* vmvr_ignore_vill: when true, vmvr instructions ignore the vtype.vill bit.
+* tt_clear_tval_vl_egs: when true, we clear the \*tval register if a vector crypto instruction would fail the "vl is an integer multiple of EGS" constraint.
 
 Example:
 ```
