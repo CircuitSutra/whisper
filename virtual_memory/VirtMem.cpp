@@ -798,8 +798,8 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
       global = global or pte.global();
       if (not pte.read() and not pte.exec())
         {  // pte is a pointer to the next level
-	  if (pte.accessed() or pte.dirty() or pte.user() or global or pte.pbmt() != 0)
-            return stage2PageFaultType(read, write, exec);  // A/D/U/G bits must be zero in non-leaf entries.
+	  if (pte.accessed() or pte.dirty() or pte.user() or pte.pbmt() != 0)
+            return stage2PageFaultType(read, write, exec);  // A/D/U bits must be zero in non-leaf entries.
           ii = ii - 1;
           if (ii < 0)
             return stage2PageFaultType(read, write, exec);
@@ -910,7 +910,7 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
   tlbEntry.vmid_ = vmid_;
   tlbEntry.wid_ = wid_;
   tlbEntry.valid_ = true;
-  tlbEntry.global_ = global;
+  tlbEntry.global_ = false;    // G bit should be zero and must be ignored per spec.
   tlbEntry.user_ = pte.user();
   tlbEntry.read_ = pte.read();
   tlbEntry.write_ = pte.write();
