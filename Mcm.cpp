@@ -5301,7 +5301,7 @@ Mcm<URV>::ioPpoChecks(Hart<URV>& hart, const McmInstr& instrB) const
           // For each reference byte address of A.
           for (unsigned i = 0; i < instrA.size_; ++i)
             {
-              unsigned byteAddr = i < size1 ? pa1 + 1 : pa2 + i - size1;
+              uint64_t byteAddr = i < size1 ? pa1 + i : pa2 + i - size1;
               if (not hart.getPma(byteAddr).isIo())
                 continue;   // Not an IO address
 
