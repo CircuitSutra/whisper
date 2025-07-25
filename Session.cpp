@@ -334,48 +334,52 @@ Session<URV>::openUserFiles(const Args& args)
 {
   traceFiles_.resize(system_ -> hartCount());
 
-  unsigned ix = 0;
-  for (auto& traceFile : traceFiles_)
+  if (args.traceFile != "/dev/null")
     {
-      size_t len = args.traceFile.size();
-      doGzip_ = len > 3 and args.traceFile.substr(len-3) == ".gz";
+      unsigned ix = 0;
 
-      if (not args.traceFile.empty())
+      for (auto& traceFile : traceFiles_)
         {
-          std::string name = args.traceFile;
-          if (args.logPerHart)
+          size_t len = args.traceFile.size();
+          doGzip_ = len > 3 and args.traceFile.substr(len-3) == ".gz";
+
+          if (not args.traceFile.empty())
             {
-              if (not doGzip_)
-                name.append(std::to_string(ix));
+              std::string name = args.traceFile;
+              if (args.logPerHart)
+                {
+                  if (not doGzip_)
+                    name.append(std::to_string(ix));
+                  else
+                    name.insert(len - 3, std::to_string(ix));
+                }
+
+              if ((ix == 0) || args.logPerHart)
+                {
+                  if (doGzip_)
+                    {
+                      std::string cmd = "/usr/bin/gzip -c > ";
+                      cmd += name;
+                      traceFile = popen(cmd.c_str(), "w");
+                    }
+                  else
+                    traceFile = fopen(name.c_str(), "w");
+                }
               else
-                name.insert(len - 3, std::to_string(ix));
+                traceFile = traceFiles_.at(0);   // point the same File pointer to each hart
+
+              if (not traceFile)
+                {
+                  std::cerr << "Error: Failed to open trace file '" << name
+                            << "' for output\n";
+                  return false;
+                }
             }
 
-          if ((ix == 0) || args.logPerHart)
-	    {
-	      if (doGzip_)
-		{
-		  std::string cmd = "/usr/bin/gzip -c > ";
-		  cmd += name;
-		  traceFile = popen(cmd.c_str(), "w");
-		}
-	      else
-		traceFile = fopen(name.c_str(), "w");
-	    }
-          else
-	    traceFile = traceFiles_.at(0);   // point the same File pointer to each hart
-
-          if (not traceFile)
-            {
-              std::cerr << "Error: Failed to open trace file '" << name
-                        << "' for output\n";
-              return false;
-            }
+          if (args.trace and traceFile == nullptr)
+            traceFile = stdout;
+          ++ix;
         }
-
-      if (args.trace and traceFile == nullptr)
-        traceFile = stdout;
-      ++ix;
     }
 
   if (not args.commandLogFile.empty())
