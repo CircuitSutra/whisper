@@ -3739,42 +3739,23 @@ Mcm<URV>::ppoRule2(Hart<URV>& hart, const McmInstr& instrB) const
   if (not instrB.isLoad_)
     return true;  // NA: B is not a load.
 
-  auto earlyB = earliestOpTime(instrB);
+  auto earlyB = effectiveMinTime(hart, instrB);
 
   unsigned hartIx = hart.sysHartIndex();
   const auto& instrVec = hartData_.at(hartIx).instrVec_;
 
-  // Bytes of B written by stores from the local hart.
-  std::unordered_set<uint64_t> locallyWritten;
-
-  auto& undrained = hartData_.at(hartIx).undrainedStores_;
-  for (auto storeTag : undrained)
-    {
-      const auto& store = instrVec.at(storeTag);
-      if (store.tag_ >= instrB.tag_)
-	break;
-      identifyWrittenBytes(store, instrB, locallyWritten);
-    }
-
   for (auto iter = sysMemOps_.rbegin(); iter != sysMemOps_.rend(); ++iter)
     {
       const auto& op = *iter;
-      if (op.isCanceled() or op.hartIx_ != hartIx or op.tag_ >= instrB.tag_)
+      if (op.isCanceled() or op.hartIx_ != hartIx or op.tag_ >= instrB.tag_
+          or not op.isRead_)
 	continue;
 
       if (op.time_ < earlyB)
 	break;
 
       const auto& prev =  instrVec.at(op.tag_);   // Instruction preceding B in prog order.
-      if (prev.isCanceled()  or  not prev.isRetired()  or  not prev.isMemory()  or
-	  not overlaps(prev, instrB))
-	continue;
-
-      // If a byte of B is written by prev, then put its physical address in
-      // locallyWriten.
-      identifyWrittenBytes(prev, instrB, locallyWritten);
-
-      if (not prev.isLoad_)
+      if (prev.isCanceled()  or  not prev.isRetired()  or  not overlaps(prev, instrB))
 	continue;
 
       auto& instrA = prev;
@@ -3805,9 +3786,6 @@ Mcm<URV>::ppoRule2(Hart<URV>& hart, const McmInstr& instrB) const
 
 	      if (not overlapsRefPhysAddr(instrA, addr) or not overlapsRefPhysAddr(instrB, addr))
 		continue;
-
-	      if (locallyWritten.contains(addr))
-		continue;    // Byte of B covered by local store.
 
 	      auto earlyB = effectiveMinByteTime(instrB, addr);
 	      auto lateA = effectiveMaxByteTime(instrA, addr);
