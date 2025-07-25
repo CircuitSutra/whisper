@@ -1675,27 +1675,10 @@ Interactive<URV>::executeLine(const std::string& inLine, FILE* traceFile,
 
   // After the first step/run/until command, a reset command will reset
   // the memory mapped registers.
-  if (command == "step" or command == "run" or command == "until")
-    resetMemoryMappedRegs_ = true;
-
-  if (command == "run")
-    {
-      bool success = runCommand(hart, line, tokens, traceFile);
-      if (commandLog)
-	fprintf(commandLog, "%s\n", line.c_str());
-      return success;
-    }
-
-  if (command == "u" or command == "until")
-    {
-      bool success = untilCommand(hart, line, tokens, traceFile);
-      if (commandLog)
-	fprintf(commandLog, "%s\n", line.c_str());
-      return success;
-    }
 
   if (command == "s" or command == "step")
     {
+      resetMemoryMappedRegs_ = true;
       if (not stepCommand(hart, line, tokens, traceFile))
 	return false;
       if (commandLog)
@@ -1710,6 +1693,42 @@ Interactive<URV>::executeLine(const std::string& inLine, FILE* traceFile,
       if (commandLog)
 	fprintf(commandLog, "%s\n", line.c_str());
        return true;
+    }
+
+  if (command == "mread" or command == "memory_model_read")
+    {
+      if (not mreadCommand(hart, line, tokens))
+	return false;
+      if (commandLog)
+	fprintf(commandLog, "%s\n", line.c_str());
+      return true;
+    }
+
+  if (command == "mbinsert" or command == "merge_buffer_insert")
+    {
+      if (not mbinsertCommand(hart, line, tokens))
+	return false;
+      if (commandLog)
+	fprintf(commandLog, "%s\n", line.c_str());
+      return true;
+    }
+
+  if (command == "run")
+    {
+      resetMemoryMappedRegs_ = true;
+      bool success = runCommand(hart, line, tokens, traceFile);
+      if (commandLog)
+	fprintf(commandLog, "%s\n", line.c_str());
+      return success;
+    }
+
+  if (command == "u" or command == "until")
+    {
+      resetMemoryMappedRegs_ = true;
+      bool success = untilCommand(hart, line, tokens, traceFile);
+      if (commandLog)
+	fprintf(commandLog, "%s\n", line.c_str());
+      return success;
     }
 
   if (command == "poke")
@@ -1863,27 +1882,9 @@ Interactive<URV>::executeLine(const std::string& inLine, FILE* traceFile,
       return true;
     }
 
-  if (command == "mread" or command == "memory_model_read")
-    {
-      if (not mreadCommand(hart, line, tokens))
-	return false;
-      if (commandLog)
-	fprintf(commandLog, "%s\n", line.c_str());
-      return true;
-    }
-
   if (command == "mbwrite" or command == "merge_buffer_write")
     {
       if (not mbwriteCommand(hart, line, tokens))
-	return false;
-      if (commandLog)
-	fprintf(commandLog, "%s\n", line.c_str());
-      return true;
-    }
-
-  if (command == "mbinsert" or command == "merge_buffer_insert")
-    {
-      if (not mbinsertCommand(hart, line, tokens))
 	return false;
       if (commandLog)
 	fprintf(commandLog, "%s\n", line.c_str());
