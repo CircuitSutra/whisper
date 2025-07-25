@@ -374,7 +374,7 @@ Hart<URV>::setupVirtMemCallbacks()
         addr = stee_.clearSecureBits(addr);
       }
 
-    auto pma = memory_.pmaMgr_.getPma(addr);
+    auto pma = memory_.pmaMgr_.accessPma(addr);
     return pma.isRead();
   });
 
@@ -392,7 +392,7 @@ Hart<URV>::setupVirtMemCallbacks()
         addr = stee_.clearSecureBits(addr);
       }
 
-    auto pma = memory_.pmaMgr_.getPma(addr);
+    auto pma = memory_.pmaMgr_.accessPma(addr);
 
     // return pma.isWrite() and pma.isRsrv();  // FIX: RTL does not do this. It should.
     return pma.isWrite();
