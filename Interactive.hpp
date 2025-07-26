@@ -41,8 +41,8 @@ namespace WdRiscv
   {
   public:
 
-    /// Constructor.
-    Interactive(System<URV>& system);
+    /// Constructor. The output of commands goes to the out stream (typicall std::cout).
+    Interactive(System<URV>& system, std::ostream& out);
 
     /// Read commands from the standard input and execute them.
     /// Instance traces go the the given traceFile (no instance
@@ -216,6 +216,7 @@ namespace WdRiscv
   private:
 
     System<URV>& system_;
+    std::ostream& out_;
 
     // Initial resets do not reset memory mapped registers.
     bool resetMemoryMappedRegs_ = false;

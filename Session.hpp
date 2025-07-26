@@ -72,7 +72,7 @@ namespace WdRiscv
 				    unsigned& hartsPerCore, unsigned& coreCount,
 				    size_t& pageSize, size_t& memorySize);
 
-    /// Santize memory parameters. Page/region sizes must be greater and equal to 4 and
+    /// Sanitize memory parameters. Page/region sizes must be greater and equal to 4 and
     /// must be powers of 2. Region size must be a multiple of page size.  Memory size
     /// must be a multiple of region size. Return true if given parameters are
     /// good. False if any parameters is changed to meet expectation.
@@ -111,7 +111,9 @@ namespace WdRiscv
     /// success and false on failure.
     bool runServerShm(const std::string& serverFile);
 
-    bool runInteractive();
+    /// Run an interactive session with interactive command output going to the given
+    /// ostream.
+    bool runInteractive(std::ostream& out);
 
   private:
 

@@ -1162,7 +1162,7 @@ kbdInterruptHandler(int)
 
 template<typename URV>
 bool
-Session<URV>::runInteractive()
+Session<URV>::runInteractive(std::ostream& out)
 {
   // Ignore keyboard interrupt for most commands. Long running
   // commands will enable keyboard interrupts while they run.
@@ -1172,7 +1172,7 @@ Session<URV>::runInteractive()
   newAction.sa_handler = kbdInterruptHandler;
   sigaction(SIGINT, &newAction, nullptr);
 
-  Interactive interactive(*system_);
+  Interactive interactive(*system_, out);
   return interactive.interact(traceFiles_.at(0), commandLog_);
 }
 
@@ -1253,7 +1253,17 @@ Session<URV>::run(const Args& args)
     }
 
   if (args.interactive)
-    return runInteractive();
+    {
+      if (args.interOutFile.empty())
+        return runInteractive(std::cout);
+      std::ofstream ofs(args.interOutFile);
+      if (not ofs)
+        {
+          std::cerr << "Error: Failed to open " << args.interOutFile << " for writing\n";
+          return false;
+        }
+      return runInteractive(ofs);
+    }
 
   if (not args.snapshotPeriods.empty())
     return system.snapshotRun(traceFiles_, args.snapshotPeriods);
