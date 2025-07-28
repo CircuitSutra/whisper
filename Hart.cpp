@@ -145,7 +145,7 @@ Hart<URV>::Hart(unsigned hartIx, URV hartId, unsigned numHarts, Memory& memory, 
   vsInterrupts_ = { IC::VS_EXTERNAL, IC::VS_SOFTWARE, IC::VS_TIMER, IC::LCOF };
 
   // Define possible NMIs.
-  nmInterrupts_ = { 0xf0001000, 0xf0000001, 0xf0000000, 2, 1, 0 };
+  nmInterrupts_ = { 0xf0001000, 0xf0000001, 0xf0000000, 3, 2, 1, 0 };
 }
 
 
