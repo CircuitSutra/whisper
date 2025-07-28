@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <bitset>
 #include <vector>
+#include <set>
 #include <unordered_map>
 #include <unordered_set>
 #include <type_traits>
@@ -146,14 +147,12 @@ namespace WdRiscv
     ~Hart();
 
     /// Define the set of possible machine interrupts in priority order (high to low).
-    void setMachineInterrupts(const std::vector<InterruptCause>& newInterrupts) {
-      mInterrupts_ = newInterrupts;
-    }
+    void setMachineInterrupts(const std::vector<InterruptCause>& newInterrupts)
+    { mInterrupts_ = newInterrupts; }
 
     /// Define the set of possible supervisor interrupts in priority order (high to low).
-    void setSupervisorInterrupts(const std::vector<InterruptCause>& newInterrupts) {
-      sInterrupts_ = newInterrupts;
-    }
+    void setSupervisorInterrupts(const std::vector<InterruptCause>& newInterrupts)
+    { sInterrupts_ = newInterrupts; }
 
     /// Filter out from possible machine interrupts those interrupt that cannot become
     /// pending or enabled.
@@ -166,6 +165,10 @@ namespace WdRiscv
     /// Return count of integer registers.
     unsigned intRegCount() const
     { return intRegs_.size(); }
+
+    /// Define the set of possible non-maskable interrupts.
+    void setNonMaskableInterrupts(const std::vector<uint64_t>& nmis)
+    { nmInterrupts_ = nmis; }
 
     /// Return the name of the given integer register. Return an
     /// abi-name (e.g. sp) if abi names are enabled.
@@ -957,10 +960,13 @@ namespace WdRiscv
     { nmiExceptionPc_ = addr; }
 
     /// Clear/set pending non-maskable-interrupt.
-    void setPendingNmi(NmiCause cause = NmiCause::UNKNOWN);
+    void setPendingNmi(URV cause);
 
-    /// Clear pending non-maskable-interrupt.
+    /// Clear all pending non-maskable-interrupts.
     void clearPendingNmi();
+
+    /// Clear given pending non-maskable-interrupt.
+    void clearPendingNmi(URV cause);
 
     /// Set/clear Supervisor external interrupt pin.
     void setSeiPin(bool flag)
@@ -5745,7 +5751,8 @@ namespace WdRiscv
     URV nmiPc_ = 0;             // Non-maskable interrupt handler.
     URV nmiExceptionPc_ = 0;    // Handler for exceptions during non-maskable interrupts.
     bool nmiPending_ = false;
-    NmiCause nmiCause_ = NmiCause::UNKNOWN;
+    URV nmiCause_ = 0;
+    std::set<URV> pendingNmis_;
 
     // These must be cleared before each instruction when triggers enabled.
     bool hasException_ = false;      // True if current inst has an exception.
@@ -5892,6 +5899,7 @@ namespace WdRiscv
     std::vector<InterruptCause> mInterrupts_;  // Possible M interrupts in high to low priority.
     std::vector<InterruptCause> sInterrupts_;  // Possible S interrupts in high to low priority.
     std::vector<InterruptCause> vsInterrupts_; // Possible VS interrupts in high to low priority.
+    std::vector<uint64_t> nmInterrupts_;       // Possible NMIs in high to low priority.
 
     // Decoded instruction cache.
     std::vector<DecodedInst> decodeCache_;

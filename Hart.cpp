@@ -143,6 +143,9 @@ Hart<URV>::Hart(unsigned hartIx, URV hartId, unsigned numHarts, Memory& memory, 
 
   // Define the virtual supervisor (VS) interrupts in high to low priority.
   vsInterrupts_ = { IC::VS_EXTERNAL, IC::VS_SOFTWARE, IC::VS_TIMER, IC::LCOF };
+
+  // Define possible NMIs.
+  nmInterrupts_ = { 0xf0001000, 0xf0000001, 0xf0000000, 2, 1, 0 };
 }
 
 
@@ -1326,15 +1329,12 @@ Hart<URV>::pokeMemory(uint64_t addr, uint64_t val, bool usePma, bool skipFetch, 
 
 template <typename URV>
 void
-Hart<URV>::setPendingNmi(NmiCause cause)
+Hart<URV>::setPendingNmi(URV cause)
 {
-  // First nmi sets the cause. The cause is sticky.
-  if (not nmiPending_)
-    nmiCause_ = cause;
-
+  pendingNmis_.insert(cause);
   nmiPending_ = true;
 
-  // Set the nmi pending bit in the DCSR register.
+  // Set DCSR.NMI.
   URV val = 0;  // DCSR value
   if (peekCsr(CsrNumber::DCSR, val))
     {
@@ -1350,9 +1350,10 @@ template <typename URV>
 void
 Hart<URV>::clearPendingNmi()
 {
+  pendingNmis_.clear();
   nmiPending_ = false;
-  nmiCause_ = NmiCause::UNKNOWN;
 
+  // Clear DCSR.NMI.
   URV val = 0;  // DCSR value
   if (peekCsr(CsrNumber::DCSR, val))
     {
@@ -1360,6 +1361,28 @@ Hart<URV>::clearPendingNmi()
       dcsr.bits_.NMIP = 0;
       pokeCsr(CsrNumber::DCSR, dcsr.value_);
       recordCsrWrite(CsrNumber::DCSR);
+    }
+}
+
+
+template <typename URV>
+void
+Hart<URV>::clearPendingNmi(URV cause)
+{
+  pendingNmis_.erase(cause);
+  nmiPending_ = not pendingNmis_.empty();
+
+  if (not nmiPending_)
+    {
+      // Clear DCSR.NMI.
+      URV val = 0;  // DCSR value
+      if (peekCsr(CsrNumber::DCSR, val))
+        {
+          DcsrFields<URV> dcsr(val);
+          dcsr.bits_.NMIP = 0;
+          pokeCsr(CsrNumber::DCSR, dcsr.value_);
+          recordCsrWrite(CsrNumber::DCSR);
+        }
     }
 }
 
@@ -6232,16 +6255,27 @@ Hart<URV>::processExternalInterrupt(FILE* traceFile, std::string& instStr)
   if (dcsrStep_ and not dcsrStepIe_)
     return false;
 
-  // If a non-maskable interrupt was signaled by the test-bench, consider it.
-  if (nmiPending_ and initiateNmi(URV(nmiCause_), pc_))
+  // Consider pending non-maskable interrupts.
+  if (nmiPending_)
     {
-      // NMI was taken.
-      uint32_t inst = 0; // Load interrupted inst.
-      readInst(currPc_, inst);
-      printInstTrace(inst, instCounter_, instStr, traceFile);
-      if (mcycleEnabled())
-	++cycleCount_;
-      return true;
+      for (auto nmi : nmInterrupts_)   // Potential NMIs in high to low priority order
+        {
+          auto iter = pendingNmis_.find(nmi);
+          if (iter == pendingNmis_.end())
+            continue;  // NMI is not pending.
+
+          if (initiateNmi(URV(nmi), pc_))
+            {
+              pendingNmis_.erase(iter);
+              uint32_t inst = 0; // Load interrupted inst.
+              readInst(currPc_, inst);
+              printInstTrace(inst, instCounter_, instStr, traceFile);
+              if (mcycleEnabled())
+                ++cycleCount_;
+              return true;
+            }
+          break;  // NMI could not be delivered (NMIs not enabled).
+        }
     }
 
   // If interrupts enabled and one is pending, take it.

@@ -1857,7 +1857,7 @@ Interactive<URV>::executeLine(const std::string& inLine, FILE* traceFile,
       uint32_t cause = 0;
       if (tokens.size() > 1 and not parseCmdLineNumber("nmi-cause", tokens.at(1), cause))
 	return false;
-      hart.setPendingNmi(NmiCause(cause));
+      hart.setPendingNmi(cause);
       if (commandLog)
 	fprintf(commandLog, "%s\n", line.c_str());
       return true;
@@ -1865,7 +1865,13 @@ Interactive<URV>::executeLine(const std::string& inLine, FILE* traceFile,
 
   if (command == "clear_nmi")
     {
-      hart.clearPendingNmi();
+      uint32_t cause = 0;
+      if (tokens.size() > 1 and not parseCmdLineNumber("nmi-cause", tokens.at(1), cause))
+        return false;
+      if (tokens.size() == 1)
+        hart.clearPendingNmi();
+      else
+        hart.clearPendingNmi(cause);
       if (commandLog)
         fprintf(commandLog, "%s\n", line.c_str());
       return true;

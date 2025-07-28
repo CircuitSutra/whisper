@@ -2408,16 +2408,13 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
       hart.autoIncrementTimer(flag);
     }
 
-  // Parse enable_ppo, it it is missing all PPO rules are enabled.
-  
-  // ----------------- MACHINE INTERRUPTS -----------------
   tag = "machine_interrupts";
   if (config_->contains(tag))
     {
       const auto &mi = config_->at(tag);
       if (!mi.is_array())
         {
-          std::cerr << "Error: Invalid machine_interrupts entry in config file (expecting an array)\n";
+          std::cerr << "Error: Invalid machine_interrupts entry in config file (expecting array)\n";
           ++errors;
         }
       else
@@ -2430,14 +2427,13 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
         }
     }
 
-  // -------------- SUPERVISOR INTERRUPTS ------------------
   tag = "supervisor_interrupts";
   if (config_->contains(tag))
     {
       const auto &si = config_->at(tag);
       if (!si.is_array())
         {
-          std::cerr << "Error: Invalid supervisor_interrupts entry in config file (expecting an array)\n";
+          std::cerr << "Error: Invalid supervisor_interrupts entry in config file (expecting array)\n";
           ++errors;
         }
       else
@@ -2449,6 +2445,26 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
             ++errors;
         }
     }
+
+  tag = "non_maskable_interrupts";
+  if (config_->contains(tag))
+    {
+      const auto &si = config_->at(tag);
+      if (!si.is_array())
+        {
+          std::cerr << "Error: Invalid non_maskable_interrutps entry in config file (expecting array)\n";
+          ++errors;
+        }
+      else
+        {
+          std::vector<uint64_t> vec;
+          if (getJsonUnsignedVec(tag, si, vec))
+            hart.setNonMaskableInterrupts(vec);
+          else
+            ++errors;
+        }
+    }
+
 
   return errors == 0;
 }
