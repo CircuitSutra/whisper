@@ -1452,8 +1452,8 @@ Server<URV>::interact(const WhisperMessage& msg, WhisperMessage& reply, FILE* tr
 	  hart.setDeferredInterrupts(0);
 
           InterruptCause cause = InterruptCause{0};
-          PrivilegeMode nextMode; bool nextVirt;
-          reply.flags = hart.isInterruptPossible(cause, nextMode, nextVirt);
+          PrivilegeMode nextMode; bool nextVirt; bool hvi;
+          reply.flags = hart.isInterruptPossible(cause, nextMode, nextVirt, hvi);
           reply.value = static_cast<uint64_t>(cause);
 
 	  hart.setDeferredInterrupts(deferred);

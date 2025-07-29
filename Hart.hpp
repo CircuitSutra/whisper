@@ -2274,7 +2274,7 @@ namespace WdRiscv
     /// which mode it should be taken; otherwise, leave
     /// it unmodified. If more than one interrupt is possible, set
     /// cause to the possible interrupt with the highest priority.
-    bool isInterruptPossible(InterruptCause& cause, PrivilegeMode& nextMode, bool& nextVirt) const;
+    bool isInterruptPossible(InterruptCause& cause, PrivilegeMode& nextMode, bool& nextVirt, bool& hvi) const;
 
     /// Return true if this hart would take an interrupt if the interrupt
     /// pending CSRs would have the given value. Do not change MIP, do not
@@ -2283,7 +2283,7 @@ namespace WdRiscv
     /// should be taken; otherwise, leave cause unmodified.
     bool isInterruptPossible(URV mipValue, URV sipValue, URV vsipValue,
                               InterruptCause& cause, PrivilegeMode& nextMode,
-                              bool& nextVirt) const;
+                              bool& nextVirt, bool& hvi) const;
 
     /// Configure this hart to set its program counter to the given addr on entering debug
     /// mode. If addr bits are all set, then the PC is not changed on entering debug mode.
@@ -3489,7 +3489,7 @@ namespace WdRiscv
 
     /// Start an asynchronous exception (interrupt).
     void initiateInterrupt(InterruptCause cause, PrivilegeMode nextMode,
-                           bool nextVirt, URV pc);
+                           bool nextVirt, URV pc, bool hvi);
 
     /// Start a non-maskable interrupt. Return true if successful. Return false
     /// if Smrnmi and nmis are disabled.

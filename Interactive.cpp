@@ -2798,7 +2798,8 @@ Interactive<URV>::checkInterruptCommand(Hart<URV>& hart, [[maybe_unused]] const 
   InterruptCause cause;
   PrivilegeMode nextMode = PrivilegeMode::Machine;
   bool nextVirt = false;
-  if (hart.isInterruptPossible(cause, nextMode, nextVirt))
+  bool hvi = false;
+  if (hart.isInterruptPossible(cause, nextMode, nextVirt, hvi))
     out_ << unsigned(cause) << '\n';
 
   hart.setDeferredInterrupts(deferred);

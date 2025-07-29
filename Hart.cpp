@@ -3058,7 +3058,7 @@ Hart<URV>::unimplemented(const DecodedInst* di)
 template <typename URV>
 void
 Hart<URV>::initiateInterrupt(InterruptCause cause, PrivilegeMode nextMode,
-                              bool nextVirt, URV pc)
+                              bool nextVirt, URV pc, bool hvi)
 {
   hasInterrupt_ = true;
   interruptCount_++;
@@ -3071,13 +3071,8 @@ Hart<URV>::initiateInterrupt(InterruptCause cause, PrivilegeMode nextMode,
   using IC = InterruptCause;
   URV causeNum = URV(cause);
   if (nextVirt and (cause == IC::VS_EXTERNAL or cause == IC::VS_TIMER or
-                    cause == IC::VS_SOFTWARE))
-    {
-      auto hideleg = csRegs_.getImplementedCsr(CsrNumber::HIDELEG);
-      bool delegated = hideleg and ((URV(1) << causeNum) & hideleg->read());
-      if (delegated)
-        causeNum--;
-    }
+                    cause == IC::VS_SOFTWARE) and not hvi)
+      causeNum--;
 
   initiateTrap(nullptr, interrupt, causeNum, nextMode, nextVirt, pc, info);
 
@@ -6083,7 +6078,7 @@ template <typename URV>
 bool
 Hart<URV>::isInterruptPossible(URV mip, URV sip, [[maybe_unused]] URV vsip,
                                InterruptCause& cause, PrivilegeMode& nextMode,
-                               bool& nextVirt) const
+                               bool& nextVirt, bool& hvi) const
 {
   if (debugMode_)
     return false;
@@ -6169,12 +6164,10 @@ Hart<URV>::isInterruptPossible(URV mip, URV sip, [[maybe_unused]] URV vsip,
   else
     {
       URV vstopi;
-      if (csRegs_.readTopi(CsrNumber::VSTOPI, vstopi, false))
+      if (csRegs_.readTopi(CsrNumber::VSTOPI, vstopi, false, hvi))
         {
           if (vstopi)
             {
-              // FIXME: This might be buggy because IID does not have to be a standard
-              // interrupt.
               unsigned iid = vstopi >> 16;  // Interrupt id.
               if (deferredInterrupts_ & (URV(1) << iid))
                 return false;
@@ -6190,7 +6183,7 @@ Hart<URV>::isInterruptPossible(URV mip, URV sip, [[maybe_unused]] URV vsip,
 
 template <typename URV>
 bool
-Hart<URV>::isInterruptPossible(InterruptCause& cause, PrivilegeMode& nextMode, bool& nextVirt) const
+Hart<URV>::isInterruptPossible(InterruptCause& cause, PrivilegeMode& nextMode, bool& nextVirt, bool& hvi) const
 {
   // MIP read value is ored with supervisor external interrupt pin and
   // mvip if mvien is not set.
@@ -6213,7 +6206,7 @@ Hart<URV>::isInterruptPossible(InterruptCause& cause, PrivilegeMode& nextMode, b
       not hasHvi())
     return false;
 
-  return isInterruptPossible(mip, sip, vsip, cause, nextMode, nextVirt);
+  return isInterruptPossible(mip, sip, vsip, cause, nextMode, nextVirt, hvi);
 }
 
 
@@ -6248,7 +6241,8 @@ Hart<URV>::processExternalInterrupt(FILE* traceFile, std::string& instStr)
   InterruptCause cause;
   PrivilegeMode nextMode = PrivilegeMode::Machine;
   bool nextVirt = false;
-  if (isInterruptPossible(cause, nextMode, nextVirt))
+  bool hvi = false;
+  if (isInterruptPossible(cause, nextMode, nextVirt, hvi))
     {
       // Attach changes to interrupted instruction.
       uint32_t inst = 0; // Load interrupted inst.
@@ -6264,7 +6258,7 @@ Hart<URV>::processExternalInterrupt(FILE* traceFile, std::string& instStr)
 	    pc = pc + 4;
 #endif
 	}
-      initiateInterrupt(cause, nextMode, nextVirt, pc);
+      initiateInterrupt(cause, nextMode, nextVirt, pc, hvi);
       printInstTrace(inst, instCounter_, instStr, traceFile);
       if (mcycleEnabled())
 	++cycleCount_;
