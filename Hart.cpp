@@ -3640,6 +3640,7 @@ Hart<URV>::undelegatedInterrupt(URV cause, URV pcToSave, URV nextPc)
   mstatus_.bits_.MIE = 0;
   writeMstatus();
 
+#if 0
   // Clear pending nmi bit in dcsr
   URV dcsrVal = 0;
   if (peekCsr(CsrNumber::DCSR, dcsrVal))
@@ -3649,6 +3650,7 @@ Hart<URV>::undelegatedInterrupt(URV cause, URV pcToSave, URV nextPc)
       pokeCsr(CsrNumber::DCSR, dcsr.value_);
       recordCsrWrite(CsrNumber::DCSR);
     }
+#endif
 
   setPc(nextPc);
 }
@@ -10281,18 +10283,11 @@ Hart<URV>::exitDebugMode()
 
   updateCachedTriggerState();
 
-  // If pending nmi bit is set in dcsr, set pending nmi in the hart
-  // object.
   URV dcsrVal = 0;
   if (not peekCsr(CsrNumber::DCSR, dcsrVal))
     std::cerr << "Warning: Failed to read DCSR in exit debug.\n";
 
   DcsrFields<URV> dcsrf(dcsrVal);
-  if (dcsrf.bits_.NMIP)
-    {
-      assert(not pendingNmis_.empty());
-      setPendingNmi(*pendingNmis_.begin());
-    }
 
   // Restore privilege mode.
   auto pm = PrivilegeMode{dcsrf.bits_.PRV};
