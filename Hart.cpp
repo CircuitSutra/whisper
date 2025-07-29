@@ -10289,7 +10289,10 @@ Hart<URV>::exitDebugMode()
 
   DcsrFields<URV> dcsrf(dcsrVal);
   if (dcsrf.bits_.NMIP)
-    setPendingNmi(nmiCause_);
+    {
+      assert(not pendingNmis_.empty());
+      setPendingNmi(*pendingNmis_.begin());
+    }
 
   // Restore privilege mode.
   auto pm = PrivilegeMode{dcsrf.bits_.PRV};

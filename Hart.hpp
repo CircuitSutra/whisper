@@ -5751,7 +5751,6 @@ namespace WdRiscv
     URV nmiPc_ = 0;             // Non-maskable interrupt handler.
     URV nmiExceptionPc_ = 0;    // Handler for exceptions during non-maskable interrupts.
     bool nmiPending_ = false;
-    URV nmiCause_ = 0;
     std::set<URV> pendingNmis_;
 
     // These must be cleared before each instruction when triggers enabled.
