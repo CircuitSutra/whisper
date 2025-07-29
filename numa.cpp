@@ -4,7 +4,7 @@
 #include <sstream>
 #include <vector>
 #include <algorithm>
-#include <unordered_map>
+#include <map>
 #include <filesystem>
 #include <string>
 #include <thread>
@@ -37,12 +37,12 @@ parse_cpu_list(const std::string& cpu_list_str)
     return cpus;
 }
 
-static std::unordered_map<int, std::vector<int>>
+static std::map<int, std::vector<int>>
 get_numa_nodes()
 {
     namespace fs = std::filesystem;
 
-    std::unordered_map<int, std::vector<int>> numa_nodes;
+    std::map<int, std::vector<int>> numa_nodes;
     fs::path node_path = "/sys/devices/system/node/";
 
     // List all NUMA nodes
@@ -72,10 +72,10 @@ struct Stats {
     int idle;
 };
 
-static std::unordered_map<int, Stats>
+static std::map<int, Stats>
 get_stats()
 {
-    std::unordered_map<int, Stats> stats;
+    std::map<int, Stats> stats;
 
     std::ifstream file;
     file.open("/proc/stat");
@@ -136,10 +136,10 @@ sleep_double(double interval)
     }
 }
 
-static std::unordered_map<int, int>
+static std::map<int, int>
 get_cores_load(double interval)
 {
-    std::unordered_map<int, int> cores_load;
+    std::map<int, int> cores_load;
 
     auto stats1 = get_stats();
     sleep_double(interval);
