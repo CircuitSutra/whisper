@@ -6266,7 +6266,6 @@ Hart<URV>::processExternalInterrupt(FILE* traceFile, std::string& instStr)
 
           if (initiateNmi(URV(nmi), pc_))
             {
-              pendingNmis_.erase(iter);
               uint32_t inst = 0; // Load interrupted inst.
               readInst(currPc_, inst);
               printInstTrace(inst, instCounter_, instStr, traceFile);
