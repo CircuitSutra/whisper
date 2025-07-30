@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <bitset>
 #include <vector>
+#include <set>
 #include <unordered_map>
 #include <unordered_set>
 #include <type_traits>
@@ -146,14 +147,12 @@ namespace WdRiscv
     ~Hart();
 
     /// Define the set of possible machine interrupts in priority order (high to low).
-    void setMachineInterrupts(const std::vector<InterruptCause>& newInterrupts) {
-      mInterrupts_ = newInterrupts;
-    }
+    void setMachineInterrupts(const std::vector<InterruptCause>& newInterrupts)
+    { mInterrupts_ = newInterrupts; }
 
     /// Define the set of possible supervisor interrupts in priority order (high to low).
-    void setSupervisorInterrupts(const std::vector<InterruptCause>& newInterrupts) {
-      sInterrupts_ = newInterrupts;
-    }
+    void setSupervisorInterrupts(const std::vector<InterruptCause>& newInterrupts)
+    { sInterrupts_ = newInterrupts; }
 
     /// Filter out from possible machine interrupts those interrupt that cannot become
     /// pending or enabled.
@@ -166,6 +165,10 @@ namespace WdRiscv
     /// Return count of integer registers.
     unsigned intRegCount() const
     { return intRegs_.size(); }
+
+    /// Define the set of possible non-maskable interrupts.
+    void setNonMaskableInterrupts(const std::vector<uint64_t>& nmis)
+    { nmInterrupts_ = nmis; }
 
     /// Return the name of the given integer register. Return an
     /// abi-name (e.g. sp) if abi names are enabled.
@@ -957,10 +960,13 @@ namespace WdRiscv
     { nmiExceptionPc_ = addr; }
 
     /// Clear/set pending non-maskable-interrupt.
-    void setPendingNmi(NmiCause cause = NmiCause::UNKNOWN);
+    void setPendingNmi(URV cause);
 
-    /// Clear pending non-maskable-interrupt.
+    /// Clear all pending non-maskable-interrupts.
     void clearPendingNmi();
+
+    /// Clear given pending non-maskable-interrupt.
+    void clearPendingNmi(URV cause);
 
     /// Set/clear Supervisor external interrupt pin.
     void setSeiPin(bool flag)
@@ -1087,6 +1093,11 @@ namespace WdRiscv
     /// Return true if the last executed instruction was interrupted.
     bool lastInstructionInterrupted() const
     { return hasInterrupt_; }
+
+    /// Return trap number (content of MCAUSE/SCAUSE/VSCAUSE) of last executed
+    /// instruction. Valid only if last instruction had a trap: lastInstructionTrapped().
+    URV lastTrapCause() const
+    { return trapCause_; }
 
     /// Support for tracing: Fill the csrs vector with the
     /// register-numbers of the CSRs written by the execution of the
@@ -1901,6 +1912,11 @@ namespace WdRiscv
     void enableClearMtvalOnEbreak(bool flag)
     { clearMtvalOnEbreak_ = flag; }
 
+    /// Clear MTVAL if we take an exception because of a failed
+    /// vl multiple of egs constraint.
+    void enableClearMtvalOnEgs(bool flag)
+    { clearMtvalOnEgs_ = flag; }
+
     /// Clear MTINST/HTINST on cbo.inval if flag is true.
     void enableClearTinstOnCboInval(bool flag)
     { clearTinstOnCboInval_ = flag; }
@@ -2269,7 +2285,7 @@ namespace WdRiscv
     /// which mode it should be taken; otherwise, leave
     /// it unmodified. If more than one interrupt is possible, set
     /// cause to the possible interrupt with the highest priority.
-    bool isInterruptPossible(InterruptCause& cause, PrivilegeMode& nextMode, bool& nextVirt) const;
+    bool isInterruptPossible(InterruptCause& cause, PrivilegeMode& nextMode, bool& nextVirt, bool& hvi) const;
 
     /// Return true if this hart would take an interrupt if the interrupt
     /// pending CSRs would have the given value. Do not change MIP, do not
@@ -2278,7 +2294,7 @@ namespace WdRiscv
     /// should be taken; otherwise, leave cause unmodified.
     bool isInterruptPossible(URV mipValue, URV sipValue, URV vsipValue,
                               InterruptCause& cause, PrivilegeMode& nextMode,
-                              bool& nextVirt) const;
+                              bool& nextVirt, bool& hvi) const;
 
     /// Configure this hart to set its program counter to the given addr on entering debug
     /// mode. If addr bits are all set, then the PC is not changed on entering debug mode.
@@ -3484,7 +3500,7 @@ namespace WdRiscv
 
     /// Start an asynchronous exception (interrupt).
     void initiateInterrupt(InterruptCause cause, PrivilegeMode nextMode,
-                           bool nextVirt, URV pc);
+                           bool nextVirt, URV pc, bool hvi);
 
     /// Start a non-maskable interrupt. Return true if successful. Return false
     /// if Smrnmi and nmis are disabled.
@@ -5668,6 +5684,7 @@ namespace WdRiscv
       lastBreakpInterruptEnabled_ = sdtrigOn_? isBreakpInterruptEnabled() : false;
       ldStWrite_ = false;
       ldStAtomic_ = false;
+      egsConstraint_ = false;
       lastPageMode_ = virtMem_.mode();
       lastVsPageMode_ = virtMem_.vsMode();
       lastPageModeStage2_ = virtMem_.stage2Mode();
@@ -5739,7 +5756,9 @@ namespace WdRiscv
     URV nmiPc_ = 0;             // Non-maskable interrupt handler.
     URV nmiExceptionPc_ = 0;    // Handler for exceptions during non-maskable interrupts.
     bool nmiPending_ = false;
-    NmiCause nmiCause_ = NmiCause::UNKNOWN;
+    std::set<URV> pendingNmis_;
+
+    URV trapCause_ = 0;   // Valid if hasException_ or hasInterupt_.
 
     // These must be cleared before each instruction when triggers enabled.
     bool hasException_ = false;      // True if current inst has an exception.
@@ -5860,7 +5879,9 @@ namespace WdRiscv
 
     bool clearMtvalOnIllInst_ = true;
     bool clearMtvalOnEbreak_ = true;
+    bool clearMtvalOnEgs_ = false;
     bool lastEbreak_ = false;
+    bool egsConstraint_ = false;
 
     bool clearTinstOnCboInval_ = false;
     bool clearTinstOnCboFlush_ = false;
@@ -5884,6 +5905,7 @@ namespace WdRiscv
     std::vector<InterruptCause> mInterrupts_;  // Possible M interrupts in high to low priority.
     std::vector<InterruptCause> sInterrupts_;  // Possible S interrupts in high to low priority.
     std::vector<InterruptCause> vsInterrupts_; // Possible VS interrupts in high to low priority.
+    std::vector<uint64_t> nmInterrupts_;       // Possible NMIs in high to low priority.
 
     // Decoded instruction cache.
     std::vector<DecodedInst> decodeCache_;

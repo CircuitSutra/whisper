@@ -106,12 +106,31 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     uint64_t dataPa() const
     { return dpa_; }
 
+    /// For non-page corssing load/store return the same value as dataPa. Return 0 if
+    /// instruction is not load/store
+    uint64_t dataPa2() const
+    { return dpa2_; }
+
+    /// Return the scalar store value
+    uint64_t stData() const
+    { return stData_; }
+
+    /// Return a vector of pa/va/skip tripletcorresponding to the
+    /// virtual-addr/physical-addr/skip of the elements of the vector load/store
+    /// instruction of this packet. The skip flag will be true if the corresponding element
+    /// was skipped because it was masked-off or it was a tail element.  The return
+    /// vector will be empty if the instruction is not a vector load/store or if no
+    /// memory was accessed by the instruction.
+    typedef std::tuple<uint64_t, uint64_t, bool> VaPaSkip;
+    const std::vector<VaPaSkip>& vecDataAddrs() const
+    { return vecAddrs_; }
+
     /// Return the size of the instruction (2 or 4 bytes). Instruction must be fetched.
     uint64_t instrSize() const
     { assert(fetched_); return di_.instSize(); }
 
     /// Return the data size of a load/store instruction. Return 0 if instruction
-    /// is not load/store.
+    /// is not load/store. For vector load/store this will be the element size.
     uint64_t dataSize() const
     { return dsize_; }
 
@@ -175,9 +194,20 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     uint64_t nextPc() const
     { assert(executed_); return nextIva_; }
 
-    /// Return true if instruction fetch or execute encountered a trap.
+    /// Return true if instruction fetch or execute encountered a trap (exception or
+    /// interrupt).
     bool trapped() const
     { return trap_; }
+
+    /// Return true if instruction encountered an interrupt.
+    bool interupted() const
+    { return interrupt_; }
+
+    /// Return the trap cause. Valid only if instruction was trapped. Returned value will
+    /// have its most significant bit set if the trap was due to an interrupt. Basically
+    /// this is the value of MCASUE/SCAUSE/VSCAUSE after a trap.
+    uint64_t trapCause() const
+    { return trapCause_; }
 
     /// Return true if a branch prediction was made for this instruction.
     bool predicted() const
@@ -219,6 +249,10 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     bool isVectorLoad() const
     { return di_.isVectorLoad(); }
 
+    /// Return true if this is a vector instruction.
+    bool isVector() const
+    { return di_.isVector(); }
+
     /// Return true if this is a cbo_zero instruction. Pakced must be decoed.
     bool isCbo_zero() const
     { return di_.isCbo_zero(); }
@@ -236,8 +270,15 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     bool isLr() const
     { return di_.isLr(); }
 
+    /// Return true if this is a fence instruction. Packet must be decoded
+    bool isFence() const
+    { return di_.isFence(); }
+
     bool isDeviceLdSt()
     { return deviceAccess_; }
+
+    bool isVset()
+    { return di_.isVsetvli() || di_.isVsetivli() || di_.isVsetvl(); }
 
     /// Return true if this is a privileged instruction (ebreak/ecall/mret)
     bool isPrivileged() const
@@ -257,15 +298,44 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
       return false;
     }
 
+    /// Return the privilege mode right before this instruction was instruction. Valid
+    /// only after instruction is executed. This will return Machine, Supervisor, or
+    /// User (M, S, or U). You need to look at virtMode to determine whether the effective
+    /// mode is VS or VU.
+    WdRiscv::PrivilegeMode privlegeMode() const
+    { return privMode_; }
+
+    /// Return the virtual mode right before this instruction was executed. Valid only
+    /// after instruction is executed. Returned value is true if machine was in virtual
+    /// mode.
+    bool virtMode() const
+    { return virtMode_; }
+
     /// Fill the given array with the source operands of this instruction (which must be
     /// decoded). Value of each operand will be zero unless the instruction is executed.
-    /// Return the number of operands written into the array.
-    unsigned getSourceOperands(std::array<Operand, 3>& ops);
+    /// Return the number of operands written into the array. This excludes implicit
+    /// operands.
+    unsigned getSourceOperands(std::array<Operand, 3>& ops) const;
 
     /// Fill the given array with the destination operands of this instruction (which must
     /// be decoded). Value of each operand will be zero unless the instruction is
+    /// executed. Return the number of operands written into the array. This excludes
+    /// implicit operands.
+    unsigned getDestOperands(std::array<Operand, 2>& ops) const;
+
+    /// Fill the given array with the implicit destination operands of this instruction
+    /// (which must be decoded). Value of each operand will be zero unless the instruction
+    /// is executed. Return the number of operands written into the array.
+    unsigned getImplicitDestOperands(std::array<Operand, 4>& ops) const;
+
+    /// Fill the given array with the implicit source operands of this instruction (which
+    /// must be decoded). Value of each operand will be zero unless the instruction is
     /// executed. Return the number of operands written into the array.
-    unsigned getDestOperands(std::array<Operand, 2>& ops);
+    unsigned getImplicitSrcOperands(std::array<Operand, 8>& ops) const;
+
+    /// FILL THE GIVEN ARRAY WITH THE CSRS THAT CHANGED AS A SIDE EFFECT TO A TRAP OR TO
+    /// AN MRET/SRET INSTRUCTION. RETURN THE COUNT OF SUCH CSRS.
+    unsigned getChangedCsrs(std::array<Operand, 8>& ops) const;
 
   protected:
 
@@ -295,12 +365,17 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     // Used for commiting vector store and for forwarding.
     std::unordered_map<uint64_t, uint8_t> stDataMap_;
 
+    // Vector of va/pa/masked of vector load/store instruction. The bool (skip) is set
+    // if the element is skipped (maksed-off or tail-element).
+    std::vector<VaPaSkip> vecAddrs_;
+
     uint64_t flushVa_ = 0;    // Redirect PC for packets that should be flushed.
 
     WdRiscv::DecodedInst di_; // decoded instruction.
 
     uint64_t execTime_ = 0;   // Execution time
     uint64_t prTarget_ = 0;   // Predicted branch target
+    uint64_t trapCause_ = 0;
 
     // Up to 4 explicit operands and 4 implicit ones (FCSR, VL, VTYPE, VSTART)
     std::array<Operand, 8> operands_;
@@ -315,7 +390,12 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     // One expicit destination register and up to 4 implicit ones (FCSR, VL, VTYPE, VSTART)
     std::array<DestValue, 5> destValues_;
 
+    std::array<Operand, 8> changedCsrs_;
+    unsigned changedCsrCount_ = 0;
+
     uint32_t opcode_ = 0;
+
+    WdRiscv::PrivilegeMode privMode_ = WdRiscv::PrivilegeMode::Machine;  // Privilege mode before execution
 
     // Following applicable if instruction is a branch
     bool predicted_    : 1 = false;  // true if predicted to be a branch
@@ -330,6 +410,8 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     bool retired_      : 1 = false;  // true if instruction retired (committed)
     bool drained_      : 1 = false;  // true if a store that has been drained
     bool trap_         : 1 = false;  // true if instruction trapped
+    bool interrupt_    : 1 = false;  // true if instruction interrupted
+    bool virtMode_     : 1 = false;  // Virtual mode before execution
 
     bool deviceAccess_ : 1 = false;  // true if access is to device
   };
@@ -395,6 +477,13 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
       if (iter != packetMap.end())
 	return iter->second;
       return nullptr;
+    }
+
+    /// Return number of instruction packets in the given hart.
+    size_t getInstructionPacketCount(unsigned hartIx) const
+    {
+      auto& packetMap = hartPacketMaps_.at(hartIx);
+      return packetMap.size();
     }
 
     /// Flush an instruction and all older instructions at the given hart. Restore
@@ -465,6 +554,12 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     /// Enable instruction tracing to the log file(s).
     void enableTraceLog(std::vector<FILE*>& files)
     { traceFiles_ = files; }
+
+    /// Flatten a vector operand into individual vectors putting the results into the flat
+    /// vector. For example, if operand is v4 and LMUL is 2, then the flattened operand
+    /// will consist of v4 and v5. If operand is not a vector operand or if LMUL is <= 1
+    /// then the flattened operand will be a copy of the original.
+    void flattenOperand(const Operand& op, std::vector<Operand>& flat) const;
 
   protected:
 
@@ -608,6 +703,9 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     /// Record the results (register values) corresponding to the operands of the packet
     /// after the execution of the instruction of that packet.
     void recordExecutionResults(Hart64& hart, InstrPac& packet);
+
+    //// Helper to recordExecutionResults.
+    void updatePacketDataAddress(Hart64& hart, InstrPac& packet);
 
     /// Check execute stage results versus retire stage. Return true on match and false on
     /// mismatch.

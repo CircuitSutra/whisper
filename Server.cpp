@@ -1241,21 +1241,33 @@ Server<URV>::interact(const WhisperMessage& msg, WhisperMessage& reply, FILE* tr
 
       case Nmi:
 	{
+          URV cause = msg.value;
 	  if (checkHart(msg, "nmi", reply))
-	    hart.setPendingNmi(NmiCause(msg.value));
+	    hart.setPendingNmi(cause);
 	  if (commandLog)
-            fprintf(commandLog, "hart=%" PRIu32 " nmi 0x%x # ts=%s\n", hartId,
-		    uint32_t(msg.value), timeStamp.c_str());
+            fprintf(commandLog, "hart=%" PRIu32 " nmi 0x%lx # ts=%s\n", hartId,
+		    uint64_t(cause), timeStamp.c_str());
 	  break;
 	}
 
       case ClearNmi:
         {
+          URV cause = msg.value;
+          bool clearAll = msg.flags;
 	  if (checkHart(msg, "nmi", reply))
-	    hart.clearPendingNmi();
+            {
+              if (clearAll)
+                hart.clearPendingNmi();
+              else
+                hart.clearPendingNmi(cause);
+            }
 	  if (commandLog)
-            fprintf(commandLog, "hart=%" PRIu32 " clear_nmi # ts=%s\n", hartId,
-		    timeStamp.c_str());
+            {
+              fprintf(commandLog, "hart=%" PRIu32 " clear_nmi", hartId);
+              if (not clearAll)
+                fprintf(commandLog, " 0x%lx", uint64_t(cause));
+              fprintf(commandLog, "\n");
+            }
 	  break;
         }
 
@@ -1452,8 +1464,8 @@ Server<URV>::interact(const WhisperMessage& msg, WhisperMessage& reply, FILE* tr
 	  hart.setDeferredInterrupts(0);
 
           InterruptCause cause = InterruptCause{0};
-          PrivilegeMode nextMode; bool nextVirt;
-          reply.flags = hart.isInterruptPossible(cause, nextMode, nextVirt);
+          PrivilegeMode nextMode; bool nextVirt; bool hvi;
+          reply.flags = hart.isInterruptPossible(cause, nextMode, nextVirt, hvi);
           reply.value = static_cast<uint64_t>(cause);
 
 	  hart.setDeferredInterrupts(deferred);

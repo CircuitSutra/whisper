@@ -1154,6 +1154,8 @@ Memory::loadSnapshot_gzip(const std::string & filename,
     }
   std::cerr << "\n";
 
+  std::cerr << '\n';
+
   if (not success)
     std::cerr << "Error: Memory::loadSnapshot failed - read from " << filename
               << " failed: " << gzerror(gzin, nullptr) << "\n";

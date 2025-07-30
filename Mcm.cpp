@@ -3739,42 +3739,23 @@ Mcm<URV>::ppoRule2(Hart<URV>& hart, const McmInstr& instrB) const
   if (not instrB.isLoad_)
     return true;  // NA: B is not a load.
 
-  auto earlyB = earliestOpTime(instrB);
+  auto earlyB = effectiveMinTime(hart, instrB);
 
   unsigned hartIx = hart.sysHartIndex();
   const auto& instrVec = hartData_.at(hartIx).instrVec_;
 
-  // Bytes of B written by stores from the local hart.
-  std::unordered_set<uint64_t> locallyWritten;
-
-  auto& undrained = hartData_.at(hartIx).undrainedStores_;
-  for (auto storeTag : undrained)
-    {
-      const auto& store = instrVec.at(storeTag);
-      if (store.tag_ >= instrB.tag_)
-	break;
-      identifyWrittenBytes(store, instrB, locallyWritten);
-    }
-
   for (auto iter = sysMemOps_.rbegin(); iter != sysMemOps_.rend(); ++iter)
     {
       const auto& op = *iter;
-      if (op.isCanceled() or op.hartIx_ != hartIx or op.tag_ >= instrB.tag_)
+      if (op.isCanceled() or op.hartIx_ != hartIx or op.tag_ >= instrB.tag_
+          or not op.isRead_)
 	continue;
 
       if (op.time_ < earlyB)
 	break;
 
       const auto& prev =  instrVec.at(op.tag_);   // Instruction preceding B in prog order.
-      if (prev.isCanceled()  or  not prev.isRetired()  or  not prev.isMemory()  or
-	  not overlaps(prev, instrB))
-	continue;
-
-      // If a byte of B is written by prev, then put its physical address in
-      // locallyWriten.
-      identifyWrittenBytes(prev, instrB, locallyWritten);
-
-      if (not prev.isLoad_)
+      if (prev.isCanceled()  or  not prev.isRetired()  or  not overlaps(prev, instrB))
 	continue;
 
       auto& instrA = prev;
@@ -3805,9 +3786,6 @@ Mcm<URV>::ppoRule2(Hart<URV>& hart, const McmInstr& instrB) const
 
 	      if (not overlapsRefPhysAddr(instrA, addr) or not overlapsRefPhysAddr(instrB, addr))
 		continue;
-
-	      if (locallyWritten.contains(addr))
-		continue;    // Byte of B covered by local store.
 
 	      auto earlyB = effectiveMinByteTime(instrB, addr);
 	      auto lateA = effectiveMaxByteTime(instrA, addr);
@@ -4222,12 +4200,13 @@ Mcm<URV>::ppoRule4(Hart<URV>& hart, const McmInstr& instrB) const
       bool succOut   = fence.di_.isFenceSuccOutput();
 
       // If FIOM is set, merge the I/O ordering bits into the normal ordering bits.
-      if (fenceOrdersIo) {
-        predRead  = predRead  || predIn;
-        predWrite = predWrite || predOut;
-        succRead  = succRead  || succIn;
-        succWrite = succWrite || succOut;
-      }
+      if (fenceOrdersIo)
+        {
+          predRead  = predRead  || predIn;
+          predWrite = predWrite || predOut;
+          succRead  = succRead  || succIn;
+          succWrite = succWrite || succOut;
+        }
 
       for (auto aOpPtr : reordered)
 	{
@@ -4236,81 +4215,80 @@ Mcm<URV>::ppoRule4(Hart<URV>& hart, const McmInstr& instrB) const
 	  if (pred.isCanceled() or not pred.isMemory() or pred.tag_ > fence.tag_)
 	    continue;
 
-	  Pma predPma = hart.getPma(pred.physAddr_);
-
-	  if (not (predRead and pred.isLoad_)
-	      and not (predWrite and pred.isStore_)
-	      and not (predIn and pred.isLoad_ and predPma.isIo())
-	      and not (predOut and pred.isStore_ and predPma.isIo()))
-	    continue;
-
-	  if (not (succRead and succ.isLoad_)
-	      and not (succWrite and succ.isStore_)
-	      and not (succIn and succ.isLoad_ and succPma.isIo())
-	      and not (succOut and succ.isStore_ and succPma.isIo()))
-	    continue;
-
-	  if (not pred.complete_ or not pred.retired_)
-	    {
-	      cerr << "Error: PPO rule 4 failed: hart-id=" << hart.hartId()
-		   << " tag1=" << pred.tag_ << " fence-tag=" << fence.tag_
-		   << " memory instruction before fence is not retired/complete\n";
-	      return false;
-	    }
-
 	  auto predTime = aOp.maxForwardTime();
 	  if (predTime < succTime)
 	    continue;
 
-	  // Successor performs before predecessor -- Allow if successor is a load and
-	  // there is no store from another core to the same cache line.
-	  if (not succ.isStore_ and not succ.di_.isVectorStore())
-	    {
-	      uint64_t predLine = lineNum(aOp.pa_);
-	      bool match = false;
-	      for (auto bOpIx : succ.memOps_)
-		{
-		  auto bOp = sysMemOps_.at(bOpIx);
-		  auto bOpTime = bOp.minForwardTime();
-		  match = lineNum(bOp.pa_) == predLine and bOpTime <= predTime;
-		  if (match)
-		    {
-		      succTime = bOpTime;
-		      break;
-		    }
-		}
+	  Pma predPma = hart.getPma(aOp.pa_);
 
-	      if (not match)
-		continue;
+	  if (not (predRead and aOp.isRead_)
+	      and not (predWrite and not aOp.isRead_)
+	      and not (predIn and aOp.isRead_ and predPma.isIo())
+	      and not (predOut and not aOp.isRead_ and predPma.isIo()))
+	    continue;
 
-	      auto low = std::lower_bound(sysMemOps_.begin(), sysMemOps_.end(), succTime,
-					  [](const MemoryOp& op, const uint64_t& t) -> bool
-					  { return op.time_ < t; });
+          for (auto bOpIx : succ.memOps_)
+            {
+              auto bOp = sysMemOps_.at(bOpIx);
+              auto bOpTime = bOp.minForwardTime();
+              if (bOpTime > predTime)
+                continue;
 
-	      auto high = std::upper_bound(low, sysMemOps_.end(), predTime,
-					   [](const uint64_t& t, const MemoryOp& op) -> bool
-					   { return t < op.time_; });
+              if (not (succRead and bOp.isRead_)
+                  and not (succWrite and not bOp.isRead_)
+                  and not (succIn and bOp.isRead_ and succPma.isIo())
+                  and not (succOut and not bOp.isRead_ and succPma.isIo()))
+                continue;
 
-	      bool fail = false;
-	      for (auto iter = low; iter != high and not fail; ++iter)
-		{
-		  auto& op = *iter;
-                  if (op.hartIx_ == hartIx or isCbomOp(op))
+              if (not pred.complete_ or not pred.retired_)
+                {
+                  cerr << "Error: PPO rule 4 failed: hart-id=" << hart.hartId()
+                       << " tag1=" << pred.tag_ << " fence-tag=" << fence.tag_
+                       << " memory instruction before fence is not retired/complete\n";
+                  return false;
+                }
+
+              // Successor performs before predecessor -- Allow if successor is a load and
+              // there is no store from another core to the same cache line.
+              if (bOp.isRead_)
+                {
+                  uint64_t predLine = lineNum(aOp.pa_);
+                  uint64_t succLine = lineNum(bOp.pa_);
+                  if (predLine != succLine)
                     continue;
-		  fail = (not op.isRead_ and op.time_ >= succTime and op.time_ <= predTime
-			  and lineNum(op.pa_) == predLine);
-		}
-	      if (not fail)
-		continue;
-	    }
+                  
+                  succTime = bOpTime;
 
-	  cerr << "Error: PPO rule 4 failed: hart-id=" << hart.hartId()
-	       << " tag1=" << pred.tag_ << " tag2=" << succ.tag_
-	       << " fence-tag=" << fence.tag_
-	       << " time1=" << predTime << " time2=" << succTime
-	       << " pa=0x" << std::hex << aOp.pa_ << std::dec << '\n';
-	  return false;
-	}
+                  // Look for a store from another hart between predecessor and successor times.
+                  auto low = std::lower_bound(sysMemOps_.begin(), sysMemOps_.end(), succTime,
+                                              [](const MemoryOp& op, const uint64_t& t) -> bool
+                                              { return op.time_ < t; });
+
+                  auto high = std::upper_bound(low, sysMemOps_.end(), predTime,
+                                               [](const uint64_t& t, const MemoryOp& op) -> bool
+                                               { return t < op.time_; });
+
+                  bool fail = false;
+                  for (auto iter = low; iter != high and not fail; ++iter)
+                    {
+                      auto& op = *iter;
+                      if (op.hartIx_ == hartIx or isCbomOp(op))
+                        continue;
+                      fail = (not op.isRead_ and op.time_ >= succTime and op.time_ <= predTime
+                              and lineNum(op.pa_) == predLine);
+                    }
+                  if (not fail)
+                    continue;
+                }
+
+              cerr << "Error: PPO rule 4 failed: hart-id=" << hart.hartId()
+                   << " tag1=" << pred.tag_ << " tag2=" << succ.tag_
+                   << " fence-tag=" << fence.tag_
+                   << " time1=" << predTime << " time2=" << succTime
+                   << " pa=0x" << std::hex << aOp.pa_ << std::dec << '\n';
+              return false;
+            }
+        }
     }
 
   return true;
@@ -5301,7 +5279,7 @@ Mcm<URV>::ioPpoChecks(Hart<URV>& hart, const McmInstr& instrB) const
           // For each reference byte address of A.
           for (unsigned i = 0; i < instrA.size_; ++i)
             {
-              unsigned byteAddr = i < size1 ? pa1 + 1 : pa2 + i - size1;
+              uint64_t byteAddr = i < size1 ? pa1 + i : pa2 + i - size1;
               if (not hart.getPma(byteAddr).isIo())
                 continue;   // Not an IO address
 

@@ -601,10 +601,17 @@ It can be used for code completion and validation by adding the following to a c
 ## Configuration parameters
 
 ### cores
-Number of cores in simulated system.
+Number of cores in simulated system. Default is 1.
 
-### xlen
-Integer register size in bits.
+### harts
+Number of harts per core. Default is 1.
+
+### core_hart_id_offset
+Stride, s, between the value of MHARTID CSR of the first hart in one core and that of the
+first hart in the next core. Default is c*h where c and h are the number of cores and the
+number of harts per core respectively.  For example, if s/c/h are 7/2/3 then the values of
+MMHARTID CSRs in the system will be: 0 1 2   7 8 9.
+
 
 ### isa
 Enable instruction set architecture (isa) features.
@@ -761,6 +768,8 @@ The vector configuration is an object with the following fields:
 * fp_usum_nan_canonicalize: for each EEW, enables NaN canonicalization of vfredusum/vfwredusum result, default is false.
 * partial_segment_update: partially commit the fields of a load/store segment encountering an exception/trigger-hit at a given index when true and commit no field in the case of an exception when false, default is false.
 * always_mark_dirty: if a vector instruction would write to a vector register, always mark vector state dirty regardless of whether the instruction updates the vector register.
+* vmvr_ignore_vill: when true, vmvr instructions ignore the vtype.vill bit.
+* tt_clear_tval_vl_egs: when true, we clear the \*tval register if a vector crypto instruction would fail the "vl is an integer multiple of EGS" constraint.
 
 Example:
 ```
