@@ -279,6 +279,15 @@ namespace WdRiscv
       return (inst() & 0x7f) == 7 and (f3 == 0 or f3 >= 5);
     }
 
+    /// Return true if this a vector load fault first instruction (e.g. vle8ff.v, vlsege16ff.v).
+    bool isVectorLoadFaultFirst() const
+    { 
+      auto id = instId();
+      unsigned ix = unsigned(id);
+      return ( (ix >= unsigned(InstId::vle8ff_v) and ix <= unsigned(InstId::vle64ff_v)) or
+               (ix >= unsigned(InstId::vlsege8ff_v) and ix <= unsigned(InstId::vlsege64ff_v)) );
+    }
+
     /// Return true if this is a vector store instruction.
     bool isVectorStore() const
     {

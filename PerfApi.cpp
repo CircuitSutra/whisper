@@ -661,16 +661,18 @@ PerfApi::checkExecVsRetire(const Hart64& hart, const InstrPac& packet) const
       for (unsigned i = 0; i < retire.size(); ++i)
         if (retire.at(i) != exec.at(i))
           {
-            cerr << "Error: Hart=" << hartIx << " tag=" << tag << " exec & retire vec vals differ\n";
+            cerr << "Error: Hart=" << hartIx << " tag=" << tag << " lmul=" << group
+                 << " vd=" << vr << " byte-ccount=" << retire.size()
+                 << " exec & retire vec vals differ\n";
+            cerr << "  retire: 0x" << std::hex;
             cerr << std::hex;
-            cerr << "  retire: 0x";
             unsigned count = retire.size();
             for (unsigned j = 0; j < count; ++j)
-              cerr << cerr.width(2) << std::setfill('0') << unsigned(retire.at(count-1-j));
+              cerr << std::setw(2) << std::setfill('0') << unsigned(retire.at(count-1-j));
             cerr << "\n";
-            cerr << "  exec:   0x";
+            cerr << "  exec:   0x" << std::hex;
             for (unsigned j = 0; j < count; ++j)
-              cerr << cerr.width(2) << std::setfill('0') << unsigned(exec.at(count-1-j));
+              cerr << std::setw(2) << std::setfill('0') << unsigned(exec.at(count-1-j));
             cerr << "\n";
             return false;
           }
@@ -2200,7 +2202,8 @@ PerfApi::determineImplicitOperands(InstrPac& packet)
       
       auto& vlOp = packet.operands_.at(packet.operandCount_++);
       vlOp.type = OT::CsReg;
-      vlOp.mode = isVset? OM::Write : OM::Read;
+      bool isVlff = di.isVectorLoadFaultFirst();
+      vlOp.mode = (isVset or isVlff) ? OM::Write : OM::Read;
       vlOp.number = unsigned(CSRN::VL);
 
       auto& vsOp = packet.operands_.at(packet.operandCount_++);
