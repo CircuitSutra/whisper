@@ -1040,9 +1040,6 @@ Hart<URV>::vsetvl(unsigned rd, unsigned rs1, URV vtypeVal, bool vli /* vsetvli i
   pokeCsr(CsrNumber::VTYPE, vtype);
   recordCsrWrite(CsrNumber::VTYPE);
 
-  // Update cached vtype fields in vecRegs_.
-  vecRegs_.updateConfig(ew, gm, ma, ta, vill);
-
   markVsDirty();
 
   return true;

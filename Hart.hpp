@@ -1088,6 +1088,11 @@ namespace WdRiscv
     bool lastInstructionInterrupted() const
     { return hasInterrupt_; }
 
+    /// Return trap number (content of MCAUSE/SCAUSE/VSCAUSE) of last executed
+    /// instruction. Valid only if last instruction had a trap: lastInstructionTrapped().
+    URV lastTrapCause() const
+    { return trapCause_; }
+
     /// Support for tracing: Fill the csrs vector with the
     /// register-numbers of the CSRs written by the execution of the
     /// last instruction. CSRs modified as a side effect (e.g. mcycle
@@ -5746,6 +5751,8 @@ namespace WdRiscv
     URV nmiExceptionPc_ = 0;    // Handler for exceptions during non-maskable interrupts.
     bool nmiPending_ = false;
     NmiCause nmiCause_ = NmiCause::UNKNOWN;
+
+    URV trapCause_ = 0;   // Valid if hasException_ or hasInterupt_.
 
     // These must be cleared before each instruction when triggers enabled.
     bool hasException_ = false;      // True if current inst has an exception.
