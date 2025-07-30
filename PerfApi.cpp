@@ -2202,8 +2202,10 @@ PerfApi::determineImplicitOperands(InstrPac& packet)
       
       auto& vlOp = packet.operands_.at(packet.operandCount_++);
       vlOp.type = OT::CsReg;
-      bool isVlff = di.isVectorLoadFaultFirst();
-      vlOp.mode = (isVset or isVlff) ? OM::Write : OM::Read;
+      if (di.isVectorLoadFaultFirst())
+        vlOp.mode = OM::ReadWrite;
+      else
+        vlOp.mode = isVset ? OM::Write : OM::Read;
       vlOp.number = unsigned(CSRN::VL);
 
       auto& vsOp = packet.operands_.at(packet.operandCount_++);
