@@ -1351,7 +1351,9 @@ namespace WdRiscv
 
     bool pokeTrigger(CsrNumber number, URV value);
 
-    bool readTopi(CsrNumber number, URV& value, bool virtMode) const;
+    // Read the *topi register. vstopi applies the hvictl priority determination. Set hvi
+    // if the vstopi interrupt is injected through hvictl.
+    bool readTopi(CsrNumber number, URV& value, bool virtMode, bool& hvi) const;
 
     bool setCsrFields(CsrNumber number, const std::vector<typename Csr<URV>::Field>& fields)
     {

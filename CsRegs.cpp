@@ -600,7 +600,10 @@ CsRegs<URV>::read(CsrNumber num, PrivilegeMode mode, URV& value) const
     }
 
   if (num == CN::MTOPI or num == CN::STOPI or num == CN::VSTOPI)
-    return readTopi(num, value, virtMode_);
+    {
+      [[maybe_unused]] bool hvi;
+      return readTopi(num, value, virtMode_, hvi);
+    }
   else if (num == CN::MVIP)
     return readMvip(value);
 
@@ -3622,7 +3625,10 @@ CsRegs<URV>::peek(CsrNumber num, URV& value, bool virtMode) const
 
   if (num == CsrNumber::MTOPI or num == CsrNumber::STOPI or
       num == CsrNumber::VSTOPI)
-    return readTopi(num, value, virtMode);
+    {
+      [[maybe_unused]] bool hvi;
+      return readTopi(num, value, virtMode, hvi);
+    }
   else if (num == CN::MIREG)
     return readMireg(num, value, virtMode);
   else if (num == CN::SIREG)
@@ -3966,11 +3972,12 @@ CsRegs<URV>::higherIidPrio(uint32_t prio1, uint32_t prio2, PrivilegeMode mode, b
 
 template <typename URV>
 bool
-CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode) const
+CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode, bool& hvi) const
 {
   using PM = PrivilegeMode;
   using IC = InterruptCause;
 
+  hvi = false;
   value = 0;
 
   auto mideleg = getImplementedCsr(CsrNumber::MIDELEG);
@@ -4118,11 +4125,13 @@ CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode) const
 
               if ((prio2 < prio) or (not value))
                 {
+                  hvi = true;
                   prio = prio2;
                   value = value2;
                 }
               else if ((prio2 == prio) and not hvf.bits_.DPR)
                 {
+                  hvi = true;
                   prio = prio2;
                   value = value2;
                 }
