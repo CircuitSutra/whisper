@@ -11200,6 +11200,7 @@ Hart<URV>::vectorLoad(const DecodedInst* di, ElementWidth eew, bool faultFirst)
 		  if (vecRegs_.isTailAgnostic() and vecRegs_.isTailAgnosticOnes())
 		    for (unsigned ti = vecRegs_.elemCount(); ti < elemMax; ti++)
 		      vecRegs_.write(vd, ti, groupX8, ones);
+                  return true;
                 }
 	    }
 	  else
@@ -12876,6 +12877,7 @@ Hart<URV>::vectorLoadSeg(const DecodedInst* di, ElementWidth eew,
                 {
                   csRegs_.write(CsrNumber::VSTART, PrivilegeMode::Machine, ix);
                   initiateLoadException(di, cause, ldStFaultAddr_, gpa1);
+                  return false;
                 }
 	      else if (vecRegs_.isTailAgnostic() and vecRegs_.isTailAgnosticOnes())
 		{
@@ -12895,7 +12897,7 @@ Hart<URV>::vectorLoadSeg(const DecodedInst* di, ElementWidth eew,
 			vecRegs_.write(fdv, ti, groupX8, ones);
 		      }
 		}
-	      return false;
+	      return true;
 	    }
 
           if (vecRegs_.partialSegUpdate_)
