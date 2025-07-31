@@ -1471,9 +1471,11 @@ Hart<URV>::execAddi(const DecodedInst* di)
       if (di->op0() == 0 and di->op1() == 26)
         std::cerr << "Info: Executed instructions: " << instCounter_ << "\n";
       if (di->op0() == 0 and di->op1() == 25)
-        setPendingNmi(NmiCause(URV(v)));
+        setPendingNmi(URV(v));
       if (di->op0() == 0 and di->op1() == 24)
         clearPendingNmi();
+      if (di->op0() == 0 and di->op1() == 23)
+        defineNmiPc(URV(v));
     }
 }
 
