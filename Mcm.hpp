@@ -94,6 +94,16 @@ namespace WdRiscv
       return mt;
     }
 
+    /// Return the forward time of the given address. Return operation time if address
+    /// is out of bounds or corresponding byte is not forwarded.
+    uint64_t forwardTime(uint64_t byteAddr) const
+    {
+      if (not isRead_ or not overlaps(byteAddr))
+        return time_;
+      unsigned ix = byteAddr - pa_;
+      return time_ + fwOffset_.at(ix);
+    }
+
   };
 
 

@@ -4248,45 +4248,53 @@ Mcm<URV>::ppoRule4(Hart<URV>& hart, const McmInstr& instrB) const
                   return false;
                 }
 
-              // Successor performs before predecessor -- Allow if successor is a load and
-              // there is no store from another core to the same cache line.
+              // Successor performs before predecessor -- Allow if successor is a load
+              // and there is no store from another core to the same cache line.
+              bool fail = true;
               if (bOp.isRead_)
                 {
-                  uint64_t predLine = lineNum(aOp.pa_);
-                  uint64_t succLine = lineNum(bOp.pa_);
-                  if (predLine != succLine)
-                    continue;
-                  
-                  succTime = bOpTime;
+                  fail = false;
 
-                  // Look for a store from another hart between predecessor and successor times.
-                  auto low = std::lower_bound(sysMemOps_.begin(), sysMemOps_.end(), succTime,
-                                              [](const MemoryOp& op, const uint64_t& t) -> bool
-                                              { return op.time_ < t; });
-
-                  auto high = std::upper_bound(low, sysMemOps_.end(), predTime,
-                                               [](const uint64_t& t, const MemoryOp& op) -> bool
-                                               { return t < op.time_; });
-
-                  bool fail = false;
-                  for (auto iter = low; iter != high and not fail; ++iter)
+                  // Check at byte level.
+                  for (unsigned i = 0; i < aOp.size_ and not fail; ++i)
                     {
-                      auto& op = *iter;
-                      if (op.hartIx_ == hartIx or isCbomOp(op))
+                      uint64_t addr = aOp.pa_ + i;
+                      if (not bOp.overlaps(addr))
                         continue;
-                      fail = (not op.isRead_ and op.time_ >= succTime and op.time_ <= predTime
-                              and lineNum(op.pa_) == predLine);
+                      predTime = aOp.forwardTime(addr);  // Predecessor byte time
+                      succTime = bOp.forwardTime(addr);
+                      if (predTime < succTime)
+                        continue;
+
+                      // Look for a store from another hart between predecessor and successor times.
+                      auto low = std::lower_bound(sysMemOps_.begin(), sysMemOps_.end(), succTime,
+                                                  [](const MemoryOp& op, const uint64_t& t) -> bool
+                                                  { return op.time_ < t; });
+
+                      auto high = std::upper_bound(low, sysMemOps_.end(), predTime,
+                                                   [](const uint64_t& t, const MemoryOp& op) -> bool
+                                                   { return t < op.time_; });
+
+                      for (auto iter = low; iter != high and not fail; ++iter)
+                        {
+                          auto& op = *iter;
+                          if (op.hartIx_ == hartIx or isCbomOp(op) or op.isRead_ or
+                              lineNum(op.pa_) != lineNum(addr))
+                            continue;
+                          fail = op.time_ >= succTime and op.time_ <= predTime;
+                        }
                     }
-                  if (not fail)
-                    continue;
                 }
 
-              cerr << "Error: PPO rule 4 failed: hart-id=" << hart.hartId()
-                   << " tag1=" << pred.tag_ << " tag2=" << succ.tag_
-                   << " fence-tag=" << fence.tag_
-                   << " time1=" << predTime << " time2=" << succTime
-                   << " pa=0x" << std::hex << aOp.pa_ << std::dec << '\n';
-              return false;
+              if (fail)
+                {
+                  cerr << "Error: PPO rule 4 failed: hart-id=" << hart.hartId()
+                       << " tag1=" << pred.tag_ << " tag2=" << succ.tag_
+                       << " fence-tag=" << fence.tag_
+                       << " time1=" << predTime << " time2=" << succTime
+                       << " pa=0x" << std::hex << aOp.pa_ << std::dec << '\n';
+                  return false;
+                }
             }
         }
     }
