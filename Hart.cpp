@@ -1470,6 +1470,12 @@ Hart<URV>::execAddi(const DecodedInst* di)
         throw CoreException(CoreException::SnapshotAndStop, "Taking snapshot and stopping run from HINT.");
       if (di->op0() == 0 and di->op1() == 26)
         std::cerr << "Info: Executed instructions: " << instCounter_ << "\n";
+      if (di->op0() == 0 and di->op1() == 25)
+        setPendingNmi(URV(v));
+      if (di->op0() == 0 and di->op1() == 24)
+        clearPendingNmi();
+      if (di->op0() == 0 and di->op1() == 23)
+        defineNmiPc(URV(v));
     }
 }
 
