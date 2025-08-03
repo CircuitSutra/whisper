@@ -2568,6 +2568,9 @@ namespace WdRiscv
     void setAclintAlarm(uint64_t value)
     { aclintAlarm_ = value; }
 
+    uint64_t getAclintAlarm() const
+    { return aclintAlarm_; }
+
     /// Fetch an instruction from the given virtual address. Return ExceptionCause::None
     /// on success. Return exception cause on fail. If successful set pysAddr to the
     /// physical address corresponding to the given virtual address, gPhysAddr to the
