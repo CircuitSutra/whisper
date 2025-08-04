@@ -1009,15 +1009,24 @@ namespace WdRiscv
     /// Const version.
     const Csr<URV>* getImplementedCsr(CsrNumber num, bool virtualMode) const;
 
-    /// Enable/disable matching all addresses in a load/store access
-    /// for debug triggering.
-    void configAllLdStAddrTrigger(bool flag)
-    { triggers_.enableAllLdStAddrMatch(flag); }
+    /// Enable/disable matching all addresses in a load/store access for debug triggering.
+    void configAllDataAddrTrigger(bool flag)
+    { triggers_.enableAllDataAddrMatch(flag); }
 
-    /// Enable/disable matching all addresses in a instruction fetch
-    /// access for debug triggering.
-    void configAllInstAddrTrigger(bool flag)
-    { triggers_.enableAllInstAddrMatch(flag); }
+    /// Enable/disable matching all addresses in a instruction fetch access for debug
+    /// triggering.
+    void configAllInstrAddrTrigger(bool flag)
+    { triggers_.enableAllInstrAddrMatch(flag); }
+
+    /// Enable/disable matching all addresses in a load/store access for debug triggering
+    /// and a particular match type.
+    void configAllDataAddrTrigger(unsigned matchType, bool flag)
+    { triggers_.enableAllDataAddrMatch(matchType, flag); }
+
+    /// Enable/disable matching all addresses in a instruction fetch access for debug
+    /// triggering.
+    void configAllInstrAddrTrigger(unsigned matchType, bool flag)
+    { triggers_.enableAllInstrAddrMatch(matchType, flag); }
 
     /// Enable triggers.
     void enableSdtrig(bool flag);

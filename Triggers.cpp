@@ -1049,7 +1049,7 @@ Trigger<URV>::matchLdStAddr(URV address, unsigned size, TriggerTiming timing, bo
 	}
 
       Match match = Match(data1_.mcontrol_.match_);
-      if (matchAllLdStAddr_)
+      if (matchAllDataAddresses(match))
 	{
 	  // Match all addresses covered by size.
 	  bool negated = isNegatedMatch(match);
@@ -1064,6 +1064,7 @@ Trigger<URV>::matchLdStAddr(URV address, unsigned size, TriggerTiming timing, bo
           return hit;
 	}
       
+      // Match first ld/st data address.
       return doMatch(address, match);
     }
 
@@ -1267,7 +1268,7 @@ Trigger<URV>::matchInstAddr(URV address, unsigned size, TriggerTiming timing, Pr
 	}
 
       Match match = Match(data1_.mcontrol_.match_);
-      if (matchAllInstAddr_)
+      if (matchAllInstrAddresses(match))
         {
 	  // Match all addresses covered by size.
 	  bool negated = isNegatedMatch(match);

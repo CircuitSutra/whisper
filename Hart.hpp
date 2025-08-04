@@ -379,13 +379,23 @@ namespace WdRiscv
 
     /// Enable/disable matching all addresses in a load/store access
     /// for debug triggering.
-    void configAllLdStAddrTrigger(bool flag)
-    { csRegs_.configAllLdStAddrTrigger(flag); }
+    void configAllDataAddrTrigger(bool flag)
+    { csRegs_.configAllDataAddrTrigger(flag); }
 
     /// Enable/disable matching all addresses in a instruction fetch
     /// access for debug triggering.
-    void configAllInstAddrTrigger(bool flag)
-    { csRegs_.configAllInstAddrTrigger(flag); }
+    void configAllInstrAddrTrigger(bool flag)
+    { csRegs_.configAllInstrAddrTrigger(flag); }
+
+    /// Enable/disable matching all addresses in a load/store access for debug triggering
+    /// and a particular match type.
+    void configAllDataAddrTrigger(unsigned matchType, bool flag)
+    { csRegs_.configAllDataAddrTrigger(matchType, flag); }
+
+    /// Enable/disable matching all addresses in a instruction fetch access for debug
+    /// triggering.
+    void configAllInstrAddrTrigger(unsigned matchType, bool flag)
+    { csRegs_.configAllInstrAddrTrigger(matchType, flag); }
 
     /// Enable use of TCONTROL CSR to control triggers firing in machine mode.
     void configTriggerUseTcontrol(bool flag)

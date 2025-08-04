@@ -865,10 +865,24 @@ with 2 trigger registers (the mask and reset values are made up):
 ```
 
 ### all_ld_st_addr_trigger
-Enable matching on all possible addresses in a load/store access [address, address+size-1].
+
+Value is true or flase (default is true). Enable/disable matching on all possible
+addresses in a load/store access [address, address+size-1].  If disabled, matching will be
+done on the first address of a load/store access.
 
 ### all_inst_addr_trigger
-Enable matching on all possible addresses in a instruction fetch access [address, address+size-1].
+Enable/disable matching on all possible addresses in a instruction fetch access [address, address+size-1].
+If disabled, matching will be done on the first address of an instruction.
+
+### trigger_on_all_data_addr
+Enable/disable matching on all possible addresses in a load/store access for a particular
+match type.  Value is an array where each element is itself an array of 2 elements: the
+first is an integer indicating the match type (see match field in MCONTROL6 in debug
+spec), and the second is a boolean indicating whether or not all-address-matching
+is enabled.
+
+### trigger_on_all_isntr_addr
+Similar to trigger_on_all_data_addr but for instruction addresses.
 
 ### icount_down_on_modified
 Enable icount to decrement count on an instruction which writes to an icount trigger.
