@@ -607,6 +607,21 @@ System<URV>::saveSnapshot(const std::string& dir)
       return false;
     }
 
+  Filesystem::path mtimecmpPath = dirPath / "mtimecmp";
+  {
+    std::ofstream ofs(mtimecmpPath.string());
+    if (not ofs)
+      {
+        std::cerr << "Failed to open snapshot file for saving mtimecmp\n";
+        return false;
+      }
+    for (auto hartPtr : sysHarts_)
+      {
+        uint64_t timecmp = hartPtr->getAclintAlarm();
+        ofs << std::hex << "0x" << timecmp << std::dec << "\n";
+      }
+  }
+
   Filesystem::path fdPath = dirPath / "fd";
   if (not syscall.saveFileDescriptors(fdPath.string()))
     return false;
@@ -1792,17 +1807,34 @@ System<URV>::loadSnapshot(const std::string& snapDir, bool restoreTrace)
     }
 
   // Rearm CLINT time compare.
-  for (auto hartPtr : sysHarts_)
-    {
-      uint64_t mtimeCmpBase = 0;
-      if (hartPtr->hasAclintTimeCompare(mtimeCmpBase))
-	{
-          uint64_t timeCmpAddr = mtimeCmpBase + hartPtr->sysHartIndex() * 8;
-	  uint64_t timeCmp = 0;
-	  memory_->peek(timeCmpAddr, timeCmp, false);
-	  hartPtr->setAclintAlarm(timeCmp);
-	}
-    }
+  Filesystem::path mtimecmpPath = dirPath / "mtimecmp";
+  {
+    std::ifstream ifs(mtimecmpPath);
+    if (not ifs.good())
+      {
+        for (auto hartPtr : sysHarts_)
+          {
+            uint64_t mtimeCmpBase = 0;
+            if (hartPtr->hasAclintTimeCompare(mtimeCmpBase))
+              {
+                uint64_t timeCmpAddr = mtimeCmpBase + hartPtr->sysHartIndex() * 8;
+                uint64_t timeCmp = 0;
+                memory_->peek(timeCmpAddr, timeCmp, false);
+                hartPtr->setAclintAlarm(timeCmp);
+              }
+          }
+      }
+    else
+      {
+        std::string line;
+        unsigned i = 0;
+        while (std::getline(ifs, line) and i < sysHarts_.size())
+          {
+            uint64_t timeCmp = std::strtoull(line.c_str(), nullptr, 16);
+            sysHarts_.at(i++)->setAclintAlarm(timeCmp);
+          }
+      }
+  }
 
   Filesystem::path fdPath = dirPath / "fd";
   if (not syscall.loadFileDescriptors(fdPath.string()))
