@@ -683,46 +683,61 @@ PerfApi::checkExecVsRetire(const Hart64& hart, const InstrPac& packet) const
 
 
 WdRiscv::ExceptionCause
-PerfApi::translateInstrAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa)
+PerfApi::translateInstrAddr(unsigned hartIx, uint64_t va, uint64_t& pa)
 {
   auto hart = checkHart("Translate-instr-addr", hartIx);
   hart->clearPageTableWalk();
   bool r = false, w = false, x = true;
   auto pm = hart->privilegeMode();
-  return  hart->transAddrNoUpdate(iva, pm, hart->virtMode(), r, w, x, ipa);
+  pa = va;
+  if (pm == WdRiscv::PrivilegeMode::Machine or not hart->isRvs())
+    return WdRiscv::ExceptionCause::NONE;
+  return  hart->transAddrNoUpdate(va, pm, hart->virtMode(), r, w, x, pa);
 }
 
 
 WdRiscv::ExceptionCause
-PerfApi::translateLoadAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa)
+PerfApi::translateLoadAddr(unsigned hartIx, uint64_t va, uint64_t& pa)
 {
   auto hart = checkHart("translate-load-addr", hartIx);
   hart->clearPageTableWalk();
   bool r = true, w = false, x = false;
   auto pm = hart->privilegeMode();
-  return  hart->transAddrNoUpdate(iva, pm, hart->virtMode(), r, w, x, ipa);
+  pa = va;
+  if (pm == WdRiscv::PrivilegeMode::Machine or not hart->isRvs())
+    return WdRiscv::ExceptionCause::NONE;
+  return  hart->transAddrNoUpdate(va, pm, hart->virtMode(), r, w, x, pa);
 }
 
 
 WdRiscv::ExceptionCause
-PerfApi::translateStoreAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa)
+PerfApi::translateStoreAddr(unsigned hartIx, uint64_t va, uint64_t& pa)
 {
   auto hart = checkHart("translate-store-addr", hartIx);
   hart->clearPageTableWalk();
   bool r = false, w = true, x = false;
   auto pm = hart->privilegeMode();
-  return  hart->transAddrNoUpdate(iva, pm, hart->virtMode(), r, w, x, ipa);
+  pa = va;
+  if (pm == WdRiscv::PrivilegeMode::Machine or not hart->isRvs())
+    return WdRiscv::ExceptionCause::NONE;
+  return  hart->transAddrNoUpdate(va, pm, hart->virtMode(), r, w, x, pa);
 }
 
 
 WdRiscv::ExceptionCause
-PerfApi::translateInstrAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa,
+PerfApi::translateInstrAddr(unsigned hartIx, uint64_t va, uint64_t& pa,
                             std::vector<std::vector<WalkEntry>>& walks)
 {
   auto hart = checkHart("translate-instr-addr", hartIx);
+
+  pa = va;
+  auto pm = hart->privilegeMode();
+  if (pm == WdRiscv::PrivilegeMode::Machine or not hart->isRvs())
+    return WdRiscv::ExceptionCause::NONE;
+
   auto virtmem = hart->virtMem();
   auto prevTrace = virtmem.enableTrace(true);
-  auto ec = translateInstrAddr(hartIx, iva, ipa);
+  auto ec = translateInstrAddr(hartIx, va, pa);
   virtmem.enableTrace(prevTrace);
   walks = hart->virtMem().getFetchWalks();
   return ec;
@@ -730,13 +745,19 @@ PerfApi::translateInstrAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa,
 
 
 WdRiscv::ExceptionCause
-PerfApi::translateLoadAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa,
+PerfApi::translateLoadAddr(unsigned hartIx, uint64_t va, uint64_t& pa,
                            std::vector<std::vector<WalkEntry>>& walks)
 {
   auto hart = checkHart("translate-load-addr", hartIx);
+
+  pa = va;
+  auto pm = hart->privilegeMode();
+  if (pm == WdRiscv::PrivilegeMode::Machine or not hart->isRvs())
+    return WdRiscv::ExceptionCause::NONE;
+
   auto virtmem = hart->virtMem();
   auto prevTrace = virtmem.enableTrace(true);
-  auto ec = translateLoadAddr(hartIx, iva, ipa);
+  auto ec = translateLoadAddr(hartIx, va, pa);
   virtmem.enableTrace(prevTrace);
   walks = hart->virtMem().getDataWalks();
   return ec;
@@ -744,13 +765,19 @@ PerfApi::translateLoadAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa,
 
 
 WdRiscv::ExceptionCause
-PerfApi::translateStoreAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa,
+PerfApi::translateStoreAddr(unsigned hartIx, uint64_t va, uint64_t& pa,
                             std::vector<std::vector<WalkEntry>>& walks)
 {
   auto hart = checkHart("translate-store-addr", hartIx);
+
+  pa = va;
+  auto pm = hart->privilegeMode();
+  if (pm == WdRiscv::PrivilegeMode::Machine or not hart->isRvs())
+    return WdRiscv::ExceptionCause::NONE;
+
   auto virtmem = hart->virtMem();
   auto prevTrace = virtmem.enableTrace(true);
-  auto ec = translateStoreAddr(hartIx, iva, ipa);
+  auto ec = translateStoreAddr(hartIx, va, pa);
   virtmem.enableTrace(prevTrace);
   walks = hart->virtMem().getDataWalks();
   return ec;
