@@ -907,6 +907,10 @@ namespace WdRiscv
     const VirtMem& virtMem() const
     { return virtMem_; }
 
+    /// Return the virtmem associated with this hart.
+    VirtMem& virtMem()
+    { return virtMem_; }
+
     /// Clear page table walk trace information.
     void clearPageTableWalk()
     { return virtMem_.clearPageTableWalk(); }
@@ -2782,6 +2786,9 @@ namespace WdRiscv
 
     void setLogLabelEnabled(bool enable) { logLabelEnabled_ = enable; }
 
+    /// Print a record of the last executed instruction, in CSV format, to the given file.
+    void printInstCsvTrace(const DecodedInst& di, FILE* out);
+
   protected:
 
     /// Retun cached value of the mpp field of the mstatus CSR.
@@ -3504,8 +3511,6 @@ namespace WdRiscv
     /// then a zero (illegal) value is required.
     void printInstTrace(uint32_t instruction, uint64_t tag, std::string& tmp,
 			FILE* out);
-
-    void printInstCsvTrace(const DecodedInst& di, FILE* out);
 
     /// Start a synchronous exceptions.
     void initiateException(ExceptionCause cause, URV pc, URV info, URV info2 = 0,

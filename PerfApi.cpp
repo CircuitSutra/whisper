@@ -354,6 +354,10 @@ PerfApi::execute(unsigned hartIx, uint64_t time, uint64_t tag)
 	}
     }
 
+  // Collect the page table walks.
+  packet.fetchWalks_ = hart.virtMem().getFetchWalks();
+  packet.dataWalks_ = hart.virtMem().getDataWalks();
+
   return true;
 }
 
@@ -529,7 +533,16 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
     }
 
   hart.setInstructionCount(tag - 1);
-  hart.singleStep(traceFiles_.at(hartIx));
+  auto traceFile = traceFiles_.at(hartIx);
+
+  hart.singleStep(nullptr);
+
+  if (traceFile)
+    {
+      hart.virtMem().setFetchWalks(packet.fetchWalks_);  // We print the walk from execute.
+      hart.virtMem().setFetchWalks(packet.dataWalks_);
+      hart.printInstCsvTrace(packet.di_, traceFile);
+    }
 
   // Sanity check. Results at execute and retire must match.
 #if 1
@@ -538,37 +551,7 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
 #endif
 
   // Undo renaming of destination registers.
-  auto& producers = hartRegProducers_.at(hartIx);
-  for (size_t i = 0; i < packet.operandCount_; ++i)
-    {
-      using OM = WdRiscv::OperandMode;
-      using OT = WdRiscv::OperandType;
-
-      auto& op = packet.operands_.at(i);
-
-      auto mode = op.mode;
-      if (mode == OM::Write or mode == OM::ReadWrite)
-	{
-	  unsigned regNum = op.number;
-          auto type = op.type;
-	  unsigned gri = globalRegIx(type, regNum);
-          if (type != OT::VecReg)
-            {
-              auto& producer = producers.at(gri);
-              if (producer and producer->tag() == packet.tag())
-                producer = nullptr;
-            }
-          else
-            {
-              for (unsigned n = 0; n < op.lmul; ++n)
-                {
-                  auto& producer = producers.at(gri + n);
-                  if (producer and producer->tag() == packet.tag())
-                    producer = nullptr;
-                }
-            }
-	}
-    }
+  undoDestRegRename(hartIx, packet);
 
   bool trap = hart.lastInstructionTrapped();
   packet.trap_ = packet.trap_ or trap;
@@ -678,16 +661,18 @@ PerfApi::checkExecVsRetire(const Hart64& hart, const InstrPac& packet) const
       for (unsigned i = 0; i < retire.size(); ++i)
         if (retire.at(i) != exec.at(i))
           {
-            cerr << "Error: Hart=" << hartIx << " tag=" << tag << " exec & retire vec vals differ\n";
+            cerr << "Error: Hart=" << hartIx << " tag=" << tag << " lmul=" << group
+                 << " vd=" << vr << " byte-ccount=" << retire.size()
+                 << " exec & retire vec vals differ\n";
+            cerr << "  retire: 0x" << std::hex;
             cerr << std::hex;
-            cerr << "  retire: 0x";
             unsigned count = retire.size();
             for (unsigned j = 0; j < count; ++j)
-              cerr << cerr.width(2) << std::setfill('0') << unsigned(retire.at(count-1-j));
+              cerr << std::setw(2) << std::setfill('0') << unsigned(retire.at(count-1-j));
             cerr << "\n";
-            cerr << "  exec:   0x";
+            cerr << "  exec:   0x" << std::hex;
             for (unsigned j = 0; j < count; ++j)
-              cerr << cerr.width(2) << std::setfill('0') << unsigned(exec.at(count-1-j));
+              cerr << std::setw(2) << std::setfill('0') << unsigned(exec.at(count-1-j));
             cerr << "\n";
             return false;
           }
@@ -698,46 +683,61 @@ PerfApi::checkExecVsRetire(const Hart64& hart, const InstrPac& packet) const
 
 
 WdRiscv::ExceptionCause
-PerfApi::translateInstrAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa)
+PerfApi::translateInstrAddr(unsigned hartIx, uint64_t va, uint64_t& pa)
 {
   auto hart = checkHart("Translate-instr-addr", hartIx);
   hart->clearPageTableWalk();
   bool r = false, w = false, x = true;
   auto pm = hart->privilegeMode();
-  return  hart->transAddrNoUpdate(iva, pm, hart->virtMode(), r, w, x, ipa);
+  pa = va;
+  if (pm == WdRiscv::PrivilegeMode::Machine or not hart->isRvs())
+    return WdRiscv::ExceptionCause::NONE;
+  return  hart->transAddrNoUpdate(va, pm, hart->virtMode(), r, w, x, pa);
 }
 
 
 WdRiscv::ExceptionCause
-PerfApi::translateLoadAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa)
+PerfApi::translateLoadAddr(unsigned hartIx, uint64_t va, uint64_t& pa)
 {
   auto hart = checkHart("translate-load-addr", hartIx);
   hart->clearPageTableWalk();
   bool r = true, w = false, x = false;
   auto pm = hart->privilegeMode();
-  return  hart->transAddrNoUpdate(iva, pm, hart->virtMode(), r, w, x, ipa);
+  pa = va;
+  if (pm == WdRiscv::PrivilegeMode::Machine or not hart->isRvs())
+    return WdRiscv::ExceptionCause::NONE;
+  return  hart->transAddrNoUpdate(va, pm, hart->virtMode(), r, w, x, pa);
 }
 
 
 WdRiscv::ExceptionCause
-PerfApi::translateStoreAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa)
+PerfApi::translateStoreAddr(unsigned hartIx, uint64_t va, uint64_t& pa)
 {
   auto hart = checkHart("translate-store-addr", hartIx);
   hart->clearPageTableWalk();
   bool r = false, w = true, x = false;
   auto pm = hart->privilegeMode();
-  return  hart->transAddrNoUpdate(iva, pm, hart->virtMode(), r, w, x, ipa);
+  pa = va;
+  if (pm == WdRiscv::PrivilegeMode::Machine or not hart->isRvs())
+    return WdRiscv::ExceptionCause::NONE;
+  return  hart->transAddrNoUpdate(va, pm, hart->virtMode(), r, w, x, pa);
 }
 
 
 WdRiscv::ExceptionCause
-PerfApi::translateInstrAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa,
+PerfApi::translateInstrAddr(unsigned hartIx, uint64_t va, uint64_t& pa,
                             std::vector<std::vector<WalkEntry>>& walks)
 {
   auto hart = checkHart("translate-instr-addr", hartIx);
+
+  pa = va;
+  auto pm = hart->privilegeMode();
+  if (pm == WdRiscv::PrivilegeMode::Machine or not hart->isRvs())
+    return WdRiscv::ExceptionCause::NONE;
+
   auto virtmem = hart->virtMem();
   auto prevTrace = virtmem.enableTrace(true);
-  auto ec = translateInstrAddr(hartIx, iva, ipa);
+  auto ec = translateInstrAddr(hartIx, va, pa);
   virtmem.enableTrace(prevTrace);
   walks = hart->virtMem().getFetchWalks();
   return ec;
@@ -745,13 +745,19 @@ PerfApi::translateInstrAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa,
 
 
 WdRiscv::ExceptionCause
-PerfApi::translateLoadAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa,
+PerfApi::translateLoadAddr(unsigned hartIx, uint64_t va, uint64_t& pa,
                            std::vector<std::vector<WalkEntry>>& walks)
 {
   auto hart = checkHart("translate-load-addr", hartIx);
+
+  pa = va;
+  auto pm = hart->privilegeMode();
+  if (pm == WdRiscv::PrivilegeMode::Machine or not hart->isRvs())
+    return WdRiscv::ExceptionCause::NONE;
+
   auto virtmem = hart->virtMem();
   auto prevTrace = virtmem.enableTrace(true);
-  auto ec = translateLoadAddr(hartIx, iva, ipa);
+  auto ec = translateLoadAddr(hartIx, va, pa);
   virtmem.enableTrace(prevTrace);
   walks = hart->virtMem().getDataWalks();
   return ec;
@@ -759,13 +765,19 @@ PerfApi::translateLoadAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa,
 
 
 WdRiscv::ExceptionCause
-PerfApi::translateStoreAddr(unsigned hartIx, uint64_t iva, uint64_t& ipa,
+PerfApi::translateStoreAddr(unsigned hartIx, uint64_t va, uint64_t& pa,
                             std::vector<std::vector<WalkEntry>>& walks)
 {
   auto hart = checkHart("translate-store-addr", hartIx);
+
+  pa = va;
+  auto pm = hart->privilegeMode();
+  if (pm == WdRiscv::PrivilegeMode::Machine or not hart->isRvs())
+    return WdRiscv::ExceptionCause::NONE;
+
   auto virtmem = hart->virtMem();
   auto prevTrace = virtmem.enableTrace(true);
-  auto ec = translateStoreAddr(hartIx, iva, ipa);
+  auto ec = translateStoreAddr(hartIx, va, pa);
   virtmem.enableTrace(prevTrace);
   walks = hart->virtMem().getDataWalks();
   return ec;
@@ -2043,6 +2055,43 @@ PerfApi::getVecOpsLmul(Hart64& hart, InstrPac& packet)
 }
 
 
+void
+PerfApi::undoDestRegRename(unsigned hartIx, const InstrPac& packet)
+{
+  auto& producers = hartRegProducers_.at(hartIx);
+  for (size_t i = 0; i < packet.operandCount_; ++i)
+    {
+      using OM = WdRiscv::OperandMode;
+      using OT = WdRiscv::OperandType;
+
+      auto& op = packet.operands_.at(i);
+
+      auto mode = op.mode;
+      if (mode == OM::Write or mode == OM::ReadWrite)
+	{
+	  unsigned regNum = op.number;
+          auto type = op.type;
+	  unsigned gri = globalRegIx(type, regNum);
+          if (type != OT::VecReg)
+            {
+              auto& producer = producers.at(gri);
+              if (producer and producer->tag() == packet.tag())
+                producer = nullptr;
+            }
+          else
+            {
+              for (unsigned n = 0; n < op.lmul; ++n)
+                {
+                  auto& producer = producers.at(gri + n);
+                  if (producer and producer->tag() == packet.tag())
+                    producer = nullptr;
+                }
+            }
+	}
+    }
+}
+
+
 bool
 PerfApi::collectOperandValues(Hart64& hart, InstrPac& packet)
 {
@@ -2180,7 +2229,10 @@ PerfApi::determineImplicitOperands(InstrPac& packet)
       
       auto& vlOp = packet.operands_.at(packet.operandCount_++);
       vlOp.type = OT::CsReg;
-      vlOp.mode = isVset? OM::Write : OM::Read;
+      if (di.isVectorLoadFaultFirst())
+        vlOp.mode = OM::ReadWrite;
+      else
+        vlOp.mode = isVset ? OM::Write : OM::Read;
       vlOp.number = unsigned(CSRN::VL);
 
       auto& vsOp = packet.operands_.at(packet.operandCount_++);
