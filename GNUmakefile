@@ -25,6 +25,11 @@ BOOST_LIBS := boost_program_options
 # Add extra dependency libraries here
 EXTRA_LIBS := -lpthread -lm -lz -ldl -static-libstdc++ -lrt -lutil
 
+# Needed to link against boost libraries which were compiled using older ABI
+ifeq ($(BOOST_ROOT), /tools_vendor/FOSS/boost/1.82)
+  CPPFLAGS += -D_GLIBCXX_USE_CXX11_ABI=0
+endif
+
 VIRT_MEM := 1
 ifeq ($(VIRT_MEM), 1)
   override CPPFLAGS += -Ivirtual_memory

@@ -143,6 +143,9 @@ Hart<URV>::Hart(unsigned hartIx, URV hartId, unsigned numHarts, Memory& memory, 
 
   // Define the virtual supervisor (VS) interrupts in high to low priority.
   vsInterrupts_ = { IC::VS_EXTERNAL, IC::VS_SOFTWARE, IC::VS_TIMER, IC::LCOF };
+
+  // Define possible NMIs.
+  nmInterrupts_ = { 0xf0001000, 0xf0000001, 0xf0000000, 3, 2, 1, 0 };
 }
 
 
@@ -348,7 +351,16 @@ Hart<URV>::setupVirtMemCallbacks()
       value = util::byteswap(value);
     if (not memory_.hasReserveAttribute(addr))
       return false;
-    return (mcm_ and dataCache_)? pokeMemory(addr, value, false) : memory_.write(hartIx_, addr, value);
+
+    if (mcm_ and dataCache_)
+      {
+        bool ok = true;
+        for (unsigned i = 0; i < sizeof(data); ++i)
+          ok = ok and pokeMcmCache<McmMem::Data>(addr +i, (data >> uint8_t(8*i)));
+        return ok;
+      }
+    else
+      return memory_.write(hartIx_, addr, value);
   });
 
   virtMem_.setIsReadableCallback([this](uint64_t addr, PrivilegeMode pm) -> bool {
@@ -365,7 +377,7 @@ Hart<URV>::setupVirtMemCallbacks()
         addr = stee_.clearSecureBits(addr);
       }
 
-    auto pma = memory_.pmaMgr_.getPma(addr);
+    auto pma = memory_.pmaMgr_.accessPma(addr);
     return pma.isRead();
   });
 
@@ -383,7 +395,7 @@ Hart<URV>::setupVirtMemCallbacks()
         addr = stee_.clearSecureBits(addr);
       }
 
-    auto pma = memory_.pmaMgr_.getPma(addr);
+    auto pma = memory_.pmaMgr_.accessPma(addr);
 
     // return pma.isWrite() and pma.isRsrv();  // FIX: RTL does not do this. It should.
     return pma.isWrite();
@@ -1317,15 +1329,12 @@ Hart<URV>::pokeMemory(uint64_t addr, uint64_t val, bool usePma, bool skipFetch, 
 
 template <typename URV>
 void
-Hart<URV>::setPendingNmi(NmiCause cause)
+Hart<URV>::setPendingNmi(URV cause)
 {
-  // First nmi sets the cause. The cause is sticky.
-  if (not nmiPending_)
-    nmiCause_ = cause;
-
+  pendingNmis_.insert(cause);
   nmiPending_ = true;
 
-  // Set the nmi pending bit in the DCSR register.
+  // Set DCSR.NMI.
   URV val = 0;  // DCSR value
   if (peekCsr(CsrNumber::DCSR, val))
     {
@@ -1341,9 +1350,10 @@ template <typename URV>
 void
 Hart<URV>::clearPendingNmi()
 {
+  pendingNmis_.clear();
   nmiPending_ = false;
-  nmiCause_ = NmiCause::UNKNOWN;
 
+  // Clear DCSR.NMI.
   URV val = 0;  // DCSR value
   if (peekCsr(CsrNumber::DCSR, val))
     {
@@ -1351,6 +1361,28 @@ Hart<URV>::clearPendingNmi()
       dcsr.bits_.NMIP = 0;
       pokeCsr(CsrNumber::DCSR, dcsr.value_);
       recordCsrWrite(CsrNumber::DCSR);
+    }
+}
+
+
+template <typename URV>
+void
+Hart<URV>::clearPendingNmi(URV cause)
+{
+  pendingNmis_.erase(cause);
+  nmiPending_ = not pendingNmis_.empty();
+
+  if (not nmiPending_)
+    {
+      // Clear DCSR.NMI.
+      URV val = 0;  // DCSR value
+      if (peekCsr(CsrNumber::DCSR, val))
+        {
+          DcsrFields<URV> dcsr(val);
+          dcsr.bits_.NMIP = 0;
+          pokeCsr(CsrNumber::DCSR, dcsr.value_);
+          recordCsrWrite(CsrNumber::DCSR);
+        }
     }
 }
 
@@ -1438,6 +1470,12 @@ Hart<URV>::execAddi(const DecodedInst* di)
         throw CoreException(CoreException::SnapshotAndStop, "Taking snapshot and stopping run from HINT.");
       if (di->op0() == 0 and di->op1() == 26)
         std::cerr << "Info: Executed instructions: " << instCounter_ << "\n";
+      if (di->op0() == 0 and di->op1() == 25)
+        setPendingNmi(URV(v));
+      if (di->op0() == 0 and di->op1() == 24)
+        clearPendingNmi();
+      if (di->op0() == 0 and di->op1() == 23)
+        defineNmiPc(URV(v));
     }
 }
 
@@ -3049,7 +3087,7 @@ Hart<URV>::unimplemented(const DecodedInst* di)
 template <typename URV>
 void
 Hart<URV>::initiateInterrupt(InterruptCause cause, PrivilegeMode nextMode,
-                              bool nextVirt, URV pc)
+                              bool nextVirt, URV pc, bool hvi)
 {
   hasInterrupt_ = true;
   interruptCount_++;
@@ -3062,13 +3100,8 @@ Hart<URV>::initiateInterrupt(InterruptCause cause, PrivilegeMode nextMode,
   using IC = InterruptCause;
   URV causeNum = URV(cause);
   if (nextVirt and (cause == IC::VS_EXTERNAL or cause == IC::VS_TIMER or
-                    cause == IC::VS_SOFTWARE))
-    {
-      auto hideleg = csRegs_.getImplementedCsr(CsrNumber::HIDELEG);
-      bool delegated = hideleg and ((URV(1) << causeNum) & hideleg->read());
-      if (delegated)
-        causeNum--;
-    }
+                    cause == IC::VS_SOFTWARE) and not hvi)
+      causeNum--;
 
   initiateTrap(nullptr, interrupt, causeNum, nextMode, nextVirt, pc, info);
 
@@ -3364,6 +3397,10 @@ Hart<URV>::initiateTrap(const DecodedInst* di, bool interrupt,
     causeRegVal |= URV(1) << (mxlen_ - 1);
   if (not csRegs_.write(causeNum, privMode_, causeRegVal))
     assert(0 and "Failed to write CAUSE register");
+  trapCause_ = causeRegVal;
+
+  if (clearMtvalOnEgs_ and egsConstraint_)
+    info = 0;
 
   // Clear mtval on interrupts. Save synchronous exception info.
   if (not csRegs_.write(tvalNum, privMode_, info))
@@ -3605,6 +3642,7 @@ Hart<URV>::undelegatedInterrupt(URV cause, URV pcToSave, URV nextPc)
   mstatus_.bits_.MIE = 0;
   writeMstatus();
 
+#if 0
   // Clear pending nmi bit in dcsr
   URV dcsrVal = 0;
   if (peekCsr(CsrNumber::DCSR, dcsrVal))
@@ -3614,6 +3652,7 @@ Hart<URV>::undelegatedInterrupt(URV cause, URV pcToSave, URV nextPc)
       pokeCsr(CsrNumber::DCSR, dcsr.value_);
       recordCsrWrite(CsrNumber::DCSR);
     }
+#endif
 
   setPc(nextPc);
 }
@@ -6071,7 +6110,7 @@ template <typename URV>
 bool
 Hart<URV>::isInterruptPossible(URV mip, URV sip, [[maybe_unused]] URV vsip,
                                InterruptCause& cause, PrivilegeMode& nextMode,
-                               bool& nextVirt) const
+                               bool& nextVirt, bool& hvi) const
 {
   if (debugMode_)
     return false;
@@ -6157,12 +6196,10 @@ Hart<URV>::isInterruptPossible(URV mip, URV sip, [[maybe_unused]] URV vsip,
   else
     {
       URV vstopi;
-      if (csRegs_.readTopi(CsrNumber::VSTOPI, vstopi, false))
+      if (csRegs_.readTopi(CsrNumber::VSTOPI, vstopi, false, hvi))
         {
           if (vstopi)
             {
-              // FIXME: This might be buggy because IID does not have to be a standard
-              // interrupt.
               unsigned iid = vstopi >> 16;  // Interrupt id.
               if (deferredInterrupts_ & (URV(1) << iid))
                 return false;
@@ -6178,7 +6215,7 @@ Hart<URV>::isInterruptPossible(URV mip, URV sip, [[maybe_unused]] URV vsip,
 
 template <typename URV>
 bool
-Hart<URV>::isInterruptPossible(InterruptCause& cause, PrivilegeMode& nextMode, bool& nextVirt) const
+Hart<URV>::isInterruptPossible(InterruptCause& cause, PrivilegeMode& nextMode, bool& nextVirt, bool& hvi) const
 {
   // MIP read value is ored with supervisor external interrupt pin and
   // mvip if mvien is not set.
@@ -6201,7 +6238,7 @@ Hart<URV>::isInterruptPossible(InterruptCause& cause, PrivilegeMode& nextMode, b
       not hasHvi())
     return false;
 
-  return isInterruptPossible(mip, sip, vsip, cause, nextMode, nextVirt);
+  return isInterruptPossible(mip, sip, vsip, cause, nextMode, nextVirt, hvi);
 }
 
 
@@ -6220,23 +6257,34 @@ Hart<URV>::processExternalInterrupt(FILE* traceFile, std::string& instStr)
   if (dcsrStep_ and not dcsrStepIe_)
     return false;
 
-  // If a non-maskable interrupt was signaled by the test-bench, consider it.
-  if (nmiPending_ and initiateNmi(URV(nmiCause_), pc_))
+  // Consider pending non-maskable interrupts.
+  if (nmiPending_)
     {
-      // NMI was taken.
-      uint32_t inst = 0; // Load interrupted inst.
-      readInst(currPc_, inst);
-      printInstTrace(inst, instCounter_, instStr, traceFile);
-      if (mcycleEnabled())
-	++cycleCount_;
-      return true;
+      for (auto nmi : nmInterrupts_)   // Potential NMIs in high to low priority order
+        {
+          auto iter = pendingNmis_.find(nmi);
+          if (iter == pendingNmis_.end())
+            continue;  // NMI is not pending.
+
+          if (initiateNmi(URV(nmi), pc_))
+            {
+              uint32_t inst = 0; // Load interrupted inst.
+              readInst(currPc_, inst);
+              printInstTrace(inst, instCounter_, instStr, traceFile);
+              if (mcycleEnabled())
+                ++cycleCount_;
+              return true;
+            }
+          break;  // NMI could not be delivered (NMIs not enabled).
+        }
     }
 
   // If interrupts enabled and one is pending, take it.
   InterruptCause cause;
   PrivilegeMode nextMode = PrivilegeMode::Machine;
   bool nextVirt = false;
-  if (isInterruptPossible(cause, nextMode, nextVirt))
+  bool hvi = false;
+  if (isInterruptPossible(cause, nextMode, nextVirt, hvi))
     {
       // Attach changes to interrupted instruction.
       uint32_t inst = 0; // Load interrupted inst.
@@ -6252,7 +6300,7 @@ Hart<URV>::processExternalInterrupt(FILE* traceFile, std::string& instStr)
 	    pc = pc + 4;
 #endif
 	}
-      initiateInterrupt(cause, nextMode, nextVirt, pc);
+      initiateInterrupt(cause, nextMode, nextVirt, pc, hvi);
       printInstTrace(inst, instCounter_, instStr, traceFile);
       if (mcycleEnabled())
 	++cycleCount_;
@@ -10236,15 +10284,11 @@ Hart<URV>::exitDebugMode()
 
   updateCachedTriggerState();
 
-  // If pending nmi bit is set in dcsr, set pending nmi in the hart
-  // object.
   URV dcsrVal = 0;
   if (not peekCsr(CsrNumber::DCSR, dcsrVal))
     std::cerr << "Warning: Failed to read DCSR in exit debug.\n";
 
   DcsrFields<URV> dcsrf(dcsrVal);
-  if (dcsrf.bits_.NMIP)
-    setPendingNmi(nmiCause_);
 
   // Restore privilege mode.
   auto pm = PrivilegeMode{dcsrf.bits_.PRV};

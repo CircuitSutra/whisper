@@ -333,7 +333,7 @@ bool Uart8250::saveSnapshot(const std::string& filename) const
 
   auto rx_fifo_copy = rx_fifo;
   while (!rx_fifo_copy.empty()) {
-      ofs << "rx_fifo " << (int) rx_fifo_copy.front() << "\n";
+      ofs << "rx_fifo 0x" << (int) rx_fifo_copy.front() << "\n";
       rx_fifo_copy.pop();
   }
 
@@ -355,10 +355,7 @@ bool Uart8250::loadSnapshot(const std::string& filename)
 {
   std::ifstream ifs(filename);
   if (not ifs)
-    {
-      std::cerr << "Error: failed to open snapshot file " << filename << "\n";
-      return false;
-    }
+    std::cerr << "Warning: failed to open snapshot file " << filename << "\n";
 
   std::string line;
   int lineno = 0;

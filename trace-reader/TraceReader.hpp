@@ -32,6 +32,30 @@ namespace WhisperUtil  {
     uint64_t prevValue = 0;               // Used for modified registers.
     std::vector<uint8_t> vecValue;        // Used for vector registers
     std::vector<uint8_t> vecPrevValue;    // Used for modified vector registers
+
+    bool operator==(const Operand& rhs) const {
+      if (this->type != rhs.type) return false;
+      if (this->number != rhs.number) return false;
+      if (this->emul != rhs.emul) return false;
+      if (number != 256)
+        if (this->value != rhs.value) return false;
+
+      return true;
+    }
+
+    bool operator!=(const Operand& rhs) const {
+      if (this->type != rhs.type) return true;
+      if (this->number != rhs.number) return true;
+      if (this->emul != rhs.emul) return true;
+      if (number != 256)
+        if (this->value != rhs.value) return true;
+
+      return false;
+    }
+
+    // bool operator<(const TraceRecord &rhs) const {
+    //   return number < rhs.number;
+    // }
   };
 
   // Model a record in the log file.
@@ -60,6 +84,119 @@ namespace WhisperUtil  {
     bool hasTrap = false;
     uint64_t trap = 0;
     std::string assembly;
+
+    bool operator==(const TraceRecord& rhs) const {
+      if (virtPc != rhs.virtPc) return false;
+      if (physPc != rhs.physPc) return false;
+      if (takenBranchTarget != rhs.takenBranchTarget) return false;
+      if (inst != rhs.inst) return false;
+      if (instSize != rhs.instSize) return false;
+      if (instType != rhs.instType) return false;
+      if (dataSize != rhs.dataSize) return false;
+      if (fpFlags != rhs.fpFlags) return false;
+      if (roundingMode != rhs.roundingMode) return false;
+
+      // compare modified regs, the order may or may not match
+      if (modifiedRegs.size() != rhs.modifiedRegs.size()) return false;
+      for (auto &it: modifiedRegs) {
+        if (std::find(rhs.modifiedRegs.begin(), rhs.modifiedRegs.end(), it) == rhs.modifiedRegs.end()) {
+          return false;
+        }
+      }
+
+      // compare source operands, the order may or may not match
+      if (sourceOperands.size() != rhs.sourceOperands.size()) return false;
+      for (auto &it : sourceOperands) {
+        if (std::find(rhs.sourceOperands.begin(), rhs.sourceOperands.end(), it) == rhs.sourceOperands.end()) {
+          return false;
+        }
+      }
+      
+      // compare contextCSRs, ignoring the value for now
+      if (contextCSRs.size() != rhs.contextCSRs.size()) return false;
+      for (auto &it : contextCSRs) {
+        auto rhsit = std::find_if(rhs.contextCSRs.begin(), rhs.contextCSRs.end(), [&](const std::pair<unsigned, uint64_t> &rhs) {
+          return rhs.first == it.first;
+        });
+        if (rhsit == rhs.contextCSRs.end()) return false;
+      }
+
+      if (virtAddrs != rhs.virtAddrs) return false;
+      if (physAddrs != rhs.physAddrs) return false;
+      if (maskedAddrs != rhs.maskedAddrs) return false;
+
+      // compare dpteAddrs between the records
+      if (dpteAddrs.size() != rhs.dpteAddrs.size()) return false;
+      for (auto &it : dpteAddrs) {
+        auto rhsit = std::find(rhs.dpteAddrs.begin(), rhs.dpteAddrs.end(), it);
+        if (rhsit == rhs.dpteAddrs.end()) return false;
+      }
+
+      if (ipteAddrs != rhs.ipteAddrs) return false;
+      if (priv != rhs.priv) return false;
+      if (virt != rhs.virt) return false;
+      if (hasTrap != rhs.hasTrap) return false;
+      if (trap != rhs.trap) return false;
+      if (assembly != rhs.assembly) return false;
+
+      return true;
+    }
+
+    // bool operator!=(const TraceRecord&) const = default;
+    bool operator!=(const TraceRecord& rhs) const {
+      if (virtPc != rhs.virtPc) return true;
+      if (physPc != rhs.physPc) return true;
+      if (takenBranchTarget != rhs.takenBranchTarget) return true;
+      if (inst != rhs.inst) return true;
+      if (instSize != rhs.instSize) return true;
+      if (instType != rhs.instType) return true;
+      if (dataSize != rhs.dataSize) return true;
+      if (fpFlags != rhs.fpFlags) return true;
+      if (roundingMode != rhs.roundingMode) return true;
+
+      // compare modified regs, the order may or may not match
+      if (modifiedRegs.size() != rhs.modifiedRegs.size()) return true;
+      for (auto &it: modifiedRegs) {
+        if (std::find(rhs.modifiedRegs.begin(), rhs.modifiedRegs.end(), it) == rhs.modifiedRegs.end()) {
+          return true;
+        }
+      }
+
+      // compare source operands, the order may or may not match
+      if (sourceOperands.size() != rhs.sourceOperands.size()) return true;
+      for (auto &it : sourceOperands) {
+        if (std::find(rhs.sourceOperands.begin(), rhs.sourceOperands.end(), it) == rhs.sourceOperands.end()) {
+          return true;
+        }
+      }
+
+      if (contextCSRs.size() != rhs.contextCSRs.size()) return true;
+      for (auto &it : contextCSRs) {
+        auto rhsit = std::find_if(rhs.contextCSRs.begin(), rhs.contextCSRs.end(), [&](const std::pair<unsigned, uint64_t> &rhs) {
+          return rhs.first == it.first;
+        });
+        if (rhsit == rhs.contextCSRs.end()) return true;
+      }
+
+      if (virtAddrs != rhs.virtAddrs) return true;
+      if (physAddrs != rhs.physAddrs) return true;
+      if (maskedAddrs != rhs.maskedAddrs) return true;
+
+      if (dpteAddrs.size() != rhs.dpteAddrs.size()) return true;
+      for (auto &it : dpteAddrs) {
+        auto rhsit = std::find(rhs.dpteAddrs.begin(), rhs.dpteAddrs.end(), it);
+        if (rhsit == rhs.dpteAddrs.end()) return true;
+      }
+
+//       if (ipteAddrs != rhs.ipteAddrs) return true;
+      if (priv != rhs.priv) return true;
+      if (virt != rhs.virt) return true;
+      if (hasTrap != rhs.hasTrap) return true;
+      if (trap != rhs.trap) return true;
+      if (assembly != rhs.assembly) return true;
+
+      return false;
+    }
 
     // Clear this record.
     void clear();
@@ -157,6 +294,7 @@ namespace WhisperUtil  {
     // Return true if this an illegal instruction.
     bool isIllegal() const
     { return inst == 0 or ~inst == 0; }
+
   };
 
   inline std::ostream & operator<<(std::ostream & os, const TraceRecord & data)

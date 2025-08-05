@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <bitset>
 #include <vector>
+#include <set>
 #include <unordered_map>
 #include <unordered_set>
 #include <type_traits>
@@ -146,14 +147,12 @@ namespace WdRiscv
     ~Hart();
 
     /// Define the set of possible machine interrupts in priority order (high to low).
-    void setMachineInterrupts(const std::vector<InterruptCause>& newInterrupts) {
-      mInterrupts_ = newInterrupts;
-    }
+    void setMachineInterrupts(const std::vector<InterruptCause>& newInterrupts)
+    { mInterrupts_ = newInterrupts; }
 
     /// Define the set of possible supervisor interrupts in priority order (high to low).
-    void setSupervisorInterrupts(const std::vector<InterruptCause>& newInterrupts) {
-      sInterrupts_ = newInterrupts;
-    }
+    void setSupervisorInterrupts(const std::vector<InterruptCause>& newInterrupts)
+    { sInterrupts_ = newInterrupts; }
 
     /// Filter out from possible machine interrupts those interrupt that cannot become
     /// pending or enabled.
@@ -166,6 +165,10 @@ namespace WdRiscv
     /// Return count of integer registers.
     unsigned intRegCount() const
     { return intRegs_.size(); }
+
+    /// Define the set of possible non-maskable interrupts.
+    void setNonMaskableInterrupts(const std::vector<uint64_t>& nmis)
+    { nmInterrupts_ = nmis; }
 
     /// Return the name of the given integer register. Return an
     /// abi-name (e.g. sp) if abi names are enabled.
@@ -303,7 +306,7 @@ namespace WdRiscv
     /// is padded with zeros on the most-significant side.
     bool pokeVecRegLsb(unsigned reg, const std::vector<uint8_t>& value);
 
-    /// Simular to above but with a span instead of a vector.
+    /// Similar to above but with a span instead of a vector.
     bool pokeVecRegLsb(unsigned reg, const std::span<const uint8_t>& value);
 
     /// Find the integer register with the given name (which may
@@ -328,7 +331,13 @@ namespace WdRiscv
     /// Find the control and status register with the given number.
     /// Return pointer to CSR on success and nullptr if no such
     /// register.
-    const Csr<URV>* findCsr(CsrNumber number)
+    const Csr<URV>* findCsr(CsrNumber number) const
+    { return csRegs_.findCsr(number); }
+
+    /// Find the control and status register with the given number.
+    /// Return pointer to CSR on success and nullptr if no such
+    /// register.
+    Csr<URV>* findCsr(CsrNumber number)
     { return csRegs_.findCsr(number); }
 
     /// Configure given CSR. Return true on success and false if no such CSR.
@@ -370,13 +379,23 @@ namespace WdRiscv
 
     /// Enable/disable matching all addresses in a load/store access
     /// for debug triggering.
-    void configAllLdStAddrTrigger(bool flag)
-    { csRegs_.configAllLdStAddrTrigger(flag); }
+    void configAllDataAddrTrigger(bool flag)
+    { csRegs_.configAllDataAddrTrigger(flag); }
 
     /// Enable/disable matching all addresses in a instruction fetch
     /// access for debug triggering.
-    void configAllInstAddrTrigger(bool flag)
-    { csRegs_.configAllInstAddrTrigger(flag); }
+    void configAllInstrAddrTrigger(bool flag)
+    { csRegs_.configAllInstrAddrTrigger(flag); }
+
+    /// Enable/disable matching all addresses in a load/store access for debug triggering
+    /// and a particular match type.
+    void configAllDataAddrTrigger(unsigned matchType, bool flag)
+    { csRegs_.configAllDataAddrTrigger(matchType, flag); }
+
+    /// Enable/disable matching all addresses in a instruction fetch access for debug
+    /// triggering.
+    void configAllInstrAddrTrigger(unsigned matchType, bool flag)
+    { csRegs_.configAllInstrAddrTrigger(matchType, flag); }
 
     /// Enable use of TCONTROL CSR to control triggers firing in machine mode.
     void configTriggerUseTcontrol(bool flag)
@@ -653,7 +672,7 @@ namespace WdRiscv
     { vecRegs_.configTailAgnosticAllOnes(flag); }
 
     /// Configure partial vector load/store segment update. If flag is false, then none of
-    /// a segment fields are committed if any field encouters an exception.
+    /// a segment fields are committed if any field encounters an exception.
     void configVectorPartialSegmentUpdate(bool flag)
     { vecRegs_.configPartialSegmentUpdate(flag); }
 
@@ -724,7 +743,7 @@ namespace WdRiscv
     /// tracing information related to the executed instruction.
     void singleStep(FILE* file = nullptr);
 
-    /// Same as above but decoded istruction information is placed
+    /// Same as above but decoded instruction information is placed
     /// in given di object.
     void singleStep(DecodedInst& di, FILE* file = nullptr);
 
@@ -812,8 +831,8 @@ namespace WdRiscv
       indexToHart_ = indexToHart;
     }
 
-    /// Define an offset to be artifically added to a time compare register of ACLINT
-    /// whenever such regiser is written by a store instruction. this is used to reduce
+    /// Define an offset to be artificially added to a time compare register of ACLINT
+    /// whenever such register is written by a store instruction. this is used to reduce
     /// the frequency of timer interrupts and is relevant for booting a Linux image
     /// (Whisper uses the instruction count to fake a timer value and that is too fast for
     /// Linux which expect a much lower frequency for its timer).
@@ -888,6 +907,10 @@ namespace WdRiscv
     const VirtMem& virtMem() const
     { return virtMem_; }
 
+    /// Return the virtmem associated with this hart.
+    VirtMem& virtMem()
+    { return virtMem_; }
+
     /// Clear page table walk trace information.
     void clearPageTableWalk()
     { return virtMem_.clearPageTableWalk(); }
@@ -951,10 +974,13 @@ namespace WdRiscv
     { nmiExceptionPc_ = addr; }
 
     /// Clear/set pending non-maskable-interrupt.
-    void setPendingNmi(NmiCause cause = NmiCause::UNKNOWN);
+    void setPendingNmi(URV cause);
 
-    /// Clear pending non-maskable-interrupt.
+    /// Clear all pending non-maskable-interrupts.
     void clearPendingNmi();
+
+    /// Clear given pending non-maskable-interrupt.
+    void clearPendingNmi(URV cause);
 
     /// Set/clear Supervisor external interrupt pin.
     void setSeiPin(bool flag)
@@ -1082,6 +1108,11 @@ namespace WdRiscv
     bool lastInstructionInterrupted() const
     { return hasInterrupt_; }
 
+    /// Return trap number (content of MCAUSE/SCAUSE/VSCAUSE) of last executed
+    /// instruction. Valid only if last instruction had a trap: lastInstructionTrapped().
+    URV lastTrapCause() const
+    { return trapCause_; }
+
     /// Support for tracing: Fill the csrs vector with the
     /// register-numbers of the CSRs written by the execution of the
     /// last instruction. CSRs modified as a side effect (e.g. mcycle
@@ -1187,7 +1218,7 @@ namespace WdRiscv
       return ldStSize_;
     }
 
-    /// Similar tos previous lastLdStAddress but also returns in pa2 the address
+    /// Similar to previous lastLdStAddress but also returns in pa2 the address
     /// on the other page for a page crossing store. If store is not page crossing
     /// then pa2 will be the same as pa1.
     unsigned lastLdStAddress(uint64_t& virtAddr, uint64_t& pa1, uint64_t& pa2) const
@@ -1469,7 +1500,7 @@ namespace WdRiscv
     Pma getPma(uint64_t addr) const
     { return memory_.pmaMgr_.getPma(addr); }
 
-    /// Simialr to above but performs an "access".
+    /// Similar to above but performs an "access".
     Pma accessPma(uint64_t addr) const
     { return memory_.pmaMgr_.accessPma(addr); }
 
@@ -1895,6 +1926,11 @@ namespace WdRiscv
     void enableClearMtvalOnEbreak(bool flag)
     { clearMtvalOnEbreak_ = flag; }
 
+    /// Clear MTVAL if we take an exception because of a failed
+    /// vl multiple of egs constraint.
+    void enableClearMtvalOnEgs(bool flag)
+    { clearMtvalOnEgs_ = flag; }
+
     /// Clear MTINST/HTINST on cbo.inval if flag is true.
     void enableClearTinstOnCboInval(bool flag)
     { clearTinstOnCboInval_ = flag; }
@@ -1998,7 +2034,7 @@ namespace WdRiscv
 
     /// Translate virtual address without updating TLB or updating/checking A/D bits of
     /// PTE. Return ExceptionCause::NONE on success or fault/access exception on
-    /// failure. If succesful set pa to the physical address.
+    /// failure. If successful set pa to the physical address.
     ExceptionCause transAddrNoUpdate(uint64_t va, PrivilegeMode pm,
 				     bool twoStage, bool r,
 				     bool w, bool x, uint64_t& pa)
@@ -2166,7 +2202,7 @@ namespace WdRiscv
     bool processPmaChange(CsrNumber num);
 
     /// Define a memory mapped register with the given mask and size at the word-aligned
-    /// word with the given address. Return true on success and flase if given address is
+    /// word with the given address. Return true on success and false if given address is
     /// not in a memory mapped region. The size must be 4 or 8. The address must be
     /// word/double-word aligned for size 4/8.
     bool defineMemMappedRegister(uint64_t addr, uint64_t mask, unsigned size, Pma pma)
@@ -2263,7 +2299,7 @@ namespace WdRiscv
     /// which mode it should be taken; otherwise, leave
     /// it unmodified. If more than one interrupt is possible, set
     /// cause to the possible interrupt with the highest priority.
-    bool isInterruptPossible(InterruptCause& cause, PrivilegeMode& nextMode, bool& nextVirt) const;
+    bool isInterruptPossible(InterruptCause& cause, PrivilegeMode& nextMode, bool& nextVirt, bool& hvi) const;
 
     /// Return true if this hart would take an interrupt if the interrupt
     /// pending CSRs would have the given value. Do not change MIP, do not
@@ -2272,7 +2308,7 @@ namespace WdRiscv
     /// should be taken; otherwise, leave cause unmodified.
     bool isInterruptPossible(URV mipValue, URV sipValue, URV vsipValue,
                               InterruptCause& cause, PrivilegeMode& nextMode,
-                              bool& nextVirt) const;
+                              bool& nextVirt, bool& hvi) const;
 
     /// Configure this hart to set its program counter to the given addr on entering debug
     /// mode. If addr bits are all set, then the PC is not changed on entering debug mode.
@@ -2479,7 +2515,7 @@ namespace WdRiscv
     { return fetchCache_->read<uint16_t>(addr, inst); }
 
     /// Configure the mask defining which bits of a physical address must be zero for the
-    /// address to be considered valid when STEE (static truested execution environment)
+    /// address to be considered valid when STEE (static trusted execution environment)
     /// is enabled. A bit set in the given mask must correspond to a zero bit in a physical
     /// address; otherwise, the STEE will deem the physical address invalid.
     void configSteeZeroMask(uint64_t mask)
@@ -2546,6 +2582,9 @@ namespace WdRiscv
     void setAclintAlarm(uint64_t value)
     { aclintAlarm_ = value; }
 
+    uint64_t getAclintAlarm() const
+    { return aclintAlarm_; }
+
     /// Fetch an instruction from the given virtual address. Return ExceptionCause::None
     /// on success. Return exception cause on fail. If successful set pysAddr to the
     /// physical address corresponding to the given virtual address, gPhysAddr to the
@@ -2596,25 +2635,11 @@ namespace WdRiscv
     void setWrsCancelsLr(bool flag)
     { wrsCancelsLr_ = flag; }
 
-#if 0
-    /// Set hart suspend state. If true, run will have no effect. If suspended,
-    /// reset the resume time.
-    void setSuspendState(bool flag, uint64_t timeout = 0)
-    {
-      suspended_ = flag;
-      resumeTime_ = flag? time_ + timeout : 0;
-    }
-
-    /// Return true if hart is suspended.
-    bool isSuspended()
-    { return suspended_; }
-#endif
-
     /// Set value to the value read from the device associated with the given physical
     /// address.
     void deviceRead(uint64_t pa, unsigned size, uint64_t& value);
 
-    /// Write the given value to the device associated with the given phyiscal address.
+    /// Write the given value to the device associated with the given physical address.
     /// address.
     template <typename STORE_TYPE>
     void deviceWrite(uint64_t pa, STORE_TYPE value);
@@ -2686,11 +2711,11 @@ namespace WdRiscv
     void reportInstsPerSec(uint64_t instCount, uint64_t retInstCount,
                            double elapsed, bool userStop);
 
-    /// Return true if vector component currently has mask-agnositic policy.
+    /// Return true if vector component currently has mask-agnostic policy.
     bool isVectorMaskAgnostic() const
     { return vecRegs_.isMaskAgnostic(); }
 
-    /// Return true if vector component currently has tail-agnositic policy.
+    /// Return true if vector component currently has tail-agnostic policy.
     bool isVectorTailAgnostic() const
     { return vecRegs_.isTailAgnostic(); }
 
@@ -2747,6 +2772,9 @@ namespace WdRiscv
 
     void setLogLabelEnabled(bool enable) { logLabelEnabled_ = enable; }
 
+    /// Print a record of the last executed instruction, in CSV format, to the given file.
+    void printInstCsvTrace(const DecodedInst& di, FILE* out);
+
   protected:
 
     /// Retun cached value of the mpp field of the mstatus CSR.
@@ -2765,7 +2793,7 @@ namespace WdRiscv
     void tieCsrs();
 
     /// Return true if the NMIE bit of NMSTATUS overrides the effect of
-    /// MSTATUS.MPRV. See Smrnmi secton in RISCV privileged spec.
+    /// MSTATUS.MPRV. See Smrnmi section in RISCV privileged spec.
     bool nmieOverridesMprv() const
     {
       return (extensionIsEnabled(RvExtension::Smrnmi) and
@@ -3389,14 +3417,14 @@ namespace WdRiscv
     /// Make all active icount triggers count down if possible marking pending
     /// the ones that reach zero. We use last values because privMode/virtMode may
     /// be modified by execution and we can't decrement icount before the instruction
-    /// because tdata1 may be read. Reentrancy detection using option 1 in the spec
+    /// because tdata1 may be read. Re-entrancy detection using option 1 in the spec
     /// has unspecified behavior when relevant CSRs are modified.
     void evaluateIcountTrigger()
     {
       return csRegs_.evaluateIcountTrigger(lastPriv_, lastVirt_, lastBreakpInterruptEnabled_);
     }
 
-    /// Return true if a pending icount triger can fire clearning its pending status.
+    /// Return true if a pending icount trigger can fire clearing its pending status.
     bool icountTriggerFired()
     {
       return csRegs_.icountTriggerFired(privilegeMode(), virtMode(), isBreakpInterruptEnabled());
@@ -3470,15 +3498,13 @@ namespace WdRiscv
     void printInstTrace(uint32_t instruction, uint64_t tag, std::string& tmp,
 			FILE* out);
 
-    void printInstCsvTrace(const DecodedInst& di, FILE* out);
-
     /// Start a synchronous exceptions.
     void initiateException(ExceptionCause cause, URV pc, URV info, URV info2 = 0,
 			   const DecodedInst* di = nullptr);
 
     /// Start an asynchronous exception (interrupt).
     void initiateInterrupt(InterruptCause cause, PrivilegeMode nextMode,
-                           bool nextVirt, URV pc);
+                           bool nextVirt, URV pc, bool hvi);
 
     /// Start a non-maskable interrupt. Return true if successful. Return false
     /// if Smrnmi and nmis are disabled.
@@ -5515,7 +5541,7 @@ namespace WdRiscv
     void execSm4ed(const DecodedInst*);
     void execSm4ks(const DecodedInst*);
 
-    // Dot product (non standard) exntesion
+    // Dot product (non standard) extension
     void execVqdot_vv(const DecodedInst*);
     void execVqdot_vx(const DecodedInst*);
     void execVqdotu_vv(const DecodedInst*);
@@ -5662,6 +5688,7 @@ namespace WdRiscv
       lastBreakpInterruptEnabled_ = sdtrigOn_? isBreakpInterruptEnabled() : false;
       ldStWrite_ = false;
       ldStAtomic_ = false;
+      egsConstraint_ = false;
       lastPageMode_ = virtMem_.mode();
       lastVsPageMode_ = virtMem_.vsMode();
       lastPageModeStage2_ = virtMem_.stage2Mode();
@@ -5733,7 +5760,9 @@ namespace WdRiscv
     URV nmiPc_ = 0;             // Non-maskable interrupt handler.
     URV nmiExceptionPc_ = 0;    // Handler for exceptions during non-maskable interrupts.
     bool nmiPending_ = false;
-    NmiCause nmiCause_ = NmiCause::UNKNOWN;
+    std::set<URV> pendingNmis_;
+
+    URV trapCause_ = 0;   // Valid if hasException_ or hasInterupt_.
 
     // These must be cleared before each instruction when triggers enabled.
     bool hasException_ = false;      // True if current inst has an exception.
@@ -5854,7 +5883,9 @@ namespace WdRiscv
 
     bool clearMtvalOnIllInst_ = true;
     bool clearMtvalOnEbreak_ = true;
+    bool clearMtvalOnEgs_ = false;
     bool lastEbreak_ = false;
+    bool egsConstraint_ = false;
 
     bool clearTinstOnCboInval_ = false;
     bool clearTinstOnCboFlush_ = false;
@@ -5878,6 +5909,7 @@ namespace WdRiscv
     std::vector<InterruptCause> mInterrupts_;  // Possible M interrupts in high to low priority.
     std::vector<InterruptCause> sInterrupts_;  // Possible S interrupts in high to low priority.
     std::vector<InterruptCause> vsInterrupts_; // Possible VS interrupts in high to low priority.
+    std::vector<uint64_t> nmInterrupts_;       // Possible NMIs in high to low priority.
 
     // Decoded instruction cache.
     std::vector<DecodedInst> decodeCache_;

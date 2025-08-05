@@ -703,13 +703,33 @@ namespace WdRiscv
       return TriggerAction::RaiseBreak;
     }
 
-    /// Enable all ld/st address matching [address, address+size-1].
-    void enableAllLdStAddrMatch(bool flag)
-    { matchAllLdStAddr_ = flag; }
+    /// Enable/disable all ld/st address matching [address, address+size-1].
+    void enableAllDataAddrMatch(bool flag)
+    { matchAllDataAddr_ = flag ? ~uint32_t(0) : 0; }
 
-    /// Enable all inst address matching [address, address+size-1].
-    void enableAllInstAddrMatch(bool flag)
-    { matchAllInstAddr_ = flag; }
+    /// Enable/disable all inst address matching [address, address+size-1].
+    void enableAllInstrAddrMatch(bool flag)
+    { matchAllInstrAddr_ = flag ? uint32_t(0) : 0; }
+
+    /// Enable/disable all ld/st address maching for given match type.
+    void enableAllDataAddrMatch(unsigned matchType, bool flag)
+    {
+      uint32_t mask = uint32_t(1) << matchType;
+      if (flag)
+        matchAllDataAddr_ |= mask;
+      else
+        matchAllDataAddr_ &= ~mask;
+    }
+
+    /// Enable/disable all instr address (fetch) maching for given match type.
+    void enableAllInstrAddrMatch(unsigned matchType, bool flag)
+    {
+      uint32_t mask = uint32_t(1) << matchType;
+      if (flag)
+        matchAllInstrAddr_ |= mask;
+      else
+        matchAllInstrAddr_ &= ~mask;
+    }
 
     /// Config the maximum NAPOT mask.
     void configNapotMask(uint64_t mask)
@@ -794,6 +814,17 @@ namespace WdRiscv
     bool matchInstOpcode(URV opcode, TriggerTiming timing,
                          PrivilegeMode mode, bool virtMode) const;
 
+    /// Return true if given match type compares against all data addresses of an
+    /// instruction (2 address of lh, 4 for lw, ...), return false otherwise indicating
+    /// that the match type compares against the smallest data address of an instruction.
+    bool matchAllDataAddresses(Match match) const
+    { return matchAllDataAddr_ >> unsigned(match) & 1; }
+      
+    /// Same as above for instruction (fetch) addresses.
+    bool matchAllInstrAddresses(Match match) const
+    { return matchAllInstrAddr_ >> unsigned(match) & 1; }
+
+
   private:
 
     Data1Bits<URV> data1_ = Data1Bits<URV>(0);
@@ -831,9 +862,11 @@ namespace WdRiscv
 
     size_t chainBegin_ = 0, chainEnd_ = 0;
 
-    bool matchAllLdStAddr_ = true; // If enabled, attempt to match address against
-                                        // any [address, address+size-1].
-    bool matchAllInstAddr_ = true; // Same as above but for instruction fetch.
+    // One bit for each match type (Match). If set for a match type, then the match will
+    // consider all the data addresses of an instruction; otherwise, it will only consider
+    // the first address. By default all match types match all data addresses.
+    uint32_t matchAllDataAddr_ = ~uint32_t(0);
+    uint32_t matchAllInstrAddr_ = ~uint32_t(0); // Same as above but for instruction fetch.
   };
 
 
@@ -1078,15 +1111,24 @@ namespace WdRiscv
     }
 
     /// Enable all ld/st address matching [address, address+size-1].
-    void enableAllLdStAddrMatch(bool flag)
-    { for ( auto& trig : triggers_) trig.enableAllLdStAddrMatch(flag); }
+    void enableAllDataAddrMatch(bool flag)
+    { for ( auto& trig : triggers_) trig.enableAllDataAddrMatch(flag); }
 
     /// Enable all inst address matching [address, address+size-1].
-    void enableAllInstAddrMatch(bool flag)
-    { for ( auto& trig : triggers_) trig.enableAllInstAddrMatch(flag); }
+    void enableAllInstrAddrMatch(bool flag)
+    { for ( auto& trig : triggers_) trig.enableAllInstrAddrMatch(flag); }
 
-    /// Configure icount such that it counts down on an instruction write
-    /// to icount.
+    /// Enable all ld/st address matching [address, address+size-1] for a particular match
+    /// type.
+    void enableAllDataAddrMatch(unsigned matchType, bool flag)
+    { for ( auto& trig : triggers_) trig.enableAllDataAddrMatch(matchType, flag); }
+
+    /// Enable all inst address matching [address, address+size-1] for a particular match
+    /// tpye.
+    void enableAllInstrAddrMatch(unsigned matchType, bool flag)
+    { for ( auto& trig : triggers_) trig.enableAllInstrAddrMatch(matchType, flag); }
+
+    /// Configure icount such that it counts down on an instruction write to icount.
     void enableIcountOnModified(bool flag)
     { icountOnModified_ = flag; }
 

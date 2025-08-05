@@ -91,6 +91,7 @@ namespace WdRiscv
     std::string initStateFile;              // Output: initial state of used memory lines.
     std::string kernelFile;                 // Input: Load kernel image at address.
     std::string testSignatureFile;          // Output: signature to score riscv-arch-test tests.
+    std::string interOutFile;               // File receiving interactive command output.
     StringVec   regInits;                   // Initial values of regs.
 
 

@@ -383,8 +383,11 @@ Args::parseCmdLineArgs(std::span<char*> argv)
 	 "Redirect console output to given file.")
 	("commandlog", po::value(&this->commandLogFile),
 	 "Enable logging of interactive/socket commands to the given file.")
+        ("interoutfile", po::value(&this->interOutFile),
+         "File receiving interactive command output which goes to standard output if this "
+         "option is not used.")
 	("server", po::value(&this->serverFile),
-	 "Interactive server mode. Put server hostname and port in file. If shared memory "
+	 "Run in serverd mode. Put server hostname and port in file. If shared memory "
          "is enabled, file is memory mapped filename")
         ("shm", po::bool_switch(&this->shm),
          "Enable shared memory IPC for server mode (default mode uses socket).")

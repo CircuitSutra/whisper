@@ -1081,6 +1081,16 @@ applyVectorConfig(Hart<URV>& hart, const nlohmann::json& config)
         hart.configVmvrIgnoreVill(flag);
     }
 
+  tag = "tt_clear_tval_vl_egs";
+  if (vconf.contains(tag))
+    {
+      bool flag = false;
+      if (not getJsonBoolean(tag, vconf.at(tag), flag))
+        errors++;
+      else
+        hart.enableClearMtvalOnEgs(flag);
+    }
+
   return errors == 0;
 }
 
@@ -1695,6 +1705,60 @@ parseInterruptArray(const nlohmann::json &arr, const std::string &context, std::
 }
 
 
+/// Parse an entry of the form: [ [ int, bool ], [ int, bool ] ]
+/// The integer represents a trigger match type, the bool indicates whether or not
+/// matching should be applied to all the addresses of an instruction.
+static bool
+parseTriggerAllAddr(const nlohmann::json& arr, const std::string_view tag, 
+                    std::vector<std::pair<unsigned, bool>>& vec)
+{
+  if (not arr.is_array())
+    {
+      std::cerr << "Error: Invalid " << tag << " entry in config file (expecting array)\n";
+      return false;
+    }
+
+  unsigned errors = 0;
+  for (auto& item : arr)
+    {
+      if (not item.is_array())
+        {
+          std::cerr << "Error: Invalid item in " << tag << " entry in config file (expecting array)\n";
+          errors++;
+          continue;
+        }
+      if (item.size() != 2)
+        {
+          std::cerr << "Error: Invalid item in " << tag << " entry in config file (expecting array of 2 elements)\n";
+          errors++;
+          continue;
+        }
+
+      auto& elem0 = item.at(0);
+      std::string elemTag = std::string(tag) + ".match_type";
+      unsigned matchType = 0;
+      if (not getJsonUnsigned(elemTag, elem0, matchType))
+        {
+          errors++;
+          continue;
+        }
+
+      auto& elem1 = item.at(1);
+      elemTag = std::string(tag) + ".flag";
+      bool flag = false;
+      if (not getJsonBoolean(elemTag, elem1, flag))
+        {
+          errors++;
+          continue;
+        }
+
+      vec.push_back(std::pair<unsigned, bool>{matchType, flag});
+    }
+
+  return errors == 0;
+}
+
+
 template<typename URV>
 bool
 HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
@@ -1882,14 +1946,32 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
   if (config_ -> contains(tag))
     {
       getJsonBoolean(tag, config_ -> at(tag), flag) or errors++;
-      hart.configAllLdStAddrTrigger(flag);
+      hart.configAllDataAddrTrigger(flag);
     }
 
   tag = "all_inst_addr_trigger";
   if (config_ -> contains(tag))
     {
       getJsonBoolean(tag, config_ -> at(tag), flag) or errors++;
-      hart.configAllInstAddrTrigger(flag);
+      hart.configAllInstrAddrTrigger(flag);
+    }
+
+  tag = "trigger_on_all_data_addr";
+  if (config_ -> contains(tag))
+    {
+      std::vector<std::pair<unsigned, bool>> vec;
+      parseTriggerAllAddr(config_->at(tag), tag, vec) or errors++;
+      for (auto typeVal : vec)
+        hart.configAllDataAddrTrigger(typeVal.first, typeVal.second);
+    }
+
+  tag = "trigger_on_all_instr_addr";
+  if (config_ -> contains(tag))
+    {
+      std::vector<std::pair<unsigned, bool>> vec;
+      parseTriggerAllAddr(config_->at(tag), tag, vec) or errors++;
+      for (auto typeVal : vec)
+        hart.configAllInstrAddrTrigger(typeVal.first, typeVal.second);
     }
 
   // Enable use of TCONTROL CSR to control triggers in Machine mode.
@@ -2398,16 +2480,13 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
       hart.autoIncrementTimer(flag);
     }
 
-  // Parse enable_ppo, it it is missing all PPO rules are enabled.
-  
-  // ----------------- MACHINE INTERRUPTS -----------------
   tag = "machine_interrupts";
   if (config_->contains(tag))
     {
       const auto &mi = config_->at(tag);
       if (!mi.is_array())
         {
-          std::cerr << "Error: Invalid machine_interrupts entry in config file (expecting an array)\n";
+          std::cerr << "Error: Invalid machine_interrupts entry in config file (expecting array)\n";
           ++errors;
         }
       else
@@ -2420,14 +2499,13 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
         }
     }
 
-  // -------------- SUPERVISOR INTERRUPTS ------------------
   tag = "supervisor_interrupts";
   if (config_->contains(tag))
     {
       const auto &si = config_->at(tag);
       if (!si.is_array())
         {
-          std::cerr << "Error: Invalid supervisor_interrupts entry in config file (expecting an array)\n";
+          std::cerr << "Error: Invalid supervisor_interrupts entry in config file (expecting array)\n";
           ++errors;
         }
       else
@@ -2439,6 +2517,26 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
             ++errors;
         }
     }
+
+  tag = "non_maskable_interrupts";
+  if (config_->contains(tag))
+    {
+      const auto &si = config_->at(tag);
+      if (!si.is_array())
+        {
+          std::cerr << "Error: Invalid non_maskable_interrutps entry in config file (expecting array)\n";
+          ++errors;
+        }
+      else
+        {
+          std::vector<uint64_t> vec;
+          if (getJsonUnsignedVec(tag, si, vec))
+            hart.setNonMaskableInterrupts(vec);
+          else
+            ++errors;
+        }
+    }
+
 
   return errors == 0;
 }

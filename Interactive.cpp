@@ -161,8 +161,8 @@ parseCmdLineVecData(std::string_view option,
 
 
 template <typename URV>
-Interactive<URV>::Interactive(System<URV>& system)
-  : system_(system)
+Interactive<URV>::Interactive(System<URV>& system, std::ostream& out)
+  : system_(system), out_(out)
 {
   // In interactive mode the user will issue a cancel-lr explcitly for wrs instructions.
   // This is done to be able to replay server mode command log.
@@ -1044,7 +1044,7 @@ Interactive<URV>::disassCommand(Hart<URV>& hart, const std::string& line,
 	    return false;
 	  std::string str;
 	  hart.disassembleInst(code, str);
-	  std::cout << "  " << tokens[i] << ":  " << str << '\n';
+	  out_ << "  " << tokens[i] << ":  " << str << '\n';
 	}
       return true;
     }
@@ -1076,7 +1076,7 @@ Interactive<URV>::disassCommand(Hart<URV>& hart, const std::string& line,
 	  return false;
 	}
 
-      std::cout << "disassemble function " << name << ":\n";
+      out_ << "disassemble function " << name << ":\n";
 
       size_t start = symbol.addr_, end = symbol.addr_ + symbol.size_;
       for (size_t addr = start; addr < end; )
@@ -1096,8 +1096,8 @@ Interactive<URV>::disassCommand(Hart<URV>& hart, const std::string& line,
 
 	  std::string str;
 	  hart.disassembleInst(inst, str);
-	  std::cout << "  " << (boost::format(hexForm) % addr) << ' '
-		    << (boost::format(hexForm) % inst) << ' ' << str << '\n';
+	  out_ << "  " << (boost::format(hexForm) % addr) << ' '
+               << (boost::format(hexForm) % inst) << ' ' << str << '\n';
 
 	  addr += instSize;
 	}
@@ -1138,9 +1138,9 @@ Interactive<URV>::disassCommand(Hart<URV>& hart, const std::string& line,
 
       std::string str;
       hart.disassembleInst(inst, str);
-      std::cout << (boost::format(hexForm) % addr) << ' '
-		<< (boost::format(hexForm) % inst) << ' '
-		<< str << '\n';
+      out_ << (boost::format(hexForm) % addr) << ' '
+           << (boost::format(hexForm) % inst) << ' '
+           << str << '\n';
 
       addr += instSize;
     }
@@ -1313,104 +1313,104 @@ extractKeywords(std::vector<std::string>& tokens,
 /// Interactive "help" command.
 static
 void
-printInteractiveHelp()
+printInteractiveHelp(std::ostream& out)
 {
   using std::cout;
-  cout << "The arguments hart=<id> and.or time=<tine> may be used with any command\n";
-  cout << "to select a hart and specify event time (relevant to memory model)\n";
-  cout << "They persist until explicitly changed.\n\n";
-  cout << "help [<command>]\n";
-  cout << "  Print help for given command or for all commands if no command given.\n\n";
-  cout << "run\n";
-  cout << "  Run till interrupted.\n\n";
-  cout << "until <address>\n";
-  cout << "  Run until address or interrupted.\n\n";
-  cout << "step [<n>]\n";
-  cout << "  Execute n instructions (1 if n is missing).\n\n";
-  cout << "peek <res> <addr>\n";
-  cout << "  Print value of resource res (one of r, f, c, v, m) and address addr.\n";
-  cout << "  For memory (m) up to 2 addresses may be provided to define a range\n";
-  cout << "  of memory locations to be printed; also, an optional filename after\n";
-  cout << "  the two addresses writes the command output to that file.\n";
-  cout << "  examples: peek r x1   peek c mtval   peek m 0x4096\n";
-  cout << "            peek m 0x10 0x40 out\n\n";
-  cout << "peek pc\n";
-  cout << "  Print value of the program counter.\n\n";
-  cout << "peek all\n";
-  cout << "  Print value of all non-memory resources\n\n";
-  cout << "poke res addr value\n";
-  cout << "  Set value of resource res (one of r, c or m) and address addr\n";
-  cout << "  Examples: poke r x1 0xff  poke c 0x4096 0xabcd\n\n";
-  cout << "disass opcode <code> <code> ...\n";
-  cout << "  Disassemble opcodes. Example: disass opcode 0x3b 0x8082\n\n";
-  cout << "disass function <name>\n";
-  cout << "  Disassemble function with given name. Example: disas func main\n\n";
-  cout << "disass <addr1> <addr2>>\n";
-  cout << "  Disassemble memory locations between addr1 and addr2.\n\n";
-  cout << "elf file\n";
-  cout << "  Load elf file into simulated memory.\n\n";
-  cout << "hex file\n";
-  cout << "  Load hex file into simulated memory.\n\n";
-  cout << "replay_file file\n";
-  cout << "  Open command file for replay.\n\n";
-  cout << "replay n\n";
-  cout << "  Execute the next n commands in the replay file or all the\n";
-  cout << "  remaining commands if n is missing.\n\n";
-  cout << "replay step n\n";
-  cout << "  Execute consecutive commands from the replay file until n\n";
-  cout << "  step commands are executed or the file is exhausted\n\n";
-  cout << "reset [<reset_pc>]\n";
-  cout << "  Reset hart.  If reset_pc is given, then change the reset program\n";
-  cout << "  counter to the given reset_pc before resetting the hart.\n\n";
-  cout << "symbols\n";
-  cout << "  List all the symbols in the loaded ELF file(s).\n\n";
-  cout << "pagetable\n";
-  cout << "  Print the entries of the address tanslation table.\n\n";
-  cout << "nmi [<cause-number>]\n";
-  cout << "  Post a non-maskable interrupt with a given cause number (default 0).\n\n";
-  cout << "clear_nmi\n";
-  cout << "  Clear a pending non-maskable interrupt.\n\n";
-  cout << "mread tag addr size data [vec-elem [vec-field]]\n";
-  cout << "  Perform a memory model (out of order) read for load/amo instruction with\n";
-  cout << "  given tag. Data is the RTL data to be compared with whisper data\n";
-  cout << "  when instruction is later retired. \n\n";
-  cout << "mbwrite addr data [[mask] [skip-check]]\n";
-  cout << "  Perform a memory model merge-buffer-write for given address. Given\n";
-  cout << "  data (hexadecimal string) is from a different model (RTL) and is compared\n";
-  cout << "  to whisper data. Addr should be a multiple of cache-line size. If hex\n";
-  cout << "  string is smaller than twice the cache-line size, it will be padded with\n";
-  cout << "  zeros on the most significant side.\n\n";
-  cout << "mbbypass tag addr size data\n";
-  cout << "  Perform a memory write operation bypassing the merge buffer. Given\n";
-  cout << "  data (hexadecimal string) is from a different model (RTL) and is compared\n";
-  cout << "  to whisper data.\n\n";
-  cout << "pmp [<address>]\n";
-  cout << "  Print the pmp map (all) or for a matching address\n\n";
-  cout << "pma [<address>]\n";
-  cout << "  Print the pma map (all) or for a matching address\n\n";
-  cout << "translate <va> [<permission> [<privilege>]]\n";
-  cout << "  Translate given virtual address <va> to a physical address assuming given\n";
-  cout << "  permission (defaults to read) and privilege mode (defaults to user)\n";
-  cout << "  Allowed permission: r for read, w for write, or x for execute.\n";
-  cout << "  Allowed privilege: u, s, vu, or vs for user, supervisor, guest-user, or guest-supervisor\n";
-  cout << "perf_model_fetch tag vpc\n";
-  cout << "  Perf model API only command. Constructs and fetches instruction packet\n";
-  cout << "perf_model_decode tag opcode\n";
-  cout << "  Perf model API only command. Decodes instruction packet\n";
-  cout << "perf_model_execute tag\n";
-  cout << "  Perf model API only command. Executes instruction packet\n";
-  cout << "perf_model_retire tag\n";
-  cout << "  Perf model API only command. Retires instruction packet\n";
-  cout << "perf_model_drain_store tag\n";
-  cout << "  Perf model API only command. Drains store associated with instruction packet\n";
-  cout << "perf_model_predict_branch\n";
-  cout << "  Perf model API only command. Record branch prediction for an instruction\n";
-  cout << "perf_model_flush tag\n";
-  cout << "  Perf model API only command. Flushes instruction packet\n";
-  cout << "perf_model_flush tag\n";
-  cout << "  Perf model API only command. Determines whether flushing is required\n";
-  cout << "quit\n";
-  cout << "  Terminate the simulator\n\n";
+  out << "The arguments hart=<id> and.or time=<tine> may be used with any command\n";
+  out << "to select a hart and specify event time (relevant to memory model)\n";
+  out << "They persist until explicitly changed.\n\n";
+  out << "help [<command>]\n";
+  out << "  Print help for given command or for all commands if no command given.\n\n";
+  out << "run\n";
+  out << "  Run till interrupted.\n\n";
+  out << "until <address>\n";
+  out << "  Run until address or interrupted.\n\n";
+  out << "step [<n>]\n";
+  out << "  Execute n instructions (1 if n is missing).\n\n";
+  out << "peek <res> <addr>\n";
+  out << "  Print value of resource res (one of r, f, c, v, m) and address addr.\n";
+  out << "  For memory (m) up to 2 addresses may be provided to define a range\n";
+  out << "  of memory locations to be printed; also, an optional filename after\n";
+  out << "  the two addresses writes the command output to that file.\n";
+  out << "  examples: peek r x1   peek c mtval   peek m 0x4096\n";
+  out << "            peek m 0x10 0x40 out\n\n";
+  out << "peek pc\n";
+  out << "  Print value of the program counter.\n\n";
+  out << "peek all\n";
+  out << "  Print value of all non-memory resources\n\n";
+  out << "poke res addr value\n";
+  out << "  Set value of resource res (one of r, c or m) and address addr\n";
+  out << "  Examples: poke r x1 0xff  poke c 0x4096 0xabcd\n\n";
+  out << "disass opcode <code> <code> ...\n";
+  out << "  Disassemble opcodes. Example: disass opcode 0x3b 0x8082\n\n";
+  out << "disass function <name>\n";
+  out << "  Disassemble function with given name. Example: disas func main\n\n";
+  out << "disass <addr1> <addr2>>\n";
+  out << "  Disassemble memory locations between addr1 and addr2.\n\n";
+  out << "elf file\n";
+  out << "  Load elf file into simulated memory.\n\n";
+  out << "hex file\n";
+  out << "  Load hex file into simulated memory.\n\n";
+  out << "replay_file file\n";
+  out << "  Open command file for replay.\n\n";
+  out << "replay n\n";
+  out << "  Execute the next n commands in the replay file or all the\n";
+  out << "  remaining commands if n is missing.\n\n";
+  out << "replay step n\n";
+  out << "  Execute consecutive commands from the replay file until n\n";
+  out << "  step commands are executed or the file is exhausted\n\n";
+  out << "reset [<reset_pc>]\n";
+  out << "  Reset hart.  If reset_pc is given, then change the reset program\n";
+  out << "  counter to the given reset_pc before resetting the hart.\n\n";
+  out << "symbols\n";
+  out << "  List all the symbols in the loaded ELF file(s).\n\n";
+  out << "pagetable\n";
+  out << "  Print the entries of the address tanslation table.\n\n";
+  out << "nmi [<cause-number>]\n";
+  out << "  Post a non-maskable interrupt with a given cause number (default 0).\n\n";
+  out << "clear_nmi\n";
+  out << "  Clear a pending non-maskable interrupt.\n\n";
+  out << "mread tag addr size data [vec-elem [vec-field]]\n";
+  out << "  Perform a memory model (out of order) read for load/amo instruction with\n";
+  out << "  given tag. Data is the RTL data to be compared with whisper data\n";
+  out << "  when instruction is later retired. \n\n";
+  out << "mbwrite addr data [[mask] [skip-check]]\n";
+  out << "  Perform a memory model merge-buffer-write for given address. Given\n";
+  out << "  data (hexadecimal string) is from a different model (RTL) and is compared\n";
+  out << "  to whisper data. Addr should be a multiple of cache-line size. If hex\n";
+  out << "  string is smaller than twice the cache-line size, it will be padded with\n";
+  out << "  zeros on the most significant side.\n\n";
+  out << "mbbypass tag addr size data\n";
+  out << "  Perform a memory write operation bypassing the merge buffer. Given\n";
+  out << "  data (hexadecimal string) is from a different model (RTL) and is compared\n";
+  out << "  to whisper data.\n\n";
+  out << "pmp [<address>]\n";
+  out << "  Print the pmp map (all) or for a matching address\n\n";
+  out << "pma [<address>]\n";
+  out << "  Print the pma map (all) or for a matching address\n\n";
+  out << "translate <va> [<permission> [<privilege>]]\n";
+  out << "  Translate given virtual address <va> to a physical address assuming given\n";
+  out << "  permission (defaults to read) and privilege mode (defaults to user)\n";
+  out << "  Allowed permission: r for read, w for write, or x for execute.\n";
+  out << "  Allowed privilege: u, s, vu, or vs for user, supervisor, guest-user, or guest-supervisor\n";
+  out << "perf_model_fetch tag vpc\n";
+  out << "  Perf model API only command. Constructs and fetches instruction packet\n";
+  out << "perf_model_decode tag opcode\n";
+  out << "  Perf model API only command. Decodes instruction packet\n";
+  out << "perf_model_execute tag\n";
+  out << "  Perf model API only command. Executes instruction packet\n";
+  out << "perf_model_retire tag\n";
+  out << "  Perf model API only command. Retires instruction packet\n";
+  out << "perf_model_drain_store tag\n";
+  out << "  Perf model API only command. Drains store associated with instruction packet\n";
+  out << "perf_model_predict_branch\n";
+  out << "  Perf model API only command. Record branch prediction for an instruction\n";
+  out << "perf_model_flush tag\n";
+  out << "  Perf model API only command. Flushes instruction packet\n";
+  out << "perf_model_flush tag\n";
+  out << "  Perf model API only command. Determines whether flushing is required\n";
+  out << "quit\n";
+  out << "  Terminate the simulator\n\n";
 }
 
 
@@ -1418,18 +1418,16 @@ template <typename URV>
 void
 Interactive<URV>::helpCommand(const std::vector<std::string>& tokens)
 {
-  using std::cout;
-
   if (tokens.size() <= 1)
     {
-      printInteractiveHelp();
+      printInteractiveHelp(out_);
       return;
     }
 
   const auto& tag = tokens.at(1);
   if (tag == "help")
     {
-      cout << "help [<command>]\n"
+      out_ << "help [<command>]\n"
 	   << "  Print information about interactive commands. If a command\n"
 	   << "  argument is given, print info about that command.\n";
       return;
@@ -1437,7 +1435,7 @@ Interactive<URV>::helpCommand(const std::vector<std::string>& tokens)
 
   if (tag == "run")
     {
-      cout << "run\n"
+      out_ << "run\n"
 	   << "  Run the target program until it exits (in newlib emulation mode),\n"
 	   << "  it writes into the \"tohost\" location, or the user interrupts\n"
 	   << "  it by pressing control-c on the keyboard.\n";
@@ -1446,7 +1444,7 @@ Interactive<URV>::helpCommand(const std::vector<std::string>& tokens)
 
   if (tag == "until")
     {
-      cout << "until <address>\n"
+      out_ << "until <address>\n"
 	   << "  Same as run but the target program will also stop when the\n"
 	   << "  instruction at the given address is reached (but before it is\n"
 	   << "  executed).\n";
@@ -1455,7 +1453,7 @@ Interactive<URV>::helpCommand(const std::vector<std::string>& tokens)
 
   if (tag == "step")
     {
-      cout << "step [<n>]\n"
+      out_ << "step [<n>]\n"
 	   << "  Execute a single instruction. If an integer argument <n> is\n"
 	   << "  given, then execute up to n instructions or until a stop\n"
 	   << "  condition (see run command) is encountered\n";
@@ -1464,7 +1462,7 @@ Interactive<URV>::helpCommand(const std::vector<std::string>& tokens)
 
   if (tag == "peek")
     {
-      cout << "peek <res> <addr>\n"
+      out_ << "peek <res> <addr>\n"
 	   << "peek m <addr> [<addr>] [<file>]\n"
 	   << "peek pc\n"
 	   << "peek s  pm | ppm | iff | trap\n"
@@ -1495,7 +1493,7 @@ Interactive<URV>::helpCommand(const std::vector<std::string>& tokens)
 
   if (tag == "poke")
     {
-      cout << "poke <res> <addr> <value>\n"
+      out_ << "poke <res> <addr> <value>\n"
 	   << "poke pc <value>\n"
 	   << "  Set the entry with the given address wihinin the given resource to\n"
 	   << "  the given value. Possible resources are r, f, c, v, or m for integer,\n"
@@ -1514,7 +1512,7 @@ Interactive<URV>::helpCommand(const std::vector<std::string>& tokens)
 
   if (tag == "disas" or tag == "disass")
     {
-      cout << "disass opcode <op0> <op1> ...\n"
+      out_ << "disass opcode <op0> <op1> ...\n"
 	   << "disass func <address>\n"
 	   << "disass <addr1> <addr2>\n"
 	   << "  The first form will disassemble the given opcodes.\n"
@@ -1527,7 +1525,7 @@ Interactive<URV>::helpCommand(const std::vector<std::string>& tokens)
 
   if (tag == "elf")
     {
-      cout << "elf <file> ...\n"
+      out_ << "elf <file> ...\n"
 	   << "  Load into memory the contents of the given ELF file.\n"
 	   << "  Set the program counter to the value of the ELF file entry point.\n"
 	   << "  If the file contains the symbol \"tohost\" then subsequent writes\n"
@@ -1537,7 +1535,7 @@ Interactive<URV>::helpCommand(const std::vector<std::string>& tokens)
 
   if (tag == "replay_file")
     {
-      cout << "replay_file <file> ...\n"
+      out_ << "replay_file <file> ...\n"
 	   << "  Define the input replay file to serve as input for the replay\n"
 	   << "  command. The user would typically load the commands of a session\n"
 	   << "  and replays them in a subsequent session.\n";
@@ -1546,7 +1544,7 @@ Interactive<URV>::helpCommand(const std::vector<std::string>& tokens)
 
   if (tag == "replay")
     {
-      cout << "replay [step] [<n>]\n"
+      out_ << "replay [step] [<n>]\n"
 	   << "  Without any arguments, replay all remaining commands in the\n"
 	   << "  replay file (defined by the replay_file command).\n"
 	   << "  With the keyword step, key-in on step commands in the replay\n"
@@ -1557,7 +1555,7 @@ Interactive<URV>::helpCommand(const std::vector<std::string>& tokens)
 
   if (tag == "reset")
     {
-      cout << "reset [<reset_pc>]\n"
+      out_ << "reset [<reset_pc>]\n"
 	   << "  Reset simulated processor. If reset_pc is given, then change\n"
 	   << "  reset program counter to the given reset_pc before resetting\n"
 	   << "  the processor.\n";
@@ -1566,7 +1564,7 @@ Interactive<URV>::helpCommand(const std::vector<std::string>& tokens)
 
   if (tag == "quit")
     {
-      cout << "quit\n"
+      out_ << "quit\n"
 	   << "  Terminate the simulator.\n";
       return;
     }
@@ -1675,27 +1673,10 @@ Interactive<URV>::executeLine(const std::string& inLine, FILE* traceFile,
 
   // After the first step/run/until command, a reset command will reset
   // the memory mapped registers.
-  if (command == "step" or command == "run" or command == "until")
-    resetMemoryMappedRegs_ = true;
-
-  if (command == "run")
-    {
-      bool success = runCommand(hart, line, tokens, traceFile);
-      if (commandLog)
-	fprintf(commandLog, "%s\n", line.c_str());
-      return success;
-    }
-
-  if (command == "u" or command == "until")
-    {
-      bool success = untilCommand(hart, line, tokens, traceFile);
-      if (commandLog)
-	fprintf(commandLog, "%s\n", line.c_str());
-      return success;
-    }
 
   if (command == "s" or command == "step")
     {
+      resetMemoryMappedRegs_ = true;
       if (not stepCommand(hart, line, tokens, traceFile))
 	return false;
       if (commandLog)
@@ -1705,11 +1686,47 @@ Interactive<URV>::executeLine(const std::string& inLine, FILE* traceFile,
 
   if (command == "peek")
     {
-      if (not peekCommand(hart, line, tokens, std::cout))
+      if (not peekCommand(hart, line, tokens, out_))
 	return false;
       if (commandLog)
 	fprintf(commandLog, "%s\n", line.c_str());
        return true;
+    }
+
+  if (command == "mread" or command == "memory_model_read")
+    {
+      if (not mreadCommand(hart, line, tokens))
+	return false;
+      if (commandLog)
+	fprintf(commandLog, "%s\n", line.c_str());
+      return true;
+    }
+
+  if (command == "mbinsert" or command == "merge_buffer_insert")
+    {
+      if (not mbinsertCommand(hart, line, tokens))
+	return false;
+      if (commandLog)
+	fprintf(commandLog, "%s\n", line.c_str());
+      return true;
+    }
+
+  if (command == "run")
+    {
+      resetMemoryMappedRegs_ = true;
+      bool success = runCommand(hart, line, tokens, traceFile);
+      if (commandLog)
+	fprintf(commandLog, "%s\n", line.c_str());
+      return success;
+    }
+
+  if (command == "u" or command == "until")
+    {
+      resetMemoryMappedRegs_ = true;
+      bool success = untilCommand(hart, line, tokens, traceFile);
+      if (commandLog)
+	fprintf(commandLog, "%s\n", line.c_str());
+      return success;
     }
 
   if (command == "poke")
@@ -1825,13 +1842,13 @@ Interactive<URV>::executeLine(const std::string& inLine, FILE* traceFile,
 
   if (command == "symbols")
     {
-      system_.printElfSymbols(std::cout);
+      system_.printElfSymbols(out_);
       return true;
     }
 
   if (command == "pagetable")
     {
-      hart.printPageTable(std::cout);
+      hart.printPageTable(out_);
       return true;
     }
 
@@ -1840,7 +1857,7 @@ Interactive<URV>::executeLine(const std::string& inLine, FILE* traceFile,
       uint32_t cause = 0;
       if (tokens.size() > 1 and not parseCmdLineNumber("nmi-cause", tokens.at(1), cause))
 	return false;
-      hart.setPendingNmi(NmiCause(cause));
+      hart.setPendingNmi(cause);
       if (commandLog)
 	fprintf(commandLog, "%s\n", line.c_str());
       return true;
@@ -1848,7 +1865,13 @@ Interactive<URV>::executeLine(const std::string& inLine, FILE* traceFile,
 
   if (command == "clear_nmi")
     {
-      hart.clearPendingNmi();
+      uint32_t cause = 0;
+      if (tokens.size() > 1 and not parseCmdLineNumber("nmi-cause", tokens.at(1), cause))
+        return false;
+      if (tokens.size() == 1)
+        hart.clearPendingNmi();
+      else
+        hart.clearPendingNmi(cause);
       if (commandLog)
         fprintf(commandLog, "%s\n", line.c_str());
       return true;
@@ -1863,27 +1886,9 @@ Interactive<URV>::executeLine(const std::string& inLine, FILE* traceFile,
       return true;
     }
 
-  if (command == "mread" or command == "memory_model_read")
-    {
-      if (not mreadCommand(hart, line, tokens))
-	return false;
-      if (commandLog)
-	fprintf(commandLog, "%s\n", line.c_str());
-      return true;
-    }
-
   if (command == "mbwrite" or command == "merge_buffer_write")
     {
       if (not mbwriteCommand(hart, line, tokens))
-	return false;
-      if (commandLog)
-	fprintf(commandLog, "%s\n", line.c_str());
-      return true;
-    }
-
-  if (command == "mbinsert" or command == "merge_buffer_insert")
-    {
-      if (not mbinsertCommand(hart, line, tokens))
 	return false;
       if (commandLog)
 	fprintf(commandLog, "%s\n", line.c_str());
@@ -2774,7 +2779,7 @@ Interactive<URV>::translateCommand(Hart<URV>& hart, const std::string& line,
   auto ec = hart.transAddrNoUpdate(va, pm, twoStage, read, write, exec, pa);
   if (ec == ExceptionCause::NONE)
     {
-      std::cout << "0x" << std::hex << pa << std::dec << '\n';
+      out_ << "0x" << std::hex << pa << std::dec << '\n';
       return true;
     }
 
@@ -2799,8 +2804,9 @@ Interactive<URV>::checkInterruptCommand(Hart<URV>& hart, [[maybe_unused]] const 
   InterruptCause cause;
   PrivilegeMode nextMode = PrivilegeMode::Machine;
   bool nextVirt = false;
-  if (hart.isInterruptPossible(cause, nextMode, nextVirt))
-    std::cout << unsigned(cause) << '\n';
+  bool hvi = false;
+  if (hart.isInterruptPossible(cause, nextMode, nextVirt, hvi))
+    out_ << unsigned(cause) << '\n';
 
   hart.setDeferredInterrupts(deferred);
 
@@ -2844,14 +2850,14 @@ Interactive<URV>::pmpCommand(Hart<URV>& hart, const std::string& line,
 {
   // pmp [<address>]
   if (tokens.size() == 1)
-    hart.printPmps(std::cout);
+    hart.printPmps(out_);
   else if (tokens.size() == 2)
     {
       uint64_t address;
       if (not parseCmdLineNumber("pmp-address", tokens.at(1), address))
         return false;
 
-      hart.printPmps(std::cout, address);
+      hart.printPmps(out_, address);
     }
   else
     {
@@ -2871,14 +2877,14 @@ Interactive<URV>::pmaCommand(Hart<URV>& hart, const std::string& line,
 {
   // pmam [<address>]
   if (tokens.size() == 1)
-    hart.printPmas(std::cout);
+    hart.printPmas(out_);
   else if (tokens.size() == 2)
     {
       uint64_t address;
       if (not parseCmdLineNumber("pma-address", tokens.at(1), address))
         return false;
 
-      hart.printPmas(std::cout, address);
+      hart.printPmas(out_, address);
     }
   else
     {
@@ -3097,10 +3103,10 @@ Interactive<URV>::perfModelShouldFlushCommand(const std::string& line,
       bool flag = false;
       uint64_t addr = 0;
       bool ok = system_.perfApiShouldFlush(hartId_, time_, tag, flag, addr);
-      std::cout << flag;
+      out_ << flag;
       if (flag)
-	std::cout << " 0x" << std::hex << addr << std::dec;
-      std::cout << '\n';
+	out_ << " 0x" << std::hex << addr << std::dec;
+      out_ << '\n';
       return ok;
     }
   else

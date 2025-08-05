@@ -111,13 +111,13 @@ namespace WdRiscv
     unsigned operandCount() const
     { return entry_? entry_->operandCount() : 0; }
 
-    /// Return the ith operands or zero if i is out of bounds. For exmaple, if
-    /// decode insruction is "addi x3, x4, 10" then the 0th operand would be 3
+    /// Return the ith operands or zero if i is out of bounds. For example, if
+    /// decode instruction is "addi x3, x4, 10" then the 0th operand would be 3
     /// and the second operands would be 10.
     uint32_t ithOperand(unsigned i) const;
 
-    /// Return the ith operands or zero if i is out of bounds. For exmaple, if
-    /// decode insruction is "addi x3, x4, 10" then the 0th operand would be 3
+    /// Return the ith operands or zero if i is out of bounds. For example, if
+    /// decode instruction is "addi x3, x4, 10" then the 0th operand would be 3
     /// and the second operands would be 10.
     int32_t ithOperandAsInt(unsigned i) const;
 
@@ -157,11 +157,11 @@ namespace WdRiscv
     { return entry_; }
 
     /// Relevant for floating point instructions with rounding mode. Return true
-    /// if instruction has an explcit rounding mode field.
+    /// if instruction has an explicit rounding mode field.
     bool hasRoundingMode() const
     { return entry_ and entry_->hasRoundingMode(); }
 
-    /// Return true if instruction has an explicit rouning mode field that is set
+    /// Return true if instruction has an explicit rounding mode field that is set
     /// to dynamic.
     bool hasDynamicRoundingMode() const
     { return hasRoundingMode() and roundingMode() == 7; }
@@ -190,7 +190,7 @@ namespace WdRiscv
     { return entry_ and entry_->isAtomic() and ((inst_ >> 26) & 1); }
 
     /// Relevant to atomic instructions: Return true if release bit is
-    /// set in an atomic instrution.
+    /// set in an atomic instruction.
     bool isAtomicRelease() const
     { return entry_ and entry_->isAtomic() and ((inst_ >> 25) & 1); }
 
@@ -277,6 +277,15 @@ namespace WdRiscv
       if (not isVector()) return false;
       unsigned f3 = (inst() >> 12) & 7;
       return (inst() & 0x7f) == 7 and (f3 == 0 or f3 >= 5);
+    }
+
+    /// Return true if this a vector load fault first instruction (e.g. vle8ff.v, vlsege16ff.v).
+    bool isVectorLoadFaultFirst() const
+    { 
+      auto id = instId();
+      unsigned ix = unsigned(id);
+      return ( (ix >= unsigned(InstId::vle8ff_v) and ix <= unsigned(InstId::vle64ff_v)) or
+               (ix >= unsigned(InstId::vlsege8ff_v) and ix <= unsigned(InstId::vlsege64ff_v)) );
     }
 
     /// Return true if this is a vector store instruction.
@@ -382,13 +391,13 @@ namespace WdRiscv
     { return entry_ and entry_->isLoad(isUnsigned); }
 
     /// Return true if this instruction is viewed as a load by the performance
-    /// counters. By default LR is not a perf-load instuctions. Also by default FP loads
+    /// counters. By default LR is not a perf-load instructions. Also by default FP loads
     /// are not perf-loads.
     bool isPerfLoad() const
     { return entry_ and entry_->isPerfLoad(); }
 
     /// Return true if this instruction is viewed as a store by the performance
-    /// counters. By default SC is not a perf-store instuctions. Also by default FP stores
+    /// counters. By default SC is not a perf-store instructions. Also by default FP stores
     /// are not perf-stores.
     bool isPerfStore() const
     { return entry_ and entry_->isPerfStore(); }
@@ -406,7 +415,7 @@ namespace WdRiscv
     bool isSc() const
     { return entry_ and entry_->isSc(); }
 
-    /// Return true if this is an cbo.zero (cache bloc zoer) instruction.
+    /// Return true if this is an cbo.zero (cache block zero) instruction.
     bool isCbo_zero() const
     { return entry_ and entry_->instId() == InstId::cbo_zero; }
 
@@ -441,6 +450,18 @@ namespace WdRiscv
     /// Return true if this is a compressed instruction.
     bool isCompressed() const
     { return entry_ and entry_->isCompressed(); }
+
+    /// Return true if this is a vsetivli instruction
+    bool isVsetivli() const
+    { return entry_ and entry_->instId() == InstId::vsetivli; }
+
+    /// Return true if this is a vsetvli instruction
+    bool isVsetvli() const
+    { return entry_ and entry_->instId() == InstId::vsetvli; }
+
+    /// Return true if this is a vsetvl
+    bool isVsetvl() const
+    { return entry_ and entry_->instId() == InstId::vsetvl; }
 
     /// Return the RISCV extension of this instruction.
     RvExtension extension() const

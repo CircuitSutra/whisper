@@ -786,7 +786,7 @@ TraceReader::parseLine(std::string& line, uint64_t lineNum, TraceRecord& record)
   if (line.empty())
     return false;
 
-  // Fplit line around commas putting results in fields_.
+  // Split line around commas putting results in fields_.
   if (not splitLine(line, lineNum))
     return false;
 

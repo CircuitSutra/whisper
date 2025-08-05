@@ -808,51 +808,39 @@ Hart<URV>::printInstCsvTrace(const DecodedInst& di, FILE* out)
   if (tracePtw_)
     {
       buffer.printChar(',');
-      std::vector<VirtMem::WalkEntry> addrs;
-      std::vector<uint64_t> entries;
 
-      sep = "";
-      for (unsigned walk = 0; walk < virtMem_.numFetchWalks(); ++walk)
-        {
-          getPageTableWalkAddresses(true, walk, addrs);
-          getPageTableWalkEntries(true, walk, entries);
-          unsigned entryIx = 0;
-          for (uint64_t i = 0; i < addrs.size(); ++i)
-            {
-              buffer.print(sep).print(addrs.at(i).addr_);
-              if (addrs.at(i).type_ == VirtMem::WalkEntry::Type::PA)
-                {
-                  buffer.printChar('=').print(entries.at(entryIx++));
+      auto printWalks = [this, &buffer] (bool isFetch) {
+        std::vector<VirtMem::WalkEntry> addrs;
+        std::vector<uint64_t> entries;
 
-                  Pma pma = getPma(addrs.at(i).addr_);
-                  pma = overridePmaWithPbmt(pma, addrs.at(i).pbmt_);
-                  buffer.print(";ma=").print(pma.attributesToInt());
-                }
-              sep = ";";
-            }
-        }
+        auto sep = "";
+        unsigned count = isFetch ? virtMem_.numFetchWalks() : virtMem_.numDataWalks();
 
+        for (unsigned walk = 0; walk < count; ++walk)
+          {
+            getPageTableWalkAddresses(isFetch, walk, addrs);
+            getPageTableWalkEntries(isFetch, walk, entries);
+            unsigned entryIx = 0;
+            for (uint64_t i = 0; i < addrs.size(); ++i)
+              {
+                buffer.print(sep).print(addrs.at(i).addr_);
+                if (addrs.at(i).type_ == VirtMem::WalkEntry::Type::PA)
+                  {
+                    buffer.printChar('=').print(entries.at(entryIx++));
+
+                    Pma pma = getPma(addrs.at(i).addr_);
+                    pma = overridePmaWithPbmt(pma, addrs.at(i).pbmt_);
+                    buffer.print(";ma=").print(pma.attributesToInt());
+                  }
+                sep = ";";
+              }
+          }
+      };
+
+      printWalks(true);  // Instruction fetch walks.
       buffer.printChar(',');
-      sep = "";
-      for (unsigned walk = 0; walk < virtMem_.numDataWalks(); ++walk)
-        {
-          getPageTableWalkAddresses(false, walk, addrs);
-          getPageTableWalkEntries(false, walk, entries);
-          unsigned entryIx = 0;
-          for (uint64_t i = 0; i < addrs.size(); ++i)
-            {
-              buffer.print(sep).print(addrs.at(i).addr_);
-              if (addrs.at(i).type_ == VirtMem::WalkEntry::Type::PA)
-                {
-                  buffer.printChar('=').print(entries.at(entryIx++));
 
-                  Pma pma = getPma(addrs.at(i).addr_);
-                  pma = overridePmaWithPbmt(pma, addrs.at(i).pbmt_);
-                  buffer.print(";ma=").print(pma.attributesToInt());
-                }
-              sep = ";";
-            }
-        }
+      printWalks(false); // Data access walks. 
     }
 
   buffer.printChar('\n');

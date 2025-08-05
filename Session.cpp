@@ -246,20 +246,20 @@ Session<URV>::getPrimaryConfigParameters(const Args& args, const HartConfig& con
   config.getHartsPerCore(hartsPerCore);
   if (args.harts)
     hartsPerCore = *args.harts;
-  if (hartsPerCore == 0 or hartsPerCore > 32)
+  if (hartsPerCore == 0 or hartsPerCore > 64)
     {
       std::cerr << "Error: Unsupported hart count: " << hartsPerCore;
-      std::cerr << "Error:  (1 to 32 currently supported)\n";
+      std::cerr << "Error:  (1 to 64 currently supported)\n";
       return false;
     }
 
   config.getCoreCount(coreCount);
   if (args.cores)
     coreCount = *args.cores;
-  if (coreCount == 0 or coreCount > 32)
+  if (coreCount == 0 or coreCount > 64)
     {
       std::cerr << "Error: Unsupported core count: " << coreCount;
-      std::cerr << "Error:  (1 to 32 currently supported)\n";
+      std::cerr << "Error:  (1 to 64 currently supported)\n";
       return false;
     }
 
@@ -334,48 +334,52 @@ Session<URV>::openUserFiles(const Args& args)
 {
   traceFiles_.resize(system_ -> hartCount());
 
-  unsigned ix = 0;
-  for (auto& traceFile : traceFiles_)
+  if (args.traceFile != "/dev/null")
     {
-      size_t len = args.traceFile.size();
-      doGzip_ = len > 3 and args.traceFile.substr(len-3) == ".gz";
+      unsigned ix = 0;
 
-      if (not args.traceFile.empty())
+      for (auto& traceFile : traceFiles_)
         {
-          std::string name = args.traceFile;
-          if (args.logPerHart)
+          size_t len = args.traceFile.size();
+          doGzip_ = len > 3 and args.traceFile.substr(len-3) == ".gz";
+
+          if (not args.traceFile.empty())
             {
-              if (not doGzip_)
-                name.append(std::to_string(ix));
+              std::string name = args.traceFile;
+              if (args.logPerHart)
+                {
+                  if (not doGzip_)
+                    name.append(std::to_string(ix));
+                  else
+                    name.insert(len - 3, std::to_string(ix));
+                }
+
+              if ((ix == 0) || args.logPerHart)
+                {
+                  if (doGzip_)
+                    {
+                      std::string cmd = "/usr/bin/gzip -c > ";
+                      cmd += name;
+                      traceFile = popen(cmd.c_str(), "w");
+                    }
+                  else
+                    traceFile = fopen(name.c_str(), "w");
+                }
               else
-                name.insert(len - 3, std::to_string(ix));
+                traceFile = traceFiles_.at(0);   // point the same File pointer to each hart
+
+              if (not traceFile)
+                {
+                  std::cerr << "Error: Failed to open trace file '" << name
+                            << "' for output\n";
+                  return false;
+                }
             }
 
-          if ((ix == 0) || args.logPerHart)
-	    {
-	      if (doGzip_)
-		{
-		  std::string cmd = "/usr/bin/gzip -c > ";
-		  cmd += name;
-		  traceFile = popen(cmd.c_str(), "w");
-		}
-	      else
-		traceFile = fopen(name.c_str(), "w");
-	    }
-          else
-	    traceFile = traceFiles_.at(0);   // point the same File pointer to each hart
-
-          if (not traceFile)
-            {
-              std::cerr << "Error: Failed to open trace file '" << name
-                        << "' for output\n";
-              return false;
-            }
+          if (args.trace and traceFile == nullptr)
+            traceFile = stdout;
+          ++ix;
         }
-
-      if (args.trace and traceFile == nullptr)
-        traceFile = stdout;
-      ++ix;
     }
 
   if (not args.commandLogFile.empty())
@@ -1158,7 +1162,7 @@ kbdInterruptHandler(int)
 
 template<typename URV>
 bool
-Session<URV>::runInteractive()
+Session<URV>::runInteractive(std::ostream& out)
 {
   // Ignore keyboard interrupt for most commands. Long running
   // commands will enable keyboard interrupts while they run.
@@ -1168,7 +1172,7 @@ Session<URV>::runInteractive()
   newAction.sa_handler = kbdInterruptHandler;
   sigaction(SIGINT, &newAction, nullptr);
 
-  Interactive interactive(*system_);
+  Interactive interactive(*system_, out);
   return interactive.interact(traceFiles_.at(0), commandLog_);
 }
 
@@ -1249,7 +1253,17 @@ Session<URV>::run(const Args& args)
     }
 
   if (args.interactive)
-    return runInteractive();
+    {
+      if (args.interOutFile.empty())
+        return runInteractive(std::cout);
+      std::ofstream ofs(args.interOutFile);
+      if (not ofs)
+        {
+          std::cerr << "Error: Failed to open " << args.interOutFile << " for writing\n";
+          return false;
+        }
+      return runInteractive(ofs);
+    }
 
   if (not args.snapshotPeriods.empty())
     return system.snapshotRun(traceFiles_, args.snapshotPeriods);

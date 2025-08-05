@@ -251,7 +251,7 @@ Server<URV>::pokeCommand(const WhisperMessage& req, WhisperMessage& reply, Hart<
     }
 
   reply.type = Invalid;
-  return false;
+  return true;
 }
 
 
@@ -341,19 +341,19 @@ Server<URV>::peekCommand(const WhisperMessage& req, WhisperMessage& reply, Hart<
 	  case WhisperSpecialResource::FpFlags:
 	    reply.value = hart.lastFpFlags();
 	    return true;
-      case WhisperSpecialResource::IncrementalVec:
-        {
-          std::vector<uint8_t> fpFlags; std::vector<uint8_t> vxsat;
-          std::vector<VecRegs::Step> steps;
-          hart.lastIncVec(fpFlags, vxsat, steps);
-          assert((fpFlags.size() != 0 and vxsat.size() == 0) or
-                 (fpFlags.size() == 0 and vxsat.size() != 0));
-          for (unsigned i = 0; i < fpFlags.size(); ++i)
-            reply.buffer[i] = fpFlags.at(i);
-          for (unsigned i = 0; i < vxsat.size(); ++i)
-            reply.buffer[i] = vxsat.at(i);
-          return true;
-        }
+          case WhisperSpecialResource::IncrementalVec:
+            {
+              std::vector<uint8_t> fpFlags; std::vector<uint8_t> vxsat;
+              std::vector<VecRegs::Step> steps;
+              hart.lastIncVec(fpFlags, vxsat, steps);
+              assert((fpFlags.size() != 0 and vxsat.size() == 0) or
+                     (fpFlags.size() == 0 and vxsat.size() != 0));
+              for (unsigned i = 0; i < fpFlags.size(); ++i)
+                reply.buffer[i] = fpFlags.at(i);
+              for (unsigned i = 0; i < vxsat.size(); ++i)
+                reply.buffer[i] = vxsat.at(i);
+              return true;
+            }
 	  case WhisperSpecialResource::Trap:
 	    reply.value = hart.lastInstructionTrapped()? 1 : 0;
 	    return true;
@@ -363,29 +363,29 @@ Server<URV>::peekCommand(const WhisperMessage& req, WhisperMessage& reply, Hart<
 	  case WhisperSpecialResource::Seipin:
 	    reply.value = hart.getSeiPin();
 	    return true;
-      case WhisperSpecialResource::EffMemAttr:
-        // Special resource so we don't have to re-translate.
-        {
-        uint64_t va = 0, pa = 0;
-        if (hart.lastLdStAddress(va, pa))
-          {
-            auto pma = hart.getPma(pa);
-            auto& virtMem = hart.virtMem();
-            auto effpbmt = virtMem.lastEffectivePbmt();
-            pma = hart.overridePmaWithPbmt(pma, effpbmt);
-            reply.value = pma.attributesToInt();
-            return true;
-          }
-        else
-          break;
-        }
-      case WhisperSpecialResource::LastLdStAddress:
-        {
-        uint64_t va = 0, pa = 0;
-        if (hart.lastLdStAddress(va, pa))
-            reply.value = pa;
-        return true;
-        }
+          case WhisperSpecialResource::EffMemAttr:
+            // Special resource so we don't have to re-translate.
+            {
+              uint64_t va = 0, pa = 0;
+              if (hart.lastLdStAddress(va, pa))
+                {
+                  auto pma = hart.getPma(pa);
+                  auto& virtMem = hart.virtMem();
+                  auto effpbmt = virtMem.lastEffectivePbmt();
+                  pma = hart.overridePmaWithPbmt(pma, effpbmt);
+                  reply.value = pma.attributesToInt();
+                  return true;
+                }
+              else
+                break;
+            }
+          case WhisperSpecialResource::LastLdStAddress:
+            {
+              uint64_t va = 0, pa = 0;
+              if (hart.lastLdStAddress(va, pa))
+                reply.value = pa;
+              return true;
+            }
 	  default:
 	    break;
 	  }
@@ -1241,21 +1241,33 @@ Server<URV>::interact(const WhisperMessage& msg, WhisperMessage& reply, FILE* tr
 
       case Nmi:
 	{
+          URV cause = msg.value;
 	  if (checkHart(msg, "nmi", reply))
-	    hart.setPendingNmi(NmiCause(msg.value));
+	    hart.setPendingNmi(cause);
 	  if (commandLog)
-            fprintf(commandLog, "hart=%" PRIu32 " nmi 0x%x # ts=%s\n", hartId,
-		    uint32_t(msg.value), timeStamp.c_str());
+            fprintf(commandLog, "hart=%" PRIu32 " nmi 0x%lx # ts=%s\n", hartId,
+		    uint64_t(cause), timeStamp.c_str());
 	  break;
 	}
 
       case ClearNmi:
         {
+          URV cause = msg.value;
+          bool clearAll = msg.flags;
 	  if (checkHart(msg, "nmi", reply))
-	    hart.clearPendingNmi();
+            {
+              if (clearAll)
+                hart.clearPendingNmi();
+              else
+                hart.clearPendingNmi(cause);
+            }
 	  if (commandLog)
-            fprintf(commandLog, "hart=%" PRIu32 " clear_nmi # ts=%s\n", hartId,
-		    timeStamp.c_str());
+            {
+              fprintf(commandLog, "hart=%" PRIu32 " clear_nmi", hartId);
+              if (not clearAll)
+                fprintf(commandLog, " 0x%lx", uint64_t(cause));
+              fprintf(commandLog, "\n");
+            }
 	  break;
         }
 
@@ -1452,8 +1464,8 @@ Server<URV>::interact(const WhisperMessage& msg, WhisperMessage& reply, FILE* tr
 	  hart.setDeferredInterrupts(0);
 
           InterruptCause cause = InterruptCause{0};
-          PrivilegeMode nextMode; bool nextVirt;
-          reply.flags = hart.isInterruptPossible(cause, nextMode, nextVirt);
+          PrivilegeMode nextMode; bool nextVirt; bool hvi;
+          reply.flags = hart.isInterruptPossible(cause, nextMode, nextVirt, hvi);
           reply.value = static_cast<uint64_t>(cause);
 
 	  hart.setDeferredInterrupts(deferred);

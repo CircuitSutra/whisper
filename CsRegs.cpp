@@ -246,8 +246,7 @@ CsRegs<URV>::readVsip(URV& value) const
 
   // For bits 13 to 64, VSIP is aliased to SIP when HIDELEG is 1, or is aliased to
   // HVIP when HVIEN is 1, or is zero.
-  auto sip = getImplementedCsr(CsrNumber::SIP);
-  auto sipVal = sip ? sip->read() : URV(0);
+  URV sipVal = 0; readSip(sipVal);  // Cannot use sip->read() otherwise we miss MVIP aliasing.
 
   auto hvip = getImplementedCsr(CsrNumber::HVIP);
   auto hvipVal = hvip ? hvip->read() : URV(0);
@@ -601,7 +600,10 @@ CsRegs<URV>::read(CsrNumber num, PrivilegeMode mode, URV& value) const
     }
 
   if (num == CN::MTOPI or num == CN::STOPI or num == CN::VSTOPI)
-    return readTopi(num, value, virtMode_);
+    {
+      [[maybe_unused]] bool hvi;
+      return readTopi(num, value, virtMode_, hvi);
+    }
   else if (num == CN::MVIP)
     return readMvip(value);
 
@@ -1470,7 +1472,7 @@ CsRegs<URV>::writeSip(URV value, bool recordWr)
   if (mideleg and mvien and mvip)
     {
       // Bits 5 and 9 are not writable in SIP even when aliased to MVIP.
-      URV mvipMask = mvien->read() & ~mideleg->read();
+      URV mvipMask = mvien->read() & ~mideleg->read() & ~URV(0x220);
       sipMask &= ~ mvipMask;  // Don't write SIP where SIP is an alias to MVIP
 
       mvip->write((mvip->read() & ~mvipMask) | (value & mvipMask)); // Write MVIP instead.
@@ -3623,7 +3625,10 @@ CsRegs<URV>::peek(CsrNumber num, URV& value, bool virtMode) const
 
   if (num == CsrNumber::MTOPI or num == CsrNumber::STOPI or
       num == CsrNumber::VSTOPI)
-    return readTopi(num, value, virtMode);
+    {
+      [[maybe_unused]] bool hvi;
+      return readTopi(num, value, virtMode, hvi);
+    }
   else if (num == CN::MIREG)
     return readMireg(num, value, virtMode);
   else if (num == CN::SIREG)
@@ -3967,11 +3972,12 @@ CsRegs<URV>::higherIidPrio(uint32_t prio1, uint32_t prio2, PrivilegeMode mode, b
 
 template <typename URV>
 bool
-CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode) const
+CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode, bool& hvi) const
 {
   using PM = PrivilegeMode;
   using IC = InterruptCause;
 
+  hvi = false;
   value = 0;
 
   auto mideleg = getImplementedCsr(CsrNumber::MIDELEG);
@@ -4119,11 +4125,13 @@ CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode) const
 
               if ((prio2 < prio) or (not value))
                 {
+                  hvi = true;
                   prio = prio2;
                   value = value2;
                 }
               else if ((prio2 == prio) and not hvf.bits_.DPR)
                 {
+                  hvi = true;
                   prio = prio2;
                   value = value2;
                 }
@@ -5179,6 +5187,7 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
   auto vsip = getImplementedCsr(CsrNumber::VSIP);
   auto vsie = getImplementedCsr(CsrNumber::VSIE);
   auto hideleg = getImplementedCsr(CsrNumber::HIDELEG);
+  auto mideleg = getImplementedCsr(CsrNumber::MIDELEG);
   auto hvien = getImplementedCsr(CsrNumber::HVIEN);
   auto hstatus = getImplementedCsr(CsrNumber::HSTATUS);
   auto hgeip = getImplementedCsr(CsrNumber::HGEIP); // HGEIP isn't write-able
@@ -5381,8 +5390,8 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
       URV hieVal = val | (hie->read() & ~hieMask);
       updateCsr(hie, hieVal, false /*poke*/);
 
-      // Updating MIE is refelected into aliased bigs of VSIE.
-      URV mask = hideleg->read(); 
+      // Updating MIE is refelected into aliased bits of VSIE.
+      URV mask = hideleg->read() & mideleg->read();
       val = mie->read();
       val = (sInterruptToVs(vsie->read()) & ~mask) | (val & mask);
       updateCsr(vsie, vsInterruptToS(val), true /*write*/);
