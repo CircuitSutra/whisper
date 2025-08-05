@@ -337,18 +337,19 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     /// AN MRET/SRET INSTRUCTION. RETURN THE COUNT OF SUCH CSRS.
     unsigned getChangedCsrs(std::array<Operand, 8>& ops) const;
 
-    /// Return a reference to the page table walk entries for the instruction address
-    /// translation step (or steps for a page crosser) associated with this
-    /// instruction. Valid only after the execution step. The addr_ field in a WalkEntry
-    /// is the final physical address if the type_ is RE otherwise, it is a PTE
-    /// address. The PTE address is a guest virtual address, a guest physical address,
-    /// or a physical address depending on the type_ field: GVA, GPA, or PA.
+    /// Return a reference to the page table walks for the instruction address translation
+    /// step (or steps for a page crosser) associated with this instruction. Valid only
+    /// after the execution step. Each walk is a vector of walk entries (WalkEntry). The
+    /// addr_ field in a WalkEntry is the final physical address if the type_ is RE
+    /// otherwise, it is a PTE address. The PTE address is a guest virtual address, a
+    /// guest physical address, or a physical address depending on the type_ field: GVA,
+    /// GPA, or PA.
     const std::vector<std::vector<WalkEntry>>& fetchPageTableWalks() const
     { return fetchWalks_; }
 
-    /// Return a reference to the page table walk entries for the dataa address
-    /// translation step (or steps for a page crosser or for a vector isntruction)
-    /// associated with this instruction. Valid only after the execution step.
+    /// Return a reference to the page table walks for the data address translation step
+    /// (or steps for a page crosser or for a vector instruction) associated with this
+    /// instruction. Valid only after the execution step.
     const std::vector<std::vector<WalkEntry>>& dataPageTableWalks() const
     { return dataWalks_; }
 
