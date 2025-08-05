@@ -49,10 +49,10 @@ namespace WdRiscv
 
   ///
   /// Generic information about an instruction including, opcode,
-  /// type (integer, floatin-pointg, etc...), operand count, operand type,
+  /// type (integer, floating-point, etc...), operand count, operand type,
   /// and operand direction (source versus destination). This is used to
   /// represent an entry in the instruction table defining the RISCV
-  /// instruction set arcitecture.
+  /// instruction set architecture.
   ///
   /// An instruction may have up to 4 operands: op0, op1, op2, op3:
   /// - For instructions of the form "inst rd, rs1, rs2", rd, rs1 and
@@ -188,7 +188,7 @@ namespace WdRiscv
     }
 
     /// Return the extension containing this instruction. Compressed
-    /// insructions (e.g. c.fld) return the secondary extension (RvExtension::D
+    /// instructions (e.g. c.fld) return the secondary extension (RvExtension::D
     /// for c.fld).
     RvExtension extension() const
     { return ext_; }
@@ -222,13 +222,13 @@ namespace WdRiscv
 
     /// Return true if this instruction is viewed as a load by the
     /// performance counters. By default LR is not a perf-load
-    /// instuctions. Also by default FP loads are not perf-loads.
+    /// instructions. Also by default FP loads are not perf-loads.
     bool isPerfLoad() const
     { return isPerfLoad_; }
 
     /// Return true if this instruction is viewed as a store by the
     /// performance counters. By default SC is not a perf-store
-    /// instuctions. Also by default FP stores are not perf-stores.
+    /// instructions. Also by default FP stores are not perf-stores.
     bool isPerfStore() const
     { return isPerfStore_; }
 
@@ -328,7 +328,7 @@ namespace WdRiscv
     unsigned immediateShiftSize() const 
     { return immedShiftSize_; }
 
-    /// Return true if instruction has an explicit rouning mode field.
+    /// Return true if instruction has an explicit rounding mode field.
     bool hasRoundingMode() const
     { return hasRm_; }
 
@@ -382,7 +382,7 @@ namespace WdRiscv
     void setBranchToRegister(bool flag)
     { isBranch_ = flag; isRegBranch_ = flag; }
 
-    /// Mark as a branch insruction.
+    /// Mark as a branch instruction.
     void setBranch(bool flag)
     { isBranch_ = flag; }
 
@@ -437,7 +437,7 @@ namespace WdRiscv
     bool isPerfLoad_ = false;  // True if perf counters view instr as load.
     bool isPerfStore_ = false; // True if perf counters view instr as store.
     bool hasRm_ = false;       // True if instr has an explicit rounding mode .
-    bool modifiesFflags_ = false; // True if instr modifed FFLAGS.
+    bool modifiesFflags_ = false; // True if instr modified FFLAGS.
     bool isDiv_ = false;       // True for integer divide or remainder instr.
     bool isCompressedRv32_ = false; // True if compressed rv32 instruction variant.
     bool isCompressedRv64_ = false; // True if compressed rv64 instruction variant.

@@ -641,8 +641,8 @@ namespace WdRiscv
     void registerPostReset(std::function<void(Csr<URV>&)> func)
     { postReset_.push_back(func); }
 
-    /// Chnage the write mask of this CSR. Bits set in the mask will be writable by CSR
-    /// instructions assumbing they are implemented (corresponding poke mask bits are also
+    /// Change the write mask of this CSR. Bits set in the mask will be writable by CSR
+    /// instructions assuming they are implemented (corresponding poke mask bits are also
     /// set). Bits cleared in the mask will not be writable.
     void setWriteMask(URV mask)
     { writeMask_ = mask; }
@@ -924,7 +924,7 @@ namespace WdRiscv
     }
 
     /// Return true if given register is readable by a CSR instruction
-    /// in the given privlege and virtual modes.
+    /// in the given privilege and virtual modes.
     bool isReadable(CsrNumber number, PrivilegeMode pm, bool virtMode) const;
 
     /// Fill the nums vector with the numbers of the CSRs written by
@@ -943,7 +943,7 @@ namespace WdRiscv
       triggers_.getLastWrittenTriggers(triggerNums);
     }
 
-    /// Return the previous (prior to last executed instructoin) value of the given csr.
+    /// Return the previous (prior to last executed instruction) value of the given csr.
     URV lastCsrValue(CsrNumber csrn)
     {
       auto csr = findCsr(csrn);
@@ -1002,7 +1002,7 @@ namespace WdRiscv
       return csr->isImplemented() ? csr : nullptr;
     }
 
-    /// Similar to getImplementedCsr except that when virtaulMode is true:
+    /// Similar to getImplementedCsr except that when virtualMode is true:
     /// Supervisor CSRs are remapped to the virtual supervisor counterparts.
     Csr<URV>* getImplementedCsr(CsrNumber num, bool virtualMode);
 
@@ -1152,7 +1152,7 @@ namespace WdRiscv
 	recordWrite(CsrNumber::TDATA1);  // Hit bit in TDATA1 changed.
     }
 
-    /// Return true if a pending icount triger can fire clearning its pending status.
+    /// Return true if a pending icount trigger can fire clearing its pending status.
     bool icountTriggerFired(PrivilegeMode mode, bool virtMode, bool ie)
     {
       return triggers_.icountTriggerFired(mode, virtMode, ie);
@@ -1684,7 +1684,7 @@ namespace WdRiscv
     /// Tie CSR values of machine mode performance counters to the
     /// elements of the given vector so that when a counter in the
     /// vector is changed the corresponding CSR value changes and
-    /// vice-versa. This is done to avoid the overhead of CSR checking
+    /// vice versa. This is done to avoid the overhead of CSR checking
     /// when incrementing performance counters.
     void tiePerfCounters(std::vector<uint64_t>& counters);
 
@@ -1911,7 +1911,7 @@ namespace WdRiscv
     /// Enable/disable vector extension.
     void enableVector(bool flag);
 
-    /// Enable/disable advanced interrupt artchitecture extension.
+    /// Enable/disable advanced interrupt architecture extension.
     void enableAia(bool flag);
 
     /// Enable/disable smmpm extension. Sets mseccfg.PMM
@@ -1935,7 +1935,7 @@ namespace WdRiscv
     void enableZicfilp(bool flag);
 
     /// Enable/disable virtual supervisor. When enabled, the trap-related
-    /// CSRs point to their virtual counterpars (e.g. reading writing sstatus will
+    /// CSRs point to their virtual counterparts (e.g. reading writing sstatus will
     /// actually read/write vsstatus).
     void enableVirtualSupervisor(bool flag);
 
@@ -2303,7 +2303,7 @@ namespace WdRiscv
     /// the given index (0 corresponds to MHPMEVENT3).  For RV32 and
     /// if counter-overflow is enabled, then use the MHPMEVENTH
     /// registers to get the upper 64-bits of the returned value.
-    /// Return true on succes.  Return false leaving value unmodified
+    /// Return true on success.  Return false leaving value unmodified
     /// if index is out of bounds.
     bool getMhpmeventValue(unsigned ix, uint64_t& value) const
     {
@@ -2445,7 +2445,7 @@ namespace WdRiscv
     std::vector<InterruptCause> sInterrupts_;
     std::vector<InterruptCause> vsInterrupts_;
 
-    std::vector<CsrNumber> customH_;   // Custom CSR maked as belonging to H extension.
+    std::vector<CsrNumber> customH_;   // Custom CSR marked as belonging to H extension.
 
     bool seiPin_ = false;
   };
