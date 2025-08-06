@@ -1464,8 +1464,19 @@ Server<URV>::interact(const WhisperMessage& msg, WhisperMessage& reply, FILE* tr
 	  hart.setDeferredInterrupts(0);
 
           InterruptCause cause = InterruptCause{0};
-          PrivilegeMode nextMode; bool nextVirt; bool hvi;
+          PrivilegeMode nextMode = PrivilegeMode{0};
+          bool nextVirt = false; bool hvi = false;
           reply.flags = hart.isInterruptPossible(cause, nextMode, nextVirt, hvi);
+          if (reply.flags)
+            {
+              // Bit 0: whether or not interrupt is possible.
+              // Bit 1: whether interrupt will go to a virtual privilege (VS)
+              // Bits 9 and 8: privilege target of interrupt: M, or S (which with
+              // bit 1 effectively becomes HS or VS).
+              if (nextVirt)
+                reply.flags |= 0x2;
+              reply.flags |= unsigned(nextMode) << 8;
+            }
           reply.value = static_cast<uint64_t>(cause);
 
 	  hart.setDeferredInterrupts(deferred);
