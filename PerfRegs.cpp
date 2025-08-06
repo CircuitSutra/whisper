@@ -76,6 +76,7 @@ PerfRegs::reset()
 const std::unordered_map<std::string_view, EventNumber>
 PerfRegs::eventNameToId_ = {
   { "None", EventNumber::None },
+  { "CpuCycles", EventNumber::CpuCycles },
   { "InstCommited", EventNumber::InstCommited },
   { "Inst16Commited", EventNumber::Inst16Commited },
   { "Inst32Commited", EventNumber::Inst32Commited },

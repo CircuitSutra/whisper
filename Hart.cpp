@@ -4642,6 +4642,7 @@ Hart<URV>::updatePerformanceCounters(const DecodedInst& di)
     }
 
   pregs.updateCounters(EventNumber::InstCommited, prevPerfControl_, lastPriv_, lastVirt_);
+  pregs.updateCounters(EventNumber::CpuCycles, prevPerfControl_, lastPriv_, lastVirt_);
 
   if (isCompressedInst(di.inst()))
     pregs.updateCounters(EventNumber::Inst16Commited, prevPerfControl_, lastPriv_, lastVirt_);

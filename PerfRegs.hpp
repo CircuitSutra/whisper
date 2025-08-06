@@ -32,7 +32,7 @@ namespace WdRiscv
   enum class EventNumber
     {
       None,
-      ClockActive,       // 1:  Cycles clock active
+      CpuCycles,         // 1:  CPU clock cycles
       ICacheHits,        // 2:  Instruction cache hits
       ICacheMisses,      // 3:  Instruction cache misses
 
