@@ -1607,10 +1607,10 @@ Mcm<URV>::mergeBufferWrite(Hart<URV>& hart, uint64_t time, uint64_t physAddr,
             cerr << "Error: hart-id=" << hart.hartId() << " time=" << time;
             uint64_t addr = physAddr + i;
             if (insertTags.at(i) == 0)
-              cerr << "Error:  merge-buffer write without corresponding insert addr=0x"
+              cerr << " merge-buffer write without corresponding insert addr=0x"
                    << std::hex << addr << std::dec << '\n';
             else
-              cerr << "Error:  merge-buffer write does not match merge-buffer insert addr=0x"
+              cerr << " merge-buffer write does not match merge-buffer insert addr=0x"
                    << std::hex << addr << " write-data=0x" << unsigned(rtlData.at(i))
                    << " insert-data=0x" << unsigned(line.at(i)) << std::dec
                    << " insert-tag=" << insertTags.at(i) << '\n';
