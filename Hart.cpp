@@ -6202,7 +6202,7 @@ Hart<URV>::isInterruptPossible(URV mip, URV sip, [[maybe_unused]] URV vsip,
           if (vstopi)
             {
               unsigned iid = vstopi >> 16;  // Interrupt id.
-              if (deferredInterrupts_ & (URV(1) << iid))
+              if (deferredInterrupts_ & (URV(1) << (iid+1))) // Deferred interrupts are on MIP where VS interrupts are r-shifted by 1.
                 return false;
               cause = static_cast<InterruptCause>(iid);
               return true;
