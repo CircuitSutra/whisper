@@ -4137,7 +4137,7 @@ CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode, bool& hvi) co
                 }
             }
 
-          if (value and not hvf.bits_.IPRIOM)
+          if ((value or hvi) and not hvf.bits_.IPRIOM)
             {
               value &= ~URV(0xff);
               value |= 1;
