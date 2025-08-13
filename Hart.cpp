@@ -2165,7 +2165,7 @@ bool
 Hart<URV>::load(const DecodedInst* di, uint64_t virtAddr, [[maybe_unused]] bool hyper, uint64_t& data)
 {
   ldStAddr_ = virtAddr;   // For reporting ld/st addr in trace-mode.
-  ldStFaultAddr_ = applyPointerMask(virtAddr, true /*isLoad*/);
+  ldStFaultAddr_ = applyPointerMask(virtAddr, true /*isLoad*/, hyper);
   ldStPhysAddr1_ = ldStPhysAddr2_ = virtAddr;
   ldStSize_ = sizeof(LOAD_TYPE);
 
@@ -2501,7 +2501,7 @@ Hart<URV>::store(const DecodedInst* di, URV virtAddr, [[maybe_unused]] bool hype
 		 STORE_TYPE storeVal, [[maybe_unused]] bool amoLock)
 {
   ldStAddr_ = virtAddr;   // For reporting ld/st addr in trace-mode.
-  ldStFaultAddr_ = applyPointerMask(virtAddr, false /*isLoad*/);
+  ldStFaultAddr_ = applyPointerMask(virtAddr, false /*isLoad*/, hyper);
   ldStPhysAddr1_ = ldStPhysAddr2_ = ldStAddr_;
   ldStSize_ = sizeof(STORE_TYPE);
 
