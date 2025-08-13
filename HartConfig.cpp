@@ -2091,6 +2091,13 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
       hart.misalignedExceptionHasPriority(flag);
     }
 
+  tag = "in_sequence_misaligned";
+  if (config_ -> contains(tag))
+    {
+      getJsonBoolean(tag, config_ ->at(tag), flag) or errors++;
+      hart.enableInSeqnMisaligned(flag);
+    }
+
   tag = "force_rounding_mode";
   if (config_ -> contains(tag))
     {

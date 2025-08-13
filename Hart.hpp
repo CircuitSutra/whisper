@@ -1965,6 +1965,14 @@ namespace WdRiscv
     void misalignedExceptionHasPriority(bool flag)
     { misalHasPriority_ = flag; }
 
+    /// By default, we fully translate misaligned accesses first before determining
+    /// exceptions arising from the PA. Enabling this flag will make us fully evaluate
+    /// the lower address in a misaligned access before translating the higher address.
+    /// This can affect whether we raise a page fault or an access fault on the same
+    /// arch state.
+    void enableInSeqnMisaligned(bool flag)
+    { inSeqnMisaligned_ = flag; }
+
     /// Return current privilege mode.
     PrivilegeMode privilegeMode() const
     { return privMode_; }
@@ -5890,6 +5898,8 @@ namespace WdRiscv
     bool clearTinstOnCboInval_ = false;
     bool clearTinstOnCboFlush_ = false;
     bool alignCboAddr_ = true;
+
+    bool inSeqnMisaligned_ = false;     // Set if fully evaluate split misaligned accesses in-sequence.
 
     bool targetProgFinished_ = false;
     bool stepResult_ = false;        // Set by singleStep on caught exception (program success/fail).

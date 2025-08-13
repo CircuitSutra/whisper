@@ -1900,7 +1900,6 @@ Hart<URV>::determineLoadException(uint64_t& addr1, uint64_t& addr2, uint64_t& ga
     if (pmpEnabled_)
       {
         const Pmp& pmp = pmpManager_.accessPmp(pa);
-        // Shouldn't this check that we're not Bare and translation is active?
         if (not pmp.isRead(pm)  or  (virtMem_.isExecForRead() and not pmp.isExec(pm)))
           return EC::LOAD_ACC_FAULT;
       }
@@ -1909,57 +1908,91 @@ Hart<URV>::determineLoadException(uint64_t& addr1, uint64_t& addr2, uint64_t& ga
       {
         if (not stee_.isValidAddress(pa))
           return EC::LOAD_ACC_FAULT;
-        if (lower)
-          {
-            steeInsec1_ = stee_.isInsecureAccess(pa);
-            if (steeTrapRead_ and steeInsec1_)
-              return EC::LOAD_ACC_FAULT;
-          }
-        else
-          {
-            steeInsec2_ = stee_.isInsecureAccess(pa);
-            if (steeTrapRead_ and steeInsec2_)
-              return EC::LOAD_ACC_FAULT;
-          }
+        bool& steeInsec = lower? steeInsec1_ : steeInsec2_;
+        steeInsec = stee_.isInsecureAccess(pa);
+        if (steeTrapRead_ and steeInsec)
+          return EC::LOAD_ACC_FAULT;
         pa = stee_.clearSecureBits(pa);
       }
 
     Pma pma = accessPma(pa);
     pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt());
-    if (not pma.isRead()  or  (virtMem_.isExecForRead() and not pma.isExec()))
+    if (not pma.isRead() or (virtMem_.isExecForRead() and not pma.isExec()))
       return EC::LOAD_ACC_FAULT;
     if (misal and not pma.isMisalignedOk())
       return pma.misalOnMisal()? EC::LOAD_ADDR_MISAL : EC::LOAD_ACC_FAULT;
     return EC::NONE;
   };
 
-  // Address translation
-  if (isRvs())     // Supervisor extension
+  if (not inSeqnMisaligned_)
     {
-      if (pm != PM::Machine)
+      // Address translation
+      if (isRvs() and pm != PM::Machine)     // Supervisor extension
         {
-	  auto cause = virtMem_.translateForLoad2(va1, ldSize, pm, virt, gaddr1, addr1, gaddr2, addr2);
-          if (cause != EC::NONE)
+          if (auto cause = virtMem_.translateForLoad2(va1, ldSize, pm, virt, gaddr1, addr1, gaddr2, addr2);
+              cause != EC::NONE)
             {
               ldStFaultAddr_ = addr1;
               return cause;
             }
         }
-    }
 
-  if (auto cause = checkPa(va1, addr1, true); cause != EC::NONE)
-    return cause;
-
-  if (misal)
-    {
-      uint64_t next = (addr1 & ~alignMask) + ldSize;
-      if (addr1 == addr2 and virtMem_.pageNumber(addr1) != virtMem_.pageNumber(next))
-        addr2 = next;
-      if (auto cause = checkPa(va2, addr2, false); cause != EC::NONE)
+      if (auto cause = checkPa(va1, addr1, true); cause != EC::NONE)
         return cause;
+
+      if (misal)
+        {
+          uint64_t next = (addr1 + ldSize) & ~alignMask;
+          if (addr1 == addr2 and virtMem_.pageNumber(addr1) != virtMem_.pageNumber(next))
+            addr2 = next;
+          if (auto cause = checkPa(va2, addr2, false); cause != EC::NONE)
+            return cause;
+        }
+      else
+        addr2 = addr1;
     }
   else
-    addr2 = addr1;
+    {
+      if (isRvs() and pm != PM::Machine)     // Supervisor extension
+        {
+          if (auto cause = virtMem_.translateForLoad(va1, pm, virt, gaddr1, addr1);
+              cause != EC::NONE)
+            {
+              ldStFaultAddr_ = addr1;
+              return cause;
+            }
+        }
+
+      if (auto cause = checkPa(va1, addr1, true); cause != EC::NONE)
+        return cause;
+
+      // STEE mask.
+      gaddr2 = gaddr1;
+      addr2 = addr1;
+
+      if (misal)
+        {
+          // Only translate again if we would cross pages.
+          if (isRvs() and pm != PM::Machine)
+            {
+              if (virtMem_.pageNumber(va1) != virtMem_.pageNumber(va1 + ldSize - 1))
+                {
+                  if (auto cause = virtMem_.translateForLoad(va2, pm, virt, gaddr2, addr2);
+                      cause != EC::NONE)
+                    {
+                      ldStFaultAddr_ = addr2;
+                      return cause;
+                    }
+                }
+            }
+
+          uint64_t next = (addr1 + ldSize) & ~alignMask;
+          if (addr1 == addr2 and virtMem_.pageNumber(addr1) != virtMem_.pageNumber(next))
+            addr2 = next;
+          if (auto cause = checkPa(va2, addr2, true); cause != EC::NONE)
+            return cause;
+        }
+    }
 
   if (injectException_ != EC::NONE and injectExceptionIsLd_ and elemIx == injectExceptionElemIx_)
     {
@@ -12270,7 +12303,7 @@ Hart<URV>::determineStoreException(uint64_t& addr1, uint64_t& addr2,
   steeInsec1_ = false;
   steeInsec2_ = false;
 
-  auto checkPa = [this, pm, stSize, misal] (uint64_t va, uint64_t& pa, bool lower) -> EC {
+  auto checkPa = [this, pm, misal] (uint64_t va, uint64_t& pa, bool lower) -> EC {
     ldStFaultAddr_ = va;
 
     if (pmpEnabled_)
@@ -12284,10 +12317,8 @@ Hart<URV>::determineStoreException(uint64_t& addr1, uint64_t& addr2,
       {
         if (not stee_.isValidAddress(pa))
           return EC::STORE_ACC_FAULT;
-        if (lower)
-          steeInsec1_ = stee_.isInsecureAccess(pa);
-        else
-          steeInsec2_ = stee_.isInsecureAccess(pa);
+        bool& steeInsec = lower? steeInsec1_ : steeInsec2_;
+        steeInsec = stee_.isInsecureAccess(pa);
         pa = stee_.clearSecureBits(pa);
       }
 
@@ -12297,38 +12328,81 @@ Hart<URV>::determineStoreException(uint64_t& addr1, uint64_t& addr2,
       return EC::STORE_ACC_FAULT;
     if (misal and not pma.isMisalignedOk())
       return pma.misalOnMisal()? EC::STORE_ADDR_MISAL : EC::STORE_ACC_FAULT;
-    if (not memory_.checkWrite(pa, stSize))
-      return EC::STORE_ACC_FAULT;
     return EC::NONE;
   };
 
-  // Address translation
-  if (isRvs())     // Supervisor extension
+  if (not inSeqnMisaligned_)
     {
-      if (pm != PM::Machine)
+      // Address translation
+      if (isRvs())     // Supervisor extension
         {
-	  if (auto cause = virtMem_.translateForStore2(va1, stSize, pm, virt, gaddr1, addr1, gaddr2, addr2);
+          if (pm != PM::Machine)
+            {
+              if (auto cause = virtMem_.translateForStore2(va1, stSize, pm, virt, gaddr1, addr1, gaddr2, addr2);
+                  cause != EC::NONE)
+                {
+                  ldStFaultAddr_ = addr1;
+                  return cause;
+                }
+            }
+        }
+
+      if (auto cause = checkPa(va1, addr1, true); cause != EC::NONE)
+        return cause;
+
+      if (misal)
+        {
+          uint64_t next = (addr1 + stSize) + alignMask;
+          if (addr1 == addr2 and virtMem_.pageNumber(addr1) != virtMem_.pageNumber(next))
+            addr2 = next;
+          if (auto cause = checkPa(va2, addr2, false); cause != EC::NONE)
+            return cause;
+        }
+      else
+        addr2 = addr1;
+    }
+  else
+    {
+      if (isRvs() and pm != PM::Machine)     // Supervisor extension
+        {
+          if (auto cause = virtMem_.translateForStore(va1, pm, virt, gaddr1, addr1);
               cause != EC::NONE)
             {
               ldStFaultAddr_ = addr1;
               return cause;
             }
         }
-    }
 
-  if (auto cause = checkPa(va1, addr1, true); cause != EC::NONE)
-    return cause;
-
-  if (misal)
-    {
-      uint64_t next = (addr1 & ~alignMask) + stSize;
-      if (addr1 == addr2 and virtMem_.pageNumber(addr1) != virtMem_.pageNumber(next))
-        addr2 = next;
-      if (auto cause = checkPa(va2, addr2, false); cause != EC::NONE)
+      if (auto cause = checkPa(va1, addr1, true); cause != EC::NONE)
         return cause;
+
+      // STEE mask.
+      gaddr2 = gaddr1;
+      addr2 = addr1;
+
+      if (misal)
+        {
+          // Only translate again if we would cross pages.
+          if (isRvs() and pm != PM::Machine)
+            {
+              if (virtMem_.pageNumber(va1) != virtMem_.pageNumber(va1 + stSize - 1))
+                {
+                  if (auto cause = virtMem_.translateForStore(va2, pm, virt, gaddr2, addr2);
+                      cause != EC::NONE)
+                    {
+                      ldStFaultAddr_ = addr2;
+                      return cause;
+                    }
+                }
+            }
+
+          uint64_t next = (addr1 + stSize) & ~alignMask;
+          if (addr1 == addr2 and virtMem_.pageNumber(addr1) != virtMem_.pageNumber(next))
+            addr2 = next;
+          if (auto cause = checkPa(va2, addr2, true); cause != EC::NONE)
+            return cause;
+        }
     }
-  else
-    addr2 = addr1;
 
   return EC::NONE;
 }

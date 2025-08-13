@@ -62,16 +62,22 @@ namespace WdRiscv
     { return translate(va, pm, twoStage, false, false, true, gpa, pa); }
 
     /// Similar to translate but targeting only read access.
-    [[deprecated("Use translateForLoad2 instead.")]]
     ExceptionCause translateForLoad(uint64_t va, PrivilegeMode pm, bool twoStage,
 				    uint64_t& gpa, uint64_t& pa)
-    { return translate(va, pm, twoStage, true, false, false, gpa, pa); }
+    {
+      twoStage_ = twoStage;
+      gpa = pa = va;
+      return translate(va, pm, twoStage, true, false, false, gpa, pa);
+    }
 
     /// Similar to translate but targeting only write access.
-    [[deprecated("Use translateForStore2 instead.")]]
     ExceptionCause translateForStore(uint64_t va, PrivilegeMode pm, bool twoStage,
 				     uint64_t& gpa, uint64_t& pa)
-    { return translate(va, pm, twoStage, false, true, false, gpa, pa); }
+    {
+      twoStage_ = twoStage;
+      gpa = pa = va;
+      return translate(va, pm, twoStage, false, true, false, gpa, pa);
+    }
 
     /// Similar to translateForFetch but also check for page
     /// crossing. On success, gpa1/pa1 will have the physical address and
