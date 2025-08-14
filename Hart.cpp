@@ -1887,7 +1887,7 @@ Hart<URV>::determineLoadException(uint64_t& addr1, uint64_t& addr2, uint64_t& ga
     {
       if (misalHasPriority_ and not misalDataOk_)
 	return ExceptionCause::LOAD_ADDR_MISAL;
-      va2 = (va1 + ldSize) & ~alignMask;
+      va2 = (va1 + ldSize - 1) & ~alignMask;
     }
 
   setMemProtAccIsFetch(false);
@@ -1937,16 +1937,22 @@ Hart<URV>::determineLoadException(uint64_t& addr1, uint64_t& addr2, uint64_t& ga
             }
         }
 
+      uint64_t next;
+      if (misal)
+        {
+          next = (addr1 + ldSize - 1) & ~alignMask;
+          if (not (addr1 == addr2 and virtMem_.pageNumber(addr1) != virtMem_.pageNumber(next)))
+            next = addr2;
+        }
+
       if (auto cause = checkPa(va1, addr1, true); cause != EC::NONE)
         return cause;
 
       if (misal)
         {
-          uint64_t next = (addr1 + ldSize) & ~alignMask;
-          if (addr1 == addr2 and virtMem_.pageNumber(addr1) != virtMem_.pageNumber(next))
-            addr2 = next;
-          if (auto cause = checkPa(va2, addr2, false); cause != EC::NONE)
+          if (auto cause = checkPa(va2, next, false); cause != EC::NONE)
             return cause;
+          addr2 = next;
         }
       else
         addr2 = addr1;
@@ -1986,11 +1992,12 @@ Hart<URV>::determineLoadException(uint64_t& addr1, uint64_t& addr2, uint64_t& ga
                 }
             }
 
-          uint64_t next = (addr1 + ldSize) & ~alignMask;
-          if (addr1 == addr2 and virtMem_.pageNumber(addr1) != virtMem_.pageNumber(next))
-            addr2 = next;
-          if (auto cause = checkPa(va2, addr2, true); cause != EC::NONE)
+          uint64_t next = (addr1 + ldSize - 1) & ~alignMask;
+          if (not (addr1 == addr2 and virtMem_.pageNumber(addr1) != virtMem_.pageNumber(next)))
+            next = addr2;
+          if (auto cause = checkPa(va2, next, true); cause != EC::NONE)
             return cause;
+          addr2 = next;
         }
     }
 
@@ -12296,7 +12303,7 @@ Hart<URV>::determineStoreException(uint64_t& addr1, uint64_t& addr2,
     {
       if (misalHasPriority_ and not misalDataOk_)
 	return ExceptionCause::STORE_ADDR_MISAL;
-      va2 = (va1 + stSize) & ~alignMask;
+      va2 = (va1 + stSize - 1) & ~alignMask;
     }
 
   setMemProtAccIsFetch(false);
@@ -12347,16 +12354,25 @@ Hart<URV>::determineStoreException(uint64_t& addr1, uint64_t& addr2,
             }
         }
 
+      // Do this beforehand because addr1 may be STEE masked. This means
+      // it would be difficult to detect whether a page cross resulted in
+      // a different translation (addr1 == addr2).
+      uint64_t next;
+      if (misal)
+        {
+          next = (addr1 + stSize - 1) & ~alignMask;
+          if (not (addr1 == addr2 and virtMem_.pageNumber(addr1) != virtMem_.pageNumber(next)))
+            next = addr2;
+        }
+
       if (auto cause = checkPa(va1, addr1, true); cause != EC::NONE)
         return cause;
 
       if (misal)
         {
-          uint64_t next = (addr1 + stSize) + alignMask;
-          if (addr1 == addr2 and virtMem_.pageNumber(addr1) != virtMem_.pageNumber(next))
-            addr2 = next;
-          if (auto cause = checkPa(va2, addr2, false); cause != EC::NONE)
+          if (auto cause = checkPa(va2, next, false); cause != EC::NONE)
             return cause;
+          addr2 = next;
         }
       else
         addr2 = addr1;
@@ -12396,11 +12412,13 @@ Hart<URV>::determineStoreException(uint64_t& addr1, uint64_t& addr2,
                 }
             }
 
-          uint64_t next = (addr1 + stSize) & ~alignMask;
-          if (addr1 == addr2 and virtMem_.pageNumber(addr1) != virtMem_.pageNumber(next))
-            addr2 = next;
-          if (auto cause = checkPa(va2, addr2, true); cause != EC::NONE)
+          // We only set addr2 if we would cross pages.
+          uint64_t next = (addr1 + stSize - 1) & ~alignMask;
+          if (not (addr1 == addr2 and virtMem_.pageNumber(addr1) != virtMem_.pageNumber(next)))
+            next = addr2;
+          if (auto cause = checkPa(va2, next, true); cause != EC::NONE)
             return cause;
+          addr2 = next;
         }
     }
 
