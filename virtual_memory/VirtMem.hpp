@@ -125,11 +125,12 @@ namespace WdRiscv
     /// Configure the first stage of 2-stage translation. This is typically called at
     /// reset and as a result of changes to the VSATP CSR. The page table will be at
     /// address rootPageNum * pageSize.
-    void configStage1(Mode mode, uint32_t asid, uint64_t rootPageNum)
+    void configStage1(Mode mode, uint32_t asid, uint64_t rootPageNum, bool sum)
     {
       setVsMode(mode);
       setVsAsid(asid);
       setVsRootPage(rootPageNum);
+      setVsSum(sum);
     }
 
     /// Configure the second stage of 2-stage translation. This is typically called at
