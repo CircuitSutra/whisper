@@ -1864,10 +1864,7 @@ PerfApi::getVecOpsLmul(Hart64& hart, InstrPac& packet)
           unsigned imul = ig8 <= 8 ? 1 : ig8 / 8;   // Index reg effective lmul
 
           if (fields > 0)
-            {
-              dmul *= fields;
-              imul *= fields;
-            }
+            dmul *= fields;
 
           packet.operands_.at(0).lmul = dmul;
           packet.operands_.at(2).lmul = imul;
