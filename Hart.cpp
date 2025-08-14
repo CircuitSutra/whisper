@@ -2003,6 +2003,7 @@ Hart<URV>::determineLoadException(uint64_t& addr1, uint64_t& addr2, uint64_t& ga
 
   if (injectException_ != EC::NONE and injectExceptionIsLd_ and elemIx == injectExceptionElemIx_)
     {
+      ldStFaultAddr_ = va1;
       // Adjust ldStFaultAddr for line crossers if fault is on 2nd line.
       if (injectAddr_ != 0 and cacheLineNum(va1) != cacheLineNum(injectAddr_))
         {
