@@ -4842,10 +4842,18 @@ namespace WdRiscv
     void execVloxei16_v(const DecodedInst*);
     void execVloxei32_v(const DecodedInst*);
     void execVloxei64_v(const DecodedInst*);
+    void execVloxei128_v(const DecodedInst*);
+    void execVloxei256_v(const DecodedInst*);
+    void execVloxei512_v(const DecodedInst*);
+    void execVloxei1024_v(const DecodedInst*);
     void execVluxei8_v(const DecodedInst*);
     void execVluxei16_v(const DecodedInst*);
     void execVluxei32_v(const DecodedInst*);
     void execVluxei64_v(const DecodedInst*);
+    void execVluxei128_v(const DecodedInst*);
+    void execVluxei256_v(const DecodedInst*);
+    void execVluxei512_v(const DecodedInst*);
+    void execVluxei1024_v(const DecodedInst*);
 
     template <typename ELEM_TYPE>
     [[nodiscard]]
@@ -4855,10 +4863,18 @@ namespace WdRiscv
     void execVsoxei16_v(const DecodedInst*);
     void execVsoxei32_v(const DecodedInst*);
     void execVsoxei64_v(const DecodedInst*);
+    void execVsoxei128_v(const DecodedInst*);
+    void execVsoxei256_v(const DecodedInst*);
+    void execVsoxei512_v(const DecodedInst*);
+    void execVsoxei1024_v(const DecodedInst*);
     void execVsuxei8_v(const DecodedInst*);
     void execVsuxei16_v(const DecodedInst*);
     void execVsuxei32_v(const DecodedInst*);
     void execVsuxei64_v(const DecodedInst*);
+    void execVsuxei128_v(const DecodedInst*);
+    void execVsuxei256_v(const DecodedInst*);
+    void execVsuxei512_v(const DecodedInst*);
+    void execVsuxei1024_v(const DecodedInst*);
 
     template <typename ELEM_TYPE>
     [[nodiscard]]

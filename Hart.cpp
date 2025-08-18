@@ -8852,6 +8852,22 @@ Hart<URV>::execute(const DecodedInst* di)
       execVloxei64_v(di);
       return;
 
+    case InstId::vloxei128_v:
+      execVloxei128_v(di);
+      return;
+
+    case InstId::vloxei256_v:
+      execVloxei256_v(di);
+      return;
+
+    case InstId::vloxei512_v:
+      execVloxei512_v(di);
+      return;
+
+    case InstId::vloxei1024_v:
+      execVloxei1024_v(di);
+      return;
+
     case InstId::vluxei8_v:
       execVluxei8_v(di);
       return;
@@ -8866,6 +8882,22 @@ Hart<URV>::execute(const DecodedInst* di)
 
     case InstId::vluxei64_v:
       execVluxei64_v(di);
+      return;
+
+    case InstId::vluxei128_v:
+      execVluxei128_v(di);
+      return;
+
+    case InstId::vluxei256_v:
+      execVluxei256_v(di);
+      return;
+
+    case InstId::vluxei512_v:
+      execVluxei512_v(di);
+      return;
+
+    case InstId::vluxei1024_v:
+      execVluxei1024_v(di);
       return;
 
     case InstId::vsoxei8_v:
@@ -8884,6 +8916,22 @@ Hart<URV>::execute(const DecodedInst* di)
       execVsoxei64_v(di);
       return;
 
+    case InstId::vsoxei128_v:
+      execVsoxei128_v(di);
+      return;
+
+    case InstId::vsoxei256_v:
+      execVsoxei256_v(di);
+      return;
+
+    case InstId::vsoxei512_v:
+      execVsoxei512_v(di);
+      return;
+
+    case InstId::vsoxei1024_v:
+      execVsoxei1024_v(di);
+      return;
+
     case InstId::vsuxei8_v:
       execVsuxei8_v(di);
       return;
@@ -8898,6 +8946,22 @@ Hart<URV>::execute(const DecodedInst* di)
 
     case InstId::vsuxei64_v:
       execVsuxei64_v(di);
+      return;
+
+    case InstId::vsuxei128_v:
+      execVsuxei128_v(di);
+      return;
+
+    case InstId::vsuxei256_v:
+      execVsuxei256_v(di);
+      return;
+
+    case InstId::vsuxei512_v:
+      execVsuxei512_v(di);
+      return;
+
+    case InstId::vsuxei1024_v:
+      execVsuxei1024_v(di);
       return;
 
     case InstId::vlsege8_v:

@@ -4518,6 +4518,42 @@ InstTable::setupInstVec()
 	OperandType::VecReg, OperandMode::Read, rs2Mask,
       },
 
+      { "vloxei128.v", InstId::vloxei128_v,
+        0b000111'0'00000'00000'000'00000'0000111,
+        0b111111'0'00000'00000'111'00000'1111111, // Mask of opcode bits
+        RvExtension::V, RvFormat::I,
+        OperandType::VecReg, OperandMode::Write, rdMask,
+        OperandType::IntReg, OperandMode::Read, rs1Mask,
+	OperandType::VecReg, OperandMode::Read, rs2Mask,
+      },
+
+      { "vloxei256.v", InstId::vloxei256_v,
+        0b000111'0'00000'00000'101'00000'0000111,
+        0b111111'0'00000'00000'111'00000'1111111, // Mask of opcode bits
+        RvExtension::V, RvFormat::I,
+        OperandType::VecReg, OperandMode::Write, rdMask,
+        OperandType::IntReg, OperandMode::Read, rs1Mask,
+	OperandType::VecReg, OperandMode::Read, rs2Mask,
+      },
+
+      { "vloxei512.v", InstId::vloxei512_v,
+        0b000111'0'00000'00000'110'00000'0000111,
+        0b111111'0'00000'00000'111'00000'1111111, // Mask of opcode bits
+        RvExtension::V, RvFormat::I,
+        OperandType::VecReg, OperandMode::Write, rdMask,
+        OperandType::IntReg, OperandMode::Read, rs1Mask,
+	OperandType::VecReg, OperandMode::Read, rs2Mask,
+      },
+
+      { "vloxei1024.v", InstId::vloxei1024_v,
+        0b000111'0'00000'00000'111'00000'0000111,
+        0b111111'0'00000'00000'111'00000'1111111, // Mask of opcode bits
+        RvExtension::V, RvFormat::I,
+        OperandType::VecReg, OperandMode::Write, rdMask,
+        OperandType::IntReg, OperandMode::Read, rs1Mask,
+	OperandType::VecReg, OperandMode::Read, rs2Mask,
+      },
+
       { "vluxei8.v", InstId::vluxei8_v,
         0b000001'0'00000'00000'000'00000'0000111,
         0b111111'0'00000'00000'111'00000'1111111, // Mask of opcode bits
@@ -4547,6 +4583,42 @@ InstTable::setupInstVec()
 
       { "vluxei64.v", InstId::vluxei64_v,
         0b000001'0'00000'00000'111'00000'0000111,
+        0b111111'0'00000'00000'111'00000'1111111, // Mask of opcode bits
+        RvExtension::V, RvFormat::I,
+        OperandType::VecReg, OperandMode::Write, rdMask,
+        OperandType::IntReg, OperandMode::Read, rs1Mask,
+	OperandType::VecReg, OperandMode::Read, rs2Mask,
+      },
+
+      { "vluxei128.v", InstId::vluxei128_v,
+        0b000101'0'00000'00000'000'00000'0000111,
+        0b111111'0'00000'00000'111'00000'1111111, // Mask of opcode bits
+        RvExtension::V, RvFormat::I,
+        OperandType::VecReg, OperandMode::Write, rdMask,
+        OperandType::IntReg, OperandMode::Read, rs1Mask,
+	OperandType::VecReg, OperandMode::Read, rs2Mask,
+      },
+
+      { "vluxei256.v", InstId::vluxei256_v,
+        0b000101'0'00000'00000'101'00000'0000111,
+        0b111111'0'00000'00000'111'00000'1111111, // Mask of opcode bits
+        RvExtension::V, RvFormat::I,
+        OperandType::VecReg, OperandMode::Write, rdMask,
+        OperandType::IntReg, OperandMode::Read, rs1Mask,
+	OperandType::VecReg, OperandMode::Read, rs2Mask,
+      },
+
+      { "vluxei512.v", InstId::vluxei512_v,
+        0b000101'0'00000'00000'110'00000'0000111,
+        0b111111'0'00000'00000'111'00000'1111111, // Mask of opcode bits
+        RvExtension::V, RvFormat::I,
+        OperandType::VecReg, OperandMode::Write, rdMask,
+        OperandType::IntReg, OperandMode::Read, rs1Mask,
+	OperandType::VecReg, OperandMode::Read, rs2Mask,
+      },
+
+      { "vluxei1024.v", InstId::vluxei1024_v,
+        0b000101'0'00000'00000'111'00000'0000111,
         0b111111'0'00000'00000'111'00000'1111111, // Mask of opcode bits
         RvExtension::V, RvFormat::I,
         OperandType::VecReg, OperandMode::Write, rdMask,
@@ -4590,6 +4662,42 @@ InstTable::setupInstVec()
 	OperandType::VecReg, OperandMode::Read, rs2Mask,
       },
 
+      { "vsoxei128.v", InstId::vsoxei128_v,
+        0b000111'0'00000'00000'000'00000'0100111,
+        0b111111'0'00000'00000'111'00000'1111111, // Mask of opcode bits
+        RvExtension::V, RvFormat::S,
+        OperandType::VecReg, OperandMode::Read, rdMask,
+        OperandType::IntReg, OperandMode::Read, rs1Mask,
+	OperandType::VecReg, OperandMode::Read, rs2Mask,
+      },
+
+      { "vsoxei256.v", InstId::vsoxei256_v,
+        0b000111'0'00000'00000'101'00000'0100111,
+        0b111111'0'00000'00000'111'00000'1111111, // Mask of opcode bits
+        RvExtension::V, RvFormat::S,
+        OperandType::VecReg, OperandMode::Read, rdMask,
+        OperandType::IntReg, OperandMode::Read, rs1Mask,
+	OperandType::VecReg, OperandMode::Read, rs2Mask,
+      },
+
+      { "vsoxei512.v", InstId::vsoxei512_v,
+        0b000111'0'00000'00000'110'00000'0100111,
+        0b111111'0'00000'00000'111'00000'1111111, // Mask of opcode bits
+        RvExtension::V, RvFormat::S,
+        OperandType::VecReg, OperandMode::Read, rdMask,
+        OperandType::IntReg, OperandMode::Read, rs1Mask,
+	OperandType::VecReg, OperandMode::Read, rs2Mask,
+      },
+
+      { "vsoxei1024.v", InstId::vsoxei1024_v,
+        0b000111'0'00000'00000'111'00000'0100111,
+        0b111111'0'00000'00000'111'00000'1111111, // Mask of opcode bits
+        RvExtension::V, RvFormat::S,
+        OperandType::VecReg, OperandMode::Read, rdMask,
+        OperandType::IntReg, OperandMode::Read, rs1Mask,
+	OperandType::VecReg, OperandMode::Read, rs2Mask,
+      },
+
       { "vsuxei8.v", InstId::vsuxei8_v,
         0b000001'0'00000'00000'000'00000'0100111,
         0b111111'0'00000'00000'111'00000'1111111, // Mask of opcode bits
@@ -4619,6 +4727,42 @@ InstTable::setupInstVec()
 
       { "vsuxei64.v", InstId::vsuxei64_v,
         0b000001'0'00000'00000'111'00000'0100111,
+        0b111111'0'00000'00000'111'00000'1111111, // Mask of opcode bits
+        RvExtension::V, RvFormat::S,
+        OperandType::VecReg, OperandMode::Read, rdMask,
+        OperandType::IntReg, OperandMode::Read, rs1Mask,
+	OperandType::VecReg, OperandMode::Read, rs2Mask,
+      },
+
+      { "vsuxei128.v", InstId::vsuxei128_v,
+        0b000101'0'00000'00000'000'00000'0100111,
+        0b111111'0'00000'00000'111'00000'1111111, // Mask of opcode bits
+        RvExtension::V, RvFormat::S,
+        OperandType::VecReg, OperandMode::Read, rdMask,
+        OperandType::IntReg, OperandMode::Read, rs1Mask,
+	OperandType::VecReg, OperandMode::Read, rs2Mask,
+      },
+
+      { "vsuxei256.v", InstId::vsuxei256_v,
+        0b000101'0'00000'00000'101'00000'0100111,
+        0b111111'0'00000'00000'111'00000'1111111, // Mask of opcode bits
+        RvExtension::V, RvFormat::S,
+        OperandType::VecReg, OperandMode::Read, rdMask,
+        OperandType::IntReg, OperandMode::Read, rs1Mask,
+	OperandType::VecReg, OperandMode::Read, rs2Mask,
+      },
+
+      { "vsuxei512.v", InstId::vsuxei512_v,
+        0b000101'0'00000'00000'110'00000'0100111,
+        0b111111'0'00000'00000'111'00000'1111111, // Mask of opcode bits
+        RvExtension::V, RvFormat::S,
+        OperandType::VecReg, OperandMode::Read, rdMask,
+        OperandType::IntReg, OperandMode::Read, rs1Mask,
+	OperandType::VecReg, OperandMode::Read, rs2Mask,
+      },
+
+      { "vsuxei1024.v", InstId::vsuxei1024_v,
+        0b000101'0'00000'00000'111'00000'0100111,
         0b111111'0'00000'00000'111'00000'1111111, // Mask of opcode bits
         RvExtension::V, RvFormat::S,
         OperandType::VecReg, OperandMode::Read, rdMask,
