@@ -3251,7 +3251,7 @@ namespace WdRiscv
     /// for hypervisor load/store instruction to select 2-stage address
     /// translation.
     template<typename LOAD_TYPE>
-    bool load(const DecodedInst* di, uint64_t virtAddr, bool hyper, uint64_t& value);
+    bool load(const DecodedInst* di, uint64_t virtAddr, uint64_t& value);
 
     /// For use by performance model.
     template<typename LOAD_TYPE>
@@ -3290,7 +3290,7 @@ namespace WdRiscv
     /// be set to true for hypervisor load/store instruction to select
     /// 2-stage address translation.
     template<typename STORE_TYPE>
-    bool store(const DecodedInst* di, URV addr, bool hyper, STORE_TYPE value, bool amoLock = true);
+    bool store(const DecodedInst* di, URV addr, STORE_TYPE value, bool amoLock = true);
 
     /// For use by performance model.
     template<typename STORE_TYPE>
@@ -5851,7 +5851,6 @@ namespace WdRiscv
 
     bool virtMode_ = false;         // True if virtual (V) mode is on.
     bool lastVirt_ = false;         // Before current inst.
-    bool lastHyer_ = false;         // Hypervisor extension state before current inst.
     bool hyperLs_ = false;          // True if last instr is hypervisor load/store.
 
     bool lastBreakpInterruptEnabled_ = false; // Before current inst

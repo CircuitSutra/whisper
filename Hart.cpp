@@ -2167,8 +2167,10 @@ Hart<URV>::getOooLoadValue(uint64_t va, uint64_t pa1, uint64_t pa2, unsigned siz
 template <typename URV>
 template <typename LOAD_TYPE>
 bool
-Hart<URV>::load(const DecodedInst* di, uint64_t virtAddr, [[maybe_unused]] bool hyper, uint64_t& data)
+Hart<URV>::load(const DecodedInst* di, uint64_t virtAddr, uint64_t& data)
 {
+  bool hyper = di->isHypervisor();
+
   ldStAddr_ = virtAddr;   // For reporting ld/st addr in trace-mode.
   ldStFaultAddr_ = applyPointerMask(virtAddr, true /*isLoad*/, hyper);
   ldStPhysAddr1_ = ldStPhysAddr2_ = virtAddr;
@@ -2412,7 +2414,7 @@ Hart<URV>::execLw(const DecodedInst* di)
   uint64_t virtAddr = base + di->op2As<int32_t>();
 
   uint64_t data = 0;
-  if (load<int32_t>(di, virtAddr, false /*hyper*/, data))
+  if (load<int32_t>(di, virtAddr, data))
     intRegs_.write(di->op0(), data);
 }
 
@@ -2426,7 +2428,7 @@ Hart<URV>::execLh(const DecodedInst* di)
   uint64_t virtAddr = base + di->op2As<int32_t>();
 
   uint64_t data = 0;
-  if (load<int16_t>(di, virtAddr, false /*hyper*/, data))
+  if (load<int16_t>(di, virtAddr, data))
     intRegs_.write(di->op0(), data);
 }
 
@@ -2502,9 +2504,10 @@ template <typename URV>
 template <typename STORE_TYPE>
 inline
 bool
-Hart<URV>::store(const DecodedInst* di, URV virtAddr, [[maybe_unused]] bool hyper,
-		 STORE_TYPE storeVal, [[maybe_unused]] bool amoLock)
+Hart<URV>::store(const DecodedInst* di, URV virtAddr, STORE_TYPE storeVal,
+                 [[maybe_unused]] bool amoLock)
 {
+  bool hyper = di->isHypervisor();
   ldStAddr_ = virtAddr;   // For reporting ld/st addr in trace-mode.
   ldStFaultAddr_ = applyPointerMask(virtAddr, false /*isLoad*/, hyper);
   ldStPhysAddr1_ = ldStPhysAddr2_ = ldStAddr_;
@@ -2806,7 +2809,7 @@ Hart<URV>::execSw(const DecodedInst* di)
   URV addr = base + di->op2As<SRV>();
   uint32_t value = uint32_t(intRegs_.read(di->op0()));
 
-  store<uint32_t>(di, addr, false /*hyper*/, value);
+  store<uint32_t>(di, addr, value);
 }
 
 
@@ -12311,7 +12314,7 @@ Hart<URV>::execLb(const DecodedInst* di)
   uint64_t virtAddr = base + di->op2As<int32_t>();
 
   uint64_t data = 0;
-  if (load<int8_t>(di, virtAddr, false /*hyper*/, data))
+  if (load<int8_t>(di, virtAddr, data))
     intRegs_.write(di->op0(), data);
 }
 
@@ -12324,7 +12327,7 @@ Hart<URV>::execLbu(const DecodedInst* di)
   uint64_t virtAddr = base + di->op2As<int32_t>();
 
   uint64_t data = 0;
-  if (load<uint8_t>(di, virtAddr, false /*hyper*/, data))
+  if (load<uint8_t>(di, virtAddr, data))
     intRegs_.write(di->op0(), data);
 }
 
@@ -12337,7 +12340,7 @@ Hart<URV>::execLhu(const DecodedInst* di)
   uint64_t virtAddr = base + di->op2As<int32_t>();
 
   uint64_t data = 0;
-  if (load<uint16_t>(di, virtAddr, false /*hyper*/, data))
+  if (load<uint16_t>(di, virtAddr, data))
     intRegs_.write(di->op0(), data);
 }
 
@@ -12501,7 +12504,7 @@ Hart<URV>::execSb(const DecodedInst* di)
   URV base = intRegs_.read(rs1);
   URV addr = base + di->op2As<SRV>();
   uint8_t value = uint8_t(intRegs_.read(di->op0()));
-  store<uint8_t>(di, addr, false /*hyper*/, value);
+  store<uint8_t>(di, addr, value);
 }
 
 
@@ -12513,7 +12516,7 @@ Hart<URV>::execSh(const DecodedInst* di)
   URV base = intRegs_.read(rs1);
   URV addr = base + di->op2As<SRV>();
   uint16_t value = uint16_t(intRegs_.read(di->op0()));
-  store<uint16_t>(di, addr, false /*hyper*/, value);
+  store<uint16_t>(di, addr, value);
 }
 
 
@@ -12770,7 +12773,7 @@ Hart<URV>::execLwu(const DecodedInst* di)
   uint64_t virtAddr = base + di->op2As<int32_t>();
 
   uint64_t data = 0;
-  if (load<uint32_t>(di, virtAddr, false /*hyper*/, data))
+  if (load<uint32_t>(di, virtAddr, data))
     intRegs_.write(di->op0(), data);
 }
 
@@ -12796,7 +12799,7 @@ Hart<uint64_t>::execLd(const DecodedInst* di)
   uint64_t virtAddr = base + di->op2As<int32_t>();
 
   uint64_t data = 0;
-  if (load<uint64_t>(di, virtAddr, false /*hyper*/, data))
+  if (load<uint64_t>(di, virtAddr, data))
     intRegs_.write(di->op0(), data);
 }
 
@@ -12827,7 +12830,7 @@ Hart<URV>::execSd(const DecodedInst* di)
   URV addr = base + di->op2As<SRV>();
   URV value = intRegs_.read(di->op0());
 
-  store<uint64_t>(di, addr, false /*hyper*/, value);
+  store<uint64_t>(di, addr, value);
 }
 
 
@@ -13313,92 +13316,92 @@ Hart<URV>::execLpad(const DecodedInst* di)
 
 template
 bool
-WdRiscv::Hart<uint32_t>::load<uint8_t>(const DecodedInst*, uint64_t, bool, uint64_t&);
+WdRiscv::Hart<uint32_t>::load<uint8_t>(const DecodedInst*, uint64_t, uint64_t&);
 
 template
 bool
-WdRiscv::Hart<uint32_t>::load<int8_t>(const DecodedInst*, uint64_t, bool, uint64_t&);
+WdRiscv::Hart<uint32_t>::load<int8_t>(const DecodedInst*, uint64_t, uint64_t&);
 
 template
 bool
-WdRiscv::Hart<uint32_t>::load<uint16_t>(const DecodedInst*, uint64_t, bool, uint64_t&);
+WdRiscv::Hart<uint32_t>::load<uint16_t>(const DecodedInst*, uint64_t, uint64_t&);
 
 template
 bool
-WdRiscv::Hart<uint32_t>::load<int16_t>(const DecodedInst*, uint64_t, bool, uint64_t&);
+WdRiscv::Hart<uint32_t>::load<int16_t>(const DecodedInst*, uint64_t, uint64_t&);
 
 template
 bool
-WdRiscv::Hart<uint32_t>::load<uint32_t>(const DecodedInst*, uint64_t, bool, uint64_t&);
+WdRiscv::Hart<uint32_t>::load<uint32_t>(const DecodedInst*, uint64_t, uint64_t&);
 
 template
 bool
-WdRiscv::Hart<uint32_t>::load<int32_t>(const DecodedInst*, uint64_t, bool, uint64_t&);
+WdRiscv::Hart<uint32_t>::load<int32_t>(const DecodedInst*, uint64_t, uint64_t&);
 
 template
 bool
-WdRiscv::Hart<uint32_t>::load<uint64_t>(const DecodedInst*, uint64_t, bool, uint64_t&);
+WdRiscv::Hart<uint32_t>::load<uint64_t>(const DecodedInst*, uint64_t, uint64_t&);
 
 template
 bool
-WdRiscv::Hart<uint64_t>::load<uint8_t>(const DecodedInst*, uint64_t, bool, uint64_t&);
+WdRiscv::Hart<uint64_t>::load<uint8_t>(const DecodedInst*, uint64_t, uint64_t&);
 
 template
 bool
-WdRiscv::Hart<uint64_t>::load<int8_t>(const DecodedInst*, uint64_t, bool, uint64_t&);
+WdRiscv::Hart<uint64_t>::load<int8_t>(const DecodedInst*, uint64_t, uint64_t&);
 
 template
 bool
-WdRiscv::Hart<uint64_t>::load<uint16_t>(const DecodedInst*, uint64_t, bool, uint64_t&);
+WdRiscv::Hart<uint64_t>::load<uint16_t>(const DecodedInst*, uint64_t, uint64_t&);
 
 template
 bool
-WdRiscv::Hart<uint64_t>::load<int16_t>(const DecodedInst*, uint64_t, bool, uint64_t&);
+WdRiscv::Hart<uint64_t>::load<int16_t>(const DecodedInst*, uint64_t, uint64_t&);
 
 template
 bool
-WdRiscv::Hart<uint64_t>::load<uint32_t>(const DecodedInst*, uint64_t, bool, uint64_t&);
+WdRiscv::Hart<uint64_t>::load<uint32_t>(const DecodedInst*, uint64_t, uint64_t&);
 
 template
 bool
-WdRiscv::Hart<uint64_t>::load<int32_t>(const DecodedInst*, uint64_t, bool, uint64_t&);
+WdRiscv::Hart<uint64_t>::load<int32_t>(const DecodedInst*, uint64_t, uint64_t&);
 
 template
 bool
-WdRiscv::Hart<uint64_t>::load<uint64_t>(const DecodedInst*, uint64_t, bool, uint64_t&);
+WdRiscv::Hart<uint64_t>::load<uint64_t>(const DecodedInst*, uint64_t, uint64_t&);
 
 
 template
 bool
-WdRiscv::Hart<uint32_t>::store<uint8_t>(const DecodedInst*, uint32_t, bool, uint8_t, bool);
+WdRiscv::Hart<uint32_t>::store<uint8_t>(const DecodedInst*, uint32_t, uint8_t, bool);
 
 template
 bool
-WdRiscv::Hart<uint32_t>::store<uint16_t>(const DecodedInst*, uint32_t, bool, uint16_t, bool);
+WdRiscv::Hart<uint32_t>::store<uint16_t>(const DecodedInst*, uint32_t, uint16_t, bool);
 
 template
 bool
-WdRiscv::Hart<uint32_t>::store<uint32_t>(const DecodedInst*, uint32_t, bool, uint32_t, bool);
+WdRiscv::Hart<uint32_t>::store<uint32_t>(const DecodedInst*, uint32_t, uint32_t, bool);
 
 template
 bool
-WdRiscv::Hart<uint32_t>::store<uint64_t>(const DecodedInst*, uint32_t, bool, uint64_t, bool);
+WdRiscv::Hart<uint32_t>::store<uint64_t>(const DecodedInst*, uint32_t, uint64_t, bool);
 
 template
 bool
-WdRiscv::Hart<uint64_t>::store<uint8_t>(const DecodedInst*, uint64_t, bool, uint8_t, bool);
+WdRiscv::Hart<uint64_t>::store<uint8_t>(const DecodedInst*, uint64_t, uint8_t, bool);
 
 template
 bool
-WdRiscv::Hart<uint64_t>::store<uint16_t>(const DecodedInst*, uint64_t, bool, uint16_t, bool);
+WdRiscv::Hart<uint64_t>::store<uint16_t>(const DecodedInst*, uint64_t, uint16_t, bool);
 
 template
 bool
-WdRiscv::Hart<uint64_t>::store<uint32_t>(const DecodedInst*, uint64_t, bool, uint32_t, bool);
+WdRiscv::Hart<uint64_t>::store<uint32_t>(const DecodedInst*, uint64_t, uint32_t, bool);
 
 template
 bool
-WdRiscv::Hart<uint64_t>::store<uint64_t>(const DecodedInst*, uint64_t, bool, uint64_t, bool);
+WdRiscv::Hart<uint64_t>::store<uint64_t>(const DecodedInst*, uint64_t, uint64_t, bool);
 
 
 template
