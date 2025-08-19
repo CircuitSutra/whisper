@@ -478,8 +478,6 @@ Hart<URV>::execAmo32Op(const DecodedInst* di, Pma::Attrib attrib, OP op)
       return;
     }
 
-  hyperLs_ = false;
-
   // Lock mutex to serialize AMO instructions. Unlock automatically on
   // exit from this scope.
   std::unique_lock lock(memory_.amoMutex_);
@@ -687,8 +685,6 @@ Hart<URV>::execAmo64Op(const DecodedInst* di, Pma::Attrib attrib, OP op)
       illegalInst(di);
       return;
     }
-
-  hyperLs_ = false;
 
   // Lock mutex to serialize AMO instructions. Unlock automatically on
   // exit from this scope.

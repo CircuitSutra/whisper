@@ -119,8 +119,6 @@ template <typename URV>
 void
 Hart<URV>::execCbo_clean(const DecodedInst* di)
 {
-  hyperLs_ = false;
-
   if (not isRvzicbom())
     {
       illegalInst(di);
@@ -185,8 +183,6 @@ template <typename URV>
 void
 Hart<URV>::execCbo_flush(const DecodedInst* di)
 {
-  hyperLs_ = false;
-
   if (not isRvzicbom())
     {
       illegalInst(di);
@@ -251,8 +247,6 @@ template <typename URV>
 void
 Hart<URV>::execCbo_inval(const DecodedInst* di)
 {
-  hyperLs_ = false;
-
   if (not isRvzicbom())
     {
       illegalInst(di);
@@ -317,8 +311,6 @@ template <typename URV>
 void
 Hart<URV>::execCbo_zero(const DecodedInst* di)
 {
-  hyperLs_ = false;
-
   if (not isRvzicboz())
     {
       illegalInst(di);
@@ -406,8 +398,6 @@ template <typename URV>
 void
 Hart<URV>::execPrefetch_i(const DecodedInst* di)
 {
-  hyperLs_ = false;
-
   if (not isRvzicbop())
     {
       illegalInst(di);
@@ -420,8 +410,6 @@ template <typename URV>
 void
 Hart<URV>::execPrefetch_r(const DecodedInst* di)
 {
-  hyperLs_ = false;
-
   if (not isRvzicbop())
     {
       illegalInst(di);
@@ -434,8 +422,6 @@ template <typename URV>
 void
 Hart<URV>::execPrefetch_w(const DecodedInst* di)
 {
-  hyperLs_ = false;
-
   if (not isRvzicbop())
     {
       illegalInst(di);

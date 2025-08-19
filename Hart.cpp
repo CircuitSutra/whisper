@@ -2169,10 +2169,10 @@ template <typename LOAD_TYPE>
 bool
 Hart<URV>::load(const DecodedInst* di, uint64_t virtAddr, uint64_t& data)
 {
-  bool hyper = di->isHypervisor();
+  hyperLs_ = di->isHypervisor();
 
   ldStAddr_ = virtAddr;   // For reporting ld/st addr in trace-mode.
-  ldStFaultAddr_ = applyPointerMask(virtAddr, true /*isLoad*/, hyper);
+  ldStFaultAddr_ = applyPointerMask(virtAddr, true /*isLoad*/, hyperLs_);
   ldStPhysAddr1_ = ldStPhysAddr2_ = virtAddr;
   ldStSize_ = sizeof(LOAD_TYPE);
 
@@ -2189,7 +2189,7 @@ Hart<URV>::load(const DecodedInst* di, uint64_t virtAddr, uint64_t& data)
   uint64_t addr2 = addr1;
   uint64_t gaddr1 = virtAddr;
   uint64_t gaddr2 = virtAddr;
-  auto cause = determineLoadException(addr1, addr2, gaddr1, gaddr2, ldStSize_, hyper);
+  auto cause = determineLoadException(addr1, addr2, gaddr1, gaddr2, ldStSize_, hyperLs_);
   if (cause != ExceptionCause::NONE)
     {
       initiateLoadException(di, cause, ldStFaultAddr_, gaddr1);
@@ -2507,9 +2507,9 @@ bool
 Hart<URV>::store(const DecodedInst* di, URV virtAddr, STORE_TYPE storeVal,
                  [[maybe_unused]] bool amoLock)
 {
-  bool hyper = di->isHypervisor();
+  hyperLs_ = di->isHypervisor();
   ldStAddr_ = virtAddr;   // For reporting ld/st addr in trace-mode.
-  ldStFaultAddr_ = applyPointerMask(virtAddr, false /*isLoad*/, hyper);
+  ldStFaultAddr_ = applyPointerMask(virtAddr, false /*isLoad*/, hyperLs_);
   ldStPhysAddr1_ = ldStPhysAddr2_ = ldStAddr_;
   ldStSize_ = sizeof(STORE_TYPE);
 
@@ -2539,7 +2539,7 @@ Hart<URV>::store(const DecodedInst* di, URV virtAddr, STORE_TYPE storeVal,
   // for 2-stage address translation.
   uint64_t pa1 = virtAddr, pa2 = virtAddr;
   uint64_t ga1 = virtAddr, ga2 = virtAddr;
-  ExceptionCause cause = determineStoreException(pa1, pa2, ga1, ga2, ldStSize_, hyper);
+  ExceptionCause cause = determineStoreException(pa1, pa2, ga1, ga2, ldStSize_, hyperLs_);
   ldStPhysAddr1_ = pa1;
   ldStPhysAddr2_ = pa2;
 
@@ -5804,7 +5804,7 @@ Hart<URV>::simpleRunWithLimit()
          instCounter_ < instLim and
          retInstCounter_ < retInstLim)
     {
-	tickTime();
+      tickTime();
 
       resetExecInfo();
 
@@ -5864,7 +5864,7 @@ Hart<URV>::simpleRunNoLimit()
 {
   while (noUserStop)
     {
-	tickTime();
+      tickTime();
 
       currPc_ = pc_;
       ++instCounter_;
@@ -6459,7 +6459,7 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
 
   try
     {
-	tickTime();
+      tickTime();
 
       uint32_t inst = 0;
       currPc_ = pc_;
@@ -6568,6 +6568,7 @@ void
 Hart<URV>::execute(const DecodedInst* di)
 {
   const InstEntry* entry = di->instEntry();
+  hyperLs_ = false;
 
   if (isRvZicfilp() and elp_)
     {
