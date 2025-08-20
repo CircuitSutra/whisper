@@ -413,7 +413,8 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
   bool trap = hart.lastInstructionTrapped();
   packet.trap_ = trap;
   packet.interrupt_ = hart.lastInstructionInterrupted();
-  packet.trapCause_ = hart.lastTrapCause();
+  if (trap)
+    packet.trapCause_ = hart.lastTrapCause();
 
   // If save fails or set fails, there must be a trap.
   if (not saveOk or not setOk)
@@ -557,7 +558,8 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
   bool trap = hart.lastInstructionTrapped();
   packet.trap_ = packet.trap_ or trap;
   packet.interrupt_ = hart.lastInstructionInterrupted();
-  packet.trapCause_ = hart.lastTrapCause();
+  if (packet.trap_)
+    packet.trapCause_ = hart.lastTrapCause();
 
   auto& di = packet.decodedInst();
 
