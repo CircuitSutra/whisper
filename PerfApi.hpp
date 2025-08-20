@@ -675,7 +675,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
 
     /// Get from the producing packet, the value of the vector register with the given
     /// global register index.
-    void getVecDestValue(const InstrPac& producer, unsigned gri, unsigned vecRegSize,
+    bool getVecDestValue(const InstrPac& producer, unsigned gri, unsigned vecRegSize,
                          OpVal& val) const
     {
       assert(producer.executed());
@@ -696,11 +696,11 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
               auto& result = val.vec;
               result.clear();
               result.insert(result.end(), vec.begin() + offset, vec.begin() + offset + vecRegSize);
-              return;
+              return true;
             }
         }
       
-      assert(0 && "Error: Assertion failed");
+      return false;
     }
 
     /// Save hart register values corresponding to packet operands in prevVal.  Return

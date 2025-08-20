@@ -2149,7 +2149,7 @@ PerfApi::collectOperandValues(Hart64& hart, InstrPac& packet)
                       assert(0 && "Error: Assertion failed");
                       return false;
                     }
-                  getVecDestValue(*producer, gri + n, vecRegSize, val);
+                  peekOk = getVecDestValue(*producer, gri + n, vecRegSize, val) and peekOk;
                 }
               else
                 peekOk = peekRegister(hart, type, regNum+n, val) and peekOk;
