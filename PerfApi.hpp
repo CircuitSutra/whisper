@@ -781,9 +781,9 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     const unsigned vecRegOffset_  = fpRegOffset_  + 32;
 
     // The vector register index may go beyond 32 for speculated vector instruction with
-    // an invalid register-index/lmul combination. We reserve 64 (max-LMUL times
-    // max-field-count) for that.
-    const unsigned maxEffLmul_ = 64;
+    // an invalid register-index/lmul combination. We reserve 512: 8*8*8
+    // max lmul = 8, max eew/ew = 8/1 = 8, max field count = 8
+    const unsigned maxEffLmul_ = 512;
     const unsigned csRegOffset_   = vecRegOffset_ + 32 + maxEffLmul_;
     const unsigned totalRegCount_ = csRegOffset_  + 4096; // 4096: max CSR count.
 
