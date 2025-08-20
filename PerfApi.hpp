@@ -690,7 +690,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
               unsigned group = vec.size() / vecRegSize;
               if (group == 0)
                 group = 1;
-              assert(gri >= pdv.first and gri < pdv.first + group);
+              assert(group <= maxEffLmul_ and gri >= pdv.first and gri < pdv.first + group);
               unsigned offset = (gri - pdv.first) * vecRegSize;
 
               auto& result = val.vec;
@@ -779,7 +779,12 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     const unsigned intRegOffset_  = 0;
     const unsigned fpRegOffset_   = intRegOffset_ + 32;
     const unsigned vecRegOffset_  = fpRegOffset_  + 32;
-    const unsigned csRegOffset_   = vecRegOffset_ + 32;
+
+    // The vector register index may go beyond 32 for speculated vector instruction with
+    // an invalid register-index/lmul combination. We reserve 64 (max-LMUL times
+    // max-field-count) for that.
+    const unsigned maxEffLmul_ = 64;
+    const unsigned csRegOffset_   = vecRegOffset_ + 32 + maxEffLmul_;
     const unsigned totalRegCount_ = csRegOffset_  + 4096; // 4096: max CSR count.
 
     static constexpr uint64_t haltPc = ~uint64_t(1);  // value assigned to InstPac->nextIva_ when program termination is encountered

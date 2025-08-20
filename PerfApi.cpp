@@ -45,7 +45,7 @@ PerfApi::checkHart(const char* caller, unsigned hartIx)
   if (not hart)
     {
       std::cerr << caller << ": Bad hart index: " << hartIx << '\n';
-      assert(0 && "Error: Assertion failed");
+      assert(0 && "Error: Assertion failed -- bad hart index");
     }
   return hart;
 }
@@ -59,7 +59,7 @@ PerfApi::checkTag(const char* caller, unsigned hartIx, uint64_t tag)
   if (iter != packetMap.end())
     return iter->second;
   std::cerr << caller << ": Unknown tag (never fetched): " << tag << '\n';
-  assert(0 && "Error: Assertion failed");
+  assert(0 && "Error: Assertion failed -- unknown tag");
   return nullptr;
 }
 
@@ -70,7 +70,7 @@ PerfApi::checkTime(const char* caller, uint64_t time)
   if (time < time_)
     {
       std::cerr << caller << ": Bad time: " << time << '\n';
-      assert(0 && "Error: Assertion failed");
+      assert(0 && "Error: Assertion failed -- bad time value");
       return false;
     }
   time_ = time;
@@ -97,7 +97,7 @@ PerfApi::fetch(unsigned hartIx, uint64_t time, uint64_t tag, uint64_t vpc,
     {
       std::cerr << "Error: PerfApi::fetch: Hart-ix=" << hartIx << " tag=" << tag
 		<< " zero tag is reserved.\n";
-      assert(0 && "Error: Assertion failed");
+      assert(0 && "Error: Assertion failed -- zero tag");
       return false;
     }
 
@@ -106,7 +106,7 @@ PerfApi::fetch(unsigned hartIx, uint64_t time, uint64_t tag, uint64_t vpc,
     {
       std::cerr << "Error: PerfApi::fetch: Hart-ix=" << hartIx << "tag=" << tag
 		<< " tag is not in increasing order.\n";
-      assert(0 && "Error: Assertion failed");
+      assert(0 && "Error: Assertion failed -- tag out of order");
       return false;
     }
 
@@ -145,7 +145,7 @@ PerfApi::fetch(unsigned hartIx, uint64_t time, uint64_t tag, uint64_t vpc,
   packet->opcode_= opcode;
   insertPacket(hartIx, tag, packet);
   if (not decode(hartIx, time, tag))
-    assert(0 && "Error: Assertion failed");
+    assert(0 && "Error: Assertion failed -- failed to decode");
   prevFetch_ = packet;
 
   trap = cause != ExceptionCause::NONE;
@@ -229,7 +229,7 @@ PerfApi::decode(unsigned hartIx, uint64_t time, uint64_t tag)
       else
         {
           auto lmul = op.lmul;
-          assert(lmul != 0);
+          assert(lmul != 0 and lmul <= maxEffLmul_);
           for (unsigned n = 0; n < lmul; ++n)
             {
               unsigned vgri = gri + n;
@@ -256,6 +256,7 @@ PerfApi::decode(unsigned hartIx, uint64_t time, uint64_t tag)
           else
             {
               auto lmul = op.lmul;
+              assert(lmul <= maxEffLmul_);
               for (unsigned n = 0; n < lmul; ++n)
                 {
                   unsigned vgri = gri + n;
@@ -304,7 +305,7 @@ PerfApi::execute(unsigned hartIx, uint64_t time, uint64_t tag)
       // Instruction is being re-executed. Must be load/store. Every instruction that
       // depends on it must be re-executed.
       if (not di.isLoad() and not di.isStore())
-	assert(0 && "Error: Assertion failed");
+	assert(0 && "Error: Assertion failed -- re-executed instruction is not ld/store");
       auto iter = packetMap.find(packet.tag());
       assert(iter != packetMap.end());
       for ( ; iter != packetMap.end(); ++iter)
@@ -322,7 +323,7 @@ PerfApi::execute(unsigned hartIx, uint64_t time, uint64_t tag)
   // Execute the instruction: Poke source register values, execute, recover destination
   // register values.
   if (not execute(hartIx, packet))
-    assert(0 && "Error: Assertion failed");
+    assert(0 && "Error: Assertion failed -- failed to execute isntruction");
 
   // We should not fail to read an operand value unless there is an exception.
   if (not peekOk)
@@ -1086,9 +1087,9 @@ PerfApi::flush(unsigned hartIx, uint64_t time, uint64_t tag)
       if (pacPtr->tag_ < tag)
 	break;
 
-      if (not pacPtr or pacPtr->retired())
+      if (pacPtr->retired())
         {
-          assert(0 && "Error: Assertion failed");
+          assert(0 && "Error: Assertion failed: Flushing retired instruction");
           return false;
         }
 
@@ -1117,6 +1118,7 @@ PerfApi::flush(unsigned hartIx, uint64_t time, uint64_t tag)
                 }
               else
                 {
+                  assert(iop.vec.size() <= maxEffLmul_);
                   for (unsigned n = 0; n < iop.vec.size(); ++n)
                     {
                       auto prev = iop.vec.at(n);
@@ -2077,6 +2079,7 @@ PerfApi::undoDestRegRename(unsigned hartIx, const InstrPac& packet)
             }
           else
             {
+              assert(op.lmul <= maxEffLmul_);
               for (unsigned n = 0; n < op.lmul; ++n)
                 {
                   auto& producer = producers.at(gri + n);
@@ -2136,6 +2139,7 @@ PerfApi::collectOperandValues(Hart64& hart, InstrPac& packet)
         }
       else
         {
+          assert(iop.vec.size() <= maxEffLmul_);
           for (unsigned n = 0; n < iop.vec.size(); ++n)
             {
               OpVal val;  // Single register value
