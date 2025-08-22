@@ -1880,8 +1880,10 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
   tag = "enable_performance_counters";
   if (config_ -> contains(tag))
     {
-      getJsonBoolean(tag, config_ ->at(tag), flag) or errors++;
-      hart.enablePerformanceCounters(flag);
+      cerr << "Warning: Config file tag \"" << tag << "\" deprecated: "
+           << "Add extension string \"zicntr\" to \"isa\" tag instead.\n";
+      // getJsonBoolean(tag, config_ ->at(tag), flag) or errors++;
+      // hart.enablePerformanceCounters(flag);
     }
 
   tag = "perf_count_atomic_load_store";

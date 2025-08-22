@@ -1386,7 +1386,11 @@ namespace WdRiscv
 
     /// Enable/disable Zicntr extension.
     void enableZicntr(bool flag)
-    { enableExtension(RvExtension::Zicntr, flag); csRegs_.enableZicntr(flag); }
+    {
+      enablePerformanceCounters(flag);
+      enableExtension(RvExtension::Zicntr, flag);
+      csRegs_.enableZicntr(flag);
+    }
 
     /// Enable/disable Zihpm extension.
     void enableZihpm(bool flag)
