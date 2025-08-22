@@ -1906,172 +1906,80 @@ Mcm<URV>::checkVecStoreData(Hart<URV>& hart, const McmInstr& store) const
   if (not store.di_.isVector())
     return true;
 
-  // Get reference (Whisper) data.
+  if (not store.complete_)
+    return true;  // Will check again once store is complete.
+
+  auto hartId = hart.hartId();
+
+  // 1. Put RTL byte data in a address to value map.
+  std::unordered_map<uint64_t, uint8_t> rtlData;
+  for (auto opIx : store.memOps_)
+    {
+      auto& op = sysMemOps_.at(opIx);
+      for (unsigned i = 0; i < op.size_; ++i)
+	{
+	  uint64_t addr = op.pa_ +i;
+	  uint8_t val = op.rtlData_ >> (i*8);
+          rtlData[addr] = val;
+	}
+    }
+
+  // 2. Put reference data in a map.
   auto& vecRefMap = hartData_.at(store.hartIx_).vecRefMap_;
   auto iter = vecRefMap.find(store.tag_);
   assert(iter != vecRefMap.end());
   auto& vecRefs = iter->second;
 
-  auto hartId = hart.hartId();
-
-  if (not store.hasOverlap_)
-    {
-      // Put reference data in a per-byte address/value map.
-      std::unordered_map<uint64_t , uint8_t> dataMap;
-      for (auto& ref : vecRefs.refs_)
-	for (unsigned i = 0; i < ref.size_; ++i)
-	  dataMap[ref.pa_ + i] = ref.data_ >> (i*8);
-
-      // Compare RTL data to reference data.
-      for (auto opIx : store.memOps_)
-	{
-	  auto& op = sysMemOps_.at(opIx);
-	  for (unsigned i = 0; i < op.size_; ++i)
-	    {
-	      uint64_t addr = op.pa_ + i;
-	      uint8_t rtlVal = op.rtlData_ >> (i*8);
-
-	      auto iter = dataMap.find(addr);
-	      if (iter == dataMap.end())
-		{
-		  if (store.complete_)
-		    {
-		      cerr << "Error: hart-id=" << hartId << " tag=" << store.tag_
-			   << " addr=0x" << std::hex << addr << std::dec
-			   << " addr found in write ops (RTL) but not in "
-			   << " reference (Whisper)\n";
-		      return false;
-		    }
-		  continue;  // Will check again when store is complete.
-		}
-
-	      uint8_t refVal = iter->second;
-	      if (rtlVal != refVal)
-		{
-		  cerr << "Error: hart-id=" << hartId << " tag=" << store.tag_
-		       << " mismatch on vector store data: addr=0x" << std::hex << addr
-		       << " rtl=0x" << unsigned(rtlVal) << " whisper=0x"
-		       << unsigned(refVal) << std::dec << '\n';
-		  return false;
-		}
-	    }
-	}
-
-      return true;
-    }
-      
-
-  // We assume that the writes are done in element order. This is not so
-  // when an mbinsert crosses a mid-cache-line boundary. TBD FIX: get
-  // the test-bench to send element index and field with every mbinsert.
-
-  bool allIo = true;  // RTL does the right thing for IO.
-
-  // 1. Collect RTL writes. Start with the drained writes.
-  std::vector<const MemoryOp*> writes;
-  writes.reserve(128);
-  for (auto opIx : store.memOps_)
-    {
-      auto& op = sysMemOps_.at(opIx);
-      writes.push_back(&op);
-      allIo = allIo and op.isIo_;
-    }
-
-  // 1.1. And append undrained writes.
-  if (not store.complete_)
-    {
-      auto hartIx = hart.sysHartIndex();
-      const auto& pendingWrites = hartData_.at(hartIx).pendingWrites_;
-      for (auto& op : pendingWrites)
-	if (op.tag_ == store.tag_ and hartIx == op.hartIx_)
-	  {
-	    allIo = allIo and op.isIo_;
-	    writes.push_back(&op);
-	  }
-    }
-
-  if (not allIo)
-    return true;   // Temporary until we get elem-ix and field with teach mbinsert.
-
-  // 2. Sort writes by insertion time.
-  std::stable_sort(writes.begin(), writes.end(),
-                   [](const MemoryOp* a, const MemoryOp* b) {
-                     return a->insertTime_ < b->insertTime_;
-                   }
-                   );
-
-  // 3. Put RTL byte data in a vector of address/value pairs.
-  using AddrValue = std::pair<uint64_t, uint8_t>;
-  std::vector<AddrValue> rtlData;
-  rtlData.reserve(1024);
-  for (auto opPtr : writes)
-    {
-      auto& op = *opPtr;
-      for (unsigned i = 0; i < op.size_; ++i)
-	{
-	  uint64_t addr = op.pa_ +i;
-	  uint8_t val = op.rtlData_ >> (i*8);
-	  rtlData.push_back(AddrValue{addr, val});
-	}
-    }
-
-  auto printError = [] (unsigned hartId, uint64_t tag, const VecRef& ref) {
-    cerr << "Error: hart-id=" << hartId << " tag=" << tag
-	 << " mismatch on vector store: vec-reg=" << unsigned(ref.reg_)
-	 << " elem=" << unsigned(ref.ix_);
-    if (ref.field_)
-      cerr << " seg=" << unsigned(ref.field_);
-  };
-
-  // 4. Compare RTL data to reference data.
-  unsigned rtlDataIx = 0;
+  std::unordered_map<uint64_t, uint8_t> refData;
   for (auto& ref : vecRefs.refs_)
     {
-      for (unsigned i = 0; i < ref.size_; ++i, ++rtlDataIx)
+      for (unsigned i = 0; i < ref.size_; ++i)
 	{
 	  uint64_t addr = ref.pa_ + i;
 	  uint8_t val = ref.data_ >> (i*8);
-	  if (rtlDataIx >= rtlData.size())
-	    {
-	      if (store.complete_)
-		{
-		  printError(hartId, store.tag_, ref);
-		  cerr << " whisper-addr=0x" << std::hex << addr << std::dec
-		       << " RTL-addr=none\n";
-		  return false;
-		}
-	      return true;  // Will check again once store is complete.
-	    }
-
-	  auto [rtlAddr, rtlVal] = rtlData.at(rtlDataIx);
-	  if (rtlAddr != addr)
-	    {
-	      printError(hartId, store.tag_, ref);
-	      cerr << " whisper-addr=0x" << std::hex << addr << " RTL-addr=0x"
-		   << rtlAddr << std::dec << '\n';
-	      return false;
-	    }
-
-	  if (rtlVal != val)
-	    {
-	      printError(hartId, store.tag_, ref);
-	      cerr << " addr=0x" << std::hex << addr << " whisper-value=0x"
-		   << unsigned(val) << " RTL-value=0x" << unsigned(rtlVal)
-		   << std::dec << '\n';
-	      return false;
-	    }
-	}
+          refData[addr] = val;
+        }
     }
 
-  if (rtlDataIx < rtlData.size())
+  auto tag = store.tag_;
+
+  // 3. Compare ref data to RTL data.
+  for (auto& [addr, rtlVal] : rtlData)
     {
-      cerr << "Warning: hart-id=" << hartId << " tag=" << store.tag_
-	   << " RTL has extra write-operation data for vector store instruction.\n";
+      if (not refData.contains(addr))
+        {
+          cerr << "Error: hart-id=" << hartId << " tag=" << tag
+               << " mismatch on vector store data: addr=0x" << std::hex << addr
+               << " rtl=0x" << unsigned(rtlVal) << " whisper=none" << std::dec << '\n';
+          return false;
+        }
+      uint8_t refVal = refData[addr];
+      if (rtlVal != refVal)
+        {
+          cerr << "Error: hart-id=" << hartId << " tag=" << tag
+               << " mismatch on vector store data: addr=0x" << std::hex << addr
+               << " rtl=0x" << unsigned(rtlVal) << " whisper=0x" << unsigned(refVal)
+               << std::dec << '\n';
+          return false;
+        }
+    }
+
+  if (rtlData.size() != refData.size())
+    {
+      // Check if RTL is missing writes.
+      for (auto& [addr, refVal] : rtlData)
+        {
+          if (rtlData.contains(addr))
+            continue;
+          cerr << "Error: hart-id=" << hartId << " tag=" << tag
+               << " mismatch on vector store data: addr=0x" << std::hex << addr
+               << " whisper=0x" << unsigned(refVal) << " rgl=none" << std::dec << '\n';
+          return false;
+        }
     }
 
   return true;
 }
-
 
 
 /// Return a mask where the ith bit is set if addr + i is in the range
