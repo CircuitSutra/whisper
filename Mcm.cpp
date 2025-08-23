@@ -4985,9 +4985,9 @@ Mcm<URV>::ppoRule12(Hart<URV>& hart, const McmInstr& instrB) const
 	  uint64_t addr = op.pa_ + i;
 	  auto iter = byteMap.find(addr);
 	  if (iter != byteMap.end())
-	    iter->second.time_ = std::min(iter->second.time_, op.time_);
+	    iter->second.time_ = std::min(iter->second.time_, op.forwardTime(addr));
 	  else
-	    byteMap[addr] = ByteInfo{0, op.time_};
+	    byteMap[addr] = ByteInfo{0, op.forwardTime(addr)};
 	}
     }
 
@@ -5124,6 +5124,7 @@ Mcm<URV>::ppoRule12(Hart<URV>& hart, const McmInstr& instrB) const
 	      // Check B against AA.
 	      if (not instrAA.complete_ or byteTime <= aTime)
 		{
+                  
 		  cerr << "Error: PPO rule 12 failed: hart-id=" << hart.hartId() << " tag1="
 		       << aTag << " tag2=" << instrB.tag_ << " mtag=" << mTag
 		       << " time1=" << aTime << " time2=" << byteTime << " dep=addr\n";
