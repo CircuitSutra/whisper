@@ -1989,6 +1989,7 @@ Hart<URV>::determineLoadException(uint64_t& addr1, uint64_t& addr2, uint64_t& ga
                       cause != EC::NONE)
                     {
                       ldStFaultAddr_ = addr2;
+                      gaddr1 = gaddr2;  // We report faulting GPA in gaddr.
                       return cause;
                     }
                 }
@@ -12478,6 +12479,7 @@ Hart<URV>::determineStoreException(uint64_t& addr1, uint64_t& addr2,
                       cause != EC::NONE)
                     {
                       ldStFaultAddr_ = addr2;
+                      gaddr1 = gaddr2;  // We report faulting GPA in gaddr.
                       return cause;
                     }
                 }
