@@ -1863,7 +1863,8 @@ Hart<URV>::initiateStoreException(const DecodedInst* di, ExceptionCause cause, U
 template <typename URV>
 ExceptionCause
 Hart<URV>::determineLoadException(uint64_t& addr1, uint64_t& addr2, uint64_t& gaddr1,
-				  uint64_t& gaddr2, unsigned ldSize, bool hyper, unsigned elemIx)
+                                  uint64_t& gaddr2, unsigned ldSize, bool hyper,
+                                  unsigned elemIx)
 {
   uint64_t va1 = URV(addr1);   // Virtual address. Truncate to 32-bits in 32-bit mode.
   uint64_t va2 = va1;
@@ -1971,37 +1972,41 @@ Hart<URV>::determineLoadException(uint64_t& addr1, uint64_t& addr2, uint64_t& ga
             }
         }
 
+      gaddr2 = gaddr1;
+      addr2 = addr1;
+      uint64_t pa1 = addr1;  // We do this because checkPa modifies addr1.
+
       if (auto cause = checkPa(va1, addr1, true); cause != EC::NONE)
         return cause;
 
-      // STEE mask.
-      gaddr2 = gaddr1;
-      addr2 = addr1;
-
-      if (misal)
+      if (not misal)
         {
-          // Only translate again if we would cross pages.
-          if (isRvs() and pm != PM::Machine)
-            {
-              if (virtMem_.pageNumber(va1) != virtMem_.pageNumber(va1 + ldSize - 1))
-                {
-                  if (auto cause = virtMem_.translateForLoad(va2, pm, virt, gaddr2, addr2);
-                      cause != EC::NONE)
-                    {
-                      ldStFaultAddr_ = addr2;
-                      gaddr1 = gaddr2;  // We report faulting GPA in gaddr.
-                      return cause;
-                    }
-                }
-            }
-
-          uint64_t next = (addr1 + ldSize - 1) & ~alignMask;
-          if (not (addr1 == addr2 and virtMem_.pageNumber(addr1) != virtMem_.pageNumber(next)))
-            next = addr2;
-          if (auto cause = checkPa(va2, next, true); cause != EC::NONE)
-            return cause;
-          addr2 = next;
+          addr2 = addr1;
+          return EC::NONE;
         }
+
+      // True if we cross page boundary.
+      bool cross = virtMem_.pageNumber(va1) != virtMem_.pageNumber(va2);
+
+      addr2 = (pa1 + (ldSize - 1)) & ~alignMask;
+
+      // Only translate again if we would cross pages.
+      if (isRvs() and pm != PM::Machine and cross)
+        {
+          auto cause = virtMem_.translateForLoad(va2, pm, virt, gaddr2, addr2);
+          if (cause != EC::NONE)
+            {
+              ldStFaultAddr_ = addr2;
+              gaddr1 = gaddr2;  // We report faulting GPA in gaddr.
+              return cause;
+            }
+        }
+
+      // This may change addr2
+      if (auto cause = checkPa(va2, addr2, true); cause != EC::NONE)
+        return cause;
+      if (not cross)
+        addr2 = addr1; // addr2 is different from addr1 only if we cross page boundary
     }
 
   if (injectException_ != EC::NONE and injectExceptionIsLd_ and elemIx == injectExceptionElemIx_)
@@ -12461,38 +12466,41 @@ Hart<URV>::determineStoreException(uint64_t& addr1, uint64_t& addr2,
             }
         }
 
-      if (auto cause = checkPa(va1, addr1, true); cause != EC::NONE)
-        return cause;
-
-      // STEE mask.
       gaddr2 = gaddr1;
       addr2 = addr1;
+      uint64_t pa1 = addr1;  // We do this because checkPa modifies addr1.
 
-      if (misal)
+      if (auto cause = checkPa(va1, addr1, true); cause != EC::NONE)
         {
-          // Only translate again if we would cross pages.
-          if (isRvs() and pm != PM::Machine)
-            {
-              if (virtMem_.pageNumber(va1) != virtMem_.pageNumber(va1 + stSize - 1))
-                {
-                  if (auto cause = virtMem_.translateForStore(va2, pm, virt, gaddr2, addr2);
-                      cause != EC::NONE)
-                    {
-                      ldStFaultAddr_ = addr2;
-                      gaddr1 = gaddr2;  // We report faulting GPA in gaddr.
-                      return cause;
-                    }
-                }
-            }
-
-          // We only set addr2 if we would cross pages.
-          uint64_t next = (addr1 + stSize - 1) & ~alignMask;
-          if (not (addr1 == addr2 and virtMem_.pageNumber(addr1) != virtMem_.pageNumber(next)))
-            next = addr2;
-          if (auto cause = checkPa(va2, next, true); cause != EC::NONE)
-            return cause;
-          addr2 = next;
+          addr2 = addr1;
+          return cause;
         }
+
+      if (not misal)
+        return EC::NONE;
+
+      // True if we cross page boundary.
+      bool cross = virtMem_.pageNumber(va1) != virtMem_.pageNumber(va2);
+
+      addr2 = (pa1 + (stSize - 1)) & ~alignMask;
+
+      // Only translate again if we would cross pages.
+      if (isRvs() and pm != PM::Machine and cross)
+        {
+          auto cause = virtMem_.translateForStore(va2, pm, virt, gaddr2, addr2);
+          if (cause != EC::NONE)
+            {
+              ldStFaultAddr_ = addr2;
+              gaddr1 = gaddr2;  // We report faulting GPA in gaddr.
+              return cause;
+            }
+        }
+
+      // This may change addr2
+      if (auto cause = checkPa(va2, addr2, true); cause != EC::NONE)
+        return cause;
+      if (not cross)
+        addr2 = addr1; // addr2 is different from addr1 only if we cross page boundary
     }
 
   return EC::NONE;
