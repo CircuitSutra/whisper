@@ -1982,31 +1982,32 @@ Hart<URV>::determineLoadException(uint64_t& addr1, uint64_t& addr2, uint64_t& ga
       if (not misal)
         {
           addr2 = addr1;
-          return EC::NONE;
         }
-
-      // True if we cross page boundary.
-      bool cross = virtMem_.pageNumber(va1) != virtMem_.pageNumber(va2);
-
-      addr2 = (pa1 + (ldSize - 1)) & ~alignMask;
-
-      // Only translate again if we would cross pages.
-      if (isRvs() and pm != PM::Machine and cross)
+      else
         {
-          auto cause = virtMem_.translateForLoad(va2, pm, virt, gaddr2, addr2);
-          if (cause != EC::NONE)
-            {
-              ldStFaultAddr_ = addr2;
-              gaddr1 = gaddr2;  // We report faulting GPA in gaddr.
-              return cause;
-            }
-        }
+          // Cross is true if we cross page boundary.
+          bool cross = virtMem_.pageNumber(va1) != virtMem_.pageNumber(va2);
 
-      // This may change addr2
-      if (auto cause = checkPa(va2, addr2, true); cause != EC::NONE)
-        return cause;
-      if (not cross)
-        addr2 = addr1; // addr2 is different from addr1 only if we cross page boundary
+          addr2 = (pa1 + (ldSize - 1)) & ~alignMask;
+
+          // Only translate again if we would cross pages.
+          if (isRvs() and pm != PM::Machine and cross)
+            {
+              auto cause = virtMem_.translateForLoad(va2, pm, virt, gaddr2, addr2);
+              if (cause != EC::NONE)
+                {
+                  ldStFaultAddr_ = addr2;
+                  gaddr1 = gaddr2;  // We report faulting GPA in gaddr.
+                  return cause;
+                }
+            }
+
+          // This may change addr2
+          if (auto cause = checkPa(va2, addr2, true); cause != EC::NONE)
+            return cause;
+          if (not cross)
+            addr2 = addr1; // addr2 is different from addr1 only if we cross page boundary
+        }
     }
 
   if (injectException_ != EC::NONE and injectExceptionIsLd_ and elemIx == injectExceptionElemIx_)
