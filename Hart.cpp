@@ -3279,7 +3279,8 @@ isGpaTrap(unsigned causeCode)
 
 template <typename URV>
 uint32_t
-Hart<URV>::createTrapInst(const DecodedInst* di, bool interrupt, unsigned causeCode, URV info, URV info2) const
+Hart<URV>::createTrapInst(const DecodedInst* di, bool interrupt, unsigned causeCode,
+                          URV info, URV info2) const
 {
   using EC = ExceptionCause;
 
