@@ -1783,12 +1783,12 @@ PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
           if (op.type != OT::VecReg)
             {
               if (not peekRegister(hart, op.type, regNum, destVal))
-                assert(0 && "Error: Assertion failed");
+                assert(packet.trap_);
             }
           else
             {
               if (not peekVecRegGroup(hart, regNum, op.lmul, destVal))
-                assert(0 && "Error: Assertion failed");
+                assert(packet.trap_);
             }
 	  packet.destValues_.at(destIx) = InstrPac::DestValue(gri, destVal);
 	  destIx++;
