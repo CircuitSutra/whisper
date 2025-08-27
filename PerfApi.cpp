@@ -355,10 +355,6 @@ PerfApi::execute(unsigned hartIx, uint64_t time, uint64_t tag)
 	}
     }
 
-  // Collect the page table walks.
-  packet.fetchWalks_ = hart.virtMem().getFetchWalks();
-  packet.dataWalks_ = hart.virtMem().getDataWalks();
-
   return true;
 }
 
@@ -483,6 +479,10 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
   hart.pokePc(prevPc);
   hart.setInstructionCount(prevInstrCount);
 
+  // Collect the page table walks.
+  packet.fetchWalks_ = hart.virtMem().getFetchWalks();
+  packet.dataWalks_ = hart.virtMem().getDataWalks();
+
   hart.clearTraceData();
 
   return true;
@@ -541,7 +541,7 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
   if (traceFile)
     {
       hart.virtMem().setFetchWalks(packet.fetchWalks_);  // We print the walk from execute.
-      hart.virtMem().setFetchWalks(packet.dataWalks_);
+      hart.virtMem().setDataWalks(packet.dataWalks_);
       hart.printInstCsvTrace(packet.di_, traceFile);
     }
 
