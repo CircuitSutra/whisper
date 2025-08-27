@@ -1919,8 +1919,6 @@ PerfApi::getVecOpsLmul(Hart64& hart, InstrPac& packet)
     case InstId::vwadd_vx:
     case InstId::vwsub_vv:
     case InstId::vwsub_vx:
-    case InstId::vwredsumu_vs:
-    case InstId::vwredsum_vs:
     case InstId::vwmulu_vv:
     case InstId::vwmulu_vx:
     case InstId::vwmul_vv:
@@ -1944,8 +1942,6 @@ PerfApi::getVecOpsLmul(Hart64& hart, InstrPac& packet)
     case InstId::vfwcvt_f_xu_v:
     case InstId::vfwcvt_f_x_v:
     case InstId::vfwcvt_f_f_v:
-    case InstId::vfwredusum_vs:
-    case InstId::vfwredosum_vs:
     case InstId::vfwcvtbf16_f_f_v:
     case InstId::vfwmaccbf16_vv:
     case InstId::vfwmaccbf16_vf:
@@ -2031,6 +2027,25 @@ PerfApi::getVecOpsLmul(Hart64& hart, InstrPac& packet)
     case InstId::vmsgt_vx:
     case InstId::vmsgt_vi:
       packet.operands_.at(0).lmul = 1;
+      break;
+
+    case InstId::vredsum_vs:
+    case InstId::vredand_vs:
+    case InstId::vredor_vs:
+    case InstId::vredxor_vs:
+    case InstId::vredminu_vs:
+    case InstId::vredmin_vs:
+    case InstId::vredmaxu_vs:
+    case InstId::vredmax_vs:
+      packet.operands_.at(2).lmul = 1;  // Third vec operand has lmul of 1.
+      break;
+
+    case InstId::vwredsumu_vs:
+    case InstId::vwredsum_vs:
+    case InstId::vfwredusum_vs:
+    case InstId::vfwredosum_vs:
+      packet.operands_.at(0).lmul = effWideLmul;
+      packet.operands_.at(2).lmul = 1;  // Third vec operand has lmul of 1.
       break;
 
     case InstId::vmand_mm:
