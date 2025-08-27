@@ -423,8 +423,7 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
   // Record PC of subsequent packet.
   packet.nextIva_ = hart.peekPc();
 
-  if (not trap)
-    recordExecutionResults(hart, packet);
+  recordExecutionResults(hart, packet);
 
   // Undo changes to the hart.
 
@@ -569,8 +568,7 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
       // Record PC of subsequent packet.
       packet.nextIva_ = hart.peekPc();
 
-      if (not packet.trap_)
-        recordExecutionResults(hart, packet);
+      recordExecutionResults(hart, packet);
       packet.executed_ = true;
     }
 #endif
@@ -864,12 +862,11 @@ PerfApi::getLoadData(unsigned hartIx, uint64_t tag, uint64_t va, uint64_t pa1,
 
   bool isLoad = ( packet->di_.isLoad() or packet->di_.isAmo() or
                   packet->di_.isVectorLoad() );
+  assert(isLoad);
 
-  if (not hart or not packet or not isLoad or packet->trapped())
-    {
-      assert(0 && "Error: Assertion failed");
-      return false;
-    }
+  // Scalar instruction should not have trapped. Vector may trap on a later element.
+  if (not packet->di_.isVectorLoad())
+    assert(not packet->trapped());
 
   // If AMO destination register is x0, we lose the loaded value: redo the read for AMOs
   // to avoid that case. AMOs should not have a discrepancy between early read and read at
@@ -1760,7 +1757,8 @@ PerfApi::updatePacketDataAddress(Hart64& hart, InstrPac& packet)
 void
 PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
 {
-  updatePacketDataAddress(hart, packet);
+  if (not packet.trap_)
+    updatePacketDataAddress(hart, packet);
 
   if (hart.hasTargetProgramFinished())
     packet.nextIva_ = haltPc;
