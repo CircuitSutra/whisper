@@ -4560,7 +4560,7 @@ CsRegs<URV>::updateVirtInterrupt(URV value, bool poke)
     }
 
   // All bits from new value of MIP except bit 9.
-  value = mip->read() | (value & b9);
+  value = overrideWithSeiPinAndMvip(mip->read()) | (value & b9);
 
   auto mvien = getImplementedCsr(CsrNumber::MVIEN);
   auto mvip = getImplementedCsr(CsrNumber::MVIP);
