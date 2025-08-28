@@ -862,7 +862,8 @@ PerfApi::getLoadData(unsigned hartIx, uint64_t tag, uint64_t va, uint64_t pa1,
 
   bool isLoad = ( packet->di_.isLoad() or packet->di_.isAmo() or
                   packet->di_.isVectorLoad() );
-  assert(isLoad);
+  if (not isLoad)
+    assert(0 && "Error: Assertion failed");
 
   // Scalar instruction should not have trapped. Vector may trap on a later element.
   if (not packet->di_.isVectorLoad())
