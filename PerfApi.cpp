@@ -1875,7 +1875,8 @@ PerfApi::getVecOpsLmul(Hart64& hart, InstrPac& packet)
       else
         {
           auto id = di.instId();
-          if (id >= InstId::vlre8_v and id <= InstId::vlre64_v)
+          if ( (id >= InstId::vlre8_v and id <= InstId::vlre64_v) or
+               (id >= InstId::vs1r_v and id <= InstId::vs8r_v) )
             packet.operands_.at(0).lmul = fields;
           else
             {
