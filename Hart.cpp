@@ -4102,7 +4102,16 @@ template <typename URV>
 bool
 Hart<URV>::pokeCsr(CsrNumber csr, URV val, bool virtMode)
 {
-  URV lastVal;
+  using CN = CsrNumber;
+  if (csr == CN::VSTART or csr == CN::VXSAT or csr == CN::VXRM or
+      csr == CN::VCSR or csr == CN::VL or csr == CN::VTYPE or
+      csr == CN::VLENB)
+    {
+      if (not isVecEnabled())
+        return false;
+    }
+
+  URV lastVal = 0;
 
   // Some/all bits of some CSRs are read only to CSR instructions but
   // are modifiable. Use the poke method (instead of write) to make
