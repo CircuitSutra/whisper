@@ -12479,7 +12479,10 @@ Hart<URV>::determineStoreException(uint64_t& addr1, uint64_t& addr2,
         }
 
       if (not misal)
-        return EC::NONE;
+        {
+          addr2 = addr1;
+          return EC::NONE;
+        }
 
       // True if we cross page boundary.
       bool cross = virtMem_.pageNumber(va1) != virtMem_.pageNumber(va2);
