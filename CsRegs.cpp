@@ -5450,7 +5450,10 @@ CsRegs<URV>::hyperPoke(Csr<URV>* csr)
       URV val = mip->read();
       URV mask = 0x4; // Bit 2
       if (hip)
-        hip->poke((val & mask) | (hip->read() & ~mask));
+        {
+          hip->poke((val & mask) | (hip->read() & ~mask));
+          hipUpdated = true;
+        }
     }
   else if (num == CsrNumber::HIP)
     {
@@ -5475,6 +5478,7 @@ CsRegs<URV>::hyperPoke(Csr<URV>* csr)
           if (virtTimerExpired())
             value |= 1 << 6;    // Or VSTIP (bit 6) if time + htimedelta >= vstimecmp.
 	  hip->poke((hip->read() & ~hipMask) | (value & hipMask));
+          hipUpdated = true;
         }
     }
   else if (num == CsrNumber::HGEIP or num == CsrNumber::HGEIE or
