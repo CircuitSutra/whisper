@@ -215,6 +215,7 @@ Mcm<URV>::readOp_(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa, uns
       // One set of adjusted tags per hart.
       std::vector< std::unordered_set<uint64_t> > adjustedTags(hartData_.size()); 
 
+      bool movedWrite = false;
       for (size_t i = ix + 1; i < sysMemOps_.size(); ++i)
         {
           auto& movedOp = sysMemOps_.at(i);
@@ -229,12 +230,29 @@ Mcm<URV>::readOp_(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa, uns
           auto& instr = instrVec.at(tag);
           for (auto& instrOpIx : instr.memOps_)
             if (instrOpIx >= ix)
-              instrOpIx++;
+              {
+                instrOpIx++;
+                movedWrite = movedWrite or instr.isStore_;
+              }
         }
 
       // Associate new op with instruction. This has to be done after the indices are
       // adjusted otherwise we may get an "op already added" error.
       instr->addMemOp(ix);
+
+      std::cerr << "Warning: hart-id=" << hartIx << " tag=" << op.tag_
+                << " detected non-monotonic time read at time=" << time;
+
+      // If there is a write before the read op to the same address, we are
+      // forced to use the RTL data. We have no recovery mechanism. Right now,
+      // the heuristic is if there is any store.
+      if (movedWrite)
+        {
+          op.data_ = op.rtlData_;
+          std::cerr << " using RTL data\n";
+        }
+      else
+        std::cerr << '\n';
     }
 
   if (instr->retired_)
