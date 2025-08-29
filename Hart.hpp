@@ -2397,6 +2397,7 @@ namespace WdRiscv
     template <McmMem C>
     bool mcmCacheInsert(uint64_t addr)
     {
+      addr = clearSteeBits(addr);
       auto& cache = getMcmCache<C>();
       bool ok = cache.addLine(addr);
       if (not ok)
@@ -2408,6 +2409,7 @@ namespace WdRiscv
     template <McmMem C>
     bool mcmCacheEvict(uint64_t addr)
     {
+      addr = clearSteeBits(addr);
       auto& cache = getMcmCache<C>();
       cache.removeLine(addr);
       return true;
@@ -2417,6 +2419,7 @@ namespace WdRiscv
     template <McmMem C>
     bool mcmCacheWriteback(uint64_t addr, const std::vector<uint8_t>& rtlData)
     {
+      addr = clearSteeBits(addr);
       static_assert(C == McmMem::Data);
       auto& cache = getMcmCache<C>();
       return cache.writebackLine(addr, rtlData);
@@ -2426,6 +2429,7 @@ namespace WdRiscv
     template <McmMem C>
     bool pokeMcmCache(uint64_t addr, uint8_t byte)
     {
+      addr = clearSteeBits(addr);
       auto& cache = getMcmCache<C>();
       return cache.poke(addr, byte);
     }
@@ -2435,6 +2439,7 @@ namespace WdRiscv
     template <McmMem C, typename SZ>
     bool peekMcmCache(uint64_t addr, SZ& data) const
     {
+      addr = clearSteeBits(addr);
       // const auto& cache = getMcmCache<C>();
       if ((addr & (sizeof(SZ) - 1)) == 0)
         {
@@ -2549,7 +2554,7 @@ namespace WdRiscv
 
     /// Clear STEE related bits from the given physical address. No-op if STEE is not
     /// enabled.
-    uint64_t clearSteeBits(uint64_t addr)
+    uint64_t clearSteeBits(uint64_t addr) const
     {
       if (not steeEnabled_)
         return addr;
