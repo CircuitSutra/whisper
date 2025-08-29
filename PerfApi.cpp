@@ -2036,6 +2036,7 @@ PerfApi::getVecOpsLmul(Hart64& hart, InstrPac& packet)
     case InstId::vredmin_vs:
     case InstId::vredmaxu_vs:
     case InstId::vredmax_vs:
+      packet.operands_.at(0).lmul = 1;  // Destination vec operand has lmul of 1.
       packet.operands_.at(2).lmul = 1;  // Third vec operand has lmul of 1.
       break;
 
@@ -2043,7 +2044,7 @@ PerfApi::getVecOpsLmul(Hart64& hart, InstrPac& packet)
     case InstId::vwredsum_vs:
     case InstId::vfwredusum_vs:
     case InstId::vfwredosum_vs:
-      packet.operands_.at(0).lmul = effWideLmul;
+      packet.operands_.at(0).lmul = 1;  // Destination vec operand has lmul of 1.
       packet.operands_.at(2).lmul = 1;  // Third vec operand has lmul of 1.
       break;
 
