@@ -4107,6 +4107,11 @@ Hart<URV>::pokeCsr(CsrNumber csr, URV val, bool virtMode)
       csr == CN::VCSR or csr == CN::VL or csr == CN::VTYPE or
       csr == CN::VLENB)
     {
+      // At start of test, the test-bench pokes VSTART even though MSTATUS.VS set to
+      // off. We ignore the poke and return true (otherwise test-bench fails). We ignore
+      // the poke because it would otherwise change MSTATUS.VS to dirty enabling vector
+      // extension. The test-bench should not expect VSTART poke to succeed when
+      // MSTATUS.VS is off.
       if (not isVecEnabled())
         return true;
     }
