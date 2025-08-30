@@ -4108,7 +4108,7 @@ Hart<URV>::pokeCsr(CsrNumber csr, URV val, bool virtMode)
       csr == CN::VLENB)
     {
       if (not isVecEnabled())
-        return false;
+        return true;
     }
 
   URV lastVal = 0;
