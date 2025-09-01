@@ -2392,7 +2392,27 @@ Mcm<URV>::commitVecReadOpsStride0(Hart<URV>& hart, McmInstr& instr)
   unsigned mask = (1u << elemSize) - 1;
 
   const auto& refs = vecRefs.refs_;
+  if (refs.empty())
+    {
+      // No active elements. Remove read-ops marked canceled.
+      std::erase_if(ops, [this](MemoryOpIx ix) {
+        return ix >= sysMemOps_.size() or sysMemOps_.at(ix).isCanceled();
+      });
+      return true;
+    }
+
   const auto& vecRef = refs.front();
+  unsigned size1 = vecRef.size_;
+  unsigned size2 = 0;
+  uint64_t pa1 = vecRef.pa_, pa2 = vecRef.pa_;
+  if (size1 < elemSize)
+    {
+      // Elem crosses page boundary.
+      assert(refs.size() >= 2 and refs.at(1).ix_ == refs.at(0).ix_);
+      pa2 = refs.at(1).pa_;
+      size2 = refs.at(1).size_;
+      assert(size1 + size2 == elemSize);
+    }
 
   for (auto iter = ops.rbegin(); iter != ops.rend(); ++iter)
     {
@@ -2413,7 +2433,7 @@ Mcm<URV>::commitVecReadOpsStride0(Hart<URV>& hart, McmInstr& instr)
         {
           unsigned byteMask = 1 << i;
 
-          uint64_t byteAddr = vecRef.pa_ + i;  // TODO handle page crosser
+          uint64_t byteAddr = i < size1 ? pa1 + i : pa2 + i - size1;
           if (not op.overlaps(byteAddr))
             continue;
 
@@ -2439,7 +2459,8 @@ Mcm<URV>::commitVecReadOpsStride0(Hart<URV>& hart, McmInstr& instr)
   if (mask and instr.complete_)
     {
       cerr << "Error: hart-id=" << hart.hartId() << " tag=" << instr.tag_
-           << " elem-ix=" << unsigned(vecRef.ix_) << " addr=0x" << std::hex << vecRef.pa_ << std::dec 
+           << " elem-ix=" << unsigned(vecRef.ix_) << " addr=0x" << std::hex
+           << vecRef.pa_ << std::dec 
            << " read ops do not cover all the bytes of vector load instruction\n";
       instr.complete_ = false;
     }
