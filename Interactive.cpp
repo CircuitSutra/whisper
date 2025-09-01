@@ -1000,7 +1000,7 @@ Interactive<URV>::pokeCommand(Hart<URV>& hart, const std::string& line,
 	  cerr << "Error: Invalid poke memory size " << size << '\n';
 	  return false;
 	}
-      cerr << "Error: Address out of bounds: " << addrStr << '\n';
+      cerr << "Error: Memory poke failed for adress " << addrStr << '\n';
       return false;
     }
 
