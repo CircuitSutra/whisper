@@ -1083,7 +1083,8 @@ Server<URV>::interact(std::span<char> shm, FILE* traceFile, FILE* commandLog)
 
 template <typename URV>
 bool
-Server<URV>::interact(const WhisperMessage& msg, WhisperMessage& reply, FILE* traceFile, FILE* commandLog)
+Server<URV>::interact(const WhisperMessage& msg, WhisperMessage& reply, FILE* traceFile,
+                      FILE* commandLog)
 {
   // Initial resets do not reset memory mapped registers.
   bool resetMemoryMappedReg = false;
@@ -1093,6 +1094,13 @@ Server<URV>::interact(const WhisperMessage& msg, WhisperMessage& reply, FILE* tr
 
   uint32_t hartId = msg.hart;
   auto hartPtr = system_.findHartByHartId(hartId);
+  if (not hartPtr)
+    {
+      std::cerr << "Error: Server::interact: No such hart id: " << hartId << '\n';
+      reply.type = Invalid;
+      return false;
+    }
+
   assert(hartPtr);
   auto& hart = *hartPtr;
 
