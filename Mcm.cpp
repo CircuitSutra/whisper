@@ -2411,7 +2411,8 @@ Mcm<URV>::commitVecReadOpsStride0(Hart<URV>& hart, McmInstr& instr)
       assert(refs.size() >= 2 and refs.at(1).ix_ == refs.at(0).ix_);
       pa2 = refs.at(1).pa_;
       size2 = refs.at(1).size_;
-      assert(size1 + size2 == elemSize);
+      if (size1 + size2 != elemSize)
+        assert(0);
     }
 
   for (auto iter = ops.rbegin(); iter != ops.rend(); ++iter)
