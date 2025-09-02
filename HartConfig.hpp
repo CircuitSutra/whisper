@@ -88,6 +88,9 @@ namespace WdRiscv
     template <typename URV>
     bool applyAplicConfig(System<URV>& system) const;
 
+    template <typename URV>
+    bool applyIommuConfig(System<URV>& system) const;
+
     template<typename URV>
     bool applyPciConfig(System<URV>&) const;
 

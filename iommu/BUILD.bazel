@@ -1,0 +1,8 @@
+cc_library(
+    name = "iommu",
+    hdrs = glob(["*.hpp", "**/*.hpp"]),
+    srcs = glob(["*.cpp", "**/*.cpp"]),
+    visibility = ["//visibility:public"],
+    include_prefix = "iommu",
+    strip_include_prefix = ".",
+)
