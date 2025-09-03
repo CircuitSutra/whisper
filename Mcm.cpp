@@ -248,8 +248,8 @@ Mcm<URV>::readOp_(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa, uns
       // the heuristic is if there is any store.
       if (movedWrite)
         {
-          op.data_ = op.rtlData_;
-          std::cerr << " using RTL data\n";
+          sysMemOps_.at(ix).data_ = op.rtlData_;
+          std::cerr << ", using RTL data\n";
         }
       else
         std::cerr << '\n';
