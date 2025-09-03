@@ -4104,6 +4104,13 @@ Hart<URV>::postCsrUpdate(CsrNumber csr, URV val, URV lastVal)
       csr == CN::HENVCFG)  // MENVCFG/HENVCFG may enable/disbale STIMECMP/VSTIMECMP.
     processTimerInterrupt();
 
+  if (imsic_)
+    {
+      if      (csr == CN::MTOPEI)   imsic_->checkMInterrupt();
+      else if (csr == CN::STOPEI)   imsic_->checkSInterrupt();
+      else if (csr == CN::VSTOPEI)  imsic_->checkGInterrupt(hstatus_.bits_.VGEIN);
+    }
+
   effectiveMie_ = csRegs_.effectiveMie();
   effectiveSie_ = csRegs_.effectiveSie();
   effectiveVsie_ = csRegs_.effectiveVsie();

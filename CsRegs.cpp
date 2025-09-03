@@ -1734,7 +1734,7 @@ CsRegs<URV>::writeMtopei()
   if (not imsic_)
     return false;
 
-  // Section 3.9 of AIA: Write to STOPEI clears the pending bit
+  // Section 3.9 of AIA: Write to MTOPEI clears the pending bit
   // corresponding to the topid before the write.
   unsigned id = imsic_->machineTopId();
   if (id)
