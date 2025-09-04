@@ -292,12 +292,17 @@ Server<URV>::peekCommand(const WhisperMessage& req, WhisperMessage& reply, Hart<
       {
 	URV reset = 0, mask = 0, pokeMask = 0, readMask = 0;
         bool virtMode = WhisperFlags{req.flags}.bits.virt;
-	if (hart.peekCsr(CsrNumber(req.address), value, reset, mask, pokeMask, readMask, virtMode))
+        auto csrn = CsrNumber(req.address);
+        if (hart.peekCsr(csrn,  value, reset, mask, pokeMask, readMask, virtMode))
 	  {
 	    reply.value = value;
 	    reply.address = mask;
 	    reply.time = pokeMask;
             reply.instrTag = readMask;
+            if (csrn == CsrNumber::MIP)
+              value = hart.csRegs().effectiveMip();
+            else if (csrn == CsrNumber::SIP)
+              value = hart.csRegs().effectiveSip();
 	    return true;
 	  }
       }

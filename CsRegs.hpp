@@ -958,6 +958,30 @@ namespace WdRiscv
     /// section 2.2 of the privileged spec version 20241017).
     bool isCustomCsr(CsrNumber num) const;
 
+    /// Return the effective MIP value: MVIP and external sei-pin ored into
+    /// internal value of MIP.
+    URV effectiveMip() const
+    {
+      URV mip = overrideWithSeiPinAndMvip(peekMip());
+      return mip;
+    }
+
+    /// Return the effective SIP value: take aliasing to MVIP into consideration
+    /// when AIA is enabled.
+    URV effectiveSip() const
+    {
+      URV mip = effectiveMip();
+      // Read value of MIP/SIP is masked by MIDELG.
+      URV sip = mip & peekMideleg();
+      if (aiaEnabled_ and superEnabled_)
+        {
+          // Where mideleg is 0 and mvien is 1, sip becomes an alias to mvip.
+          URV mvip = peekMvip() & ~peekMideleg() & peekMvien();
+          sip |= mvip;
+        }
+      return sip;
+    }
+
   protected:
 
     /// Advance a csr number by the given amount (add amount to number).
@@ -1487,28 +1511,6 @@ namespace WdRiscv
     {
       const auto& csr = regs_.at(size_t(CsrNumber::HVICTL));
       return csr.read();
-    }
-
-    /// Return the effective MIP value.
-    URV effectiveMip() const
-    {
-      URV mip = overrideWithSeiPinAndMvip(peekMip());
-      return mip;
-    }
-
-    /// Return the effective SIP value.
-    URV effectiveSip() const
-    {
-      URV mip = effectiveMip();
-      // Read value of MIP/SIP is masked by MIDELG.
-      URV sip = mip & peekMideleg();
-      if (aiaEnabled_ and superEnabled_)
-        {
-          // Where mideleg is 0 and mvien is 1, sip becomes an alias to mvip.
-          URV mvip = peekMvip() & ~peekMideleg() & peekMvien();
-          sip |= mvip;
-        }
-      return sip;
     }
 
     /// Return the effective VSIP value.
