@@ -328,10 +328,10 @@ CsRegs<URV>::writeMvip(URV value)
     }
 
   // In bits 0 to 12, always write bit 9, never write bit 5, and
-  // write bit 1 if not aliased to MIP otherwise preserve it.
+  // always write bit 1.
   URV mvipMask = 0x200;
-  if (not mvien or ((mvien->read() & 0x2) == 0x2))
-    mvipMask |= 0x2;  // Bit 1 not aliased to MIP, write it.
+  //if (not mvien or ((mvien->read() & 0x2) == 0x2)) // write bit1 if not aliased.
+  mvipMask |= 0x2;  // Always write bit 1 (to match RTL -- bug 4248).
 
   // In the remaining bits (13 to 63), always write.
   mvipMask |= ~URV(0x1fff);
