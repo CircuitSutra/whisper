@@ -1298,7 +1298,8 @@ Iommu::queueCapacity(CsrNumber qbn) const
 {
   using CN = CsrNumber;
 
-  assert(qbn == CN::Cqb or qbn == CN::Fqb or qbn == CN::Pqb);
+  if (not (qbn == CN::Cqb or qbn == CN::Fqb or qbn == CN::Pqb))
+    assert(0);
 
   uint64_t value = csrs_.at(unsigned(qbn)).read();
   Qbase qbase(value);
@@ -1313,7 +1314,8 @@ Iommu::queueAddress(CsrNumber qbn) const
 {
   using CN = CsrNumber;
 
-  assert(qbn == CN::Cqb or qbn == CN::Fqb or qbn == CN::Pqb);
+  if (not (qbn == CN::Cqb or qbn == CN::Fqb or qbn == CN::Pqb))
+    assert(0);
 
   uint64_t value = csrs_.at(unsigned(qbn)).read();
   Qbase qbase(value);
