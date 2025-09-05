@@ -106,6 +106,7 @@ namespace TT_IOMMU
       reset();
     }
 
+    /// Return true if the memory region of this IOMMU contains the given address.
     bool containsAddr(uint64_t addr)
     {
       return addr >= addr_ and addr < addr_ + size_;

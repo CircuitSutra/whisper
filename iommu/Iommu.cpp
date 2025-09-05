@@ -160,11 +160,17 @@ Iommu::defineCsrs()
   offset = 768;
   size = 8;
   base = "msi_cfg_tbl";
-  for (unsigned i = 0; i < 32; ++i)
+  for (unsigned i = 0; i < 32; ++i, offset += size)
     {
       CN num{unsigned(CN::MsiCfgTbl0) + i};
       std::string name = base + std::to_string(i);
-      csrAt(num).define(name, offset + i*size, size, 0, ones, 0, 0);
+      csrAt(num).define(name, offset, size, 0, ones, 0, 0);
+    }
+
+  if (offset > size_)
+    {
+      std::cerr << "Error: Iommu memory region size (" << size_ << ") is smaller "
+                << "than the size required for it CSRs (" << offset << ")\n";
     }
 
   // Setup wordToCsr_ to map a ward number to a CSR. Assign each CSR a number.
@@ -1290,7 +1296,9 @@ Iommu::applyCapabilityRestrictions()
 uint64_t
 Iommu::queueCapacity(CsrNumber qbn) const
 {
-  assert(qbn == CsrNumber::Cqb or qbn == CsrNumber::Fqb or qbn == CsrNumber::Pqb);
+  using CN = CsrNumber;
+
+  assert(qbn == CN::Cqb or qbn == CN::Fqb or qbn == CN::Pqb);
 
   uint64_t value = csrs_.at(unsigned(qbn)).read();
   Qbase qbase(value);
@@ -1303,7 +1311,9 @@ Iommu::queueCapacity(CsrNumber qbn) const
 uint64_t
 Iommu::queueAddress(CsrNumber qbn) const
 {
-  assert(qbn == CsrNumber::Cqb or qbn == CsrNumber::Fqb or qbn == CsrNumber::Pqb);
+  using CN = CsrNumber;
+
+  assert(qbn == CN::Cqb or qbn == CN::Fqb or qbn == CN::Pqb);
 
   uint64_t value = csrs_.at(unsigned(qbn)).read();
   Qbase qbase(value);
