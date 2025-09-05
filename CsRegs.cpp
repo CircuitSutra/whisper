@@ -4574,14 +4574,6 @@ CsRegs<URV>::updateVirtInterrupt(URV value, bool poke)
       URV b9 = 0x200;
       mask |= b9 & ~mvienVal;  // BIT 9 updated in MVIP if it is zero in MVIEN.
 
-#if 0
-      // Bit STIE (5) of MVIP is an alias to bit 5 of MIP if bit 5 of MIP is writable.
-      // Othrwise, it is zero.
-      URV b5 = URV(0x20);  // Bit 5 mask
-      if ((mip->getWriteMask() & b5) != 0)   // Bit 5 writable in mip
-	mask |= b5;
-#endif
-
       // Write aliasing bits.
       auto prev = mvip->read();
       mvip->write((mvip->read() & ~mask) | (value & mask));
