@@ -85,12 +85,13 @@ parseNumber(std::string_view numberStr, TYPE& number)
 
 
 template <typename URV>
-Hart<URV>::Hart(unsigned hartIx, URV hartId, unsigned numHarts, Memory& memory, Syscall<URV>& syscall, std::atomic<uint64_t>& time)
+Hart<URV>::Hart(unsigned hartIx, URV hartId, unsigned numHarts, Memory& memory,
+                Syscall<URV>& syscall, std::atomic<uint64_t>& time)
   : hartIx_(hartIx), numHarts_(numHarts), memory_(memory), intRegs_(32),
     fpRegs_(32),
     syscall_(syscall),
     time_(time),
-    pmpManager_(memory.size(), UINT64_C(1024)*1024),
+    pmpManager_(),
     virtMem_(hartIx, memory.pageSize(), 2048)
 {
   setupVirtMemCallbacks();

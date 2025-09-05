@@ -18,30 +18,29 @@
 #include <vector>
 #include <string>
 #include <optional>
+#include <iostream>
 #include "CsRegs.hpp"
 
 namespace WdRiscv
 {
 
-  /// Physical memory protection. An instance of this is usually
-  /// associated with a section of the address space. The address
-  /// space is evenly divided into contiguous, equally sized sections,
-  /// aligned to the section size.
-  /// For sub-section protection, an instance is associated with a
-  /// word-aligned memory word. To reduce footprint of the PmaMgr
-  /// object, we typically use a section size of 8 or more pages.
+  /// Physical memory protection. An instance of this is associated with a region of the
+  /// address space in PmpManager.
   class Pmp
   {
   public:
 
     friend class PmpManager;
 
+    /// Type of region: off, top-of-range, naturally aligned of size 4,
+    /// naturally aligned power of 2.
     enum Type : uint8_t { Off = 0, Tor = 1, Na4 = 2, Napot = 3, _Count = 4 };
 
+    /// Region access modes.
     enum Mode : uint8_t
       {
-       None = 0, Read = 1, Write = 2, Exec = 4, ReadWrite = Read | Write,
-       Default = Read | Write | Exec
+        None = 0, Read = 1, Write = 2, Exec = 4, ReadWrite = Read | Write,
+        Default = Read | Write | Exec
       };
 
     /// Default constructor: No access allowed.
@@ -82,10 +81,30 @@ namespace WdRiscv
     { return mode_ != other.pmpIx_ or pmpIx_ != other.pmpIx_; }
 
     /// Return string representation of the given PMP type.
-    static std::string toString(Type t);
+    static std::string toString(Type type)
+    {
+      switch (type)
+        {
+        case Pmp::Type::Off:   return "off";
+        case Pmp::Type::Tor:   return "tor";
+        case Pmp::Type::Na4:   return "na4";
+        case Pmp::Type::Napot: return "napot";
+        default:               return "?";
+        }
+      return "";
+    }
 
     /// Return string representation of the given PMP mode.
-    static std::string toString(Mode m);
+    static std::string toString(Mode mode)
+    {
+      std::string result;
+
+      result += (mode & Mode::Read)  ? "r" : "-";
+      result += (mode & Mode::Write) ? "w" : "-";
+      result += (mode & Mode::Exec)  ? "x" : "-";
+
+      return result;
+    }
 
     /// Return integer representation of the given PMP configuration.
     uint8_t val() const
@@ -106,10 +125,9 @@ namespace WdRiscv
   static_assert(sizeof(Pmp) <= 3);
 
 
-  /// Physical memory protection manager. One per hart.  rotection
-  /// applies to word-aligned regions as small as 1 word but are
-  /// expected to be applied to a small number (less than or equal 16)
-  /// of large regions.
+  /// Physical memory protection manager. One per hart.  Protection applies to
+  /// word-aligned regions as small as 1 word but are expected to be applied to a small
+  /// number (less than or equal 64) of regions.
   class PmpManager
   {
   public:
@@ -118,16 +136,19 @@ namespace WdRiscv
 
     enum AccessReason { None, Fetch, LdSt };
 
-    /// Constructor. Mark all memory as no access to user/supervisor
-    /// (machine mode does access since it is not checked).
-    PmpManager(uint64_t memorySize, uint64_t sectionSize = UINT64_C(32)*1024);
+    /// Constructor: Mark all memory as no access to user/supervisor.
+    PmpManager()
+    { }
 
     /// Destructor.
-    ~PmpManager();
+    ~PmpManager() = default;
 
-    /// Reset: Mark all memory as no access to user/supervisor
-    /// (machine mode does have access because it is not checked).
-    void reset();
+    /// Reset: Mark all memory as no access to user/supervisor.
+    void reset()
+    {
+      regions_.clear();
+      fastRegion_.reset();
+    }
 
     /// Return the physical memory protection object (pmp) associated
     /// with the word-aligned word designated by the given
@@ -236,7 +257,15 @@ namespace WdRiscv
     /// Set access mode of word-aligned words overlapping given region
     /// for user/supervisor.
     void defineRegion(uint64_t addr0, uint64_t addr1, Pmp::Type type,
-		      Pmp::Mode mode, unsigned pmpIx, bool locked);
+		      Pmp::Mode mode, unsigned pmpIx, bool locked)
+    {
+      addr0 = (addr0 >> 2) << 2;   // Make word aligned.
+      addr1 = (addr1 >> 2) << 2;   // Make word aligned.
+
+      Pmp pmp(mode, pmpIx, locked, type);
+      Region region{addr0, addr1, pmp};
+      regions_.push_back(region);
+    }
 
     /// Print statistics on the given stream.
     bool printStats(std::ostream& out) const;
@@ -245,10 +274,18 @@ namespace WdRiscv
     bool printStats(const std::string& path) const;
 
     /// Print current pmp map matching a particular address.
-    void printPmps(std::ostream& os, uint64_t address) const;
+    void printPmps(std::ostream& os, uint64_t addr) const
+    {
+      auto region = getRegion(addr);
+      printRegion(os, region);
+    }
 
     /// Print current pmp map.
-    void printPmps(std::ostream& os) const;
+    void printPmps(std::ostream& os) const
+    {
+      for (const auto& region : regions_)
+        printRegion(os, region);
+    }
 
     /// Return the access count of PMPs used in most recent instruction.
     const std::vector<PmpTrace>& getPmpTrace() const
@@ -281,9 +318,9 @@ namespace WdRiscv
       const Region& region_;
     };
 
-    /// Return the Region object associated with the
-    /// word-aligned word designed by the given address. Return a
-    /// no-access object if the givena ddress is out of memory range.
+    /// Return the Region object associated with the word-aligned word designed by the
+    /// given address. Return a no-access object if the given address is out of memory
+    /// range.
     Region getRegion(uint64_t addr) const
     {
       addr = (addr >> 2) << 2;
@@ -294,7 +331,16 @@ namespace WdRiscv
     }
 
     /// Print current pmp map matching a particular address.
-    void printRegion(std::ostream& os, Region region) const;
+    void printRegion(std::ostream& os, Region region) const
+    {
+      const auto& pmp = region.pmp_;
+      os << "pmp ix: " << std::dec << pmp.pmpIndex() << "\n";
+      os << "base addr: " << std::hex << region.firstAddr_ << "\n";
+      os << "last addr: " << std::hex << region.lastAddr_ << "\n";
+
+      os << "rwx: " << Pmp::toString(Pmp::Mode(pmp.mode_)) << "\n";
+      os << "matching: " << Pmp::toString(Pmp::Type(pmp.type_)) << "\n";
+    }
 
     /// Update cached last region, finding largest non-overlapping
     /// region with priority.
