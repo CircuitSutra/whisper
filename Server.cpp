@@ -297,11 +297,11 @@ Server<URV>::peekCommand(const WhisperMessage& req, WhisperMessage& reply, Hart<
 	  {
 	    reply.address = mask;
 	    reply.time = pokeMask;
-        reply.instrTag = readMask;
-        if (csrn == CsrNumber::MIP)
-          value = hart.csRegs().effectiveMip();
-        else if (csrn == CsrNumber::SIP)
-          value = hart.csRegs().effectiveSip();
+            reply.instrTag = readMask;
+            if (csrn == CsrNumber::MIP)
+              value = hart.csRegs().effectiveMip();
+            else if (csrn == CsrNumber::SIP)
+              value = hart.csRegs().effectiveSip();
 	    reply.value = value;
 	    return true;
 	  }
