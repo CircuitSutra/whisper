@@ -1803,12 +1803,6 @@ namespace WdRiscv
     /// Helper to read method.
     bool readMtopei();
 
-    /// Legalize the PMPCFG value before updating such a register: If
-    /// the grain factor G is greater than or equal to 1, then the NA4
-    /// mode is not selectable in the A field. If a field is locked it
-    /// is replaced by the current value. Return the legalized value.
-    URV legalizePmpcfg(URV current, URV value) const;
-
     /// Legalize a PMACFG value. Return legalized value.
     URV legalizePmacfg(URV current, URV value) const;
 
@@ -1849,14 +1843,6 @@ namespace WdRiscv
     /// Enable/disable svadu
     void enableSvadu(bool flag)
     { enableMenvcfgAdue(flag); }
-
-    /// Enable/disable top-of-range mode in pmp configurations.
-    void enablePmpTor(bool flag)
-    { pmpTor_ = flag; }
-
-    /// Enable/disable NA4 mode in pmp configurations.
-    void enablePmpNa4(bool flag)
-    { pmpNa4_ = flag; }
 
     /// Update implementation status of Sstc (supervisor timer)
     /// related CSRs.  This is called when Sstc related configuration
@@ -2427,8 +2413,6 @@ namespace WdRiscv
     bool stateenOn_ = false;      // Mstateen extension.
     bool sdtrigOn_ = false;       // Stdtrig (debug triggers) extension.
     bool ssqosidOn_ = false;      // Ssqosid extension.
-    bool pmpTor_ = true;          // Top-of-range PMP mode enabled
-    bool pmpNa4_ = true;          // Na4 PMP mode enabled
     bool aiaEnabled_ = false;     // Aia extension.
     bool mcdelegEnabled_ = true;  // Mvdeleg extension (counter delegation).
 

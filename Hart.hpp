@@ -2268,11 +2268,11 @@ namespace WdRiscv
 
     /// Enable/disable top-of-range mode in pmp configurations.
     void enablePmpTor(bool flag)
-    { csRegs_.enablePmpTor(flag); }
+    { pmpManager_.enableTor(flag); }
 
     /// Enable/disable top-of-range mode in pmp configurations.
     void enablePmpNa4(bool flag)
-    { csRegs_.enablePmpNa4(flag); }
+    { pmpManager_.enableNa4(flag); }
 
     Syscall<URV>& getSyscall()
     { return syscall_; }

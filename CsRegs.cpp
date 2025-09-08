@@ -2071,7 +2071,7 @@ CsRegs<URV>::write(CsrNumber csrn, PrivilegeMode mode, URV value)
   peek(num, prev);
 
   if (num >= CN::PMPCFG0 and num <= CN::PMPCFG15)
-    value = legalizePmpcfg(prev, value);
+    value = pmpMgr_.legalizePmpcfg(prev, value);
   else if (num >= CN::PMACFG0 and num <= CN::PMACFG15)
     value = legalizePmacfg(prev, value);
   else if (num == CN::SRMCFG)
@@ -3706,7 +3706,7 @@ CsRegs<URV>::poke(CsrNumber num, URV value, bool virtMode)
   peek(num, prev);
 
   if (num >= CN::PMPCFG0 and num <= CN::PMPCFG15)
-    value = legalizePmpcfg(prev, value);
+    value = pmpMgr_.legalizePmpcfg(prev, value);
   else if (num >= CN::PMACFG0 and num <= CN::PMACFG15)
     value = legalizePmacfg(prev, value);
   else if (num == CN::SRMCFG)
@@ -4195,48 +4195,6 @@ CsRegs<URV>::adjustPmpValue(CsrNumber csrn, URV value) const
   unsigned byte = getPmpConfigByteFromPmpAddr(csrn);
   value = URV(pmpMgr_.adjustPmpValue(value, byte, rv32_));
   return value;
-}
-
-
-template <typename URV>
-URV
-CsRegs<URV>::legalizePmpcfg(URV current, URV value) const
-{
-  URV legal = 0;
-  for (unsigned i = 0; i < sizeof(value); ++i)
-    {
-      uint8_t cb = (current >> (i*8)) & 0xff;  // Current byte.
-      uint8_t nb = (value >> (i*8)) & 0xff;    // New byte.
-
-      if (cb >> 7)
-        nb = cb; // Field is locked. Use byte from current value.
-      else
-	{
-	  unsigned aField = (nb >> 3) & 3;
-	  if (aField == 2)   // NA4
-	    {
-	      // If G is >= 1 then NA4 is not selectable in the A field.
-              auto pmpG = pmpMgr_.getPmpG();
-	      if (not pmpNa4_ or (pmpG != 0 and aField == 2))
-		nb = (cb & 0x18) | (nb & ~0x18);  // Preserve A field.
-	    }
-	  else if (aField == 1)  // TOR
-	    {
-	      if (not pmpTor_)   // TOR not supported
-		nb = (cb & 0x18) | (nb & ~0x18);  // Preserve A field.
-	    }
-
-	  // w=1 r=0 is not allowed: Preserve the xwr field.
-	  if ((nb & 3) == 2)
-	    {
-	      nb = (cb & 7) | (nb & ~7);   // Preserve xwr field.
-	    }
-	}
-
-      legal = legal | (URV(nb) << i*8);
-    }
-
-  return legal;
 }
 
 

@@ -426,6 +426,65 @@ namespace WdRiscv
       return true;
     }
 
+    /// Enable/disable top-of-range mode in pmp configurations.
+    void enableTor(bool flag)
+    { torEnabled_ = flag; }
+
+    /// Enable/disable NA4 mode in pmp configurations.
+    void enableNa4(bool flag)
+    { na4Enabled_ = flag; }
+
+    /// Return true if top-of-range mode in pmp config is enabled.
+    bool torEnabled() const
+    { return torEnabled_; }
+
+    /// Return true if naturally aligned size 4 mode in pmp config is enabled.
+    bool na4Enabled() const
+    { return na4Enabled_; }
+
+    /// Legalize the PMPCFG value (next) before updating such a register: If the grain
+    /// factor G is greater than or equal to 1, then the NA4 mode is not selectable in the
+    /// A field. If a field is locked it is replaced by the prev value. Return the
+    /// legalized value. The typename T is either uint32_t (rv32) or uint64_t (rv64).
+    template <typename T>
+    T legalizePmpcfg(T prev, T next) const
+    {
+      T legal = 0;
+      for (unsigned i = 0; i < sizeof(next); ++i)
+        {
+          uint8_t pb = (prev >> (i*8)) & 0xff;  // Prev byte.
+          uint8_t nb = (next >> (i*8)) & 0xff;    // New byte.
+
+          if (pb >> 7)
+            nb = pb; // Field is locked. Use byte from prev value.
+          else
+            {
+              unsigned aField = (nb >> 3) & 3;
+              if (aField == 2)   // NA4
+                {
+                  // If G is >= 1 then NA4 is not selectable in the A field.
+                  if (not na4Enabled() or (getPmpG() != 0 and aField == 2))
+                    nb = (pb & 0x18) | (nb & ~0x18);  // Preserve A field.
+                }
+              else if (aField == 1)  // TOR
+                {
+                  if (not torEnabled())    // TOR not supported
+                    nb = (pb & 0x18) | (nb & ~0x18);  // Preserve A field.
+                }
+
+              // w=1 r=0 is not allowed: Preserve the xwr field.
+              if ((nb & 3) == 2)
+                {
+                  nb = (pb & 7) | (nb & ~7);   // Preserve xwr field.
+                }
+            }
+
+          legal = legal | (T(nb) << i*8);
+        }
+
+      return legal;
+    }
+
   private:
 
     struct Region
@@ -489,8 +548,12 @@ namespace WdRiscv
 
     std::vector<Region> regions_;
     mutable std::optional<FastRegion> fastRegion_;
+
     bool enabled_ = false;
-    bool trace_ = false;   // Collect stats if true.
+    bool trace_ = false;        // Collect stats if true.
+    bool torEnabled_ = true;    // True if top-of-range type is enabled.
+    bool na4Enabled_ = true;    // True if naturally-aligned size 4 type is enabled
+
     Pmp defaultPmp_;
 
     unsigned pmpG_ = 0;     // PMP G value: ln2(pmpGrain) - 2
