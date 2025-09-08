@@ -19,7 +19,7 @@
 #include <string>
 #include <optional>
 #include <iostream>
-#include "CsRegs.hpp"
+#include "virtual_memory/trapEnums.hpp"
 
 namespace WdRiscv
 {
@@ -302,6 +302,130 @@ namespace WdRiscv
     void setAccReason(AccessReason reason)
     { reason_ = reason; }
 
+    /// Given the internal value of a PMPADDR register and the corresponding byte in the
+    /// PMPCFG register, return the read value of PMPADDR. This is done on a CSR read
+    /// since the read value of PMPADDR may be different than its internal value.
+    uint64_t adjustPmpValue(uint64_t value, uint8_t pmpcfgByte, bool rv32) const
+    {
+      if (pmpG_ == 0)
+        return value;
+
+      unsigned aField =(pmpcfgByte >> 3) & 3;
+      if (aField < 2)
+        {
+          // A field is OFF or TOR
+          if (pmpG_ >= 1)
+            value = (value >> pmpG_) << pmpG_; // Clear least sig G bits.
+        }
+      else
+        {
+          // A field is NAPOT
+          if (pmpG_ >= 2)
+            {
+              uint64_t mask = ~uint64_t(0);
+              unsigned width = rv32 ? 32 : 64;
+              if (width >= pmpG_ - 1)
+                mask >>= (width - pmpG_ + 1);
+              value = value | mask; // Set to 1 least sig G-1 bits
+            }
+        }
+
+      return value;
+    }
+
+    /// Set the physical memory protection G parameter. The grain size is 2 to the power
+    /// G+2. The values returned by a read operation of the PMPADDR registers are adjusted
+    /// according to G.
+    void setPmpG(unsigned value)
+    { pmpG_ = value; }
+
+    /// Return the physical memory protection G parameter. See setPmpG.
+    unsigned getPmpG() const
+    { return pmpG_; }
+
+    /// Unpack the mode (read/write/exec), type, and locked fields encoded in the given
+    /// byte of a PMPCFG CSR.
+    static void unpackPmpconfigByte(uint8_t byte, Pmp::Mode& mode, Pmp::Type& type,
+                                    bool& locked)
+    {
+      unsigned mm = 0;
+
+      if (byte & 1) mm |= Pmp::Read;
+      if (byte & 2) mm |= Pmp::Write;
+      if (byte & 4) mm |= Pmp::Exec;
+
+      mode = Pmp::Mode(mm);
+
+      type = Pmp::Type((byte >> 3) & 3);
+      locked = byte & 0x80;
+    }
+
+    /// Given the PMPCFG byte corresponding to a PMPADDR CSR, the value of that CSR,
+    /// and the value of the preceding CSR (for TOR), return the mode, and type of that
+    /// PMPADDR CSR, whether or not it is locked, and the range of addresses it covers.
+    bool unpackMemoryProtection(unsigned config, uint64_t pmpVal, uint64_t prevPmpVal,
+                                bool rv32, Pmp::Mode& mode, Pmp::Type& type,
+                                bool& locked, uint64_t& low, uint64_t& high) const
+    {
+      unpackPmpconfigByte(config, mode, type, locked);
+
+      if (type == Pmp::Type::Off)
+        return true;   // Entry is off.
+
+      if (type == Pmp::Type::Tor)    // Top of range
+        {
+          low = prevPmpVal;
+          low = (low >> pmpG_) << pmpG_;  // Clear least sig G bits.
+          low = low << 2;
+
+          high = pmpVal;
+          high = (high >> pmpG_) << pmpG_;
+          high = high << 2;
+          if (high == 0)
+            {
+              type = Pmp::Type::Off;  // Empty range.
+              return true;
+            }
+
+          high = high - 1;
+          return true;
+        }
+
+      uint64_t sizeM1 = 3;     // Size minus 1
+      uint64_t napot = pmpVal;  // Naturally aligned power of 2.
+      if (type == Pmp::Type::Napot)  // Naturally algined power of 2.
+        {
+          unsigned rzi = 0;  // Righmost-zero-bit index in pmpval.
+          if ((rv32 and pmpVal == ~uint32_t(0)) or (not rv32 and pmpVal == ~uint64_t(0)))
+            {
+              // Handle special case where pmpVal is set to maximum value
+              napot = 0;
+              rzi = rv32? 32 : 64;
+            }
+          else
+            {
+              rzi = std::countr_zero(~pmpVal); // rightmost-zero-bit ix.
+              napot = (napot >> rzi) << rzi; // Clear bits below rightmost zero bit.
+            }
+
+          // Avoid overflow when computing 2 to the power 64 or higher. This is incorrect
+          // but should work in practice where the physical address space is 64-bit wide
+          // or less.
+          if (rzi + 3 >= 64)
+            sizeM1 = -1L;
+          else
+            sizeM1 = (uint64_t(1) << (rzi + 3)) - 1;
+        }
+      else
+        assert(type == Pmp::Type::Na4);
+
+      low = napot;
+      low = (low >> pmpG_) << pmpG_;
+      low = low << 2;
+      high = low + sizeM1;
+      return true;
+    }
+
   private:
 
     struct Region
@@ -368,6 +492,8 @@ namespace WdRiscv
     bool enabled_ = false;
     bool trace_ = false;   // Collect stats if true.
     Pmp defaultPmp_;
+
+    unsigned pmpG_ = 0;     // PMP G value: ln2(pmpGrain) - 2
 
     // PMPs used in most recent instruction
     mutable std::vector<PmpTrace> pmpTrace_;

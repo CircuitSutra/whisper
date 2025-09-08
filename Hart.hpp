@@ -5738,6 +5738,11 @@ namespace WdRiscv
     unsigned hartIx_ = 0;        // Hart ix in system, see sysHartIndex method.
     unsigned numHarts_;          // Number of Harts in the system.
     Memory& memory_;
+
+    // Physical memory protection.
+    bool pmpEnabled_ = false; // True if one or more pmp register defined.
+    PmpManager pmpManager_;
+
     IntRegs<URV> intRegs_;       // Integer register file.
     CsRegs<URV> csRegs_;         // Control and status registers.
     FpRegs fpRegs_;              // Floating point registers.
@@ -5963,10 +5968,6 @@ namespace WdRiscv
     bool bigEnd_ = false;            // True if big endian
     bool stimecmpActive_ = false;    // True if STIMECMP CSR is implemented.
     bool vstimecmpActive_ = false;   // True if VSTIMECMP CSR is implemented.
-
-    // Physical memory protection.
-    bool pmpEnabled_ = false; // True if one or more pmp register defined.
-    PmpManager pmpManager_;
 
     // Pointer masking modes.
     PmaskManager pmaskManager_;

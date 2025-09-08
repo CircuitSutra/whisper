@@ -28,8 +28,8 @@ using namespace WdRiscv;
 
 
 template <typename URV>
-CsRegs<URV>::CsRegs()
-  : regs_(size_t(CsrNumber::MAX_CSR_) + 1)
+CsRegs<URV>::CsRegs(const PmpManager& pmpMgr)
+  : pmpMgr_(pmpMgr), regs_(size_t(CsrNumber::MAX_CSR_) + 1)
 {
   // Define CSR entries.
   defineMachineRegs();
@@ -4192,31 +4192,8 @@ CsRegs<URV>::adjustPmpValue(CsrNumber csrn, URV value) const
   if (csrn < CsrNumber::PMPADDR0 or csrn > CsrNumber::PMPADDR63)
     return value;   // Not a PMPADDR CSR.
 
-  if (pmpG_ == 0)
-    return value;
-
   unsigned byte = getPmpConfigByteFromPmpAddr(csrn);
-
-  unsigned aField =(byte >> 3) & 3;
-  if (aField < 2)
-    {
-      // A field is OFF or TOR
-      if (pmpG_ >= 1)
-        value = (value >> pmpG_) << pmpG_; // Clear least sig G bits.
-    }
-  else
-    {
-      // A field is NAPOT
-      if (pmpG_ >= 2)
-        {
-          unsigned width = rv32_ ? 32 : 64;
-	  URV mask = ~URV(0);
-	  if (width >= pmpG_ - 1)
-	    mask >>= (width - pmpG_ + 1);
-          value = value | mask; // Set to 1 least sig G-1 bits
-        }
-    }
-
+  value = URV(pmpMgr_.adjustPmpValue(value, byte, rv32_));
   return value;
 }
 
@@ -4239,7 +4216,8 @@ CsRegs<URV>::legalizePmpcfg(URV current, URV value) const
 	  if (aField == 2)   // NA4
 	    {
 	      // If G is >= 1 then NA4 is not selectable in the A field.
-	      if (not pmpNa4_ or (pmpG_ != 0 and aField == 2))
+              auto pmpG = pmpMgr_.getPmpG();
+	      if (not pmpNa4_ or (pmpG != 0 and aField == 2))
 		nb = (cb & 0x18) | (nb & ~0x18);  // Preserve A field.
 	    }
 	  else if (aField == 1)  // TOR
