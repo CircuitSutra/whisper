@@ -26,6 +26,7 @@
 #include <boost/circular_buffer.hpp>
 #include <atomic>
 #include "aplic/Aplic.hpp"
+#include "iommu/Iommu.hpp"
 #include "IntRegs.hpp"
 #include "CsRegs.hpp"
 #include "float-util.hpp"
@@ -1386,7 +1387,11 @@ namespace WdRiscv
 
     /// Enable/disable Zicntr extension.
     void enableZicntr(bool flag)
-    { enableExtension(RvExtension::Zicntr, flag); csRegs_.enableZicntr(flag); }
+    {
+      enablePerformanceCounters(flag);
+      enableExtension(RvExtension::Zicntr, flag);
+      csRegs_.enableZicntr(flag);
+    }
 
     /// Enable/disable Zihpm extension.
     void enableZihpm(bool flag)
@@ -1503,6 +1508,13 @@ namespace WdRiscv
     /// Similar to above but performs an "access".
     Pma accessPma(uint64_t addr) const
     { return memory_.pmaMgr_.accessPma(addr); }
+
+    bool isPmaCacheable(uint64_t addr) const
+    {
+      Pma pma = memory_.pmaMgr_.getPma(addr);
+      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt());
+      return pma.isCacheable();
+    }
 
     /// Set memory protection access reason.
     void setMemProtAccIsFetch(bool fetch)
@@ -1965,6 +1977,14 @@ namespace WdRiscv
     void misalignedExceptionHasPriority(bool flag)
     { misalHasPriority_ = flag; }
 
+    /// By default, we fully translate misaligned accesses first before determining
+    /// exceptions arising from the PA. Enabling this flag will make us fully evaluate
+    /// the lower address in a misaligned access before translating the higher address.
+    /// This can affect whether we raise a page fault or an access fault on the same
+    /// arch state.
+    void enableInSeqnMisaligned(bool flag)
+    { inSeqnMisaligned_ = flag; }
+
     /// Return current privilege mode.
     PrivilegeMode privilegeMode() const
     { return privMode_; }
@@ -1977,24 +1997,6 @@ namespace WdRiscv
     /// Return the mask of deferred interrupts.
     URV deferredInterrupts()
     { return deferredInterrupts_; }
-
-    /// This is for performance modeling. Enable a highest level cache
-    /// with given size, line size, and set associativity.  Any
-    /// previously enabled cache is deleted.  Return true on success
-    /// and false if the sizes are not powers of 2 or if any of them
-    /// is zero, or if they are too large (more than 64 MB for cache
-    /// size, more than 1024 for line size, and more than 64 for
-    /// associativity). This has no impact on functionality.  Cache
-    /// consists of l lines (l = size/lineSize) organized in s sets (s
-    /// = l/setSize) each set contains setSize lines.  An address is
-    /// mapped to a memory-line ml (ml = address/lineSize) which is
-    /// mapped to a set index (ml % s), then all the lines in that set
-    /// are searched for that memory-line.
-    bool configureCache(uint64_t size, unsigned lineSize,
-                        unsigned setSize);
-
-    /// Delete currently configured cache.
-    void deleteCache();
 
     /// Set number of TLB entries.
     void setTlbSize(unsigned size)
@@ -2381,6 +2383,9 @@ namespace WdRiscv
     void attachAplic(std::shared_ptr<TT_APLIC::Aplic> aplic)
     { aplic_ = aplic; }
 
+    void attachIommu(std::shared_ptr<TT_IOMMU::Iommu> iommu)
+    { iommu_ = iommu; }
+
     /// Return true if given extension is enabled.
     constexpr bool extensionIsEnabled(RvExtension ext) const
     {
@@ -2403,6 +2408,7 @@ namespace WdRiscv
     template <McmMem C>
     bool mcmCacheInsert(uint64_t addr)
     {
+      addr = clearSteeBits(addr);
       auto& cache = getMcmCache<C>();
       bool ok = cache.addLine(addr);
       if (not ok)
@@ -2414,6 +2420,7 @@ namespace WdRiscv
     template <McmMem C>
     bool mcmCacheEvict(uint64_t addr)
     {
+      addr = clearSteeBits(addr);
       auto& cache = getMcmCache<C>();
       cache.removeLine(addr);
       return true;
@@ -2423,6 +2430,7 @@ namespace WdRiscv
     template <McmMem C>
     bool mcmCacheWriteback(uint64_t addr, const std::vector<uint8_t>& rtlData)
     {
+      addr = clearSteeBits(addr);
       static_assert(C == McmMem::Data);
       auto& cache = getMcmCache<C>();
       return cache.writebackLine(addr, rtlData);
@@ -2432,6 +2440,7 @@ namespace WdRiscv
     template <McmMem C>
     bool pokeMcmCache(uint64_t addr, uint8_t byte)
     {
+      addr = clearSteeBits(addr);
       auto& cache = getMcmCache<C>();
       return cache.poke(addr, byte);
     }
@@ -2441,6 +2450,7 @@ namespace WdRiscv
     template <McmMem C, typename SZ>
     bool peekMcmCache(uint64_t addr, SZ& data) const
     {
+      addr = clearSteeBits(addr);
       // const auto& cache = getMcmCache<C>();
       if ((addr & (sizeof(SZ) - 1)) == 0)
         {
@@ -2555,7 +2565,7 @@ namespace WdRiscv
 
     /// Clear STEE related bits from the given physical address. No-op if STEE is not
     /// enabled.
-    uint64_t clearSteeBits(uint64_t addr)
+    uint64_t clearSteeBits(uint64_t addr) const
     {
       if (not steeEnabled_)
         return addr;
@@ -2599,7 +2609,13 @@ namespace WdRiscv
     { return toHostValid_ and addr == toHost_; }
 
     bool isDeviceAddr(uint64_t addr) const
-    { return isAclintAddr(addr) or isImsicAddr(addr) or isPciAddr(addr) or isAplicAddr(addr); }
+    {
+        return isAclintAddr(addr) or
+            isImsicAddr(addr) or
+            isPciAddr(addr) or
+            isAplicAddr(addr) or
+            isIommuAddr(addr);
+    }
 
     /// Return true if the given address is in the range of the ACLINT device.
     bool isAclintAddr(uint64_t addr) const
@@ -2623,6 +2639,10 @@ namespace WdRiscv
     /// Return true if the given address is in the range of the APLIC decice.
     bool isAplicAddr(uint64_t addr) const
     { return aplic_ and aplic_->containsAddr(addr); }
+
+    /// Return true if the given address is in the range of the IOMMU decice.
+    bool isIommuAddr(uint64_t addr) const
+    { return iommu_ and iommu_->containsAddr(addr); }
 
     /// Return true if there is one or more active performance counter (a counter that is
     /// assigned a valid event).
@@ -3261,7 +3281,7 @@ namespace WdRiscv
     /// for hypervisor load/store instruction to select 2-stage address
     /// translation.
     template<typename LOAD_TYPE>
-    bool load(const DecodedInst* di, uint64_t virtAddr, bool hyper, uint64_t& value);
+    bool load(const DecodedInst* di, uint64_t virtAddr, uint64_t& value);
 
     /// For use by performance model.
     template<typename LOAD_TYPE>
@@ -3300,7 +3320,7 @@ namespace WdRiscv
     /// be set to true for hypervisor load/store instruction to select
     /// 2-stage address translation.
     template<typename STORE_TYPE>
-    bool store(const DecodedInst* di, URV addr, bool hyper, STORE_TYPE value, bool amoLock = true);
+    bool store(const DecodedInst* di, URV addr, STORE_TYPE value, bool amoLock = true);
 
     /// For use by performance model.
     template<typename STORE_TYPE>
@@ -4852,10 +4872,18 @@ namespace WdRiscv
     void execVloxei16_v(const DecodedInst*);
     void execVloxei32_v(const DecodedInst*);
     void execVloxei64_v(const DecodedInst*);
+    void execVloxei128_v(const DecodedInst*);
+    void execVloxei256_v(const DecodedInst*);
+    void execVloxei512_v(const DecodedInst*);
+    void execVloxei1024_v(const DecodedInst*);
     void execVluxei8_v(const DecodedInst*);
     void execVluxei16_v(const DecodedInst*);
     void execVluxei32_v(const DecodedInst*);
     void execVluxei64_v(const DecodedInst*);
+    void execVluxei128_v(const DecodedInst*);
+    void execVluxei256_v(const DecodedInst*);
+    void execVluxei512_v(const DecodedInst*);
+    void execVluxei1024_v(const DecodedInst*);
 
     template <typename ELEM_TYPE>
     [[nodiscard]]
@@ -4865,10 +4893,18 @@ namespace WdRiscv
     void execVsoxei16_v(const DecodedInst*);
     void execVsoxei32_v(const DecodedInst*);
     void execVsoxei64_v(const DecodedInst*);
+    void execVsoxei128_v(const DecodedInst*);
+    void execVsoxei256_v(const DecodedInst*);
+    void execVsoxei512_v(const DecodedInst*);
+    void execVsoxei1024_v(const DecodedInst*);
     void execVsuxei8_v(const DecodedInst*);
     void execVsuxei16_v(const DecodedInst*);
     void execVsuxei32_v(const DecodedInst*);
     void execVsuxei64_v(const DecodedInst*);
+    void execVsuxei128_v(const DecodedInst*);
+    void execVsuxei256_v(const DecodedInst*);
+    void execVsuxei512_v(const DecodedInst*);
+    void execVsuxei1024_v(const DecodedInst*);
 
     template <typename ELEM_TYPE>
     [[nodiscard]]
@@ -5845,7 +5881,6 @@ namespace WdRiscv
 
     bool virtMode_ = false;         // True if virtual (V) mode is on.
     bool lastVirt_ = false;         // Before current inst.
-    bool lastHyer_ = false;         // Hypervisor extension state before current inst.
     bool hyperLs_ = false;          // True if last instr is hypervisor load/store.
 
     bool lastBreakpInterruptEnabled_ = false; // Before current inst
@@ -5890,6 +5925,8 @@ namespace WdRiscv
     bool clearTinstOnCboInval_ = false;
     bool clearTinstOnCboFlush_ = false;
     bool alignCboAddr_ = true;
+
+    bool inSeqnMisaligned_ = false;     // Set if fully evaluate split misaligned accesses in-sequence.
 
     bool targetProgFinished_ = false;
     bool stepResult_ = false;        // Set by singleStep on caught exception (program success/fail).
@@ -5974,6 +6011,7 @@ namespace WdRiscv
     std::function<bool(uint64_t, unsigned, uint64_t)> imsicWrite_ = nullptr;
     std::shared_ptr<Pci> pci_;
     std::shared_ptr<TT_APLIC::Aplic> aplic_;
+    std::shared_ptr<TT_IOMMU::Iommu> iommu_;
 
     // Callback invoked before a CSR instruction accesses a CSR.
     std::function<void(unsigned, CsrNumber)> preCsrInst_ = nullptr;

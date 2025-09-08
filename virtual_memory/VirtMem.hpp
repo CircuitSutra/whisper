@@ -62,16 +62,22 @@ namespace WdRiscv
     { return translate(va, pm, twoStage, false, false, true, gpa, pa); }
 
     /// Similar to translate but targeting only read access.
-    [[deprecated("Use translateForLoad2 instead.")]]
     ExceptionCause translateForLoad(uint64_t va, PrivilegeMode pm, bool twoStage,
 				    uint64_t& gpa, uint64_t& pa)
-    { return translate(va, pm, twoStage, true, false, false, gpa, pa); }
+    {
+      twoStage_ = twoStage;
+      gpa = pa = va;
+      return translate(va, pm, twoStage, true, false, false, gpa, pa);
+    }
 
     /// Similar to translate but targeting only write access.
-    [[deprecated("Use translateForStore2 instead.")]]
     ExceptionCause translateForStore(uint64_t va, PrivilegeMode pm, bool twoStage,
 				     uint64_t& gpa, uint64_t& pa)
-    { return translate(va, pm, twoStage, false, true, false, gpa, pa); }
+    {
+      twoStage_ = twoStage;
+      gpa = pa = va;
+      return translate(va, pm, twoStage, false, true, false, gpa, pa);
+    }
 
     /// Similar to translateForFetch but also check for page
     /// crossing. On success, gpa1/pa1 will have the physical address and
@@ -119,11 +125,12 @@ namespace WdRiscv
     /// Configure the first stage of 2-stage translation. This is typically called at
     /// reset and as a result of changes to the VSATP CSR. The page table will be at
     /// address rootPageNum * pageSize.
-    void configStage1(Mode mode, uint32_t asid, uint64_t rootPageNum)
+    void configStage1(Mode mode, uint32_t asid, uint64_t rootPageNum, bool sum)
     {
       setVsMode(mode);
       setVsAsid(asid);
       setVsRootPage(rootPageNum);
+      setVsSum(sum);
     }
 
     /// Configure the second stage of 2-stage translation. This is typically called at

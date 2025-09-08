@@ -1003,6 +1003,13 @@ Decoder::decodeVecLoad(uint32_t f3, uint32_t imm12, uint32_t& fieldCount) const
 	      if (f3 == 6) return instTable_.getEntry(InstId::vluxei32_v);
 	      if (f3 == 7) return instTable_.getEntry(InstId::vluxei64_v);
 	    }
+          else
+	    {
+	      if (f3 == 0) return instTable_.getEntry(InstId::vluxei128_v);
+	      if (f3 == 5) return instTable_.getEntry(InstId::vluxei256_v);
+	      if (f3 == 6) return instTable_.getEntry(InstId::vluxei512_v);
+	      if (f3 == 7) return instTable_.getEntry(InstId::vluxei1024_v);
+	    }
 	}
       else
 	{
@@ -1013,6 +1020,13 @@ Decoder::decodeVecLoad(uint32_t f3, uint32_t imm12, uint32_t& fieldCount) const
 	      if (f3 == 5) return instTable_.getEntry(InstId::vluxsegei16_v);
 	      if (f3 == 6) return instTable_.getEntry(InstId::vluxsegei32_v);
 	      if (f3 == 7) return instTable_.getEntry(InstId::vluxsegei64_v);
+	    }
+          else
+	    {
+	      if (f3 == 0) return instTable_.getEntry(InstId::vluxsegei128_v);
+	      if (f3 == 5) return instTable_.getEntry(InstId::vluxsegei256_v);
+	      if (f3 == 6) return instTable_.getEntry(InstId::vluxsegei512_v);
+	      if (f3 == 7) return instTable_.getEntry(InstId::vluxsegei1024_v);
 	    }
 	}
     }
@@ -1067,6 +1081,13 @@ Decoder::decodeVecLoad(uint32_t f3, uint32_t imm12, uint32_t& fieldCount) const
 	      if (f3 == 6) return instTable_.getEntry(InstId::vloxei32_v);
 	      if (f3 == 7) return instTable_.getEntry(InstId::vloxei64_v);
 	    }
+          else
+            {
+	      if (f3 == 0) return instTable_.getEntry(InstId::vloxei128_v);
+	      if (f3 == 5) return instTable_.getEntry(InstId::vloxei256_v);
+	      if (f3 == 6) return instTable_.getEntry(InstId::vloxei512_v);
+	      if (f3 == 7) return instTable_.getEntry(InstId::vloxei1024_v);
+            }
 	}
       else
 	{
@@ -1078,6 +1099,13 @@ Decoder::decodeVecLoad(uint32_t f3, uint32_t imm12, uint32_t& fieldCount) const
 	      if (f3 == 6) return instTable_.getEntry(InstId::vloxsegei32_v);
 	      if (f3 == 7) return instTable_.getEntry(InstId::vloxsegei64_v);
 	    }
+          else
+            {
+	      if (f3 == 0) return instTable_.getEntry(InstId::vloxsegei128_v);
+	      if (f3 == 5) return instTable_.getEntry(InstId::vloxsegei256_v);
+	      if (f3 == 6) return instTable_.getEntry(InstId::vloxsegei512_v);
+	      if (f3 == 7) return instTable_.getEntry(InstId::vloxsegei1024_v);
+            }
 	}
     }
 
@@ -1228,6 +1256,13 @@ Decoder::decodeVecStore(uint32_t f3, uint32_t imm12, uint32_t& fieldCount) const
 	      if (f3 == 6) return instTable_.getEntry(InstId::vsoxei32_v);
 	      if (f3 == 7) return instTable_.getEntry(InstId::vsoxei64_v);
 	    }
+          else
+	    {
+	      if (f3 == 0) return instTable_.getEntry(InstId::vsoxei128_v);
+	      if (f3 == 5) return instTable_.getEntry(InstId::vsoxei256_v);
+	      if (f3 == 6) return instTable_.getEntry(InstId::vsoxei512_v);
+	      if (f3 == 7) return instTable_.getEntry(InstId::vsoxei1024_v);
+	    }
 	}
       else
 	{
@@ -1238,6 +1273,13 @@ Decoder::decodeVecStore(uint32_t f3, uint32_t imm12, uint32_t& fieldCount) const
 	      if (f3 == 5) return instTable_.getEntry(InstId::vsoxsegei16_v);
 	      if (f3 == 6) return instTable_.getEntry(InstId::vsoxsegei32_v);
 	      if (f3 == 7) return instTable_.getEntry(InstId::vsoxsegei64_v);
+	    }
+          else
+	    {
+	      if (f3 == 0) return instTable_.getEntry(InstId::vsoxsegei128_v);
+	      if (f3 == 5) return instTable_.getEntry(InstId::vsoxsegei256_v);
+	      if (f3 == 6) return instTable_.getEntry(InstId::vsoxsegei512_v);
+	      if (f3 == 7) return instTable_.getEntry(InstId::vsoxsegei1024_v);
 	    }
 	}
     }

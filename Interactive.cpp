@@ -666,9 +666,15 @@ Interactive<URV>::peekCommand(Hart<URV>& hart, const std::string& line,
         if (not parseCmdLineNumber("peek-csr-virt-mode", tokens.at(3), virtMode))
           return false;
 
-      if (hart.peekCsr(csr->getNumber(), val, virtMode))
+      auto csrn = csr->getNumber();
+      if (hart.peekCsr(csrn, val, virtMode))
         {
-          out << (boost::format(hexForm) % val) << std::endl;
+          out << (boost::format(hexForm) % val);
+          if (csrn == CsrNumber::MIP)
+            out << " " << (boost::format(hexForm) % hart.csRegs().effectiveMip());
+          else if (csrn == CsrNumber::SIP)
+            out << " " << (boost::format(hexForm) % hart.csRegs().effectiveSip());
+          out << std::endl;
 	  return true;
 	}
       cerr << "Failed to read CSR: " << addrStr << '\n';
@@ -1000,7 +1006,7 @@ Interactive<URV>::pokeCommand(Hart<URV>& hart, const std::string& line,
 	  cerr << "Error: Invalid poke memory size " << size << '\n';
 	  return false;
 	}
-      cerr << "Error: Address out of bounds: " << addrStr << '\n';
+      cerr << "Error: Memory poke failed for adress " << addrStr << '\n';
       return false;
     }
 
@@ -1008,14 +1014,23 @@ Interactive<URV>::pokeCommand(Hart<URV>& hart, const std::string& line,
     {
       size_t addr = 0;
       URV val = 0;
-      if (addrStr == "defi" or
-	  (parseCmdLineNumber("special-resoure", addrStr, addr) and
-	   addr == WhisperSpecialResource::DeferredInterrupts))
+      if (addrStr == "defi")
 	{
 	  if (not parseCmdLineNumber("value1", tokens.at(3), val))
 	    return false;
 	  hart.setDeferredInterrupts(val);
 	}
+      else if (not addrStr.empty() and std::isdigit(addrStr.at(0)))
+        {
+	  if (not parseCmdLineNumber("special-resoure", addrStr, addr))
+            return false;
+          if (addr == WhisperSpecialResource::DeferredInterrupts)
+            {
+              if (not parseCmdLineNumber("value1", tokens.at(3), val))
+                return false;
+              hart.setDeferredInterrupts(val);
+            }
+        }
       else if (addrStr == "seipin")
 	{
 	  if (not parseCmdLineNumber("value1", tokens.at(3), val))

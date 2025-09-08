@@ -12453,6 +12453,38 @@ Hart<URV>::execVloxei64_v(const DecodedInst* di)
 
 template <typename URV>
 void
+Hart<URV>::execVloxei128_v(const DecodedInst* di)
+{
+  postVecFail(di);
+}
+
+
+template <typename URV>
+void
+Hart<URV>::execVloxei256_v(const DecodedInst* di)
+{
+  postVecFail(di);
+}
+
+
+template <typename URV>
+void
+Hart<URV>::execVloxei512_v(const DecodedInst* di)
+{
+  postVecFail(di);
+}
+
+
+template <typename URV>
+void
+Hart<URV>::execVloxei1024_v(const DecodedInst* di)
+{
+  postVecFail(di);
+}
+
+
+template <typename URV>
+void
 Hart<URV>::execVluxei8_v(const DecodedInst* di)
 {
   execVloxei8_v(di);
@@ -12480,6 +12512,38 @@ void
 Hart<URV>::execVluxei64_v(const DecodedInst* di)
 {
   execVloxei64_v(di);
+}
+
+
+template <typename URV>
+void
+Hart<URV>::execVluxei128_v(const DecodedInst* di)
+{
+  postVecFail(di);
+}
+
+
+template <typename URV>
+void
+Hart<URV>::execVluxei256_v(const DecodedInst* di)
+{
+  postVecFail(di);
+}
+
+
+template <typename URV>
+void
+Hart<URV>::execVluxei512_v(const DecodedInst* di)
+{
+  postVecFail(di);
+}
+
+
+template <typename URV>
+void
+Hart<URV>::execVluxei1024_v(const DecodedInst* di)
+{
+  postVecFail(di);
 }
 
 
@@ -12727,6 +12791,38 @@ Hart<URV>::execVsoxei64_v(const DecodedInst* di)
 
 template <typename URV>
 void
+Hart<URV>::execVsoxei128_v(const DecodedInst* di)
+{
+  postVecFail(di);
+}
+
+
+template <typename URV>
+void
+Hart<URV>::execVsoxei256_v(const DecodedInst* di)
+{
+  postVecFail(di);
+}
+
+
+template <typename URV>
+void
+Hart<URV>::execVsoxei512_v(const DecodedInst* di)
+{
+  postVecFail(di);
+}
+
+
+template <typename URV>
+void
+Hart<URV>::execVsoxei1024_v(const DecodedInst* di)
+{
+  postVecFail(di);
+}
+
+
+template <typename URV>
+void
 Hart<URV>::execVsuxei8_v(const DecodedInst* di)
 {
   execVsoxei8_v(di);
@@ -12754,6 +12850,38 @@ void
 Hart<URV>::execVsuxei64_v(const DecodedInst* di)
 {
   execVsoxei64_v(di);
+}
+
+
+template <typename URV>
+void
+Hart<URV>::execVsuxei128_v(const DecodedInst* di)
+{
+  postVecFail(di);
+}
+
+
+template <typename URV>
+void
+Hart<URV>::execVsuxei256_v(const DecodedInst* di)
+{
+  postVecFail(di);
+}
+
+
+template <typename URV>
+void
+Hart<URV>::execVsuxei512_v(const DecodedInst* di)
+{
+  postVecFail(di);
+}
+
+
+template <typename URV>
+void
+Hart<URV>::execVsuxei1024_v(const DecodedInst* di)
+{
+  postVecFail(di);
 }
 
 

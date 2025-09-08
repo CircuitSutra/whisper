@@ -735,6 +735,23 @@ Hart<URV>::printInstCsvTrace(const DecodedInst& di, FILE* out)
             buffer.printChar('=').print(einfo.data_);
         }
     }
+  if (di.instId() == InstId::cbo_zero and not hasException_)
+    {
+      uint64_t va = cacheLineAlign(ldStAddr_);
+      uint64_t pa = cacheLineAlign(ldStPhysAddr1_);
+      for (unsigned i = 0; i < cacheLineSize_; i += sizeof(URV))
+	{
+          if (i > 0)
+            buffer.printChar(';');
+          buffer.print(va + i);
+          if (va != pa)
+            {
+              buffer.printChar(':');
+              buffer.print(pa + i);
+            }
+          buffer.print("=0");
+	}
+    }
   else if (lastLdStAddress(virtDataAddr, physDataAddr))
     {
       bool store = ldStWrite_;

@@ -45,7 +45,7 @@ PerfApi::checkHart(const char* caller, unsigned hartIx)
   if (not hart)
     {
       std::cerr << caller << ": Bad hart index: " << hartIx << '\n';
-      assert(0 && "Error: Assertion failed");
+      assert(0 && "Error: Assertion failed -- bad hart index");
     }
   return hart;
 }
@@ -59,7 +59,7 @@ PerfApi::checkTag(const char* caller, unsigned hartIx, uint64_t tag)
   if (iter != packetMap.end())
     return iter->second;
   std::cerr << caller << ": Unknown tag (never fetched): " << tag << '\n';
-  assert(0 && "Error: Assertion failed");
+  assert(0 && "Error: Assertion failed -- unknown tag");
   return nullptr;
 }
 
@@ -70,7 +70,7 @@ PerfApi::checkTime(const char* caller, uint64_t time)
   if (time < time_)
     {
       std::cerr << caller << ": Bad time: " << time << '\n';
-      assert(0 && "Error: Assertion failed");
+      assert(0 && "Error: Assertion failed -- bad time value");
       return false;
     }
   time_ = time;
@@ -97,7 +97,7 @@ PerfApi::fetch(unsigned hartIx, uint64_t time, uint64_t tag, uint64_t vpc,
     {
       std::cerr << "Error: PerfApi::fetch: Hart-ix=" << hartIx << " tag=" << tag
 		<< " zero tag is reserved.\n";
-      assert(0 && "Error: Assertion failed");
+      assert(0 && "Error: Assertion failed -- zero tag");
       return false;
     }
 
@@ -106,7 +106,7 @@ PerfApi::fetch(unsigned hartIx, uint64_t time, uint64_t tag, uint64_t vpc,
     {
       std::cerr << "Error: PerfApi::fetch: Hart-ix=" << hartIx << "tag=" << tag
 		<< " tag is not in increasing order.\n";
-      assert(0 && "Error: Assertion failed");
+      assert(0 && "Error: Assertion failed -- tag out of order");
       return false;
     }
 
@@ -145,7 +145,7 @@ PerfApi::fetch(unsigned hartIx, uint64_t time, uint64_t tag, uint64_t vpc,
   packet->opcode_= opcode;
   insertPacket(hartIx, tag, packet);
   if (not decode(hartIx, time, tag))
-    assert(0 && "Error: Assertion failed");
+    assert(0 && "Error: Assertion failed -- failed to decode");
   prevFetch_ = packet;
 
   trap = cause != ExceptionCause::NONE;
@@ -229,7 +229,7 @@ PerfApi::decode(unsigned hartIx, uint64_t time, uint64_t tag)
       else
         {
           auto lmul = op.lmul;
-          assert(lmul != 0);
+          assert(lmul != 0 and lmul <= maxEffLmul_);
           for (unsigned n = 0; n < lmul; ++n)
             {
               unsigned vgri = gri + n;
@@ -256,6 +256,7 @@ PerfApi::decode(unsigned hartIx, uint64_t time, uint64_t tag)
           else
             {
               auto lmul = op.lmul;
+              assert(lmul <= maxEffLmul_);
               for (unsigned n = 0; n < lmul; ++n)
                 {
                   unsigned vgri = gri + n;
@@ -304,7 +305,7 @@ PerfApi::execute(unsigned hartIx, uint64_t time, uint64_t tag)
       // Instruction is being re-executed. Must be load/store. Every instruction that
       // depends on it must be re-executed.
       if (not di.isLoad() and not di.isStore())
-	assert(0 && "Error: Assertion failed");
+	assert(0 && "Error: Assertion failed -- re-executed instruction is not ld/store");
       auto iter = packetMap.find(packet.tag());
       assert(iter != packetMap.end());
       for ( ; iter != packetMap.end(); ++iter)
@@ -322,7 +323,7 @@ PerfApi::execute(unsigned hartIx, uint64_t time, uint64_t tag)
   // Execute the instruction: Poke source register values, execute, recover destination
   // register values.
   if (not execute(hartIx, packet))
-    assert(0 && "Error: Assertion failed");
+    assert(0 && "Error: Assertion failed -- failed to execute isntruction");
 
   // We should not fail to read an operand value unless there is an exception.
   if (not peekOk)
@@ -353,10 +354,6 @@ PerfApi::execute(unsigned hartIx, uint64_t time, uint64_t tag)
 	    }
 	}
     }
-
-  // Collect the page table walks.
-  packet.fetchWalks_ = hart.virtMem().getFetchWalks();
-  packet.dataWalks_ = hart.virtMem().getDataWalks();
 
   return true;
 }
@@ -412,7 +409,8 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
   bool trap = hart.lastInstructionTrapped();
   packet.trap_ = trap;
   packet.interrupt_ = hart.lastInstructionInterrupted();
-  packet.trapCause_ = hart.lastTrapCause();
+  if (trap)
+    packet.trapCause_ = hart.lastTrapCause();
 
   // If save fails or set fails, there must be a trap.
   if (not saveOk or not setOk)
@@ -421,8 +419,7 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
   // Record PC of subsequent packet.
   packet.nextIva_ = hart.peekPc();
 
-  if (not trap)
-    recordExecutionResults(hart, packet);
+  recordExecutionResults(hart, packet);
 
   // Undo changes to the hart.
 
@@ -482,6 +479,10 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
   hart.pokePc(prevPc);
   hart.setInstructionCount(prevInstrCount);
 
+  // Collect the page table walks.
+  packet.fetchWalks_ = hart.virtMem().getFetchWalks();
+  packet.dataWalks_ = hart.virtMem().getDataWalks();
+
   hart.clearTraceData();
 
   return true;
@@ -540,7 +541,7 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
   if (traceFile)
     {
       hart.virtMem().setFetchWalks(packet.fetchWalks_);  // We print the walk from execute.
-      hart.virtMem().setFetchWalks(packet.dataWalks_);
+      hart.virtMem().setDataWalks(packet.dataWalks_);
       hart.printInstCsvTrace(packet.di_, traceFile);
     }
 
@@ -556,7 +557,8 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
   bool trap = hart.lastInstructionTrapped();
   packet.trap_ = packet.trap_ or trap;
   packet.interrupt_ = hart.lastInstructionInterrupted();
-  packet.trapCause_ = hart.lastTrapCause();
+  if (packet.trap_)
+    packet.trapCause_ = hart.lastTrapCause();
 
   auto& di = packet.decodedInst();
 
@@ -566,8 +568,7 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
       // Record PC of subsequent packet.
       packet.nextIva_ = hart.peekPc();
 
-      if (not packet.trap_)
-        recordExecutionResults(hart, packet);
+      recordExecutionResults(hart, packet);
       packet.executed_ = true;
     }
 #endif
@@ -861,12 +862,12 @@ PerfApi::getLoadData(unsigned hartIx, uint64_t tag, uint64_t va, uint64_t pa1,
 
   bool isLoad = ( packet->di_.isLoad() or packet->di_.isAmo() or
                   packet->di_.isVectorLoad() );
+  if (not isLoad)
+    assert(0 && "Error: Assertion failed");
 
-  if (not hart or not packet or not isLoad or packet->trapped())
-    {
-      assert(0 && "Error: Assertion failed");
-      return false;
-    }
+  // Scalar instruction should not have trapped. Vector may trap on a later element.
+  if (not packet->di_.isVectorLoad())
+    assert(not packet->trapped());
 
   // If AMO destination register is x0, we lose the loaded value: redo the read for AMOs
   // to avoid that case. AMOs should not have a discrepancy between early read and read at
@@ -1086,9 +1087,9 @@ PerfApi::flush(unsigned hartIx, uint64_t time, uint64_t tag)
       if (pacPtr->tag_ < tag)
 	break;
 
-      if (not pacPtr or pacPtr->retired())
+      if (pacPtr->retired())
         {
-          assert(0 && "Error: Assertion failed");
+          assert(0 && "Error: Assertion failed: Flushing retired instruction");
           return false;
         }
 
@@ -1117,6 +1118,7 @@ PerfApi::flush(unsigned hartIx, uint64_t time, uint64_t tag)
                 }
               else
                 {
+                  assert(iop.vec.size() <= maxEffLmul_);
                   for (unsigned n = 0; n < iop.vec.size(); ++n)
                     {
                       auto prev = iop.vec.at(n);
@@ -1756,7 +1758,8 @@ PerfApi::updatePacketDataAddress(Hart64& hart, InstrPac& packet)
 void
 PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
 {
-  updatePacketDataAddress(hart, packet);
+  if (not packet.trap_)
+    updatePacketDataAddress(hart, packet);
 
   if (hart.hasTargetProgramFinished())
     packet.nextIva_ = haltPc;
@@ -1781,12 +1784,12 @@ PerfApi::recordExecutionResults(Hart64& hart, InstrPac& packet)
           if (op.type != OT::VecReg)
             {
               if (not peekRegister(hart, op.type, regNum, destVal))
-                assert(0 && "Error: Assertion failed");
+                assert(packet.trap_);
             }
           else
             {
               if (not peekVecRegGroup(hart, regNum, op.lmul, destVal))
-                assert(0 && "Error: Assertion failed");
+                assert(packet.trap_);
             }
 	  packet.destValues_.at(destIx) = InstrPac::DestValue(gri, destVal);
 	  destIx++;
@@ -1864,10 +1867,7 @@ PerfApi::getVecOpsLmul(Hart64& hart, InstrPac& packet)
           unsigned imul = ig8 <= 8 ? 1 : ig8 / 8;   // Index reg effective lmul
 
           if (fields > 0)
-            {
-              dmul *= fields;
-              imul *= fields;
-            }
+            dmul *= fields;
 
           packet.operands_.at(0).lmul = dmul;
           packet.operands_.at(2).lmul = imul;
@@ -1875,7 +1875,8 @@ PerfApi::getVecOpsLmul(Hart64& hart, InstrPac& packet)
       else
         {
           auto id = di.instId();
-          if (id >= InstId::vlre8_v and id <= InstId::vlre64_v)
+          if ( (id >= InstId::vlre8_v and id <= InstId::vlre64_v) or
+               (id >= InstId::vs1r_v and id <= InstId::vs8r_v) )
             packet.operands_.at(0).lmul = fields;
           else
             {
@@ -1918,8 +1919,6 @@ PerfApi::getVecOpsLmul(Hart64& hart, InstrPac& packet)
     case InstId::vwadd_vx:
     case InstId::vwsub_vv:
     case InstId::vwsub_vx:
-    case InstId::vwredsumu_vs:
-    case InstId::vwredsum_vs:
     case InstId::vwmulu_vv:
     case InstId::vwmulu_vx:
     case InstId::vwmul_vv:
@@ -1943,8 +1942,6 @@ PerfApi::getVecOpsLmul(Hart64& hart, InstrPac& packet)
     case InstId::vfwcvt_f_xu_v:
     case InstId::vfwcvt_f_x_v:
     case InstId::vfwcvt_f_f_v:
-    case InstId::vfwredusum_vs:
-    case InstId::vfwredosum_vs:
     case InstId::vfwcvtbf16_f_f_v:
     case InstId::vfwmaccbf16_vv:
     case InstId::vfwmaccbf16_vf:
@@ -2032,6 +2029,26 @@ PerfApi::getVecOpsLmul(Hart64& hart, InstrPac& packet)
       packet.operands_.at(0).lmul = 1;
       break;
 
+    case InstId::vredsum_vs:
+    case InstId::vredand_vs:
+    case InstId::vredor_vs:
+    case InstId::vredxor_vs:
+    case InstId::vredminu_vs:
+    case InstId::vredmin_vs:
+    case InstId::vredmaxu_vs:
+    case InstId::vredmax_vs:
+      packet.operands_.at(0).lmul = 1;  // Destination vec operand has lmul of 1.
+      packet.operands_.at(2).lmul = 1;  // Third vec operand has lmul of 1.
+      break;
+
+    case InstId::vwredsumu_vs:
+    case InstId::vwredsum_vs:
+    case InstId::vfwredusum_vs:
+    case InstId::vfwredosum_vs:
+      packet.operands_.at(0).lmul = 1;  // Destination vec operand has lmul of 1.
+      packet.operands_.at(2).lmul = 1;  // Third vec operand has lmul of 1.
+      break;
+
     case InstId::vmand_mm:
     case InstId::vmnand_mm:
     case InstId::vmandn_mm:
@@ -2080,6 +2097,7 @@ PerfApi::undoDestRegRename(unsigned hartIx, const InstrPac& packet)
             }
           else
             {
+              assert(op.lmul <= maxEffLmul_);
               for (unsigned n = 0; n < op.lmul; ++n)
                 {
                   auto& producer = producers.at(gri + n);
@@ -2139,6 +2157,7 @@ PerfApi::collectOperandValues(Hart64& hart, InstrPac& packet)
         }
       else
         {
+          assert(iop.vec.size() <= maxEffLmul_);
           for (unsigned n = 0; n < iop.vec.size(); ++n)
             {
               OpVal val;  // Single register value
@@ -2152,7 +2171,7 @@ PerfApi::collectOperandValues(Hart64& hart, InstrPac& packet)
                       assert(0 && "Error: Assertion failed");
                       return false;
                     }
-                  getVecDestValue(*producer, gri + n, vecRegSize, val);
+                  peekOk = getVecDestValue(*producer, gri + n, vecRegSize, val) and peekOk;
                 }
               else
                 peekOk = peekRegister(hart, type, regNum+n, val) and peekOk;

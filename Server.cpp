@@ -292,12 +292,17 @@ Server<URV>::peekCommand(const WhisperMessage& req, WhisperMessage& reply, Hart<
       {
 	URV reset = 0, mask = 0, pokeMask = 0, readMask = 0;
         bool virtMode = WhisperFlags{req.flags}.bits.virt;
-	if (hart.peekCsr(CsrNumber(req.address), value, reset, mask, pokeMask, readMask, virtMode))
+        auto csrn = CsrNumber(req.address);
+        if (hart.peekCsr(csrn,  value, reset, mask, pokeMask, readMask, virtMode))
 	  {
-	    reply.value = value;
 	    reply.address = mask;
 	    reply.time = pokeMask;
             reply.instrTag = readMask;
+            if (csrn == CsrNumber::MIP)
+              value = hart.csRegs().effectiveMip();
+            else if (csrn == CsrNumber::SIP)
+              value = hart.csRegs().effectiveSip();
+	    reply.value = value;
 	    return true;
 	  }
       }
@@ -1083,7 +1088,8 @@ Server<URV>::interact(std::span<char> shm, FILE* traceFile, FILE* commandLog)
 
 template <typename URV>
 bool
-Server<URV>::interact(const WhisperMessage& msg, WhisperMessage& reply, FILE* traceFile, FILE* commandLog)
+Server<URV>::interact(const WhisperMessage& msg, WhisperMessage& reply, FILE* traceFile,
+                      FILE* commandLog)
 {
   // Initial resets do not reset memory mapped registers.
   bool resetMemoryMappedReg = false;
@@ -1093,6 +1099,13 @@ Server<URV>::interact(const WhisperMessage& msg, WhisperMessage& reply, FILE* tr
 
   uint32_t hartId = msg.hart;
   auto hartPtr = system_.findHartByHartId(hartId);
+  if (not hartPtr)
+    {
+      std::cerr << "Error: Server::interact: No such hart id: " << hartId << '\n';
+      reply.type = Invalid;
+      return false;
+    }
+
   assert(hartPtr);
   auto& hart = *hartPtr;
 
@@ -1464,8 +1477,19 @@ Server<URV>::interact(const WhisperMessage& msg, WhisperMessage& reply, FILE* tr
 	  hart.setDeferredInterrupts(0);
 
           InterruptCause cause = InterruptCause{0};
-          PrivilegeMode nextMode; bool nextVirt; bool hvi;
+          PrivilegeMode nextMode = PrivilegeMode{0};
+          bool nextVirt = false; bool hvi = false;
           reply.flags = hart.isInterruptPossible(cause, nextMode, nextVirt, hvi);
+          if (reply.flags)
+            {
+              // Bit 0: whether or not interrupt is possible.
+              // Bit 1: whether interrupt will go to a virtual privilege (VS)
+              // Bits 9 and 8: privilege target of interrupt: M, or S (which with
+              // bit 1 effectively becomes HS or VS).
+              if (nextVirt)
+                reply.flags |= 0x2;
+              reply.flags |= unsigned(nextMode) << 8;
+            }
           reply.value = static_cast<uint64_t>(cause);
 
 	  hart.setDeferredInterrupts(deferred);

@@ -327,8 +327,11 @@ CsRegs<URV>::writeMvip(URV value)
         }
     }
 
-  // In bits 0 to 12, always write bits 1 and 9, never write bit 5.
-  URV mvipMask = 0x202;
+  // In bits 0 to 12, always write bit 9, never write bit 5, and
+  // always write bit 1.
+  URV mvipMask = 0x200;
+  //if (not mvien or ((mvien->read() & 0x2) == 0x2)) // write bit1 if not aliased.
+  mvipMask |= 0x2;  // Always write bit 1 (to match RTL -- bug 4248).
 
   // In the remaining bits (13 to 63), always write.
   mvipMask |= ~URV(0x1fff);
@@ -1731,7 +1734,7 @@ CsRegs<URV>::writeMtopei()
   if (not imsic_)
     return false;
 
-  // Section 3.9 of AIA: Write to STOPEI clears the pending bit
+  // Section 3.9 of AIA: Write to MTOPEI clears the pending bit
   // corresponding to the topid before the write.
   unsigned id = imsic_->machineTopId();
   if (id)
@@ -4137,7 +4140,7 @@ CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode, bool& hvi) co
                 }
             }
 
-          if (value and not hvf.bits_.IPRIOM)
+          if ((value or hvi) and not hvf.bits_.IPRIOM)
             {
               value &= ~URV(0xff);
               value |= 1;
@@ -4570,14 +4573,6 @@ CsRegs<URV>::updateVirtInterrupt(URV value, bool poke)
       // Bit 9 of MVIP is an alias to bit 9 in MIP if bit 9 is zero in MVIEN.
       URV b9 = 0x200;
       mask |= b9 & ~mvienVal;  // BIT 9 updated in MVIP if it is zero in MVIEN.
-
-#if 0
-      // Bit STIE (5) of MVIP is an alias to bit 5 of MIP if bit 5 of MIP is writable.
-      // Othrwise, it is zero.
-      URV b5 = URV(0x20);  // Bit 5 mask
-      if ((mip->getWriteMask() & b5) != 0)   // Bit 5 writable in mip
-	mask |= b5;
-#endif
 
       // Write aliasing bits.
       auto prev = mvip->read();
@@ -5447,7 +5442,10 @@ CsRegs<URV>::hyperPoke(Csr<URV>* csr)
       URV val = mip->read();
       URV mask = 0x4; // Bit 2
       if (hip)
-        hip->poke((val & mask) | (hip->read() & ~mask));
+        {
+          hip->poke((val & mask) | (hip->read() & ~mask));
+          hipUpdated = true;
+        }
     }
   else if (num == CsrNumber::HIP)
     {
@@ -5472,6 +5470,7 @@ CsRegs<URV>::hyperPoke(Csr<URV>* csr)
           if (virtTimerExpired())
             value |= 1 << 6;    // Or VSTIP (bit 6) if time + htimedelta >= vstimecmp.
 	  hip->poke((hip->read() & ~hipMask) | (value & hipMask));
+          hipUpdated = true;
         }
     }
   else if (num == CsrNumber::HGEIP or num == CsrNumber::HGEIE or

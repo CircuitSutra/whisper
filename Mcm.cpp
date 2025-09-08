@@ -215,6 +215,7 @@ Mcm<URV>::readOp_(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa, uns
       // One set of adjusted tags per hart.
       std::vector< std::unordered_set<uint64_t> > adjustedTags(hartData_.size()); 
 
+      bool movedWrite = false;
       for (size_t i = ix + 1; i < sysMemOps_.size(); ++i)
         {
           auto& movedOp = sysMemOps_.at(i);
@@ -229,12 +230,29 @@ Mcm<URV>::readOp_(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa, uns
           auto& instr = instrVec.at(tag);
           for (auto& instrOpIx : instr.memOps_)
             if (instrOpIx >= ix)
-              instrOpIx++;
+              {
+                instrOpIx++;
+                movedWrite = movedWrite or instr.isStore_;
+              }
         }
 
       // Associate new op with instruction. This has to be done after the indices are
       // adjusted otherwise we may get an "op already added" error.
       instr->addMemOp(ix);
+
+      std::cerr << "Warning: hart-id=" << hartIx << " tag=" << op.tag_
+                << " detected non-monotonic time read at time=" << time;
+
+      // If there is a write before the read op to the same address, we are
+      // forced to use the RTL data. We have no recovery mechanism. Right now,
+      // the heuristic is if there is any store.
+      if (movedWrite)
+        {
+          sysMemOps_.at(ix).data_ = op.rtlData_;
+          std::cerr << ", using RTL data\n";
+        }
+      else
+        std::cerr << '\n';
     }
 
   if (instr->retired_)
@@ -1607,10 +1625,10 @@ Mcm<URV>::mergeBufferWrite(Hart<URV>& hart, uint64_t time, uint64_t physAddr,
             cerr << "Error: hart-id=" << hart.hartId() << " time=" << time;
             uint64_t addr = physAddr + i;
             if (insertTags.at(i) == 0)
-              cerr << "Error:  merge-buffer write without corresponding insert addr=0x"
+              cerr << " merge-buffer write without corresponding insert addr=0x"
                    << std::hex << addr << std::dec << '\n';
             else
-              cerr << "Error:  merge-buffer write does not match merge-buffer insert addr=0x"
+              cerr << " merge-buffer write does not match merge-buffer insert addr=0x"
                    << std::hex << addr << " write-data=0x" << unsigned(rtlData.at(i))
                    << " insert-data=0x" << unsigned(line.at(i)) << std::dec
                    << " insert-tag=" << insertTags.at(i) << '\n';
@@ -1906,172 +1924,80 @@ Mcm<URV>::checkVecStoreData(Hart<URV>& hart, const McmInstr& store) const
   if (not store.di_.isVector())
     return true;
 
-  // Get reference (Whisper) data.
+  if (not store.complete_)
+    return true;  // Will check again once store is complete.
+
+  auto hartId = hart.hartId();
+
+  // 1. Put RTL byte data in a address to value map.
+  std::unordered_map<uint64_t, uint8_t> rtlData;
+  for (auto opIx : store.memOps_)
+    {
+      auto& op = sysMemOps_.at(opIx);
+      for (unsigned i = 0; i < op.size_; ++i)
+	{
+	  uint64_t addr = op.pa_ +i;
+	  uint8_t val = op.rtlData_ >> (i*8);
+          rtlData[addr] = val;
+	}
+    }
+
+  // 2. Put reference data in a map.
   auto& vecRefMap = hartData_.at(store.hartIx_).vecRefMap_;
   auto iter = vecRefMap.find(store.tag_);
   assert(iter != vecRefMap.end());
   auto& vecRefs = iter->second;
 
-  auto hartId = hart.hartId();
-
-  if (not store.hasOverlap_)
-    {
-      // Put reference data in a per-byte address/value map.
-      std::unordered_map<uint64_t , uint8_t> dataMap;
-      for (auto& ref : vecRefs.refs_)
-	for (unsigned i = 0; i < ref.size_; ++i)
-	  dataMap[ref.pa_ + i] = ref.data_ >> (i*8);
-
-      // Compare RTL data to reference data.
-      for (auto opIx : store.memOps_)
-	{
-	  auto& op = sysMemOps_.at(opIx);
-	  for (unsigned i = 0; i < op.size_; ++i)
-	    {
-	      uint64_t addr = op.pa_ + i;
-	      uint8_t rtlVal = op.rtlData_ >> (i*8);
-
-	      auto iter = dataMap.find(addr);
-	      if (iter == dataMap.end())
-		{
-		  if (store.complete_)
-		    {
-		      cerr << "Error: hart-id=" << hartId << " tag=" << store.tag_
-			   << " addr=0x" << std::hex << addr << std::dec
-			   << " addr found in write ops (RTL) but not in "
-			   << " reference (Whisper)\n";
-		      return false;
-		    }
-		  continue;  // Will check again when store is complete.
-		}
-
-	      uint8_t refVal = iter->second;
-	      if (rtlVal != refVal)
-		{
-		  cerr << "Error: hart-id=" << hartId << " tag=" << store.tag_
-		       << " mismatch on vector store data: addr=0x" << std::hex << addr
-		       << " rtl=0x" << unsigned(rtlVal) << " whisper=0x"
-		       << unsigned(refVal) << std::dec << '\n';
-		  return false;
-		}
-	    }
-	}
-
-      return true;
-    }
-      
-
-  // We assume that the writes are done in element order. This is not so
-  // when an mbinsert crosses a mid-cache-line boundary. TBD FIX: get
-  // the test-bench to send element index and field with every mbinsert.
-
-  bool allIo = true;  // RTL does the right thing for IO.
-
-  // 1. Collect RTL writes. Start with the drained writes.
-  std::vector<const MemoryOp*> writes;
-  writes.reserve(128);
-  for (auto opIx : store.memOps_)
-    {
-      auto& op = sysMemOps_.at(opIx);
-      writes.push_back(&op);
-      allIo = allIo and op.isIo_;
-    }
-
-  // 1.1. And append undrained writes.
-  if (not store.complete_)
-    {
-      auto hartIx = hart.sysHartIndex();
-      const auto& pendingWrites = hartData_.at(hartIx).pendingWrites_;
-      for (auto& op : pendingWrites)
-	if (op.tag_ == store.tag_ and hartIx == op.hartIx_)
-	  {
-	    allIo = allIo and op.isIo_;
-	    writes.push_back(&op);
-	  }
-    }
-
-  if (not allIo)
-    return true;   // Temporary until we get elem-ix and field with teach mbinsert.
-
-  // 2. Sort writes by insertion time.
-  std::stable_sort(writes.begin(), writes.end(),
-                   [](const MemoryOp* a, const MemoryOp* b) {
-                     return a->insertTime_ < b->insertTime_;
-                   }
-                   );
-
-  // 3. Put RTL byte data in a vector of address/value pairs.
-  using AddrValue = std::pair<uint64_t, uint8_t>;
-  std::vector<AddrValue> rtlData;
-  rtlData.reserve(1024);
-  for (auto opPtr : writes)
-    {
-      auto& op = *opPtr;
-      for (unsigned i = 0; i < op.size_; ++i)
-	{
-	  uint64_t addr = op.pa_ +i;
-	  uint8_t val = op.rtlData_ >> (i*8);
-	  rtlData.push_back(AddrValue{addr, val});
-	}
-    }
-
-  auto printError = [] (unsigned hartId, uint64_t tag, const VecRef& ref) {
-    cerr << "Error: hart-id=" << hartId << " tag=" << tag
-	 << " mismatch on vector store: vec-reg=" << unsigned(ref.reg_)
-	 << " elem=" << unsigned(ref.ix_);
-    if (ref.field_)
-      cerr << " seg=" << unsigned(ref.field_);
-  };
-
-  // 4. Compare RTL data to reference data.
-  unsigned rtlDataIx = 0;
+  std::unordered_map<uint64_t, uint8_t> refData;
   for (auto& ref : vecRefs.refs_)
     {
-      for (unsigned i = 0; i < ref.size_; ++i, ++rtlDataIx)
+      for (unsigned i = 0; i < ref.size_; ++i)
 	{
 	  uint64_t addr = ref.pa_ + i;
 	  uint8_t val = ref.data_ >> (i*8);
-	  if (rtlDataIx >= rtlData.size())
-	    {
-	      if (store.complete_)
-		{
-		  printError(hartId, store.tag_, ref);
-		  cerr << " whisper-addr=0x" << std::hex << addr << std::dec
-		       << " RTL-addr=none\n";
-		  return false;
-		}
-	      return true;  // Will check again once store is complete.
-	    }
-
-	  auto [rtlAddr, rtlVal] = rtlData.at(rtlDataIx);
-	  if (rtlAddr != addr)
-	    {
-	      printError(hartId, store.tag_, ref);
-	      cerr << " whisper-addr=0x" << std::hex << addr << " RTL-addr=0x"
-		   << rtlAddr << std::dec << '\n';
-	      return false;
-	    }
-
-	  if (rtlVal != val)
-	    {
-	      printError(hartId, store.tag_, ref);
-	      cerr << " addr=0x" << std::hex << addr << " whisper-value=0x"
-		   << unsigned(val) << " RTL-value=0x" << unsigned(rtlVal)
-		   << std::dec << '\n';
-	      return false;
-	    }
-	}
+          refData[addr] = val;
+        }
     }
 
-  if (rtlDataIx < rtlData.size())
+  auto tag = store.tag_;
+
+  // 3. Compare ref data to RTL data.
+  for (auto& [addr, rtlVal] : rtlData)
     {
-      cerr << "Warning: hart-id=" << hartId << " tag=" << store.tag_
-	   << " RTL has extra write-operation data for vector store instruction.\n";
+      if (not refData.contains(addr))
+        {
+          cerr << "Error: hart-id=" << hartId << " tag=" << tag
+               << " mismatch on vector store data: addr=0x" << std::hex << addr
+               << " rtl=0x" << unsigned(rtlVal) << " whisper=none" << std::dec << '\n';
+          return false;
+        }
+      uint8_t refVal = refData[addr];
+      if (rtlVal != refVal)
+        {
+          cerr << "Error: hart-id=" << hartId << " tag=" << tag
+               << " mismatch on vector store data: addr=0x" << std::hex << addr
+               << " rtl=0x" << unsigned(rtlVal) << " whisper=0x" << unsigned(refVal)
+               << std::dec << '\n';
+          return false;
+        }
+    }
+
+  if (rtlData.size() != refData.size())
+    {
+      // Check if RTL is missing writes.
+      for (auto& [addr, refVal] : rtlData)
+        {
+          if (rtlData.contains(addr))
+            continue;
+          cerr << "Error: hart-id=" << hartId << " tag=" << tag
+               << " mismatch on vector store data: addr=0x" << std::hex << addr
+               << " whisper=0x" << unsigned(refVal) << " rgl=none" << std::dec << '\n';
+          return false;
+        }
     }
 
   return true;
 }
-
 
 
 /// Return a mask where the ith bit is set if addr + i is in the range
@@ -2466,7 +2392,28 @@ Mcm<URV>::commitVecReadOpsStride0(Hart<URV>& hart, McmInstr& instr)
   unsigned mask = (1u << elemSize) - 1;
 
   const auto& refs = vecRefs.refs_;
+  if (refs.empty())
+    {
+      // No active elements. Remove read-ops marked canceled.
+      std::erase_if(ops, [this](MemoryOpIx ix) {
+        return ix >= sysMemOps_.size() or sysMemOps_.at(ix).isCanceled();
+      });
+      return true;
+    }
+
   const auto& vecRef = refs.front();
+  unsigned size1 = vecRef.size_;
+  unsigned size2 = 0;
+  uint64_t pa1 = vecRef.pa_, pa2 = vecRef.pa_;
+  if (size1 < elemSize)
+    {
+      // Elem crosses page boundary.
+      assert(refs.size() >= 2 and refs.at(1).ix_ == refs.at(0).ix_);
+      pa2 = refs.at(1).pa_;
+      size2 = refs.at(1).size_;
+      if (size1 + size2 != elemSize)
+        assert(0);
+    }
 
   for (auto iter = ops.rbegin(); iter != ops.rend(); ++iter)
     {
@@ -2487,7 +2434,7 @@ Mcm<URV>::commitVecReadOpsStride0(Hart<URV>& hart, McmInstr& instr)
         {
           unsigned byteMask = 1 << i;
 
-          uint64_t byteAddr = vecRef.pa_ + i;  // TODO handle page crosser
+          uint64_t byteAddr = i < size1 ? pa1 + i : pa2 + i - size1;
           if (not op.overlaps(byteAddr))
             continue;
 
@@ -2513,7 +2460,8 @@ Mcm<URV>::commitVecReadOpsStride0(Hart<URV>& hart, McmInstr& instr)
   if (mask and instr.complete_)
     {
       cerr << "Error: hart-id=" << hart.hartId() << " tag=" << instr.tag_
-           << " elem-ix=" << unsigned(vecRef.ix_) << " addr=0x" << std::hex << vecRef.pa_ << std::dec 
+           << " elem-ix=" << unsigned(vecRef.ix_) << " addr=0x" << std::hex
+           << vecRef.pa_ << std::dec 
            << " read ops do not cover all the bytes of vector load instruction\n";
       instr.complete_ = false;
     }
@@ -4985,9 +4933,9 @@ Mcm<URV>::ppoRule12(Hart<URV>& hart, const McmInstr& instrB) const
 	  uint64_t addr = op.pa_ + i;
 	  auto iter = byteMap.find(addr);
 	  if (iter != byteMap.end())
-	    iter->second.time_ = std::min(iter->second.time_, op.time_);
+	    iter->second.time_ = std::min(iter->second.time_, op.forwardTime(addr));
 	  else
-	    byteMap[addr] = ByteInfo{0, op.time_};
+	    byteMap[addr] = ByteInfo{0, op.forwardTime(addr)};
 	}
     }
 
@@ -5124,6 +5072,7 @@ Mcm<URV>::ppoRule12(Hart<URV>& hart, const McmInstr& instrB) const
 	      // Check B against AA.
 	      if (not instrAA.complete_ or byteTime <= aTime)
 		{
+                  
 		  cerr << "Error: PPO rule 12 failed: hart-id=" << hart.hartId() << " tag1="
 		       << aTag << " tag2=" << instrB.tag_ << " mtag=" << mTag
 		       << " time1=" << aTime << " time2=" << byteTime << " dep=addr\n";

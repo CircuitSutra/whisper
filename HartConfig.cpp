@@ -1651,56 +1651,97 @@ HartConfig::applyAplicConfig(System<URV>& system) const
   return system.configAplic(num_sources, domain_params_list);
 }
 
+template <typename URV>
+bool
+HartConfig::applyIommuConfig(System<URV>& system) const
+{
+  std::string_view tag = "iommu";
+  if (not config_ -> contains(tag))
+    return true;  // Nothing to apply
+
+  const auto& iommu_cfg = config_ -> at(tag);
+
+  for (std::string_view tag : { "base", "size", "capabilities" } )
+    {
+      if (not iommu_cfg.contains(tag))
+        {
+          std::cerr << "Error: Missing " << tag << " field in iommu section of configuration file.\n";
+          return false;
+        }
+    }
+
+  tag = "base";
+  URV base_addr;
+  if (not getJsonUnsigned("iommu.base", iommu_cfg.at(tag), base_addr))
+    return false;
+
+  tag = "size";
+  URV size;
+  if (not getJsonUnsigned("iommu.size", iommu_cfg.at(tag), size))
+    return false;
+
+  tag = "capabilities";
+  URV capabilities;
+  if (not getJsonUnsigned("iommu.capabilities", iommu_cfg.at(tag), capabilities))
+    return false;
+
+  return system.configIommu(base_addr, size, capabilities);
+}
 
 /// Helper function that converts a JSON array of interrupt identifiers into a vector of
 /// InterruptCause values. Return true on success and false on parse errors.
 static bool
-parseInterruptArray(const nlohmann::json &arr, const std::string &context, std::vector<InterruptCause>& vec)
+parseInterruptArray(const nlohmann::json &arr, const std::string &context,
+                    bool quiet, std::vector<InterruptCause>& vec)
 {
   unsigned errors = 0;
   for (const auto &item : arr)
-  {
-    InterruptCause ic;
-    if (item.is_number())
     {
-      unsigned num = item.get<unsigned>();
-      ic = static_cast<InterruptCause>(num);
-    }
-    else if (item.is_string())
-    {
-      std::string s = item.get<std::string>();
-      std::transform(s.begin(), s.end(), s.begin(), ::tolower);
-      if (s == "ssi")              ic = InterruptCause::S_SOFTWARE;
-      else if (s == "vssi")        ic = InterruptCause::VS_SOFTWARE;
-      else if (s == "msi")         ic = InterruptCause::M_SOFTWARE;
-      else if (s == "sti")         ic = InterruptCause::S_TIMER;
-      else if (s == "vsti")        ic = InterruptCause::VS_TIMER;
-      else if (s == "mti")         ic = InterruptCause::M_TIMER;
-      else if (s == "sei")         ic = InterruptCause::S_EXTERNAL;
-      else if (s == "vsei")        ic = InterruptCause::VS_EXTERNAL;
-      else if (s == "mei")         ic = InterruptCause::M_EXTERNAL;
-      else if (s == "sgei")        ic = InterruptCause::G_EXTERNAL;
-      else if (s == "lcofi")       ic = InterruptCause::LCOF;
+      InterruptCause ic;
+      if (item.is_number())
+        {
+          unsigned num = item.get<unsigned>();
+          ic = static_cast<InterruptCause>(num);
+        }
+      else if (item.is_string())
+        {
+          std::string s = item.get<std::string>();
+          std::transform(s.begin(), s.end(), s.begin(), ::tolower);
+          if (s == "ssi")              ic = InterruptCause::S_SOFTWARE;
+          else if (s == "vssi")        ic = InterruptCause::VS_SOFTWARE;
+          else if (s == "msi")         ic = InterruptCause::M_SOFTWARE;
+          else if (s == "sti")         ic = InterruptCause::S_TIMER;
+          else if (s == "vsti")        ic = InterruptCause::VS_TIMER;
+          else if (s == "mti")         ic = InterruptCause::M_TIMER;
+          else if (s == "sei")         ic = InterruptCause::S_EXTERNAL;
+          else if (s == "vsei")        ic = InterruptCause::VS_EXTERNAL;
+          else if (s == "mei")         ic = InterruptCause::M_EXTERNAL;
+          else if (s == "sgei")        ic = InterruptCause::G_EXTERNAL;
+          else if (s == "lcofi")       ic = InterruptCause::LCOF;
+          else
+            {
+              if (not quiet)
+                std::cerr << "Error: Unknown interrupt symbol in " << context << ": " << s << "\n";
+              errors++;
+              continue;
+            }
+        }
       else
-      {
-        std::cerr << "Error: Unknown interrupt symbol in " << context << ": " << s << "\n";
-        errors++;
-        continue;
-      }
+        {
+          if (not quiet)
+            std::cerr << "Error: Invalid element in " << context << " (expecting number or string)\n";
+          errors++;
+          continue;
+        }
+      if (std::find(vec.begin(), vec.end(), ic) != vec.end())
+        {
+          if (not quiet)
+            std::cerr << "Warning: Duplicate interrupt entry in " << context << ": "
+                      << static_cast<unsigned>(ic) << "\n";
+          continue;
+        }
+      vec.push_back(ic);
     }
-    else
-    {
-      std::cerr << "Error: Invalid element in " << context << " (expecting number or string)\n";
-      errors++;
-      continue;
-    }
-    if (std::find(vec.begin(), vec.end(), ic) != vec.end())
-    {
-      std::cerr << "Warning: Duplicate interrupt entry in " << context << ": " << static_cast<unsigned>(ic) << "\n";
-      continue;
-    }
-    vec.push_back(ic);
-  }
   return errors == 0;
 }
 
@@ -1875,8 +1916,10 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
   tag = "enable_performance_counters";
   if (config_ -> contains(tag))
     {
-      getJsonBoolean(tag, config_ ->at(tag), flag) or errors++;
-      hart.enablePerformanceCounters(flag);
+      cerr << "Warning: Config file tag \"" << tag << "\" deprecated: "
+           << "Add extension string \"zicntr\" to \"isa\" tag instead.\n";
+      // getJsonBoolean(tag, config_ ->at(tag), flag) or errors++;
+      // hart.enablePerformanceCounters(flag);
     }
 
   tag = "perf_count_atomic_load_store";
@@ -2084,6 +2127,13 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
     {
       getJsonBoolean(tag, config_ ->at(tag), flag) or errors++;
       hart.misalignedExceptionHasPriority(flag);
+    }
+
+  tag = "in_sequence_misaligned";
+  if (config_ -> contains(tag))
+    {
+      getJsonBoolean(tag, config_ ->at(tag), flag) or errors++;
+      hart.enableInSeqnMisaligned(flag);
     }
 
   tag = "force_rounding_mode";
@@ -2480,6 +2530,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
       hart.autoIncrementTimer(flag);
     }
 
+  bool quiet = hart.sysHartIndex() != 0;
   tag = "machine_interrupts";
   if (config_->contains(tag))
     {
@@ -2492,7 +2543,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
       else
         {
           std::vector<InterruptCause> vec;
-          if (parseInterruptArray(mi, "machine_interrupts", vec))
+          if (parseInterruptArray(mi, "machine_interrupts", quiet, vec))
             hart.setMachineInterrupts(vec);
           else
             ++errors;
@@ -2511,7 +2562,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
       else
         {
           std::vector<InterruptCause> vec;
-          if (parseInterruptArray(si, "supervisor_interrupts", vec))
+          if (parseInterruptArray(si, "supervisor_interrupts", quiet, vec))
             hart.setSupervisorInterrupts(vec);
           else
             ++errors;
@@ -3376,3 +3427,9 @@ HartConfig::applyAplicConfig(System<uint32_t>&) const;
 
 template bool
 HartConfig::applyAplicConfig(System<uint64_t>&) const;
+
+template bool
+HartConfig::applyIommuConfig(System<uint32_t>&) const;
+
+template bool
+HartConfig::applyIommuConfig(System<uint64_t>&) const;

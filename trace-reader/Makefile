@@ -1,5 +1,7 @@
 OFLAGS = -O3
-CXXFLAGS += -I. -I../ -std=c++20 $(OFLAGS) -fPIC -Wall -Wextra -Werror
+CXXFLAGS += -I. -I../ -I$(BOOST_ROOT)/include -std=c++20 $(OFLAGS) -fPIC -Wall -Wextra -Werror
+
+BOOST_LIB_DIR := $(BOOST_ROOT)/lib
 
 # Needed to link against boost libraries which were compiled using older ABI
 ifeq ($(BOOST_ROOT), /tools_vendor/FOSS/boost/1.82)
@@ -16,7 +18,7 @@ TraceReader.a: $(OBJS)
 	$(AR) cr $@ $^
 
 sample-reader: sample-reader.o TraceReader.a
-	$(CXX) -o $@ $^ -lboost_iostreams -lz
+	$(CXX) -o $@ $^ -L$(BOOST_LIB_DIR) -lboost_iostreams -lz
 
 -include $(DEPS)
 

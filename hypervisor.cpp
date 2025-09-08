@@ -191,16 +191,13 @@ Hart<URV>::hyperLoad(const DecodedInst* di)
     if (privMode_ == PrivilegeMode::User and not virtMode_)
       pmaskManager_.enablePointerMasking(PmaskManager::Mode(hstatus_.bits_.HUPMM),
                                          PrivilegeMode::User, true);
-  hyperLs_ = true;
-
   URV virtAddr = intRegs_.read(di->op1());
   uint64_t data = 0;
   auto savedPrivMode = privMode_;
   auto savedVirtMode = virtMode_;
-  if (load<LOAD_TYPE>(di, virtAddr, true /*hyper*/, data))
+  if (load<LOAD_TYPE>(di, virtAddr, data))
     intRegs_.write(di->op0(), data);
 
-  hyperLs_ = false;
   virtMem_.setBigEndian(prevTbe);            // Restore big endian mod.
   virtMem_.setStage1ExecReadable(prevMxr);   // Restore stage1 MXR.
   virtMem_.setVsSum(prevVsSum);
@@ -331,16 +328,13 @@ Hart<URV>::hyperStore(const DecodedInst* di)
     if (privMode_ == PrivilegeMode::User and not virtMode_)
       pmaskManager_.enablePointerMasking(PmaskManager::Mode(hstatus_.bits_.HUPMM),
                                          PrivilegeMode::User, true);
-  hyperLs_ = true;
-
   uint32_t rs1 = di->op1();
   URV virtAddr = intRegs_.read(rs1);
   STORE_TYPE value = STORE_TYPE(intRegs_.read(di->op0()));
   auto savedPrivMode = privMode_;
   auto savedVirtMode = virtMode_;
-  store<STORE_TYPE>(di, virtAddr, true /*hyper*/, value);
+  store<STORE_TYPE>(di, virtAddr, value);
 
-  hyperLs_ = false;
   virtMem_.setBigEndian(prevTbe);            // Restore big endian mod.
   virtMem_.setVsSum(prevVsSum);
 

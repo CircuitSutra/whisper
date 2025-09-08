@@ -21,6 +21,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 #include <set>
+#include <cinttypes>
 #include "Hart.hpp"
 #include "Core.hpp"
 #include "SparseMem.hpp"
@@ -896,6 +897,96 @@ System<URV>::configAplic(unsigned num_sources, std::span<const TT_APLIC::DomainP
 
   for (auto& hart : sysHarts_)
     hart->attachAplic(aplic_);
+
+  return true;
+}
+
+
+template <typename URV>
+bool
+System<URV>::configIommu(uint64_t base_addr, uint64_t size, uint64_t capabilities)
+{
+  iommu_ = std::make_shared<TT_IOMMU::Iommu>(base_addr, size);
+
+  iommu_->configureCapabilities(capabilities);
+  iommu_->reset();
+
+  auto readCb = [this](uint64_t addr, unsigned size, uint64_t& data) -> bool {
+    uint8_t data8;
+    uint16_t data16;
+    uint32_t data32;
+    bool result = false;
+    switch (size)
+      {
+        case 1: result = this->memory_->read(addr, data8);  data = data8;  break;
+        case 2: result = this->memory_->read(addr, data16); data = data16; break;
+        case 4: result = this->memory_->read(addr, data32); data = data32; break;
+        case 8: result = this->memory_->read(addr, data); break;
+      }
+    return result;
+  };
+
+  auto writeCb = [this](uint64_t addr, unsigned size, uint64_t data) -> bool {
+    uint8_t data8 = data;
+    uint16_t data16 = data;
+    uint32_t data32 = data;
+    switch (size)
+      {
+        case 1: return this->memory_->write(0, addr, data8);
+        case 2: return this->memory_->write(0, addr, data16);
+        case 4: return this->memory_->write(0, addr, data32);
+        case 8: return this->memory_->write(0, addr, data);
+      }
+      return false;
+  };
+
+  iommu_->setMemReadCb(readCb);
+  iommu_->setMemWriteCb(writeCb);
+
+  iommuVirtMem_ = std::make_shared<VirtMem>(0, 4096, 2048);
+
+  auto readCallbackDoubleword = [this](uint64_t addr, bool bigEndian, uint64_t& data) -> bool {
+    (void) bigEndian;
+    return this->memory_->read(addr, data);
+  };
+  auto readCallbackWord = [this](uint64_t addr, bool bigEndian, uint32_t& data) -> bool {
+    (void) bigEndian;
+    return this->memory_->read(addr, data);
+  };
+  iommuVirtMem_->setMemReadCallback(readCallbackDoubleword);
+  iommuVirtMem_->setMemReadCallback(readCallbackWord);
+
+  auto configStage1 = [this](unsigned mode, unsigned asid, uint64_t ppn, bool sum) {
+    this->iommuVirtMem_->configStage1(WdRiscv::Tlb::Mode(mode), asid, ppn, sum);
+  };
+
+  auto configStage2 = [this](unsigned mode, unsigned vmid, uint64_t ppn) {
+    this->iommuVirtMem_->configStage2(WdRiscv::Tlb::Mode(mode), vmid, ppn);
+  };
+
+  auto stage1Cb = [this](uint64_t va, unsigned privMode, bool r, bool w, bool x, uint64_t& gpa, unsigned& cause) -> bool {
+    cause = int(this->iommuVirtMem_->stage1Translate(va, WdRiscv::PrivilegeMode(privMode), r, w, x, gpa));
+    return cause == int(WdRiscv::ExceptionCause::NONE);
+  };
+
+  auto stage2Cb = [this](uint64_t gpa, unsigned privMode, bool r, bool w, bool x, uint64_t& pa, unsigned& cause) -> bool {
+    cause = int(this->iommuVirtMem_->stage2Translate(gpa, WdRiscv::PrivilegeMode(privMode), r, w, x, false, pa));
+    return cause == int(WdRiscv::ExceptionCause::NONE);
+  };
+
+  auto stage2TrapInfo = [](uint64_t& gpa, bool& implicit, bool& write) {
+    gpa = 0;
+    implicit = false;
+    write = false;
+  };
+  iommu_->setStage1ConfigCb(configStage1);
+  iommu_->setStage2ConfigCb(configStage2);
+  iommu_->setStage1Cb(stage1Cb);
+  iommu_->setStage2Cb(stage2Cb);
+  iommu_->setStage2TrapInfoCb(stage2TrapInfo);
+
+  for (auto& hart : sysHarts_)
+    hart->attachIommu(iommu_);
 
   return true;
 }

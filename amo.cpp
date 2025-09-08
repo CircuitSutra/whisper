@@ -482,7 +482,6 @@ Hart<URV>::execAmo32Op(const DecodedInst* di, Pma::Attrib attrib, OP op)
   // exit from this scope.
   std::unique_lock lock(memory_.amoMutex_);
 
-
   URV loadedValue = 0;
   uint32_t rd = di->op0(), rs1 = di->op1(), rs2 = di->op2();
   URV virtAddr = intRegs_.read(rs1);
@@ -495,7 +494,7 @@ Hart<URV>::execAmo32Op(const DecodedInst* di, Pma::Attrib attrib, OP op)
       URV rs2Val = intRegs_.read(rs2);
       URV result = op(rs2Val, rdVal);
 
-      bool storeOk = store<uint32_t>(di, addr, false /*hyper*/, uint32_t(result), false);
+      bool storeOk = store<uint32_t>(di, addr, uint32_t(result), false);
 
       if (storeOk and not triggerTripped_)
 	{
@@ -702,7 +701,7 @@ Hart<URV>::execAmo64Op(const DecodedInst* di, Pma::Attrib attrib, OP op)
       URV rs2Val = intRegs_.read(rs2);
       URV result = op(rs2Val, rdVal);
 
-      bool storeOk = store<uint64_t>(di, addr, false /*hyper*/, result, false);
+      bool storeOk = store<uint64_t>(di, addr, result, false);
 
       if (storeOk and not triggerTripped_)
 	{
@@ -837,7 +836,7 @@ Hart<URV>::execAmocas_w(const DecodedInst* di)
 
       bool storeOk = true;
       if (temp == rdVal)
-	storeOk = store<uint32_t>(di, addr, false /*hyper*/, uint32_t(rs2Val), false);
+	storeOk = store<uint32_t>(di, addr, uint32_t(rs2Val), false);
 
       if (storeOk and not triggerTripped_)
 	{
@@ -889,8 +888,8 @@ Hart<uint32_t>::execAmocas_d(const DecodedInst* di)
       bool storeOk = true;
       if (temp0 == rdVal0 and temp1 == rdVal1)
 	{
-	  storeOk = store<uint32_t>(di, addr, false /*hyper*/, uint32_t(rs2Val0), false);
-	  storeOk = storeOk and store<uint32_t>(di, addr + 4, false, uint32_t(rs2Val1), false);
+	  storeOk = store<uint32_t>(di, addr, uint32_t(rs2Val0), false);
+	  storeOk = storeOk and store<uint32_t>(di, addr + 4, uint32_t(rs2Val1), false);
 	}
 
       if (storeOk and not triggerTripped_ and rd != 0)
@@ -931,7 +930,7 @@ Hart<uint64_t>::execAmocas_d(const DecodedInst* di)
 
       bool storeOk = true;
       if (temp == rdVal)
-	storeOk = store<uint64_t>(di, addr, false /*hyper*/, rs2Val, false);
+	storeOk = store<uint64_t>(di, addr, rs2Val, false);
 
       if (storeOk and not triggerTripped_)
 	intRegs_.write(rd, temp);
@@ -1001,8 +1000,8 @@ Hart<uint64_t>::execAmocas_q(const DecodedInst* di)
       bool storeOk = true;
       if (temp0 == rdVal0 and temp1 == rdVal1)
 	{
-	  storeOk = store<uint64_t>(di, addr, false /*hyper*/, uint64_t(rs2Val0), false);
-	  storeOk = storeOk and store<uint64_t>(di, addr + 8, false, uint64_t(rs2Val1), false);
+	  storeOk = store<uint64_t>(di, addr, uint64_t(rs2Val0), false);
+	  storeOk = storeOk and store<uint64_t>(di, addr + 8, uint64_t(rs2Val1), false);
 	}
 
       if (storeOk and not triggerTripped_ and rd != 0)
