@@ -2112,7 +2112,7 @@ Syscall<URV>::getUsedMemBlocks(uint64_t sp, std::vector<AddrLen>& usedBlocks)
 
   // Up to 32 GB, snapshot the whole memory.
   uint64_t memSize = harts_.at(0)->getMemorySize();
-  if (memSize <= 0x800000000L)
+  if (memSize <= 0x800000000LL)
     {
       usedBlocks.emplace_back(0, memSize);
       return;
