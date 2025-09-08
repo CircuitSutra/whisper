@@ -1509,6 +1509,13 @@ namespace WdRiscv
     Pma accessPma(uint64_t addr) const
     { return memory_.pmaMgr_.accessPma(addr); }
 
+    bool isPmaCacheable(uint64_t addr) const
+    {
+      Pma pma = memory_.pmaMgr_.getPma(addr);
+      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt());
+      return pma.isCacheable();
+    }
+
     /// Set memory protection access reason.
     void setMemProtAccIsFetch(bool fetch)
     {

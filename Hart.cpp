@@ -1122,9 +1122,12 @@ bool
 Hart<URV>::peekMemory(uint64_t address, uint8_t& val, bool usePma) const
 {
   if (mcm_ and dataCache_)
-    return peekMcmCache<McmMem::Data>(address, val);
-  else
-    return memory_.peek(address, val, usePma);
+    {
+      bool cacheable = usePma? isPmaCacheable(address) : true;
+      if (cacheable)
+        return peekMcmCache<McmMem::Data>(address, val);
+    }
+  return memory_.peek(address, val, usePma);
 }
 
 
@@ -1133,9 +1136,12 @@ bool
 Hart<URV>::peekMemory(uint64_t address, uint16_t& val, bool usePma) const
 {
   if (mcm_ and dataCache_)
-    return peekMcmCache<McmMem::Data>(address, val);
-  else
-    return memory_.peek(address, val, usePma);
+    {
+      bool cacheable = usePma? isPmaCacheable(address) : true;
+      if (cacheable)
+        return peekMcmCache<McmMem::Data>(address, val);
+    }
+  return memory_.peek(address, val, usePma);
 }
 
 
@@ -1144,9 +1150,12 @@ bool
 Hart<URV>::peekMemory(uint64_t address, uint32_t& val, bool usePma) const
 {
   if (mcm_ and dataCache_)
-    return peekMcmCache<McmMem::Data>(address, val);
-  else
-    return memory_.peek(address, val, usePma);
+    {
+      bool cacheable = usePma? isPmaCacheable(address) : true;
+      if (cacheable)
+        return peekMcmCache<McmMem::Data>(address, val);
+    }
+  return memory_.peek(address, val, usePma);
 }
 
 
@@ -1155,10 +1164,14 @@ bool
 Hart<URV>::peekMemory(uint64_t address, uint64_t& val, bool usePma) const
 {
   if (mcm_ and dataCache_)
-    return peekMcmCache<McmMem::Data>(address, val); 
-  else
-    if (memory_.peek(address, val, usePma))
-      return true;
+    {
+      bool cacheable = usePma? isPmaCacheable(address) : true;
+      if (cacheable)
+        return peekMcmCache<McmMem::Data>(address, val);
+    }
+
+  if (memory_.peek(address, val, usePma))
+    return true;
 
   uint32_t high = 0, low = 0;
   if (memory_.peek(address, low, usePma) and memory_.peek(address + 4, high, usePma))
@@ -1180,11 +1193,13 @@ Hart<URV>::pokeMemory(uint64_t addr, uint8_t val, bool usePma, bool skipFetch, b
   memory_.invalidateOtherHartLr(hartIx_, addr, sizeof(val));
   invalidateDecodeCache(addr, sizeof(val));
 
-  if (mcm_ and not skipFetch and fetchCache_)
+  bool cacheable = usePma? isPmaCacheable(addr) : true;
+
+  if (mcm_ and not skipFetch and fetchCache_ and cacheable)
     pokeMcmCache<McmMem::Fetch>(addr, val);
 
   bool ok = false;
-  if (mcm_ and not skipData and dataCache_)
+  if (mcm_ and not skipData and dataCache_ and cacheable)
     ok = pokeMcmCache<McmMem::Data>(addr, val);
 
   if (not skipMem and not ok)
@@ -1208,14 +1223,16 @@ Hart<URV>::pokeMemory(uint64_t addr, uint16_t val, bool usePma, bool skipFetch, 
       return true;
     }
 
-  if (mcm_ and not skipFetch and fetchCache_)
+  bool cacheable = usePma? isPmaCacheable(addr) : true;
+
+  if (mcm_ and not skipFetch and fetchCache_ and cacheable)
     {
       pokeMcmCache<McmMem::Fetch>(addr, uint8_t(val));
       pokeMcmCache<McmMem::Fetch>(addr + 1, uint8_t(val >> 8));
     }
 
   std::array<bool, sizeof(val)> b{false};
-  if (mcm_ and not skipData and dataCache_)
+  if (mcm_ and not skipData and dataCache_ and cacheable)
     {
       for (unsigned i = 0; i < sizeof(val); ++i)
         b[i] = pokeMcmCache<McmMem::Data>(addr + i, uint8_t(val >> (i*8)));
@@ -1257,12 +1274,14 @@ Hart<URV>::pokeMemory(uint64_t addr, uint32_t val, bool usePma, bool skipFetch, 
       return true;
     }
 
-  if (mcm_ and not skipFetch and fetchCache_)
+  bool cacheable = usePma? isPmaCacheable(addr) : true;
+
+  if (mcm_ and not skipFetch and fetchCache_ and cacheable)
     for (unsigned i = 0; i < sizeof(val); ++i)
       pokeMcmCache<McmMem::Fetch>(addr + i, uint8_t(val >> (i*8)));
 
   std::array<bool, sizeof(val)> b{false};
-  if (mcm_ and not skipData and dataCache_)
+  if (mcm_ and not skipData and dataCache_ and cacheable)
     {
       for (unsigned i = 0; i < sizeof(val); ++i)
         b[i] = pokeMcmCache<McmMem::Data>(addr + i, uint8_t(val >> (i*8)));
@@ -1301,12 +1320,14 @@ Hart<URV>::pokeMemory(uint64_t addr, uint64_t val, bool usePma, bool skipFetch, 
       return true;
     }
 
-  if (mcm_ and not skipFetch and fetchCache_)
+  bool cacheable = usePma? isPmaCacheable(addr) : true;
+
+  if (mcm_ and not skipFetch and fetchCache_ and cacheable)
     for (unsigned i = 0; i < sizeof(val); ++i)
       pokeMcmCache<McmMem::Fetch>(addr + i, uint8_t(val >> (i*8)));
 
   std::array<bool, sizeof(val)> b{false};
-  if (mcm_ and not skipData and dataCache_)
+  if (mcm_ and not skipData and dataCache_ and cacheable)
     {
       for (unsigned i = 0; i < sizeof(val); ++i)
         b[i] = pokeMcmCache<McmMem::Data>(addr + i, uint8_t(val >> (i*8)));
