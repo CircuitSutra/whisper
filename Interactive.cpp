@@ -666,9 +666,15 @@ Interactive<URV>::peekCommand(Hart<URV>& hart, const std::string& line,
         if (not parseCmdLineNumber("peek-csr-virt-mode", tokens.at(3), virtMode))
           return false;
 
-      if (hart.peekCsr(csr->getNumber(), val, virtMode))
+      auto csrn = csr->getNumber();
+      if (hart.peekCsr(csrn, val, virtMode))
         {
-          out << (boost::format(hexForm) % val) << std::endl;
+          out << (boost::format(hexForm) % val);
+          if (csrn == CsrNumber::MIP)
+            out << " " << (boost::format(hexForm) % hart.csRegs().effectiveMip());
+          else if (csrn == CsrNumber::SIP)
+            out << " " << (boost::format(hexForm) % hart.csRegs().effectiveSip());
+          out << std::endl;
 	  return true;
 	}
       cerr << "Failed to read CSR: " << addrStr << '\n';
