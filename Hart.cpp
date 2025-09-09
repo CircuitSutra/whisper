@@ -87,11 +87,13 @@ parseNumber(std::string_view numberStr, TYPE& number)
 template <typename URV>
 Hart<URV>::Hart(unsigned hartIx, URV hartId, unsigned numHarts, Memory& memory,
                 Syscall<URV>& syscall, std::atomic<uint64_t>& time)
-  : hartIx_(hartIx), numHarts_(numHarts), memory_(memory), intRegs_(32),
+  : hartIx_(hartIx), numHarts_(numHarts), memory_(memory),
+    pmpManager_(),
+    intRegs_(32),
+    csRegs_(pmpManager_),
     fpRegs_(32),
     syscall_(syscall),
     time_(time),
-    pmpManager_(),
     virtMem_(hartIx, memory.pageSize(), 2048)
 {
   setupVirtMemCallbacks();
@@ -653,20 +655,6 @@ Hart<URV>::processExtensions(bool verbose)
 }
 
 
-static
-Pmp::Mode
-getModeFromPmpconfigByte(uint8_t byte)
-{
-  unsigned m = 0;
-
-  if (byte & 1) m = Pmp::Read  | m;
-  if (byte & 2) m = Pmp::Write | m;
-  if (byte & 4) m = Pmp::Exec  | m;
-
-  return Pmp::Mode(m);
-}
-
-
 template <typename URV>
 void
 Hart<URV>::updateMemoryProtection()
@@ -715,79 +703,22 @@ Hart<URV>::unpackMemoryProtection(unsigned entryIx, Pmp::Type& type,
 
   CsrNumber csrn = CsrNumber(unsigned(CsrNumber::PMPADDR0) + entryIx);
 
-  unsigned config = csRegs_.getPmpConfigByteFromPmpAddr(csrn);
-  type = Pmp::Type((config >> 3) & 3);
-  locked = config & 0x80;
-  mode = getModeFromPmpconfigByte(config);
-
   URV pmpVal = 0;
   if (not peekCsr(csrn, pmpVal))
     return false;  // PMPADDRn not implemented.
 
-  if (type == Pmp::Type::Off)
-    return true;   // Entry is off.
-
-  unsigned pmpG = csRegs_.getPmpG();
-
-  if (type == Pmp::Type::Tor)    // Top of range
+  URV lowerVal = 0;   // Value of preceding PMPADDR CSR if any.
+  if (entryIx > 0)
     {
-      if (entryIx > 0)
-        {
-          CsrNumber lowerCsrn = CsrNumber(unsigned(csrn) - 1);
-	  URV lowerVal = 0;
-          if (not peekCsr(lowerCsrn, lowerVal))
-	    return false;  // Should not happen
-          low = lowerVal;
-          low = (low >> pmpG) << pmpG;  // Clear least sig G bits.
-          low = low << 2;
-        }
-
-      high = pmpVal;
-      high = (high >> pmpG) << pmpG;
-      high = high << 2;
-      if (high == 0)
-        {
-          type = Pmp::Type::Off;  // Empty range.
-          return true;
-        }
-
-      high = high - 1;
-      return true;
+      auto lowerCsrn = CsrNumber(unsigned(csrn) - 1);
+      if (not peekCsr(lowerCsrn, lowerVal))
+        return false;  // Should not happen
     }
 
-  uint64_t sizeM1 = 3;     // Size minus 1
-  uint64_t napot = pmpVal;  // Naturally aligned power of 2.
-  if (type == Pmp::Type::Napot)  // Naturally algined power of 2.
-    {
-      unsigned rzi = 0;  // Righmost-zero-bit index in pmpval.
-      if (pmpVal == URV(-1))
-        {
-          // Handle special case where pmpVal is set to maximum value
-          napot = 0;
-          rzi = mxlen_;
-        }
-      else
-        {
-          rzi = std::countr_zero(~pmpVal); // rightmost-zero-bit ix.
-          napot = (napot >> rzi) << rzi; // Clear bits below rightmost zero bit.
-        }
+  unsigned config = csRegs_.getPmpConfigByteFromPmpAddr(csrn);
 
-      // Avoid overflow when computing 2 to the power 64 or
-      // higher. This is incorrect but should work in practice where
-      // the physical address space is 64-bit wide or less.
-      if (rzi + 3 >= 64)
-        sizeM1 = -1L;
-      else
-        sizeM1 = (uint64_t(1) << (rzi + 3)) - 1;
-    }
-  else
-    assert(type == Pmp::Type::Na4);
-
-  low = napot;
-  low = (low >> pmpG) << pmpG;
-  low = low << 2;
-  high = low + sizeM1;
-  return true;
+  return pmpManager_.unpackMemoryProtection(config, pmpVal, lowerVal, not rv64_,
+                                            mode, type, locked, low, high);
 }
 
 
@@ -4497,7 +4428,7 @@ Hart<URV>::configMemoryProtectionGrain(uint64_t size)
     }
 
   unsigned pmpG = log2Size - 2;
-  csRegs_.setPmpG(pmpG);
+  pmpManager_.setPmpG(pmpG);
 
   return ok;
 }
