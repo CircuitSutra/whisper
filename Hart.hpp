@@ -74,7 +74,7 @@ namespace WdRiscv
   {
   public:
 
-    enum Type { Stop, Exit, Snapshot, SnapshotAndStop };
+    enum Type { Stop, Exit, Snapshot, RoiEntry, SnapshotAndStop };
 
     CoreException(Type type, const char* message = "", uint64_t value = 0)
       : type_(type), msg_(message), val_(value)
@@ -1272,11 +1272,15 @@ namespace WdRiscv
 
     /// Reset executed instruction count.
     void setInstructionCount(uint64_t count)
-    { instCounter_ = count; }
+    { if (hasRoiTraceEnabled()) traceCount_ = count; else instCounter_ = count; }
 
     /// Get executed instruction count.
-    uint64_t getInstructionCount() const
-    { return instCounter_; }
+    uint64_t getInstructionCount() const 
+    { return hasRoiTraceEnabled() ? traceCount_ : instCounter_; }
+
+    /// Define a memory mapped register. Address must be within an
+    /// area already defined using defineMemoryMappedRegisterArea.
+    bool defineMemoryMappedRegisterWriteMask(uint64_t addr, uint32_t mask);
 
     /// Performs similar function to instCounter_ but operates on
     /// retired instruction counts.
@@ -2594,6 +2598,15 @@ namespace WdRiscv
 
     uint64_t getAclintAlarm() const
     { return aclintAlarm_; }
+
+    void enableRoiRange(bool flag)
+    { traceOn_ = not flag; hasRoiRange_ = flag; }
+
+    bool hasRoiTraceEnabled() const
+    { return hasRoiRange_; }
+
+    bool traceOn() const
+    { return traceOn_; }
 
     /// Fetch an instruction from the given virtual address. Return ExceptionCause::None
     /// on success. Return exception cause on fail. If successful set pysAddr to the
@@ -5975,6 +5988,12 @@ namespace WdRiscv
     bool bigEnd_ = false;            // True if big endian
     bool stimecmpActive_ = false;    // True if STIMECMP CSR is implemented.
     bool vstimecmpActive_ = false;   // True if VSTIMECMP CSR is implemented.
+
+    bool traceOn_ = true;
+    uint64_t traceBegin_ = 0;
+    uint64_t traceEnd_ = 0;
+    uint64_t traceCount_ = 0;
+    bool hasRoiRange_ = false;
 
     // Pointer masking modes.
     PmaskManager pmaskManager_;

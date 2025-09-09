@@ -420,7 +420,7 @@ Args::parseCmdLineArgs(std::span<char*> argv)
 	("memorysize", po::value<std::string>(),
 	 "Memory size (must be a multiple of 4096).")
 	("tlbsize", po::value<std::string>(),
-	 "Memory size (must be a power of 2).")
+	 "TLB size (must be a power of 2).")
 	("nmivec", po::value<std::string>(),
 	 "PC value after a non-maskable interrupt.")
 	("nmevec", po::value<std::string>(),
@@ -474,6 +474,9 @@ Args::parseCmdLineArgs(std::span<char*> argv)
 	("snapshotperiod", po::value(&this->snapshotPeriods)->multitoken(),
 	 "Snapshot period: Save snapshot using snapshotdir every so many instructions. "
          "Specifying multiple periods will only save a snapshot on first instance (not periodic).")
+        ("aperiodic", po::bool_switch(&this->aperiodicSnaps),
+         "Only single period specified, but desired behavior is aperiodic. This is only useful "
+         "when combined with a single snapshot period.")
 	("loadfrom", po::value(&this->loadFrom),
 	 "Snapshot directory from which to restore a previously saved (snapshot) state.")
         ("loadfromtrace", po::bool_switch(&this->loadFromTrace),
@@ -556,9 +559,12 @@ Args::parseCmdLineArgs(std::span<char*> argv)
 	 " be zero in each address of the pair.")
 	("perfapi", po::bool_switch(&this->perfApi),
 	 "Enable performance mode API.")
+        ("roi", po::bool_switch(&this->roi),
+         "Enable ROI tracing with nop HINTs.")
 #ifdef MEM_CALLBACKS
         ("reportusedblocks", po::bool_switch(&this->reportub),
-         "Report used blocks with sparse memory. Useful for finding memory footprint of program")
+         "Report blocks touched when using the sparse memory model. Useful for finding "
+         "the memory footprint of program")
 #endif
         ("pcidev", po::value(&this->pciDevs)->multitoken(),
          "Add PCI device to simulation. Format is <device>:<bus>:<slot>:<device-specific>. "

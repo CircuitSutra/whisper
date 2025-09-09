@@ -1415,22 +1415,30 @@ Hart<URV>::execAddi(const DecodedInst* di)
   SRV v = intRegs_.read(di->op1()) + imm;
   intRegs_.write(di->op0(), v);
 
-  if (hintOps_)
+  if (hintOps_ and di->op0() == 0)
     {
-      if (di->op0() == 0 and di->op1() == 31)
+      if (di->op1() == 31)
         throw CoreException(CoreException::Snapshot, "Taking snapshot from HINT.");
-      if (di->op0() == 0 and di->op1() == 30)
+      if (di->op1() == 30)
         throw CoreException(CoreException::Stop, "Stopping run from HINT.");
-      if (di->op0() == 0 and di->op1() == 29)
+      if (di->op1() == 29)
         throw CoreException(CoreException::SnapshotAndStop, "Taking snapshot and stopping run from HINT.");
-      if (di->op0() == 0 and di->op1() == 26)
+      if (di->op1() == 26)
         std::cerr << "Info: Executed instructions: " << instCounter_ << "\n";
-      if (di->op0() == 0 and di->op1() == 25)
+      if (di->op1() == 25)
         setPendingNmi(URV(v));
-      if (di->op0() == 0 and di->op1() == 24)
+      if (di->op1() == 24)
         clearPendingNmi();
-      if (di->op0() == 0 and di->op1() == 23)
+      if (di->op1() == 23)
         defineNmiPc(URV(v));
+
+      if (hasRoiRange_)
+        {
+          if (di->op1() == 12)
+            traceOn_ = false;
+          if (di->op1() == 11)
+            traceOn_ = true;
+        }
     }
 }
 
@@ -5410,7 +5418,9 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
   if (enableGdb_)
     handleExceptionForGdb(*this, gdbInputFd_);
 
-  while (pc_ != address and instCounter_ < instLim and
+  uint64_t& effectiveInstCounter = hasRoiTraceEnabled()? traceCount_ : instCounter_;
+
+  while (pc_ != address and effectiveInstCounter < instLim and
            retInstCounter_ < retInstLim)
     {
       if (userStop)
@@ -5418,6 +5428,7 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
 
       resetExecInfo(); clearTraceData();
 
+      bool traceWasOn = traceOn_;
       if (enableGdb_ and ++gdbCount >= gdbLimit)
         {
           gdbCount = 0;
@@ -5557,7 +5568,14 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
 
 	  if (doStats)
 	    accumulateInstructionStats(*di);
-	  printDecodedInstTrace(*di, instCounter_, instStr, traceFile);
+
+	  if (traceOn_) // and lastPriv_ == PrivilegeMode::User)
+	    {
+	      traceCount_++;
+	      printDecodedInstTrace(*di, instCounter_, instStr, traceFile);
+              if (not traceWasOn)
+                throw CoreException(CoreException::RoiEntry, "Taking snapshot on ROI entry.");
+	    }
 
           if (sdtrigOn_)
             evaluateDebugStep();
@@ -5570,8 +5588,9 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
       catch (const CoreException& ce)
 	{
 	  bool success = logStop(ce, instCounter_, traceFile);
-          if (ce.type() == CoreException::Type::Snapshot or
-              ce.type() == CoreException::Type::SnapshotAndStop)
+          if (ce.type() == CoreException::Snapshot or
+              ce.type() == CoreException::RoiEntry or
+              ce.type() == CoreException::SnapshotAndStop)
             throw;
           return success;
 	}
@@ -5694,8 +5713,9 @@ Hart<URV>::simpleRun()
   catch (const CoreException& ce)
     {
       success = logStop(ce, 0, nullptr);
-      if (ce.type() == CoreException::Type::Snapshot or
-          ce.type() == CoreException::Type::SnapshotAndStop)
+      if (ce.type() == CoreException::Snapshot or
+          ce.type() == CoreException::RoiEntry or
+          ce.type() == CoreException::SnapshotAndStop)
         throw;
     }
 
@@ -5748,6 +5768,9 @@ template <typename URV>
 void
 Hart<URV>::countBasicBlocks(bool isBranch, uint64_t physPc)
 {
+  if (not traceOn_)
+    return;
+
   if (bbInsts_ >= bbLimit_)
     dumpBasicBlocks();
 
@@ -5781,16 +5804,20 @@ Hart<URV>::simpleRunWithLimit()
 
   bool traceBranchOn = branchBuffer_.max_size() and not branchTraceFile_.empty();
 
+  uint64_t& effectiveInstCounter = hasRoiTraceEnabled()? traceCount_ : instCounter_;
+
   const uint64_t instLim = instCountLim_;
   const uint64_t retInstLim = retInstCountLim_;
 
   while (noUserStop and
-         instCounter_ < instLim and
+         effectiveInstCounter < instLim and
          retInstCounter_ < retInstLim)
     {
       tickTime();
 
       resetExecInfo();
+
+      bool traceWasOn = traceOn_;
 
       currPc_ = pc_;
       ++instCounter_;
@@ -5836,6 +5863,13 @@ Hart<URV>::simpleRunWithLimit()
 
       if (traceBranchOn and (di->isBranch() or di->isXRet()))
 	traceBranch(di);
+
+      if (traceOn_) // and lastPriv_ == PrivilegeMode::User)
+        {
+          traceCount_++;
+          if (not traceWasOn)
+            throw CoreException(CoreException::RoiEntry, "Taking snapshot on ROI entry.");
+        }
     }
 
   return true;
@@ -6531,8 +6565,9 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
       evaluateDebugStep();
 
       stepResult_ = logStop(ce, instCounter_, traceFile);
-      if (ce.type() == CoreException::Type::Snapshot or
-          ce.type() == CoreException::Type::SnapshotAndStop)
+      if (ce.type() == CoreException::Snapshot or
+          ce.type() == CoreException::RoiEntry or
+          ce.type() == CoreException::SnapshotAndStop)
         throw;
     }
 }

@@ -448,14 +448,15 @@ namespace WdRiscv
     /// round-robin with each hart executing n instructions where n is
     /// a random number in the range [stepWindowLo, stepWindowHi]. If stepWindow is
     /// 0, each hart runs in its own simulator thread independent of
-    /// the other harts.
-    bool batchRun(std::vector<FILE*>& traceFiles, bool waitAll, uint64_t stepWinLo, uint64_t stepWinHi);
+    /// the other harts. If earlyTerminate is true, returns on first
+    /// roiEntry exception.
+    bool batchRun(std::vector<FILE*>& traceFiles, bool waitAll, uint64_t stepWinLo, uint64_t stepWinHi, bool earlyRoiTerminate = false);
 
     /// Run producing a snapshot after each snapPeriod instructions. Each
     /// snapshot goes into its own directory names <dir><n> where <dir> is
     /// the string in snapDir and <n> is a sequential integer starting at
     /// 0. Return true on success and false on failure.
-    bool snapshotRun(std::vector<FILE*>& traceFiles, const std::vector<uint64_t>& periods);
+    bool snapshotRun(std::vector<FILE*>& traceFiles, const std::vector<uint64_t>& periods, bool aperiodic);
 
     /// Set snapshot directory path.
     void setSnapshotDir(const std::string& snapDir)
