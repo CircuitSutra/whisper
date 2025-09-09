@@ -21,6 +21,7 @@
 #include "ProcessContext.hpp"
 #include "FaultQueue.hpp"
 #include "Ats.hpp"
+#include "IommuPmpManager.hpp"
 
 
 namespace TT_IOMMU
@@ -44,7 +45,7 @@ namespace TT_IOMMU
     /// Return true if this is a translated request: iova is an SPA that is already
     /// translated and need no further translation. Return false if this an untranslated
     /// request (iova needs to be translated). Note that if dc.t2gpa is 1, the iova is a
-    /// GPA that would be tranlsated using stage2 translation even though this method
+    /// GPA that would be translated using stage2 translation even though this method
     /// returns true (in this case is-translated means is partially translated).
     bool isTranslated() const  // Translated request
     { return type == Ttype::TransRead or type == Ttype::TransWrite; }
@@ -107,16 +108,50 @@ namespace TT_IOMMU
     }
 
     /// Return true if the memory region of this IOMMU contains the given address.
-    bool containsAddr(uint64_t addr)
+    bool containsAddr(uint64_t addr) const
     {
-      return addr >= addr_ and addr < addr_ + size_;
+      if (addr >= addr_ and addr < addr_ + size_)
+        return true;
+      if (isPmpRegAddr(addr))
+        return true;
+      return false;
+    }
+
+    /// Return true if the given address is in the physical memory protection (PMP) memory
+    /// mapped registers associated with this IOMMU.
+    bool isPmpRegAddr(uint64_t addr) const
+    {      
+      if (isPmpcfgAddr(addr))
+        return true;
+      if (isPmpaddrAddr(addr))
+        return true;
+      return false;
+    }
+
+    /// Return true if given address in the region associated with the physical memory
+    /// protection configuration registers (PMPCFG).
+    bool isPmpcfgAddr(uint64_t addr) const
+    {
+      if (pmpEnabled_)
+        return addr >= pmpcfgAddr_ and addr < pmpcfgAddr_ + pmpcfgCount_ * 8;
+      return false;
+    }
+
+    /// Return true if given address in the region associated with the physical memory
+    /// protection address registers (PMPADDR).
+    bool isPmpaddrAddr(uint64_t addr) const
+    {
+      if (pmpEnabled_)
+        return addr >= pmpaddrAddr_ and addr < pmpaddrAddr_ + pmpaddrCount_ * 8;
+      return false;
     }
 
     /// Read a memory mapped register associated with this IOMMU. Return true on
     /// success. Return false leaving value unmodified if addr is not in the range of this
     /// IOMMU or if size/alignment is not valid. For example, if this IOMMMU is mapped at
-    /// adress x, then calling read(x, 8, value) will set value to that of the CAPABILITES
-    /// CSR; and calling read(x+8, 4, value) will set value to that of the FCTL CSR.
+    /// address x, then calling read(x, 8, value) will set value to that of the
+    /// CAPABILITES CSR; and calling read(x+8, 4, value) will set value to that of the
+    /// FCTL CSR.
     bool read(uint64_t addr, unsigned size, uint64_t& value) const;
 
     /// Write a memory mapped register associated with this IOMMU. Return true on
@@ -249,7 +284,7 @@ namespace TT_IOMMU
 			    ProcessContext& pc, unsigned& cause);
 
     /// Return true if this IOMMU uses wired interrupts. Return false it it uses message
-    /// signaled interrupts (MSI). This is for interupting the core in case of a fault.
+    /// signaled interrupts (MSI). This is for interrupting the core in case of a fault.
     bool wiredInterrupts();
 
     /// Read the given CSR. If the CSR is of size 4, the top 32 bits of the result
@@ -264,7 +299,7 @@ namespace TT_IOMMU
     }
 
     /// Write the given CSR. If the CSR is of size 4, the top 32 bits of data are ignored.
-    /// This method honors the RW1C/RW1S field attributes (read-wrtite-1-clear and
+    /// This method honors the RW1C/RW1S field attributes (read-write-1-clear and
     /// read-write-1-set).
     void writeCsr(CsrNumber csrn, uint64_t data);
 
@@ -285,6 +320,9 @@ namespace TT_IOMMU
 
       if ( ((size - 1) & size) != 0 )
         return false;    // Not a power of 2.
+
+      if (not isPmpReadable(addr, PrivilegeMode::Machine))
+        return false;
 
       uint64_t val = 0;
       if (not memRead_(addr, size, val))
@@ -310,6 +348,9 @@ namespace TT_IOMMU
       if ( ((size - 1) & size) != 0 )
         return false;    // Not a power of 2.
 
+      if (not isPmpWritable(addr, PrivilegeMode::Machine))
+        return false;
+
       if (bigEnd)
         {
           data = __builtin_bswap64(data);
@@ -329,6 +370,9 @@ namespace TT_IOMMU
       if ( ((size - 1) & size) != 0 )
         return false;    // Not a power of 2.
 
+      if (not isPmpReadable(addr, PrivilegeMode::Machine))
+        return false;
+
       uint64_t val = 0;
       if (not memRead_(addr, size, val))
         return false;
@@ -347,9 +391,31 @@ namespace TT_IOMMU
       if ( ((size - 1) & size) != 0 )
         return false;    // Not a power of 2.
 
+      if (not isPmpWritable(addr, PrivilegeMode::Machine))
+        return false;
+
       return memWrite_(addr, size, data);
     }
 
+    /// If physical memory protection is not enabled, return true; otherwise, return true
+    /// if the PMP grants read access for the given address and privilege mode.
+    bool isPmpReadable(uint64_t addr, PrivilegeMode mode) const
+    {
+      if (not pmpEnabled_)
+        return true;
+      const Pmp& pmp = pmpMgr_.getPmp(addr);
+      return pmp.isRead(mode);
+    }
+
+    /// If physical memory protection is not enabled, return true; otherwise, return true
+    /// if the PMP grants read access for the given address and privilege mode.
+    bool isPmpWritable(uint64_t addr, PrivilegeMode mode) const
+    {
+      if (not pmpEnabled_)
+        return true;
+      const Pmp& pmp = pmpMgr_.getPmp(addr);
+      return pmp.isWrite(mode);
+    }
 
     /// Return true if device context has extended format.
     bool isDcExtended() const
@@ -363,7 +429,7 @@ namespace TT_IOMMU
     bool devDirBigEnd() const
     { return fctlBe_; }  // Cached FCTL.BE
 
-    /// Return true if the seecond-stage page table is big endian.
+    /// Return true if the second-stage page table is big endian.
     bool stage2BigEnd() const
     { return fctlBe_; }
 
@@ -375,7 +441,7 @@ namespace TT_IOMMU
     bool faultQueueBigEnd() const
     { return fctlBe_; }
 
-    /// Read the process context at the given address following the endianness specifided
+    /// Read the process context at the given address following the endianness specified
     /// by the given device context. Return true on success and false on failure.
     bool readProcessContext(const DeviceContext& dc, uint64_t addr, ProcessContext& pc)
     {
@@ -471,6 +537,13 @@ namespace TT_IOMMU
     /// Check if a page request is pending for the given parameters
     bool isPageRequestPending(uint32_t devId, uint32_t pid, uint32_t prgi) const;
 
+    /// Define the physical memory protection registers (pmp-config regs and pmp-addr
+    /// regs). The registers are memory mapped at the given addresses.
+    /// Return true on success and false on failure (addresses not double word aligned,
+    /// counts are too large, counts are not consistent...).
+    bool definePmpRegs(uint64_t pmpcfgAddr, unsigned pmpcfgCount,
+                       uint64_t pmpaddrAddr, unsigned pmpaddrCount);
+
   protected:
 
     /// Helper to translate. Does translation but does not report fault cause on fail,
@@ -539,7 +612,7 @@ namespace TT_IOMMU
     bool memReadDouble(uint64_t addr, bool bigEnd, uint64_t& data)
     {
       uint64_t val = 0;
-      if (not memRead_(addr, 8, val))
+      if (not memRead(addr, 8, val))
 	return false;
       data = bigEnd ? __builtin_bswap64(val) : val;
       return true;
@@ -550,23 +623,23 @@ namespace TT_IOMMU
     bool memWriteDouble(uint64_t addr, bool bigEnd, uint64_t data)
     {
       uint64_t val = bigEnd ? __builtin_bswap64(data) : data;
-      return memWrite_(addr, 8, val);
+      return memWrite(addr, 8, val);
     }
 
-    /// Return the queue capacity (buffer size) associated with the given queueu base CSR
+    /// Return the queue capacity (buffer size) associated with the given queue base CSR
     /// (cqb, fqb, or pqb). Return value is the total number of entries (not bytes) in the
     /// queue buffer (currently used or otherwise).
     uint64_t queueCapacity(CsrNumber qbase) const;
 
-    /// Return the base address of the queue associated with the given queueu base CSR
+    /// Return the base address of the queue associated with the given queue base CSR
     /// (cqb, fqb, or pqb).
     uint64_t queueAddress(CsrNumber qbase) const;
 
-    /// Return true if the queu associated with the given queueu base/head/tail CSRs is
+    /// Return true if the queue associated with the given queue base/head/tail CSRs is
     /// full.
     bool queueFull(CsrNumber qbase, CsrNumber qhead, CsrNumber qtail) const;
 
-    /// Return true if the queu associated with the given queueu base/head/tail CSR is
+    /// Return true if the queu associated with the given queue base/head/tail CSR is
     /// full.
     bool queueEmpty(CsrNumber qbase, CsrNumber qhead, CsrNumber qtail) const;
 
@@ -581,6 +654,25 @@ namespace TT_IOMMU
 
     /// Write given fault record to the fault queue which must not be full.
     void writeFaultRecord(const FaultRecord& record);
+
+    /// Called after a PMPCFG/PMPADDR CSR is updated to updated cached memory protection
+    /// in PmpManager.
+    void updateMemoryProtection();
+
+  protected:
+
+    /// Return the configuration byte of a PMPCFG register corresponding to the PMPADDR
+    /// register having the given index (index 0 corresponds to PMPADDR0). Given index
+    /// must not be out of bouds.
+    uint8_t getPmpcfgByte(unsigned pmpaddrIx) const
+    {
+      assert(pmpaddrIx < pmpaddrCount_);
+      unsigned cfgIx = pmpaddrIx / 8;  // 1 PMPCFG reg for 8 PMPADDR regs.
+      uint64_t cfgVal = pmpcfg_.at(cfgIx);
+      unsigned cfgByteIx = pmpaddrIx % 8;
+      uint8_t cfgByte = cfgVal >> (8*cfgByteIx);
+      return cfgByte;
+    }
 
   private:
 
@@ -631,6 +723,17 @@ namespace TT_IOMMU
     };
     
     std::vector<PageRequest> pendingPageRequests_;
+
+    bool pmpEnabled_ = false;
+    unsigned pmpcfgCount_ = 0;
+    unsigned pmpaddrCount_ = 0;
+    uint64_t pmpcfgAddr_ = 0;
+    uint64_t pmpaddrAddr_ = 0;
+
+    std::vector<uint64_t> pmpcfg_;
+    std::vector<uint64_t> pmpaddr_;
+
+    PmpManager pmpMgr_;
   };
 
 }
