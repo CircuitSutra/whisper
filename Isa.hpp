@@ -24,6 +24,7 @@ namespace WdRiscv
                                       Zaamo, Zalrsc, Zihintntl,
                                       None };
 
+
   /// Model supported extensions with primary/secondary version numbers.
   class Isa
   {

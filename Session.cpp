@@ -946,6 +946,15 @@ Session<URV>::applyCmdLineArgs(const Args& args, Hart<URV>& hart,
         system.perfApiCommandLog(commandLog_);
     }
 
+  if (args.roi)
+    {
+      std::cerr << "Info: Running with ROI tracing, disabling trace until ROI\n";
+      hart.enableRoiRange(true);
+
+      if (not args.hintOps)
+        std::cerr << "Warning: Running with ROI tracing without HINT ops enabled\n";
+    }
+
   if (not args.snapshotPeriods.empty())
     {
       auto periods = args.snapshotPeriods;
@@ -1269,7 +1278,8 @@ Session<URV>::run(const Args& args)
     }
 
   if (not args.snapshotPeriods.empty())
-    return system.snapshotRun(traceFiles_, args.snapshotPeriods);
+    return system.snapshotRun(traceFiles_, args.snapshotPeriods,
+                              args.snapshotPeriods.size() > 1 or args.aperiodicSnaps);
 
   bool waitAll = not args.quitOnAnyHart;
   unsigned seed = args.seed.value_or(time(NULL));
