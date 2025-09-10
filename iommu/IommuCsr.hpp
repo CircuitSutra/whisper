@@ -17,7 +17,7 @@
 #include <cstdint>
 #include <cassert>
 #include <iostream>
-
+#include "riscv_enums.hpp"
 
 namespace TT_IOMMU
 {
@@ -77,13 +77,6 @@ namespace TT_IOMMU
   //   fqcsr  bits 8, 9
   //   pqcsr  bits 8, 9
   //   ipsr   bits 0, 1, 2, 3
-
-
-  /// RISCV privilege modes.
-  enum class PrivilegeMode : uint32_t
-    {
-      User = 0, Supervisor = 1, Rserved = 2, Machine = 3
-    };
 
 
   /// Union to Pack/unpack device directory table pointer.
