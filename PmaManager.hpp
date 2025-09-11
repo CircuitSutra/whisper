@@ -158,10 +158,13 @@ namespace WdRiscv
 
     friend class Memory;
 
+    /// For architecture coverage.
     enum AccessReason { None, Fetch, LdSt };
 
+    /// Constructor.
     PmaManager(uint64_t memorySize);
 
+    /// Destructor.
     ~PmaManager() = default;
 
     /// Return the physical memory attribute associated with the
@@ -330,8 +333,12 @@ namespace WdRiscv
     /// Print current pma map.
     void printPmas(std::ostream& os) const;
 
-    // Mark region as having memory mapped registers if it overlapps such registers.
+    /// Mark region as having memory mapped registers if it overlapps such registers.
     void updateMemMappedAttrib(unsigned ix);
+
+    /// Unpack the value of a PMACFG CSR.
+    void unpackPmacfg(uint64_t value, bool& valid, uint64_t& low, uint64_t& high,
+                      Pma& pma) const;
 
   protected:
 
