@@ -123,7 +123,7 @@ private:
     caps.bits_.sv39_ = 1;     // Support Sv39
     caps.bits_.sv39x4_ = 1;   // Support Sv39x4
 
-    iommu_ = std::make_unique<Iommu>(0x1000, 0x1000, caps.value_);
+    iommu_ = std::make_unique<Iommu>(0x1000, 0x1000, mem_.size(), caps.value_);
 
     // Set up memory callbacks
     iommu_->setMemReadCb([this](uint64_t addr, unsigned size, uint64_t& data) {

@@ -1,7 +1,7 @@
 CXX      = /opt/rh/devtoolset-11/root/bin/g++
 OFLAGS   = -g
 CXXFLAGS = -std=c++20 -Wall -Wextra -pedantic $(OFLAGS)
-SRCS     = Iommu.cpp
+SRCS     = Iommu.cpp IommuPmaManager.cpp
 OBJS     = $(SRCS:.cpp=.o)
 TARGET   = libiommu.a
 
