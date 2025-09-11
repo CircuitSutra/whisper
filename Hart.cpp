@@ -3799,6 +3799,81 @@ Hart<URV>::peekCsr(CsrNumber csrn, std::string_view field, URV& val) const
 }
 
 
+static
+void
+unpackPmacfg(uint64_t val, bool& valid, uint64_t& low, uint64_t& high, Pma& pma)
+{
+  // Recover n = log2 of size.
+  uint64_t n = val >> 58;   // Bits 63:58
+  valid = n != 0;
+  if (not valid)
+    return;
+
+  if (n < 12)
+    n = 12;
+
+  unsigned attrib = 0;
+
+  // Misaligned allowed everywhere (msial for AMO/LR/SC is separate).
+  attrib |= Pma::Attrib::MisalOk;
+
+  if (val & 1)
+    attrib |= Pma::Attrib::Read;
+
+  if (val & 2)
+    attrib |= Pma::Attrib::Write;
+
+  if (val & 4)
+    attrib |= Pma::Attrib::Exec;
+
+  bool cacheable = val & 0x80;  // Bit 7
+
+  // TBD FIX : Support io channel0 and channel1
+  unsigned memType = (val >> 3) & 3;   // Bits 4:3
+  if (memType != 0)
+    {
+      attrib |= Pma::Attrib::Io;
+      attrib &= ~Pma::Attrib::MisalOk;  // No misaligned IO region access.
+      attrib |= Pma::Attrib::MisalAccFault;
+    }
+  else
+    {
+      // Regular memory.
+      if (cacheable)
+	{
+	  attrib |= Pma::Attrib::Rsrv;
+
+	  unsigned amoType = (val >> 5) & 3;   // Bits 6:5
+	  if (amoType == 1)
+	    attrib |= Pma::Attrib::AmoSwap;
+	  else if (amoType == 2)
+	    attrib |= Pma::Attrib::AmoLogical;
+	  else if (amoType == 3)
+	    attrib |= Pma::Attrib::AmoArith;
+	}
+
+      if (cacheable)  // Bit 7
+	attrib |= Pma::Attrib::Cacheable;
+    }
+
+  pma = Pma(Pma::Attrib(attrib));
+
+  // Recover base address: Bits 55:12
+  uint64_t addr = (val << 8) >> 8;  // Clear top 8 bits of val.
+  addr = (addr >> 12) << 12;   // Clear least sig 12 bits of val.
+  low = addr;
+
+  low = (low  >> n) << n;  // Clear least sig n bits.
+
+  high = ~uint64_t(0);
+  if (n < 56)
+    {
+      high = low;
+      high |= (uint64_t(1) << n) - 1; // Set bits 0 to n-1
+    }
+}
+
+
 template <typename URV>
 bool
 Hart<URV>::processPmaChange(CsrNumber csr)
@@ -3818,7 +3893,7 @@ Hart<URV>::processPmaChange(CsrNumber csr)
   uint64_t low = 0, high = 0;
   Pma pma;
   bool valid = false;
-  memory_.pmaMgr_.unpackPmacfg(val, valid, low, high, pma);
+  unpackPmacfg(val, valid, low, high, pma);
   if (valid)
     {
       if (not definePmaRegion(ix, low, high, pma))
