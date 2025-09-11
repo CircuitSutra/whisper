@@ -20,7 +20,7 @@
 #include <algorithm>
 #include <unordered_map>
 
-namespace WdRiscv
+namespace TT_IOMMU
 {
 
   /// Physical memory attribute. An instance of this is typically

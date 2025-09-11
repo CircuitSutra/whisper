@@ -141,8 +141,18 @@ Iommu::write(uint64_t addr, unsigned size, uint64_t data)
             updateMemoryProtection();
           return true;
         }
+    }
 
-      // Not a PMP address. Check if PMA.
+  if (pmaEnabled_ and isPmacfgAddr(addr))
+    {
+      const unsigned pmacfgSize = 8;
+      if (size != pmacfgSize or (addr & (pmacfgSize - 1)) != 0)
+        return false;
+      unsigned ix = (addr - pmacfgAddr_) / pmacfgSize;
+      assert(0 && "legalize pmacfg value");
+      pmacfg_.at(ix) = data;
+      updateMemoryAttributes(ix);
+      return true;
     }
 
   return false;
@@ -2808,5 +2818,23 @@ Iommu::updateMemoryProtection()
                                      type, locked, low, high);
 
       pmpMgr_.defineRegion(low, high, type, mode, ix, locked);
+    }
+}
+
+
+void
+Iommu::updateMemoryAttributes(unsigned pmacfgIx)
+{
+  uint64_t val = pmacfg_.at(pmacfgIx);
+
+  uint64_t low = 0, high = 0;
+  Pma pma;
+  bool valid = false;
+
+  pmaMgr_.unpackPmacfg(val, valid, low, high, pma);
+  if (valid)
+    {
+      if (not pmaMgr_.defineRegion(pmacfgIx, low, high, pma))
+	assert(0);
     }
 }

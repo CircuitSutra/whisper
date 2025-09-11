@@ -22,6 +22,7 @@
 #include "FaultQueue.hpp"
 #include "Ats.hpp"
 #include "IommuPmpManager.hpp"
+#include "IommuPmaManager.hpp"
 
 
 namespace TT_IOMMU
@@ -85,8 +86,8 @@ namespace TT_IOMMU
     /// constructed, the capabilities CSR should be configured by calling the
     /// configureCapabilites method and then the reset method should be called to reset
     /// this object according to the configured capabilities.
-    Iommu(uint64_t addr, uint64_t size)
-      : addr_(addr), size_(size)
+    Iommu(uint64_t addr, uint64_t size, uint64_t memorySize)
+      : addr_(addr), size_(size), pmaMgr_(memorySize)
     { 
       wordToCsr_.resize(size / 4, nullptr);
       defineCsrs();
@@ -98,8 +99,8 @@ namespace TT_IOMMU
     /// given capabilities. The constructed object is not usable until the callbacks for
     /// memory access and address translation defined using the callback related methods
     /// below.
-    Iommu(uint64_t addr, uint64_t size, uint64_t capabilities)
-      : addr_(addr), size_(size)
+    Iommu(uint64_t addr, uint64_t size, uint64_t memorySize, uint64_t capabilities)
+      : addr_(addr), size_(size), pmaMgr_(memorySize)
     { 
       wordToCsr_.resize(size / 4, nullptr);
       defineCsrs();
@@ -112,21 +113,13 @@ namespace TT_IOMMU
     {
       if (addr >= addr_ and addr < addr_ + size_)
         return true;
-      if (isPmpRegAddr(addr))
-        return true;
-      return false;
+      return isPmpRegAddr(addr) or isPmaRegAddr(addr);
     }
 
     /// Return true if the given address is in the physical memory protection (PMP) memory
     /// mapped registers associated with this IOMMU.
     bool isPmpRegAddr(uint64_t addr) const
-    {      
-      if (isPmpcfgAddr(addr))
-        return true;
-      if (isPmpaddrAddr(addr))
-        return true;
-      return false;
-    }
+    { return isPmpcfgAddr(addr) or isPmpaddrAddr(addr); }
 
     /// Return true if given address in the region associated with the physical memory
     /// protection configuration registers (PMPCFG).
@@ -143,6 +136,20 @@ namespace TT_IOMMU
     {
       if (pmpEnabled_)
         return addr >= pmpaddrAddr_ and addr < pmpaddrAddr_ + pmpaddrCount_ * 8;
+      return false;
+    }
+
+    /// Return true if the given address is in the physical memory attribute (PMA) memory
+    /// mapped registers associated with this IOMMU.
+    bool isPmaRegAddr(uint64_t addr) const
+    { return isPmacfgAddr(addr); }
+
+    /// Return true if given address in the region associated with the physical memory
+    /// attribute configuration registers (PMACFG).
+    bool isPmacfgAddr(uint64_t addr) const
+    {
+      if (pmaEnabled_)
+        return addr >= pmacfgAddr_ and addr < pmacfgAddr_ + pmacfgCount_ * 8;
       return false;
     }
 
@@ -321,7 +328,7 @@ namespace TT_IOMMU
       if ( ((size - 1) & size) != 0 )
         return false;    // Not a power of 2.
 
-      if (not isPmpReadable(addr, PrivilegeMode::Machine))
+      if (not isPmpReadable(addr, PrivilegeMode::Machine) or not isPmaReadable(addr))
         return false;
 
       uint64_t val = 0;
@@ -348,7 +355,7 @@ namespace TT_IOMMU
       if ( ((size - 1) & size) != 0 )
         return false;    // Not a power of 2.
 
-      if (not isPmpWritable(addr, PrivilegeMode::Machine))
+      if (not isPmpWritable(addr, PrivilegeMode::Machine) or not isPmaWritable(addr))
         return false;
 
       if (bigEnd)
@@ -370,7 +377,7 @@ namespace TT_IOMMU
       if ( ((size - 1) & size) != 0 )
         return false;    // Not a power of 2.
 
-      if (not isPmpReadable(addr, PrivilegeMode::Machine))
+      if (not isPmpReadable(addr, PrivilegeMode::Machine) or not isPmaReadable(addr))
         return false;
 
       uint64_t val = 0;
@@ -391,7 +398,7 @@ namespace TT_IOMMU
       if ( ((size - 1) & size) != 0 )
         return false;    // Not a power of 2.
 
-      if (not isPmpWritable(addr, PrivilegeMode::Machine))
+      if (not isPmpWritable(addr, PrivilegeMode::Machine) or not isPmaWritable(addr))
         return false;
 
       return memWrite_(addr, size, data);
@@ -415,6 +422,26 @@ namespace TT_IOMMU
         return true;
       const Pmp& pmp = pmpMgr_.getPmp(addr);
       return pmp.isWrite(mode);
+    }
+
+    /// If physical memory attribute is not enabled, return true; otherwise, return true
+    /// if the PMA grants read access for the given address.
+    bool isPmaReadable(uint64_t addr) const
+    {
+      if (not pmaEnabled_)
+        return true;
+      auto pma = pmaMgr_.getPma(addr);
+      return pma.isRead();
+    }
+
+    /// If physical memory attribute is not enabled, return true; otherwise, return true
+    /// if the PMA grants read access for the given address.
+    bool isPmaWritable(uint64_t addr) const
+    {
+      if (not pmaEnabled_)
+        return true;
+      auto pma = pmaMgr_.getPma(addr);
+      return pma.isWrite();
     }
 
     /// Return true if device context has extended format.
@@ -655,9 +682,13 @@ namespace TT_IOMMU
     /// Write given fault record to the fault queue which must not be full.
     void writeFaultRecord(const FaultRecord& record);
 
-    /// Called after a PMPCFG/PMPADDR CSR is updated to updated cached memory protection
-    /// in PmpManager.
+    /// Called after a PMPCFG/PMPADDR CSR is changed to update the cached memory
+    /// protection in PmpManager.
     void updateMemoryProtection();
+
+    /// Called after a PMACFG CSR is changed to update the cached memory attributes in
+    /// PmaManager.
+    void updateMemoryAttributes(unsigned pmacfgIx);
 
   protected:
 
@@ -724,16 +755,24 @@ namespace TT_IOMMU
     
     std::vector<PageRequest> pendingPageRequests_;
 
-    bool pmpEnabled_ = false;
-    unsigned pmpcfgCount_ = 0;
-    unsigned pmpaddrCount_ = 0;
-    uint64_t pmpcfgAddr_ = 0;
-    uint64_t pmpaddrAddr_ = 0;
+    bool pmpEnabled_ = false;        // Physical memory protection (PMP)
+    unsigned pmpcfgCount_ = 0;       // Number of PMPCFG registers
+    unsigned pmpaddrCount_ = 0;      // Number of PMPADDR registers
+    uint64_t pmpcfgAddr_ = 0;        // Address of first PMPCFG register
+    uint64_t pmpaddrAddr_ = 0;       // Address of first PMPADDR register
 
-    std::vector<uint64_t> pmpcfg_;
-    std::vector<uint64_t> pmpaddr_;
+    std::vector<uint64_t> pmpcfg_;   // Cached values of PMPCFG registers
+    std::vector<uint64_t> pmpaddr_;  // Cached values of PMPADDR registers
 
     PmpManager pmpMgr_;
+
+    bool pmaEnabled_ = false;        // Physical memory attributes (PMA)
+    unsigned pmacfgCount_ = 0;       // Count of PMACFG registers
+    uint64_t pmacfgAddr_ = 0;        // Address of first PMACFG register
+
+    std::vector<uint64_t> pmacfg_;   // Cached values of PMACFG registers
+
+    PmaManager pmaMgr_;
   };
 
 }

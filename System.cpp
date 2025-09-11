@@ -906,7 +906,8 @@ template <typename URV>
 bool
 System<URV>::configIommu(uint64_t base_addr, uint64_t size, uint64_t capabilities)
 {
-  iommu_ = std::make_shared<TT_IOMMU::Iommu>(base_addr, size);
+  uint64_t memSize = this->memory_->size();
+  iommu_ = std::make_shared<TT_IOMMU::Iommu>(base_addr, size, memSize);
 
   iommu_->configureCapabilities(capabilities);
   iommu_->reset();
