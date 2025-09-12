@@ -41,7 +41,7 @@
 #include "Decoder.hpp"
 #include "Disassembler.hpp"
 #include "util.hpp"
-#include "Imsic.hpp"
+#include "imsic/Imsic.hpp"
 #include "Cache.hpp"
 #include "pci/Pci.hpp"
 #include "Stee.hpp"

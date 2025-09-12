@@ -22,7 +22,7 @@
 #include <unordered_map>
 #include "Filesystem.hpp"
 #include "Memory.hpp"
-#include "Imsic.hpp"
+#include "imsic/Imsic.hpp"
 #include "Syscall.hpp"
 #include "pci/Pci.hpp"
 #include "pci/virtio/Blk.hpp"

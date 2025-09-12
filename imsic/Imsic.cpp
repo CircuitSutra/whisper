@@ -1,5 +1,5 @@
 #include <stdexcept>
-#include "util.hpp"
+#include "../util.hpp"
 #include "Imsic.hpp"
 
 using namespace TT_IMSIC;
