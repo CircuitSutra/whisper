@@ -31,7 +31,6 @@ endif
 
 VIRT_MEM := 1
 ifeq ($(VIRT_MEM), 1)
-  override CPPFLAGS += -Ivirtual_memory
   virtual_memory_build := $(wildcard $(shell pwd)/virtual_memory/)
   virtual_memory_lib := $(virtual_memory_build)/libvirtual_memory.a
 endif
@@ -46,14 +45,12 @@ endif
 
 PCI := 1
 ifeq ($(PCI), 1)
-  override CPPFLAGS += -I$(shell pwd)/pci
   pci_build := $(wildcard $(shell pwd)/pci/)
   pci_lib := $(shell pwd)/pci/libpci.a
 endif
 
 TRACE_READER := 1
 ifeq ($(TRACE_READER), 1)
-  override CPPFLAGS += -I$(shell pwd)/trace-reader
   trace_reader_build := $(wildcard $(shell pwd)/trace-reader/)
   trace_reader_lib := $(shell pwd)/trace-reader/TraceReader.a
 endif
