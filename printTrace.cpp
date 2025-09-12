@@ -380,7 +380,11 @@ Hart<URV>::printDecodedInstTrace(const DecodedInst& di, uint64_t tag, std::strin
   URV value = 0;
   if (reg > 0)
     {
-      if (di.instId() == InstId::amocas_q)  // amocas_q modifies 2 registers.
+      bool twoRegsUpdated = (
+        (di.instId() == InstId::amocas_q) or
+        (di.instId() == InstId::amocas_d and sizeof(URV) == 4)
+      );
+      if (twoRegsUpdated)
 	{
 	  assert((reg & 1) == 1);
 	  value = intRegs_.read(reg - 1);
