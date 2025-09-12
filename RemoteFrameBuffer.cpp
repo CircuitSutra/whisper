@@ -5,6 +5,8 @@
 #include <cassert>
 #include <thread>
 #include <chrono>
+#include <fstream>
+#include <cstring>
 #ifdef REMOTE_FRAME_BUFFER
 #include <rfb/rfb.h>
 #endif
@@ -33,6 +35,7 @@ RemoteFrameBuffer::RemoteFrameBuffer(uint64_t addr, uint64_t width, uint64_t hei
     throw std::runtime_error("Out of memory");
   }
   
+  memset(frame_buffer_, 0, size());
 
   auto func = [this]() { this->vncServerLoop(); };
   displayThread_ = std::thread(func);
@@ -40,14 +43,15 @@ RemoteFrameBuffer::RemoteFrameBuffer(uint64_t addr, uint64_t width, uint64_t hei
 
 RemoteFrameBuffer::~RemoteFrameBuffer()
 {
+  terminate_ = true;
+  if (displayThread_.joinable())
+    displayThread_.join();
+  
   if (frame_buffer_)
     {
-      munmap(frame_buffer_, size());
+      free(frame_buffer_);
       frame_buffer_ = nullptr;
     }
-
-  terminate_ = true;
-  displayThread_.join();
 }
 
 void
@@ -104,4 +108,57 @@ RemoteFrameBuffer::write(uint64_t addr, uint32_t value)
   assert(offset < size() && "RemoteFrameBuffer: Writing outside of buffer range");
   *(frame_buffer_ + (offset) / 4) = value;
   frame_buffer_updated_ = true;
+}
+
+void
+RemoteFrameBuffer::enable()
+{
+}
+
+void
+RemoteFrameBuffer::disable()
+{
+}
+
+bool
+RemoteFrameBuffer::saveSnapshot(const std::string& filename) const
+{
+  std::ofstream ofs(filename, std::ios::binary);
+  if (!ofs)
+    {
+      std::cerr << "Error: failed to open snapshot file for writing: " << filename << "\n";
+      return false;
+    }
+
+  ofs.write(reinterpret_cast<const char*>(frame_buffer_), size());
+  
+  if (!ofs)
+    {
+      std::cerr << "Error: failed to write frame buffer data to: " << filename << "\n";
+      return false;
+    }
+
+  return true;
+}
+
+bool
+RemoteFrameBuffer::loadSnapshot(const std::string& filename)
+{
+  std::ifstream ifs(filename, std::ios::binary);
+  if (!ifs)
+    {
+      std::cerr << "Warning: failed to open snapshot file " << filename << "\n";
+      return false;
+    }
+
+  ifs.read(reinterpret_cast<char*>(frame_buffer_), size());
+  
+  if (!ifs)
+    {
+      std::cerr << "Error: failed to read frame buffer data from " << filename << "\n";
+      return false;
+    }
+
+  frame_buffer_updated_ = true;
+  return true;
 }

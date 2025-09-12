@@ -17,6 +17,11 @@ namespace WdRiscv
       uint32_t read(uint64_t addr) override;
       void write(uint64_t addr, uint32_t value) override;
 
+      void enable() override;
+      void disable() override;
+      bool saveSnapshot(const std::string& filename) const override;
+      bool loadSnapshot(const std::string& filename) override;
+
     private:
       
       void vncServerLoop();
