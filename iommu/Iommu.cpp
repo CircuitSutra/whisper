@@ -2790,7 +2790,10 @@ Iommu::definePmpRegs(uint64_t cfgAddr, unsigned cfgCount,
   pmpcfgAddr_ = cfgAddr;
   pmpaddrAddr_ = addrAddr;
 
+  pmacfg_.clear();
   pmpcfg_.resize(pmpcfgCount_);
+
+  pmpaddr_.clear();
   pmpaddr_.resize(pmpaddrCount_);
 
   pmpEnabled_ = true;
@@ -2819,6 +2822,34 @@ Iommu::updateMemoryProtection()
 
       pmpMgr_.defineRegion(low, high, type, mode, ix, locked);
     }
+}
+
+
+bool
+Iommu::definePmaRegs(uint64_t cfgAddr, unsigned cfgCount)
+{
+  if (cfgCount == 0)
+    {
+      pmacfgCount_ = cfgCount;
+      pmaEnabled_ = false;
+      return true;
+    }
+
+  if ((cfgAddr & 7) != 0)
+    {
+      std::cerr << "Invalid IOMMU PMACFG address: " << cfgAddr << ": must be "
+                << "double-word aligned\n";
+      return false;
+    }
+      
+  pmacfgCount_ = cfgCount;
+  pmacfgAddr_ = cfgAddr;
+
+  pmacfg_.clear();
+  pmacfg_.resize(pmacfgCount_);
+
+  pmaEnabled_ = true;
+  return true;
 }
 
 
