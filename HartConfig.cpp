@@ -24,6 +24,7 @@
 #include "Core.hpp"
 #include "Hart.hpp"
 #include "Mcm.hpp"
+#include "aplic/Aplic.hpp"
 
 
 using namespace WdRiscv;

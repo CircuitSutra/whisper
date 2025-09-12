@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include "DecodedInst.hpp"
-#include "IntRegs.hpp"
+#include "IntRegNames.hpp"
 #include "Decoder.hpp"
 #include "instforms.hpp"
 
