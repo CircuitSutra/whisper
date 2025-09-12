@@ -581,6 +581,11 @@ namespace TT_IOMMU
     bool definePmpRegs(uint64_t pmpcfgAddr, unsigned pmpcfgCount,
                        uint64_t pmpaddrAddr, unsigned pmpaddrCount);
 
+    /// Define the physical memory attribute registers (PMACFG).  The registers are memory
+    /// mapped at the given address.  Return true on success and false on failure (address
+    /// is not double word aligned, count too large...).
+    bool definePmaRegs(uint64_t pmacfgAddr, unsigned pmacfgCount);
+
   protected:
 
     /// Helper to translate. Does translation but does not report fault cause on fail,

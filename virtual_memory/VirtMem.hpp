@@ -393,6 +393,18 @@ namespace WdRiscv
     ExceptionCause stage1Translate(uint64_t va, PrivilegeMode priv, bool read, bool write,
                                    bool exec, uint64_t& gpa);
 
+    /// When true, an exception (page fault) is generated if a translation needs to update
+    /// the A/D bit. When false, the A/D bits are automatically updated.
+    void setFaultOnFirstAccess(bool flag)
+    { faultOnFirstAccess_ = flag; }
+
+    /// Same as above for 1st stage of a two-stage translation.
+    void setFaultOnFirstAccessStage1(bool flag)
+    { faultOnFirstAccess1_ = flag; }
+
+    /// Similar to above but applies to 2nd stage translation.
+    void setFaultOnFirstAccessStage2(bool flag)
+    { faultOnFirstAccess2_ = flag; }
 
   protected:
     // Callback member variables.
@@ -628,18 +640,6 @@ namespace WdRiscv
     /// Return whether previous translation was page crossing.
     bool pageCross(bool flag) const
     { return (flag)? fetchPageCross_ : dataPageCross_; }
-
-    /// Set behavior if first access to page or store and page not dirty.
-    void setFaultOnFirstAccess(bool flag)
-    { faultOnFirstAccess_ = flag; }
-
-    /// Set behavior if first access to page or store and page not dirty.
-    void setFaultOnFirstAccessStage1(bool flag)
-    { faultOnFirstAccess1_ = flag; }
-
-    /// Similar to above but applies to 2nd stage translation.
-    void setFaultOnFirstAccessStage2(bool flag)
-    { faultOnFirstAccess2_ = flag; }
 
     /// Return true if last translation had a fault in translation caused by
     /// a stage 1 implicit access and false otherwise. Sets flag if attempted to update A/D bits
