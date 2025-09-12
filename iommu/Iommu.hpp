@@ -555,6 +555,16 @@ namespace TT_IOMMU
     /// Execute an ATS.PRGR command for page request group response
     void executeAtsPrgrCommand(const AtsCommandData& cmdData);
 
+    /// ATS invalidation management methods
+    uint32_t sendAtsInvalidation(uint32_t devId, uint32_t pid, uint64_t address, 
+                                 bool pidValid, bool global);
+    void processAtsInvalidationTimeouts();
+    void completeAtsInvalidation(uint32_t commandId, bool success);
+    bool areAllAtsInvalidationsPending() const;
+    void simulatePcieAtsMessage(uint32_t devId, uint32_t pid, uint64_t address, 
+                                bool pidValid, bool global, uint32_t commandId);
+    uint64_t getCurrentTicks() const;
+
     /// Process pending page requests in the page request queue
     void processPageRequestQueue();
     
@@ -754,6 +764,28 @@ namespace TT_IOMMU
     };
     
     std::vector<PageRequest> pendingPageRequests_;
+
+    // ATS invalidation tracking
+    struct PendingAtsInvalidation {
+      uint32_t devId;        // Device ID (includes segment if DSV=1)
+      uint32_t pid;          // Process ID (PASID)
+      uint64_t address;      // Address to invalidate (0 for global)
+      bool pidValid;         // True if PID is valid
+      bool global;           // True for global invalidation
+      uint64_t startTime;    // Time when invalidation was sent
+      uint64_t timeoutTicks; // Timeout in ticks
+      uint32_t commandId;    // Command queue entry ID for completion tracking
+      
+      enum Status {
+        PENDING,    // Waiting for completion
+        COMPLETED,  // Successfully completed
+        TIMEOUT,    // Timed out
+        ERROR       // Failed with error
+      } status;
+    };
+    
+    std::vector<PendingAtsInvalidation> pendingAtsInvalidations_;
+    uint32_t nextCommandId_ = 1;  // Counter for unique command IDs
 
     bool pmpEnabled_ = false;        // Physical memory protection (PMP)
     unsigned pmpcfgCount_ = 0;       // Number of PMPCFG registers
