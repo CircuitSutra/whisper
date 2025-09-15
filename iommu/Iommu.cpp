@@ -1852,9 +1852,7 @@ Iommu::executeAtsInvalCommand(const AtsCommandData& cmdData)
   if (!loadDeviceContext(devId, dc, cause))
   {
     // Device context load failed - log error and complete command
-    #ifdef DEBUG_ATS
     printf("ATS.INVAL: Failed to load device context for devId=0x%x, cause=%u\n", devId, cause);
-    #endif
     return;
   }
   
@@ -1862,9 +1860,7 @@ Iommu::executeAtsInvalCommand(const AtsCommandData& cmdData)
   if (!dc.ats())
   {
     // ATS not enabled for this device - log error and complete command
-    #ifdef DEBUG_ATS
     printf("ATS.INVAL: ATS not enabled for devId=0x%x\n", devId);
-    #endif
     return;
   }
   
@@ -1875,9 +1871,7 @@ Iommu::executeAtsInvalCommand(const AtsCommandData& cmdData)
     // Check if device supports process directory table
     if (!dc.pdtv())
     {
-      #ifdef DEBUG_ATS
       printf("ATS.INVAL: Process ID specified but device doesn't support PDT, devId=0x%x\n", devId);
-      #endif
       return;
     }
     
@@ -1890,9 +1884,7 @@ Iommu::executeAtsInvalCommand(const AtsCommandData& cmdData)
     if ((pdtpMode == PdtpMode::Pd17 && pdi2 != 0) ||
         (pdtpMode == PdtpMode::Pd8 && (pdi2 != 0 || pdi1 != 0)))
     {
-      #ifdef DEBUG_ATS
       printf("ATS.INVAL: PID 0x%x out of range for PDT mode, devId=0x%x\n", pid, devId);
-      #endif
       return;
     }
   }
@@ -1900,9 +1892,7 @@ Iommu::executeAtsInvalCommand(const AtsCommandData& cmdData)
   // Validate address alignment if address-specific invalidation
   if (address != 0 && (address & 0xFFF) != 0)
   {
-    #ifdef DEBUG_ATS
     printf("ATS.INVAL: Address 0x%lx not page-aligned, devId=0x%x\n", address, devId);
-    #endif
     return;
   }
   
@@ -1934,9 +1924,7 @@ Iommu::executeAtsInvalCommand(const AtsCommandData& cmdData)
   else
   {
     // Invalid combination - no scope specified
-    #ifdef DEBUG_ATS
     printf("ATS.INVAL: Invalid invalidation scope, devId=0x%x\n", devId);
-    #endif
     return;
   }
   
@@ -1944,21 +1932,16 @@ Iommu::executeAtsInvalCommand(const AtsCommandData& cmdData)
   // COMMAND SUCCESSFULLY PARSED AND VALIDATED
   // ========================================================================
   
-#ifdef DEBUG_ATS
   printf("ATS.INVAL: devId=0x%x, pid=0x%x, pv=%d, addr=0x%lx, global=%d, scope=%d\n", 
          devId, pid, pv, address, global, static_cast<int>(scope));
   printf("ATS.INVAL: Command parsed and validated successfully\n");
-#endif
+
+  // PCIe simulation placeholder
+  printf("TODO: PCIe ATS Invalidation Request message simulation to be implemented here\n");
+  printf("      Would send invalidation request to device BDF 0x%x via PCIe fabric\n", rid);
 
   // Suppress unused variable warnings
   (void)devId; (void)pid; (void)pv; (void)address; (void)global; (void)scope;
-
-  // TODO: Implementation of actual PCIe ATS messaging would go here
-  // This would involve:
-  // - Formatting PCIe ATS Invalidation Request message
-  // - Sending message to target device via PCIe infrastructure
-  // - Handling asynchronous completion responses
-  // - Managing timeouts and error conditions
 }
 
 void 
@@ -1997,9 +1980,7 @@ Iommu::executeAtsPrgrCommand(const AtsCommandData& cmdData)
   if (!loadDeviceContext(devId, dc, cause))
   {
     // Device context load failed - log error and complete command
-    #ifdef DEBUG_ATS
     printf("ATS.PRGR: Failed to load device context for devId=0x%x, cause=%u\n", devId, cause);
-    #endif
     return;
   }
   
@@ -2007,9 +1988,7 @@ Iommu::executeAtsPrgrCommand(const AtsCommandData& cmdData)
   if (!dc.ats())
   {
     // ATS not enabled for this device - log error and complete command
-    #ifdef DEBUG_ATS
     printf("ATS.PRGR: ATS not enabled for devId=0x%x\n", devId);
-    #endif
     return;
   }
   
@@ -2017,133 +1996,66 @@ Iommu::executeAtsPrgrCommand(const AtsCommandData& cmdData)
   // Check if device supports Page Request Interface
   if (!dc.pri())
   {
-    #ifdef DEBUG_ATS
     printf("ATS.PRGR: PRI not enabled for devId=0x%x\n", devId);
-    #endif
     return;
   }
   
   // 3. VALIDATE COMMAND PARAMETERS
-  // Validate process ID
-  if (!dc.pdtv())
+  // Validate process ID if PV=1
+  bool pv = cmd.PV;
+  if (pv)
   {
-    #ifdef DEBUG_ATS
-    printf("ATS.PRGR: Process ID specified but device doesn't support PDT, devId=0x%x\n", devId);
-    #endif
-    return;
-  }
-  
-  // Validate PID is within supported range based on PDT mode
-  Procid procid(pid);
-  unsigned pdi1 = procid.ithPdi(1);
-  unsigned pdi2 = procid.ithPdi(2);
-  PdtpMode pdtpMode = dc.pdtpMode();
-  
-  if ((pdtpMode == PdtpMode::Pd17 && pdi2 != 0) ||
-      (pdtpMode == PdtpMode::Pd8 && (pdi2 != 0 || pdi1 != 0)))
-  {
-    #ifdef DEBUG_ATS
-    printf("ATS.PRGR: PID 0x%x out of range for PDT mode, devId=0x%x\n", pid, devId);
-    #endif
-    return;
+    // Check if device supports process directory table
+    if (!dc.pdtv())
+    {
+      printf("ATS.PRGR: Process ID specified but device doesn't support PDT, devId=0x%x\n", devId);
+      return;
+    }
+    
+    // Validate PID is within supported range based on PDT mode
+    Procid procid(pid);
+    unsigned pdi1 = procid.ithPdi(1);
+    unsigned pdi2 = procid.ithPdi(2);
+    PdtpMode pdtpMode = dc.pdtpMode();
+    
+    if ((pdtpMode == PdtpMode::Pd17 && pdi2 != 0) ||
+        (pdtpMode == PdtpMode::Pd8 && (pdi2 != 0 || pdi1 != 0)))
+    {
+      printf("ATS.PRGR: PID 0x%x out of range for PDT mode, devId=0x%x\n", pid, devId);
+      return;
+    }
   }
   
   // Validate response code is within valid range
   // PCIe spec defines response codes: 0=Success, 1=Invalid Request, 2=Response Failure
   if (resp_code > 2)
   {
-    #ifdef DEBUG_ATS
     printf("ATS.PRGR: Invalid response code %u, devId=0x%x\n", resp_code, devId);
-    #endif
     return;
   }
   
   // Validate PRGI (Page Request Group Index)
-  // PRGI should be non-zero and within reasonable bounds
+  // PRGI should be non-zero (0 is reserved)
   if (prgi == 0)
   {
-    #ifdef DEBUG_ATS
     printf("ATS.PRGR: Invalid PRGI 0, devId=0x%x\n", devId);
-    #endif
     return;
   }
   
   // ========================================================================
-  // MISSING FUNCTIONALITY - What still needs to be implemented:
+  // COMMAND SUCCESSFULLY PARSED AND VALIDATED
   // ========================================================================
   
-  // 4. VALIDATE AND TRACK PRGI (IMPLEMENTED)
-  // Check if PRGI corresponds to a previously received Page Request
-  auto it = std::find_if(pendingPageRequests_.begin(), pendingPageRequests_.end(),
-    [devId, pid, prgi](const PageRequest& req) {
-      return req.devId == devId && 
-             req.pid == pid && 
-             req.prgi == prgi;
-    });
-  
-  if (it == pendingPageRequests_.end())
-  {
-    // No matching page request found
-    #ifdef DEBUG_ATS
-    printf("ATS.PRGR: No matching pending request for devId=0x%x, pid=0x%x, prgi=0x%x\n", 
-           devId, pid, prgi);
-    #endif
-    return;
-  }
-  
-  // Found matching page request, remove it from pending list
-  #ifdef DEBUG_ATS
-  PageRequest matchedRequest = *it;
-  printf("ATS.PRGR: Found and removed pending request for addr=0x%lx\n", matchedRequest.address);
-  #endif
+  printf("ATS.PRGR: devId=0x%x, pid=0x%x, pv=%d, prgi=0x%x, resp_code=%u\n", 
+         devId, pid, pv, prgi, resp_code);
+  printf("ATS.PRGR: Command parsed and validated successfully\n");
 
-  pendingPageRequests_.erase(it);
-  
-  // 5. GENERATE PCIE PAGE REQUEST GROUP RESPONSE MESSAGE
-  //    - Create PCIe "Page Request Group Response" message according to PCIe spec
-  //    - Message should target the device function identified by RID
-  //    - Include appropriate response parameters:
-  //      * PASID (use PID as PASID)
-  //      * PRGI (Page Request Group Index from command)
-  //      * Response Code (Success, Invalid Request, Response Failure)
-  
-  // 6. SEND MESSAGE TO DEVICE
-  //    - Use platform-specific PCIe infrastructure to send response message
-  //    - This would typically involve:
-  //      * Formatting the message according to PCIe TLP format
-  //      * Routing through PCIe fabric to target device
-  //      * Handling any PCIe-level errors or routing failures
-  
-  // 7. COORDINATE WITH MEMORY MANAGEMENT
-  //    - If response code is Success:
-  //      * Ensure that the requested memory pages are properly mapped
-  //      * Update any necessary memory management structures
-  //      * Coordinate with OS virtual memory subsystem
-  //    - If response code indicates failure:
-  //      * Log the failure reason for debugging
-  //      * May need to coordinate with fault handling mechanisms
-  
-  // 8. INTEGRATION WITH FAULT HANDLING
-  //    - Update fault queue entries if this response resolves a fault
-  //    - Signal completion of fault handling to software
-  //    - Update fault statistics and error tracking
-  
-  // ========================================================================
-  // Placeholder functionality only
-  // ========================================================================
-  
-  #ifdef DEBUG_ATS
-  printf("ATS.PRGR: devId=0x%x, pid=0x%x, prgi=0x%x, resp_code=%u (processed)\n", 
-         devId, pid, prgi, resp_code);
-  
-    (void)devId; (void)pid; (void)prgi; (void)resp_code;
-#endif
+  // PCIe simulation placeholder
+  printf("TODO: PCIe ATS Page Request Group Response message simulation to be implemented here\n");
+  printf("      Would send PRGR response (code=%u) to device BDF 0x%x via PCIe fabric\n", resp_code, rid);
 
-  // TODO: Implement actual ATS page request group response functionality as described above
-  // This would require:
-  // - Platform-specific PCIe message generation and routing
-  // - Integration with OS memory management
-  // - Coordination with fault handling mechanisms
+  // Suppress unused variable warnings
+  (void)devId; (void)pid; (void)pv; (void)prgi; (void)resp_code; (void)dsv; (void)dseg;
 }
 
 void 
@@ -2161,10 +2073,8 @@ Iommu::executeIofenceCCommand(const AtsCommandData& cmdData)
   uint64_t addr = cmd.ADDR << 2; // Convert from ADDR[63:2] to full address
   uint32_t data = cmd.DATA;
   
-#ifdef DEBUG_ATS
   printf("IOFENCE.C: AV=%d, WSI=%d, PR=%d, PW=%d, addr=0x%lx, data=0x%x\n", 
          AV, WSI, PR, PW, addr, data);
-#endif
 
   // Execute memory ordering (PR/PW bits)
   if (PR || PW)
@@ -2178,15 +2088,11 @@ Iommu::executeIofenceCCommand(const AtsCommandData& cmdData)
   {
     if (!memWrite(addr, 4, data))
     {
-#ifdef DEBUG_ATS
       printf("IOFENCE.C: Failed to write data 0x%x to address 0x%lx\n", data, addr);
-#endif
     }
     else
     {
-#ifdef DEBUG_ATS
       printf("IOFENCE.C: Successfully wrote data 0x%x to address 0x%lx\n", data, addr);
-#endif
     }
   }
   
@@ -2199,9 +2105,7 @@ Iommu::executeIofenceCCommand(const AtsCommandData& cmdData)
     writeCsr(CsrNumber::Cqcsr, cqcsr);
   }
   
-#ifdef DEBUG_ATS
   printf("IOFENCE.C: Command completed\n");
-#endif
 }
 
 void
@@ -2290,9 +2194,7 @@ Iommu::sendPageRequest(uint32_t devId, uint32_t pid, uint64_t address, uint32_t 
   if (!loadDeviceContext(devId, dc, cause))
   {
     // Device context load failed - log error and return
-    #ifdef DEBUG_ATS
     printf("sendPageRequest: Failed to load device context for devId=0x%x, cause=%u\n", devId, cause);
-    #endif
     return;
   }
   
@@ -2300,9 +2202,7 @@ Iommu::sendPageRequest(uint32_t devId, uint32_t pid, uint64_t address, uint32_t 
   // Check if device supports Page Request Interface
   if (!dc.pri())
   {
-    #ifdef DEBUG_ATS
     printf("sendPageRequest: PRI not enabled for devId=0x%x\n", devId);
-    #endif
     return;
   }
   
@@ -2314,9 +2214,7 @@ Iommu::sendPageRequest(uint32_t devId, uint32_t pid, uint64_t address, uint32_t 
     // Check if device supports process directory table
     if (!dc.pdtv())
     {
-      #ifdef DEBUG_ATS
       printf("sendPageRequest: Process ID specified but device doesn't support PDT, devId=0x%x\n", devId);
-      #endif
       return;
     }
     
@@ -2329,9 +2227,7 @@ Iommu::sendPageRequest(uint32_t devId, uint32_t pid, uint64_t address, uint32_t 
     if ((pdtpMode == PdtpMode::Pd17 && pdi2 != 0) ||
         (pdtpMode == PdtpMode::Pd8 && (pdi2 != 0 || pdi1 != 0)))
     {
-      #ifdef DEBUG_ATS
       printf("sendPageRequest: PID 0x%x out of range for PDT mode, devId=0x%x\n", pid, devId);
-      #endif
       return;
     }
   }
@@ -2339,9 +2235,7 @@ Iommu::sendPageRequest(uint32_t devId, uint32_t pid, uint64_t address, uint32_t 
   // Validate address alignment
   if ((address & 0xFFF) != 0)
   {
-    #ifdef DEBUG_ATS
     printf("sendPageRequest: Address 0x%lx not page-aligned, devId=0x%x\n", address, devId);
-    #endif
     return;
   }
   
@@ -2349,9 +2243,7 @@ Iommu::sendPageRequest(uint32_t devId, uint32_t pid, uint64_t address, uint32_t 
   // PRGI should be non-zero and within reasonable bounds
   if (prgi == 0)
   {
-    #ifdef DEBUG_ATS
     printf("sendPageRequest: Invalid PRGI 0, devId=0x%x\n", devId);
-    #endif
     return;
   }
   
@@ -2399,12 +2291,14 @@ Iommu::sendPageRequest(uint32_t devId, uint32_t pid, uint64_t address, uint32_t 
   // Placeholder functionality only
   // ========================================================================
   
-  #ifdef DEBUG_ATS
   printf("sendPageRequest: devId=0x%x, pid=0x%x, pidValid=%d, addr=0x%lx, prgi=0x%x\n", 
          devId, pid, pidValid, address, prgi);
   
-    (void)devId; (void)pid; (void)pidValid; (void)address; (void)prgi;
-#endif
+  // PCIe simulation placeholder
+  printf("TODO: PCIe Page Request message simulation to be implemented here\n");
+  printf("      Would send page request to device ID 0x%x via PCIe fabric\n", devId);
+
+  (void)devId; (void)pid; (void)pidValid; (void)address; (void)prgi;
 
   // ========================================================================
   // Placeholder functionality only
@@ -2421,12 +2315,10 @@ Iommu::sendPageRequest(uint32_t devId, uint32_t pid, uint64_t address, uint32_t 
   
   pendingPageRequests_.push_back(request);
   
-  #ifdef DEBUG_ATS
   printf("sendPageRequest: devId=0x%x, pid=0x%x, pidValid=%d, addr=0x%lx, prgi=0x%x (tracked)\n", 
          devId, pid, pidValid, address, prgi);
   
-    (void)devId; (void)pid; (void)pidValid; (void)address; (void)prgi;
-#endif
+  (void)devId; (void)pid; (void)pidValid; (void)address; (void)prgi;
 
   // TODO: Implement actual page request functionality as described above
   // This would require:
