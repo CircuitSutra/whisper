@@ -56,7 +56,7 @@ std::shared_ptr<Domain> Aplic::createDomain(const DomainParams& params)
 
     for (auto domain : domains_) {
         if (domain->overlaps(params.base, params.size))
-            throw std::runtime_error("control regions for domains '" + params.name + "' and '" + domain->name_ + "' overlap\n");
+            throw std::runtime_error("control regions for domains '" + params.name + "' and '" + domain->name() + "' overlap\n");
     }
 
     if (not params.direct_mode_supported and not params.msi_mode_supported)
@@ -75,7 +75,7 @@ std::shared_ptr<Domain> Aplic::createDomain(const DomainParams& params)
     if (not parent and params.privilege != Machine)
         throw std::runtime_error("root domain must be machine-level\n");
 
-    if (parent and parent->privilege_ == Supervisor)
+    if (parent and parent->privilege() == Supervisor)
         throw std::runtime_error("domain '" + params.name + "' has a parent domain without machine privilege\n");
 
     if (root_ and not parent)
@@ -85,12 +85,12 @@ std::shared_ptr<Domain> Aplic::createDomain(const DomainParams& params)
         throw std::runtime_error("domain with name '" + params.name + "' already exists\n");
 
     for (auto domain : domains_) {
-        if (domain->privilege_ != params.privilege)
+        if (domain->privilege() != params.privilege)
             continue;
         for (unsigned i : params.hart_indices) {
             if (domain->includesHart(i)) {
                 std::string priv_str = params.privilege == Machine ? "machine" : "supervisor";
-                std::string msg = "hart " + std::to_string(i) + " belongs to multiple " + priv_str + "-level domains: '" + params.name + "' and '" + domain->name_ + "'\n";
+                std::string msg = "hart " + std::to_string(i) + " belongs to multiple " + priv_str + "-level domains: '" + params.name + "' and '" + domain->name() + "'\n";
                 throw std::runtime_error(msg);
             }
         }
@@ -104,7 +104,7 @@ std::shared_ptr<Domain> Aplic::createDomain(const DomainParams& params)
     if (params.privilege == Supervisor) {
         for (unsigned i : params.hart_indices) {
             if (not parent->includesHart(i)) {
-                std::string msg = "hart " + std::to_string(i) + " belongs to supervisor-level domain '" + params.name + "' but not to its machine-level parent domain, '" + parent->name_ + "'\n";
+                std::string msg = "hart " + std::to_string(i) + " belongs to supervisor-level domain '" + params.name + "' but not to its machine-level parent domain, '" + parent->name() + "'\n";
                 throw std::runtime_error(msg);
             }
         }
@@ -124,7 +124,7 @@ std::shared_ptr<Domain> Aplic::createDomain(const DomainParams& params)
 std::shared_ptr<Domain> Aplic::findDomainByName(std::string_view name) const
 {
     for (auto domain : domains_)
-        if (domain->name_ == name)
+        if (domain->name() == name)
             return domain;
     return nullptr;
 }

@@ -18,7 +18,6 @@
 #include <string>
 #include <string_view>
 #include <nlohmann/json_fwd.hpp>
-#include "aplic/Aplic.hpp"
 
 
 namespace WdRiscv

@@ -23,7 +23,7 @@ cc_library(
     srcs          = glob(include = ["*.cpp", "*.hpp"], exclude = ["whisper.cpp", "py-bindings.cpp"] + hdrs),
     hdrs          = hdrs,
     local_defines = ["SOFT_FLOAT", "MEM_CALLBACKS", "LZ4_COMPRESS"],
-    deps          = ["//third_party:nlohmann", "//third_party:elfio", "//third_party:softfloat", "//third_party:linenoise", "//pci:pci", "//virtual_memory:virtual_memory", "//aplic:aplic", "//iommu:iommu"],
+    deps          = ["//third_party:nlohmann", "//third_party:elfio", "//third_party:softfloat", "//third_party:linenoise", "//pci:pci", "//virtual_memory:virtual_memory", "//aplic:aplic", "//imsic:imsic", "//iommu:iommu"],
     linkopts      = ["-lpthread", "-lz", "-ldl", "-lrt", "-llz4", "-lutil"],
     visibility    = ["//visibility:public"],
 )

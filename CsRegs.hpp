@@ -25,7 +25,7 @@
 #include "PerfRegs.hpp"
 #include "CsrFields.hpp"
 #include "PmpManager.hpp"
-#include "Imsic.hpp"
+#include "imsic/Imsic.hpp"
 #include "util.hpp"
 
 
