@@ -101,7 +101,7 @@ namespace TT_IOMMU
     uint64_t      prgi          : 9;  
     uint64_t      zero1         : 3; 
     uint64_t      responsecode  : 4; 
-    uint64_t      zero3         : 16; 
+    uint64_t      destId        : 16; 
 
     // Constructor to initialize opcode and func3
     AtsPrgrCommand()
@@ -112,7 +112,7 @@ namespace TT_IOMMU
       reserved1 = 0;
       zero0 = 0;
       zero1 = 0;
-      zero3 = 0;
+      destId = 0;
     }
   };
   
@@ -120,15 +120,15 @@ namespace TT_IOMMU
   struct IofenceCCommand
   {
     CommandOpcode   opcode      : 7;  // Command opcode (bits 0-6) = IOFENCE (0x2)
-    IofenceFunc     func3       : 4;  // Function (bits 7-10) = C (0x0)
-    uint64_t        AV          : 1;  // Address Valid (bit 11)
-    uint64_t        WSI         : 1;  // Wire-Signaled-Interrupt (bit 12)
-    uint64_t        PR          : 1;  // Previous Reads (bit 13)
-    uint64_t        PW          : 1;  // Previous Writes (bit 14)
-    uint64_t        reserved0   : 17; // Reserved bits (bits 31:15)
-    uint64_t        DATA        : 32; // Data to write (bits 63:32)
-    uint64_t        ADDR        : 62; // Address[63:2] for 4-byte aligned writes (bits 127:66)
-    uint64_t        reserved1   : 2;  // Reserved bits (bits 129:128, but we only have 128 bits total)
+    IofenceFunc     func3       : 3;  // Function (bits 7-9) = C (0x0)
+    uint64_t        AV          : 1;  // Address Valid (bit 10)
+    uint64_t        WSI         : 1;  // Wire-Signaled-Interrupt (bit 11)
+    uint64_t        PR          : 1;  // Previous Reads (bit 12)
+    uint64_t        PW          : 1;  // Previous Writes (bit 13)
+    uint64_t        reserved0   : 18; // Reserved bits (bits 14-31)
+    uint64_t        DATA        : 32; // Data to write (bits 32-63)
+    uint64_t        ADDR        : 62; // Address[63:2] for 4-byte aligned writes (bits 64-125)
+    uint64_t        reserved1   : 2;
 
     // Constructor to initialize opcode and func3
     IofenceCCommand()
@@ -142,7 +142,6 @@ namespace TT_IOMMU
       reserved0 = 0;
       DATA = 0;
       ADDR = 0;
-      reserved1 = 0;
     }
   };
 

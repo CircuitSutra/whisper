@@ -3,7 +3,7 @@ OFLAGS   = -g
 CPPFLAGS = -I../.. -I..
 CXXFLAGS = -std=c++20 -Wall -Wextra -pedantic $(CPPFLAGS) $(OFLAGS)
 
-TARGET   = device-table-walk process-table-walk fault-queue msi-translation ats-unified-test
+TARGET   = device-table-walk process-table-walk fault-queue msi-translation ats-unified-test iofence-test
 
 .PHONY:  all clean
 
