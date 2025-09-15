@@ -21,6 +21,7 @@ namespace TT_IOMMU
   // Forward declarations
   struct AtsInvalCommand;
   struct AtsPrgrCommand;
+  struct IofenceCCommand;
 
   // ATS command functions as defined in section 4.1.4
   enum class AtsFunc : uint32_t
@@ -30,11 +31,24 @@ namespace TT_IOMMU
     // 2-7 reserved for future standard use
   };
 
-  // ATS specific opcode
-  enum class AtsOpcode : uint32_t
+  // IOFENCE command functions
+  enum class IofenceFunc : uint32_t
   {
-    ATS = 4  // IOMMU PCIe ATS commands
+    C = 0  // Command queue fence
+    // 1-15 reserved for future standard use
   };
+
+  // Command opcodes
+  enum class CommandOpcode : uint32_t
+  {
+    // 0-1 reserved
+    IOFENCE = 2,  // IOMMU fence commands
+    // 3 reserved  
+    ATS = 4       // IOMMU PCIe ATS commands
+  };
+
+  // For backward compatibility
+  using AtsOpcode = CommandOpcode;
 
   /// Ats command as 2 double words.
   struct AtsCommandData
@@ -102,33 +116,71 @@ namespace TT_IOMMU
     }
   };
   
+  // IOFENCE.C command structure based on specification
+  struct IofenceCCommand
+  {
+    CommandOpcode   opcode      : 7;  // Command opcode (bits 0-6) = IOFENCE (0x2)
+    IofenceFunc     func3       : 4;  // Function (bits 7-10) = C (0x0)
+    uint64_t        AV          : 1;  // Address Valid (bit 11)
+    uint64_t        WSI         : 1;  // Wire-Signaled-Interrupt (bit 12)
+    uint64_t        PR          : 1;  // Previous Reads (bit 13)
+    uint64_t        PW          : 1;  // Previous Writes (bit 14)
+    uint64_t        reserved0   : 17; // Reserved bits (bits 31:15)
+    uint64_t        DATA        : 32; // Data to write (bits 63:32)
+    uint64_t        ADDR        : 62; // Address[63:2] for 4-byte aligned writes (bits 127:66)
+    uint64_t        reserved1   : 2;  // Reserved bits (bits 129:128, but we only have 128 bits total)
+
+    // Constructor to initialize opcode and func3
+    IofenceCCommand()
+    {
+      opcode = CommandOpcode::IOFENCE;
+      func3 = IofenceFunc::C;
+      AV = 0;
+      WSI = 0;
+      PR = 0;
+      PW = 0;
+      reserved0 = 0;
+      DATA = 0;
+      ADDR = 0;
+      reserved1 = 0;
+    }
+  };
 
   // Union to reinterpret 2 double words as different commands.
-  union AtsCommand
+  union Command
   {
     /// Construct from an AtsInvalCommand
-    AtsCommand(AtsInvalCommand inval)
+    Command(AtsInvalCommand inval)
       : inval(inval)
     {}
 
     /// Construct from an AtsPrgrCommand
-    AtsCommand(AtsPrgrCommand prgr)
+    Command(AtsPrgrCommand prgr)
       : prgr(prgr)
     {}
 
+    /// Construct from an IofenceCCommand
+    Command(IofenceCCommand iofence)
+      : iofence(iofence)
+    {}
+
     /// Construct from an AtsCommandData.
-    AtsCommand(AtsCommandData data)
+    Command(AtsCommandData data)
       : data(data)
     {}
 
     /// Construct from 2 double words.
-    AtsCommand(uint64_t dw0, uint64_t dw1)
+    Command(uint64_t dw0, uint64_t dw1)
       : data{dw0, dw1}
     {}
 
     /// True if the opcode corresponds to ATS.
     bool isAts() const
-    { return inval.opcode == AtsOpcode::ATS; }
+    { return (CommandOpcode)inval.opcode == CommandOpcode::ATS; }
+
+    /// True if the opcode corresponds to IOFENCE.
+    bool isIofence() const
+    { return (CommandOpcode)iofence.opcode == CommandOpcode::IOFENCE; }
 
     /// True if ATS invalidate command.
     bool isInval() const
@@ -138,6 +190,10 @@ namespace TT_IOMMU
     bool isPrgr() const
     { return isAts() and prgr.func3 == AtsFunc::PRGR; }
 
+    /// True if IOFENCE.C command.
+    bool isIofenceC() const
+    { return isIofence() and iofence.func3 == IofenceFunc::C; }
+
     /// Return the first double word of this command.
     uint64_t dw0() const
     { return data.dw0; }
@@ -146,10 +202,14 @@ namespace TT_IOMMU
     uint64_t dw1() const
     { return data.dw1; }
 
-    AtsInvalCommand inval;
-    AtsPrgrCommand  prgr;
-    AtsCommandData  data;
+    AtsInvalCommand   inval;
+    AtsPrgrCommand    prgr;
+    IofenceCCommand   iofence;
+    AtsCommandData    data;
   };
+
+  // For backward compatibility
+  using AtsCommand = Command;
 
 } // namespace TT_IOMMU
 

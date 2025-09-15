@@ -1799,6 +1799,10 @@ Iommu::processCommandQueue()
     {
       executeAtsPrgrCommand(cmdData);
     }
+    else if (isIofenceCCommand(cmdData))
+    {
+      executeIofenceCCommand(cmdData);
+    }
     else
     {
       // Unknown command type, potentially log error
@@ -2190,6 +2194,64 @@ Iommu::executeAtsPrgrCommand(const AtsCommandData& cmdData)
   // - Platform-specific PCIe message generation and routing
   // - Integration with OS memory management
   // - Coordination with fault handling mechanisms
+}
+
+void 
+Iommu::executeIofenceCCommand(const AtsCommandData& cmdData)
+{
+  // Parse IOFENCE.C command
+  IofenceCCommand cmd;
+  cmd = *reinterpret_cast<const IofenceCCommand*>(&cmdData);
+  
+  // Extract command fields
+  bool AV = cmd.AV;
+  bool WSI = cmd.WSI;
+  bool PR = cmd.PR;
+  bool PW = cmd.PW;
+  uint64_t addr = cmd.ADDR << 2; // Convert from ADDR[63:2] to full address
+  uint32_t data = cmd.DATA;
+  
+#ifdef DEBUG_ATS
+  printf("IOFENCE.C: AV=%d, WSI=%d, PR=%d, PW=%d, addr=0x%lx, data=0x%x\n", 
+         AV, WSI, PR, PW, addr, data);
+#endif
+
+  // Execute memory ordering (PR/PW bits)
+  if (PR || PW)
+  {
+    // TODO: Implement memory ordering guarantees
+    // For now, assume ordering is handled by the memory system
+  }
+  
+  // Execute memory write if AV=1
+  if (AV)
+  {
+    if (!memWrite(addr, 4, data))
+    {
+#ifdef DEBUG_ATS
+      printf("IOFENCE.C: Failed to write data 0x%x to address 0x%lx\n", data, addr);
+#endif
+    }
+    else
+    {
+#ifdef DEBUG_ATS
+      printf("IOFENCE.C: Successfully wrote data 0x%x to address 0x%lx\n", data, addr);
+#endif
+    }
+  }
+  
+  // Generate interrupt if WSI=1
+  if (WSI)
+  {
+    // Set fence_w_ip bit in cqcsr
+    uint64_t cqcsr = readCsr(CsrNumber::Cqcsr);
+    cqcsr |= (1ULL << 17); // fence_w_ip bit  
+    writeCsr(CsrNumber::Cqcsr, cqcsr);
+  }
+  
+#ifdef DEBUG_ATS
+  printf("IOFENCE.C: Command completed\n");
+#endif
 }
 
 void

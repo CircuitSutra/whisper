@@ -37,3 +37,6 @@ ats-test: ats-test.o
 clean:
 	rm -f *.o $(TARGET) ats-command-test ats-test
 
+
+iofence-test: iofence-test.o
+	$(CXX) $< -o $@ ../libiommu.a

@@ -549,11 +549,21 @@ namespace TT_IOMMU
     bool isAtsPrgrCommand(const AtsCommand& cmd) const
     { return cmd.isPrgr(); }
 
+    /// Return true if the given command is an IOFENCE command (has the correct opcode).
+    bool isIofenceCommand(const AtsCommand& cmd) const
+    { return cmd.isIofence(); }
+
+    bool isIofenceCCommand(const AtsCommand& cmd) const
+    { return cmd.isIofenceC(); }
+
     /// Execute an ATS.INVAL command for address translation cache invalidation
     void executeAtsInvalCommand(const AtsCommandData& cmdData);
     
     /// Execute an ATS.PRGR command for page request group response
     void executeAtsPrgrCommand(const AtsCommandData& cmdData);
+
+    /// Execute an IOFENCE.C command for command queue fence
+    void executeIofenceCCommand(const AtsCommandData& cmdData);
 
     /// ATS invalidation management methods
     uint32_t sendAtsInvalidation(uint32_t devId, uint32_t pid, uint64_t address, 
