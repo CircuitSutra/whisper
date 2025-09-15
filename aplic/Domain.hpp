@@ -281,9 +281,13 @@ public:
         if (old_child and new_child != old_child)
             old_child->undelegate(i);
 
+        bool riv_before = rectifiedInputValue(i);
         bool source_was_active = sourceIsActive(i);
         sourcecfg_[i] = new_sourcecfg;
+        bool riv_after = rectifiedInputValue(i);
         bool source_is_active = sourceIsActive(i);
+
+        bool riv_posedge = not riv_before and riv_after;
 
         if (not source_is_active) {
             target_[i].value = 0;
@@ -293,12 +297,20 @@ public:
             target_[i].dm0.iprio = 1;
         }
 
-        // source may becoming pending under new source mode
-        // TODO: this might have edge cases (suppose DM=1, SM was Level1 and
-        // is now Edge1, pending bit was cleared when forwarded by MSI or
-        // clripnum; should not set pending bit even though RIV is high)
-        if (rectifiedInputValue(i))
-            setIp(i);
+        if (sourceIsEdgeSensitive(i)) {
+            if (riv_posedge)
+                setIp(i);
+        } else if (sourceIsLevelSensitive(i)) {
+            if (not riv_after)
+                clearIp(i);
+            if (domaincfg_.fields.dm == Direct) {
+                if (riv_after)
+                    setIp(i);
+            } else {
+                if (riv_posedge)
+                    setIp(i);
+            }
+        }
 
         runCallbacksAsRequired();
     }
@@ -783,6 +795,22 @@ private:
     uint64_t msiAddr(unsigned hart_index, unsigned guest_index) const;
 
     bool rectifiedInputValue(unsigned i) const;
+
+    bool sourceIsLevelSensitive(unsigned i) const
+    {
+        if (not sourceIsActive(i))
+            return false;
+        auto sm = sourcecfg_[i].d0.sm;
+        return sm == Level1 or sm == Level0;
+    }
+
+    bool sourceIsEdgeSensitive(unsigned i) const
+    {
+        if (not sourceIsActive(i))
+            return false;
+        auto sm = sourcecfg_[i].d0.sm;
+        return sm == Edge1 or sm == Edge0;
+    }
 
     bool sourceIsImplemented(unsigned i) const;
 
