@@ -50,7 +50,7 @@ void Domain::reset()
 
 void Domain::updateTopi()
 {
-    if (domaincfg_.fields.dm == MSI)
+    if (dmIsMsi())
         return;
     unsigned num_sources = aplic_->numSources();
     for (auto hart_index : params_.hart_indices) {
@@ -100,7 +100,7 @@ void Domain::inferXeipBits()
 
 void Domain::runCallbacksAsRequired()
 {
-    if (domaincfg_.fields.dm == Direct) {
+    if (dmIsDirect()) {
         auto prev_xeip_bits = xeip_bits_;
         inferXeipBits();
         for (unsigned hart_index : params_.hart_indices) {

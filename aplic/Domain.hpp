@@ -260,7 +260,7 @@ public:
     void writeDomaincfg(uint32_t value) {
         domaincfg_.value = value;
         domaincfg_.legalize(params_);
-        if (domaincfg_.fields.dm == Direct)
+        if (dmIsDirect())
           genmsi_.value = 0;
         runCallbacksAsRequired();
     }
@@ -293,7 +293,7 @@ public:
             target_[i].value = 0;
             clearIe(i);
             clearIp(i);
-        } else if (not source_was_active and domaincfg_.fields.dm == Direct) {
+        } else if (not source_was_active and dmIsDirect()) {
             target_[i].dm0.iprio = 1;
         }
 
@@ -303,7 +303,7 @@ public:
         } else if (sourceIsLevelSensitive(i)) {
             if (not riv_after)
                 clearIp(i);
-            if (domaincfg_.fields.dm == Direct) {
+            if (dmIsDirect()) {
                 if (riv_after)
                     setIp(i);
             } else {
@@ -481,7 +481,7 @@ public:
     uint32_t readGenmsi() const { return genmsi_.value; }
 
     void writeGenmsi(uint32_t value) {
-        if (domaincfg_.fields.dm == Direct)
+        if (dmIsDirect())
             return;
         if (genmsi_.fields.busy)
             return;
@@ -530,7 +530,7 @@ public:
 
     uint32_t readClaimi(unsigned hart_index) {
         auto topi = idcs_.at(hart_index).topi;
-        if (domaincfg_.fields.dm == Direct) {
+        if (dmIsDirect()) {
             auto sm = sourcecfg_[topi.fields.iid].d0.sm;
             if (topi.value == 0)
                 idcs_.at(hart_index).iforce = 0;
@@ -848,7 +848,7 @@ private:
                 break;
             case Level0:
             case Level1:
-                if (domaincfg_.fields.dm == MSI and rectifiedInputValue(i))
+                if (dmIsMsi() and rectifiedInputValue(i))
                     setIp(i);
                 break;
             default: assert(false);
@@ -867,7 +867,7 @@ private:
                 break;
             case Level0:
             case Level1:
-                if (domaincfg_.fields.dm == MSI)
+                if (dmIsMsi())
                     clearIp(i);
                 break;
             default:
@@ -900,6 +900,8 @@ private:
     bool enabled(unsigned i) const { return bool((setie_.at(i/32) >> (i % 32)) & 1); }
     bool pending(unsigned i) const { return bool((setip_.at(i/32) >> (i % 32)) & 1); }
 
+    bool dmIsDirect() const { return domaincfg_.fields.dm == Direct; }
+    bool dmIsMsi() const { return domaincfg_.fields.dm == MSI; }
 
     const Aplic * aplic_;
     std::weak_ptr<Domain> parent_;
