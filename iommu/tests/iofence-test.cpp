@@ -174,9 +174,9 @@ int main()
         testIofenceWithMemoryWrite();
         testIofenceCommandDetection();
         
-        std::cout << "\n🎉 All IOFENCE tests passed!" << std::endl;
+        std::cout << "\nAll IOFENCE tests passed!" << std::endl;
     } catch (const std::exception& e) {
-        std::cout << "\n❌ Test failed: " << e.what() << std::endl;
+        std::cout << "\nTest failed: " << e.what() << std::endl;
         return 1;
     }
     
