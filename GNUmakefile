@@ -75,6 +75,11 @@ ifeq ($(LZ4_COMPRESS), 1)
   EXTRA_LIBS += -llz4
 endif
 
+ifeq ($(REMOTE_FRAME_BUFFER), 1)
+  override CPPFLAGS += -DREMOTE_FRAME_BUFFER
+  EXTRA_LIBS += -lvncserver
+endif
+
 
 # Add External Library location paths here
 LINK_DIRS += $(addprefix -L,$(BOOST_LIB_DIR))
@@ -160,7 +165,11 @@ RVCORE_SRCS := IntRegs.cpp CsRegs.cpp FpRegs.cpp instforms.cpp \
             Uartsf.cpp hypervisor.cpp vector-crypto.cpp WhisperMessage.cpp \
             imsic/Imsic.cpp Args.cpp Session.cpp PerfApi.cpp dot-product.cpp \
             aplic/Domain.cpp aplic/Aplic.cpp numa.cpp iommu/Iommu.cpp \
-	    iommu/IommuPmaManager.cpp
+	          iommu/IommuPmaManager.cpp
+
+ifeq ($(REMOTE_FRAME_BUFFER), 1)
+  RVCORE_SRCS += RemoteFrameBuffer.cpp
+endif
 
 
 # List of All CPP Sources for the project

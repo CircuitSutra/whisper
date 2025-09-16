@@ -1652,6 +1652,7 @@ HartConfig::applyAplicConfig(System<URV>& system) const
   return system.configAplic(num_sources, domain_params_list);
 }
 
+
 template <typename URV>
 bool
 HartConfig::applyIommuConfig(System<URV>& system) const
@@ -1799,6 +1800,87 @@ parseTriggerAllAddr(const nlohmann::json& arr, const std::string_view tag,
 
   return errors == 0;
 }
+
+#if REMOTE_FRAME_BUFFER
+template<typename URV>
+bool
+HartConfig::applyFrameBufferConfig(System<URV>& system) const
+{
+  std::string_view tag = "frame_buffer";
+  if (not config_ -> contains(tag)) 
+    {
+      return true;
+    }
+
+  std::cout << "Configuring frame buffer\n";
+
+  const auto& frame_buffer_cfg = config_ -> at(tag);
+
+  std::string type = "";
+  uint64_t base, width, height, bytes_per_pixel = 0;
+
+  tag = "type";
+  if (frame_buffer_cfg.contains(tag))
+    {
+      type = frame_buffer_cfg.at(tag).get<std::string>();
+    }
+  else
+    {
+      std::cerr << "Error: Missing type field in frame_buffer section of configuration file.\n";
+      return false;
+    }
+
+  tag = "base";
+  if (frame_buffer_cfg.contains(tag))
+    {
+      if (not getJsonUnsigned("frame_buffer.base", frame_buffer_cfg.at(tag), base))
+        return false;
+    }
+  else
+    {
+      std::cerr << "Error: Missing base field in frame_buffer section of configuration file.\n";
+      return false;
+    }
+
+  tag = "width";
+  if (frame_buffer_cfg.contains(tag))
+    {
+      if (not getJsonUnsigned("frame_buffer.width", frame_buffer_cfg.at(tag), width))
+        return false;
+    }
+  else
+    {
+      std::cerr << "Error: Missing width field in frame_buffer section of configuration file.\n";
+      return false;
+    }
+
+  tag = "height";
+  if (frame_buffer_cfg.contains(tag))
+    {
+      if (not getJsonUnsigned("frame_buffer.height", frame_buffer_cfg.at(tag), height))
+        return false;
+    }
+  else
+    {
+      std::cerr << "Error: Missing height field in frame_buffer section of configuration file.\n";
+      return false;
+    }
+
+  tag = "bytes_per_pixel";
+  if (frame_buffer_cfg.contains(tag))
+    {
+      if (not getJsonUnsigned("frame_buffer.bytes_per_pixel", frame_buffer_cfg.at(tag), bytes_per_pixel))
+        return false;
+    }
+  else
+    {
+      std::cerr << "Error: Missing bytes_per_pixel field in frame_buffer section of configuration file.\n";
+      return false;
+    }
+
+  return system.defineFrameBuffer(type, base, width, height, bytes_per_pixel);
+}
+#endif
 
 
 template<typename URV>
@@ -3029,6 +3111,11 @@ HartConfig::configHarts(System<URV>& system, bool userMode, bool verbose) const
   if (not applyPciConfig(system))
     return false;
 
+#if REMOTE_FRAME_BUFFER
+  if (not applyFrameBufferConfig(system))
+    return false;
+#endif
+
   return finalizeCsrConfig(system);
 }
 
@@ -3434,3 +3521,11 @@ HartConfig::applyIommuConfig(System<uint32_t>&) const;
 
 template bool
 HartConfig::applyIommuConfig(System<uint64_t>&) const;
+
+#if REMOTE_FRAME_BUFFER
+template bool
+HartConfig::applyFrameBufferConfig(System<uint32_t>&) const;
+
+template bool
+HartConfig::applyFrameBufferConfig(System<uint64_t>&) const;
+#endif
