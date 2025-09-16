@@ -6473,7 +6473,7 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
 	  return;
 	}
 
-      if (minstretEnabled() and not ebreakInstDebug_)
+      if (minstretEnabled() and not ebreakInstDebug_ and not isDebugModeStopCount(*this))
         ++retiredInsts_;
 
       if (doStats)
