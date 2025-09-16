@@ -194,14 +194,11 @@ Imsic::write(uint64_t addr,  unsigned size, uint64_t data)
 }
 
 
-ImsicMgr::ImsicMgr(unsigned hartCount, unsigned pageSize)
-  : pageSize_(pageSize), imsics_(hartCount)
+ImsicMgr::ImsicMgr(unsigned pageSize)
+  : pageSize_(pageSize)
 {
   if (pageSize_ == 0)
     throw std::runtime_error("Zero page size in ImsciMgr constructor.");
-
-  for (unsigned ix = 0; ix < hartCount; ++ix)
-    imsics_.at(ix) = std::make_shared<Imsic>();
 }
 
 
