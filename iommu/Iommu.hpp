@@ -280,6 +280,11 @@ namespace TT_IOMMU
     /// testing.
     uint64_t getCsrAddress(CsrNumber csrn) const
     { return addr_ + csrs_.at(size_t(csrn)).offset_; }
+    
+    /// Return the base address of the queue associated with the given queue base CSR.
+    /// Public wrapper for testing.
+    uint64_t getQueueAddress(CsrNumber qbase) const
+    { return queueAddress(qbase); }
 
     /// Load device context given a device id. Return true on success and false on
     /// failure. Set cause to failure cause on failure.

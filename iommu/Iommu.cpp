@@ -1790,16 +1790,19 @@ Iommu::processCommandQueue()
       continue;
     }
     
+    // Convert to Command for type checking
+    AtsCommand cmd(cmdData);
+    
     // Process the command based on its type
-    if (isAtsInvalCommand(cmdData))
+    if (isAtsInvalCommand(cmd))
     {
       executeAtsInvalCommand(cmdData);
     }
-    else if (isAtsPrgrCommand(cmdData))
+    else if (isAtsPrgrCommand(cmd))
     {
       executeAtsPrgrCommand(cmdData);
     }
-    else if (isIofenceCCommand(cmdData))
+    else if (isIofenceCCommand(cmd))
     {
       executeIofenceCCommand(cmdData);
     }
@@ -2092,7 +2095,9 @@ Iommu::executeIofenceCCommand(const AtsCommandData& cmdData)
     }
     else
     {
+#ifdef DEBUG_ATS
       printf("IOFENCE.C: Successfully wrote data 0x%x to address 0x%lx\n", data, addr);
+#endif
     }
   }
   
@@ -2247,50 +2252,6 @@ Iommu::sendPageRequest(uint32_t devId, uint32_t pid, uint64_t address, uint32_t 
     return;
   }
   
-  // ========================================================================
-  // MISSING FUNCTIONALITY - What still needs to be implemented:
-  // ========================================================================
-  
-  // 4. GENERATE PCIE PAGE REQUEST MESSAGE (PRM)
-  //    - Create PCIe "Page Request Message" according to PCIe PRI spec
-  //    - Message should target the device function
-  //    - Include appropriate request parameters:
-  //      * PASID (if pidValid=true, use pid as PASID)
-  //      * Virtual Address (page-aligned address)
-  //      * PRGI (Page Request Group Index from parameter)
-  //      * Permission flags (Read, Write, Execute) - determine from context
-  //      * Privilege level (User vs Supervisor) - determine from context
-  
-  // 5. SEND MESSAGE TO DEVICE
-  //    - Use platform-specific PCIe infrastructure to send PRM
-  //    - This would typically involve:
-  //      * Formatting the message according to PCIe TLP format
-  //      * Routing through PCIe fabric to target device
-  //      * Handling any PCIe-level errors or routing failures
-  
-  // 6. COORDINATE WITH OS MEMORY MANAGEMENT
-  //    - Notify OS that a page fault has occurred
-  //    - Provide fault details (address, permissions, process context)
-  //    - Wait for OS to handle the fault (page-in, permission update, etc.)
-  //    - Coordinate with virtual memory subsystem for page availability
-  
-  // 7. HANDLE TIMEOUT AND RETRY
-  //    - Implement timeout mechanism (platform-specific timeout value)
-  //    - If timeout occurs without response:
-  //      * Retry the request (up to maximum retry count)
-  //      * If max retries exceeded, report fault to software
-  //      * Clean up outstanding request tracking
-  
-  // 8. INTEGRATION WITH FAULT HANDLING
-  //    - If page request fails or times out:
-  //      * Generate appropriate fault record in fault queue
-  //      * Include fault details for software debugging
-  //      * Update fault statistics and error tracking
-  
-  // ========================================================================
-  // Placeholder functionality only
-  // ========================================================================
-  
   printf("sendPageRequest: devId=0x%x, pid=0x%x, pidValid=%d, addr=0x%lx, prgi=0x%x\n", 
          devId, pid, pidValid, address, prgi);
   
@@ -2300,11 +2261,6 @@ Iommu::sendPageRequest(uint32_t devId, uint32_t pid, uint64_t address, uint32_t 
 
   (void)devId; (void)pid; (void)pidValid; (void)address; (void)prgi;
 
-  // ========================================================================
-  // Placeholder functionality only
-  // ========================================================================
-  
-  // TRACK OUTSTANDING REQUEST (IMPLEMENTED)
   // Add request to outstanding page request tracking structure
   PageRequest request;
   request.devId = devId;

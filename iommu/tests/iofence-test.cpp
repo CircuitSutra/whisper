@@ -86,7 +86,7 @@ void testBasicIofence()
     iofenceCmd.ADDR = 0;
     
     // Write command to queue
-    uint64_t cqbAddr = 0x1000000;
+    uint64_t cqbAddr = helper.getIommu().getQueueAddress(CsrNumber::Cqb);
     Command cmd(iofenceCmd);
     helper.getMemory().write(cqbAddr, 8, cmd.dw0());
     helper.getMemory().write(cqbAddr + 8, 8, cmd.dw1());
@@ -122,7 +122,7 @@ void testIofenceWithMemoryWrite()
     iofenceCmd.ADDR = targetAddr >> 2; // ADDR[63:2] for 4-byte aligned address
     
     // Write command to queue
-    uint64_t cqbAddr = 0x1000000;
+    uint64_t cqbAddr = helper.getIommu().getQueueAddress(CsrNumber::Cqb);
     Command cmd(iofenceCmd);
     helper.getMemory().write(cqbAddr, 8, cmd.dw0());
     helper.getMemory().write(cqbAddr + 8, 8, cmd.dw1());
