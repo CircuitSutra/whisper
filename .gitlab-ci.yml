@@ -112,7 +112,8 @@ kvm-boot-job:
 notify_riscv_cluster:
   stage: notify
   rules:
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    # https://tenstorrent.atlassian.net/wiki/spaces/RVRTLDV/pages/1421574263/Ascalon+-+Dependency+Freeze+Plan
+    - if: '$CI_COMMIT_BRANCH =~ /^ascalon\/ea\/a0/ && $CI_PIPELINE_SOURCE == "push"'
   variables:
     UPDATE_REPO_POINTER: "True"
     SHA_UPDATE_REPO: "whisper"
@@ -125,7 +126,7 @@ notify_riscv_cluster:
     UPDATE_TARGET_BRANCH: ascalon/work/core
   trigger:
       project: riscv/riscv_cluster
-      branch: ascalon/work/core    
+      branch: ascalon/work/core
 
 
 # notify-archcov:
