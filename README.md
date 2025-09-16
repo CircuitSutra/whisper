@@ -77,6 +77,17 @@ simulator. In particular you would need:
    Boost source can be downloaded from
    [boost.org.](https://www.boost.org)
 
+6. Optional: to use lz4-compression, install the the lz4 library
+   and header file:
+   ```shell
+   $ sudo apt install liblz4-dev
+   ```
+
+7. Optional: to allow simulated programs to have graphical output (frame-buffer),
+   install the vncserver library and header files:
+   ```shell
+   $ sudo apt install libvncserver-dev
+   ```
 
 <a name="Compiling"/>
 
@@ -96,9 +107,12 @@ There are various Makefile options that can be used.
 + `PCI=1` to build the PCI library.
 + `TRACE_READER=1` to build the trace reader library.
 + `MEM_CALLBACKS=1` to use the sparse memory model.
-+ `HINT_OPS=1` to enable HINT ops implemented within whisper.
 + `FAST_SLOPPY=1` to enable faster (but not compliant) execution.
 + `LZ4_COMPRESS=1` to enable loading LZ4 files.
++ `REMOTE_FRAME_BUFFER=1` to enable graphics frame buffer.
+
+By default, PCI, TRACE_RADER, and MEM_CALLBACKS are set to 1.
+
 
 <a name="Preparing"/>
 
@@ -723,7 +737,6 @@ grain of 4).
 ###  guest_interrupt_count
 Defines the maximum number of guest external interrupt count (GEILEN).
 Default is zero.
-
 
 ###  csr
 The CSR configuration is a map where each key is a CSR name and the

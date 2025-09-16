@@ -22,7 +22,7 @@
 #include <unordered_map>
 #include "Filesystem.hpp"
 #include "Memory.hpp"
-#include "Imsic.hpp"
+#include "imsic/Imsic.hpp"
 #include "Syscall.hpp"
 #include "pci/Pci.hpp"
 #include "pci/virtio/Blk.hpp"
@@ -280,6 +280,13 @@ namespace WdRiscv
           dev->enable();
     }
 
+#if REMOTE_FRAME_BUFFER
+    /// Frame Buffer that can drive a display. Specify the width, height, and 
+    /// the number of bytes per pixel. 
+    bool defineFrameBuffer(const std::string& type, uint64_t addr, uint64_t width, 
+        uint64_t height, uint64_t bytes_per_pixel);
+#endif
+
     /// Return the memory page size.
     size_t pageSize() const
     { return memory_->pageSize(); }
@@ -448,14 +455,15 @@ namespace WdRiscv
     /// round-robin with each hart executing n instructions where n is
     /// a random number in the range [stepWindowLo, stepWindowHi]. If stepWindow is
     /// 0, each hart runs in its own simulator thread independent of
-    /// the other harts.
-    bool batchRun(std::vector<FILE*>& traceFiles, bool waitAll, uint64_t stepWinLo, uint64_t stepWinHi);
+    /// the other harts. If earlyTerminate is true, returns on first
+    /// roiEntry exception.
+    bool batchRun(std::vector<FILE*>& traceFiles, bool waitAll, uint64_t stepWinLo, uint64_t stepWinHi, bool earlyRoiTerminate = false);
 
     /// Run producing a snapshot after each snapPeriod instructions. Each
     /// snapshot goes into its own directory names <dir><n> where <dir> is
     /// the string in snapDir and <n> is a sequential integer starting at
     /// 0. Return true on success and false on failure.
-    bool snapshotRun(std::vector<FILE*>& traceFiles, const std::vector<uint64_t>& periods);
+    bool snapshotRun(std::vector<FILE*>& traceFiles, const std::vector<uint64_t>& periods, bool aperiodic);
 
     /// Set snapshot directory path.
     void setSnapshotDir(const std::string& snapDir)

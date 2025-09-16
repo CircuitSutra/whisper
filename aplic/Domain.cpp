@@ -8,22 +8,12 @@ Domain::Domain(
     std::shared_ptr<Domain> parent,
     const DomainParams& params
 ):
-    ipriolen_(params.ipriolen),
-    eiidlen_(params.eiidlen),
-    dm0_ok_(params.direct_mode_supported),
-    dm1_ok_(params.msi_mode_supported),
-    be0_ok_(params.le_supported),
-    be1_ok_(params.be_supported),
     aplic_(aplic),
-    name_(params.name),
     parent_(parent),
-    base_(params.base),
-    size_(params.size),
-    privilege_(params.privilege),
-    hart_indices_(params.hart_indices)
+    params_(params)
 {
-    assert(dm0_ok_ or dm1_ok_);
-    assert(be0_ok_ or be1_ok_);
+    assert(params.direct_mode_supported or params.msi_mode_supported);
+    assert(params.le_supported or params.be_supported);
     unsigned num_harts = aplic->numHarts();
     xeip_bits_.resize(num_harts);
     idcs_.resize(num_harts);
@@ -33,11 +23,11 @@ Domain::Domain(
 void Domain::reset()
 {
     domaincfg_ = Domaincfg{};
-    domaincfg_.legalize(dm0_ok_, dm1_ok_, be0_ok_, be1_ok_);
-    mmsiaddrcfg_ = 0;
-    mmsiaddrcfgh_ = Mmsiaddrcfgh{};
-    smsiaddrcfg_ = 0;
-    smsiaddrcfgh_ = Smsiaddrcfgh{};
+    domaincfg_.legalize(params_);
+    mmsiaddrcfg_ = params_.mmsiaddrcfg;
+    mmsiaddrcfgh_ = Mmsiaddrcfgh{params_.mmsiaddrcfgh};
+    smsiaddrcfg_ = params_.smsiaddrcfg;
+    smsiaddrcfgh_ = Smsiaddrcfgh{params_.smsiaddrcfgh};
     for (unsigned i = 0; i < sourcecfg_.size(); i++) {
         sourcecfg_[i] = Sourcecfg{};
         target_[i] = Target{};
@@ -60,10 +50,10 @@ void Domain::reset()
 
 void Domain::updateTopi()
 {
-    if (domaincfg_.fields.dm == MSI)
+    if (dmIsMsi())
         return;
     unsigned num_sources = aplic_->numSources();
-    for (auto hart_index : hart_indices_) {
+    for (auto hart_index : params_.hart_indices) {
         idcs_[hart_index].topi = Topi{};
     }
     for (unsigned i = 1; i <= num_sources; i++) {
@@ -85,10 +75,10 @@ void Domain::updateTopi()
 
 void Domain::inferXeipBits()
 {
-    for (unsigned i : hart_indices_)
+    for (unsigned i : params_.hart_indices)
         xeip_bits_[i] = 0;
     if (domaincfg_.fields.ie) {
-        for (unsigned hart_index : hart_indices_) {
+        for (unsigned hart_index : params_.hart_indices) {
             if (idcs_[hart_index].iforce)
                 xeip_bits_[hart_index] = 1;
         }
@@ -110,13 +100,13 @@ void Domain::inferXeipBits()
 
 void Domain::runCallbacksAsRequired()
 {
-    if (domaincfg_.fields.dm == Direct) {
+    if (dmIsDirect()) {
         auto prev_xeip_bits = xeip_bits_;
         inferXeipBits();
-        for (unsigned hart_index : hart_indices_) {
+        for (unsigned hart_index : params_.hart_indices) {
             auto xeip_bit = xeip_bits_[hart_index];
             if (prev_xeip_bits[hart_index] != xeip_bit and direct_callback_)
-                direct_callback_(hart_index, privilege_, xeip_bit);
+                direct_callback_(hart_index, params_.privilege, xeip_bit);
         }
     } else if (aplic_->autoForwardViaMsi) {
         unsigned num_sources = aplic_->numSources();
@@ -136,7 +126,7 @@ uint64_t Domain::msiAddr(unsigned hart_index, unsigned guest_index) const
     uint64_t g = (hart_index >> cfgh.fields.lhxw) & ((1 << cfgh.fields.hhxw) - 1);
     uint64_t h = hart_index & ((1 << cfgh.fields.lhxw) - 1);
     uint64_t hhxs = cfgh.fields.hhxs;
-    if (privilege_ == Machine) {
+    if (params_.privilege == Machine) {
         uint64_t low = root()->mmsiaddrcfg_;
         addr = (uint64_t(cfgh.fields.ppn) << 32) | low;
         addr = (addr | (g << (hhxs + 12)) | (h << cfgh.fields.lhxs)) << 12;

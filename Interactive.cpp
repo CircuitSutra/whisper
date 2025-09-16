@@ -670,10 +670,12 @@ Interactive<URV>::peekCommand(Hart<URV>& hart, const std::string& line,
       if (hart.peekCsr(csrn, val, virtMode))
         {
           out << (boost::format(hexForm) % val);
+#if 0
           if (csrn == CsrNumber::MIP)
             out << " " << (boost::format(hexForm) % hart.csRegs().effectiveMip());
           else if (csrn == CsrNumber::SIP)
             out << " " << (boost::format(hexForm) % hart.csRegs().effectiveSip());
+#endif
           out << std::endl;
 	  return true;
 	}

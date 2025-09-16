@@ -28,22 +28,54 @@ Iommu::read(uint64_t addr, unsigned size, uint64_t& data) const
     return false;
 
   const IommuCsr* csr = findCsrByAddr(addr);
-  if (not csr or size > csr->size())
-    return false;
+  if (csr)
+    {
+      if (size > csr->size())
+        return false;
 
-  uint64_t offset = addr - addr_;
-  if (offset > csr->offset() and size == 8)
-    return false;   // Crossing a CSR boundary
+      uint64_t offset = addr - addr_;
+      if (offset > csr->offset() and size == 8)
+        return false;   // Crossing a CSR boundary
 
-  data = csr->read();
+      data = csr->read();
 
-  if (offset > csr->offset())
-    data >>= 32;   // Reading upper 32 bits of a 64-bit register.
+      if (offset > csr->offset())
+        data >>= 32;   // Reading upper 32 bits of a 64-bit register.
 
-  if (size == 4)
-    data = (data << 32) >> 32;   // Clear top 32 bits.
+      if (size == 4)
+        data = (data << 32) >> 32;   // Clear top 32 bits.
 
-  return true;
+      return true;
+    }
+
+  // For PMPCFG/PMADDR access, size must be 8 and address must double-word aligned
+  if (pmpEnabled_)
+    {
+      if (isPmpcfgAddr(addr))
+        {
+          const unsigned pmpcfgSize = 8;
+          if (size != pmpcfgSize or (addr & (pmpcfgSize - 1)) != 0)
+            return false;
+          unsigned ix = (addr - pmpcfgAddr_) / pmpcfgSize;
+          data = pmpcfg_.at(ix);
+          return true;
+        }
+
+      if (isPmpaddrAddr(addr))
+        {
+          const unsigned pmpaddrSize = 8;
+          if (size != pmpaddrSize or (addr & (pmpaddrSize - 1)) != 0)
+            return false;
+          unsigned ix = (addr - pmpaddrAddr_) / pmpaddrSize;
+          data = pmpaddr_.at(ix);
+          assert(0 && "adjust PMPADDR value according to type");
+          return true;
+        }
+
+      // Not a PMP address. Check if PMA.
+    }
+
+  return false;
 }
 
 
@@ -55,28 +87,75 @@ Iommu::write(uint64_t addr, unsigned size, uint64_t data)
     return false;
 
   IommuCsr* csr = findCsrByAddr(addr);
-  if (not csr or size > csr->size())
-    return false;
-
-  uint64_t offset = addr - addr_;
-  if (offset > csr->offset() and size == 8)
-    return false;   // Crossing a CSR boundary
-
-  if (size == 4)
-    data = (data << 32) >> 32;   // Clear upper 32 bits.
-
-  uint64_t value = csr->read();
-
-  if (offset > csr->offset())
+  if (csr)
     {
-      value = (value << 32) >> 32;
-      value |= data << 32;  // Writing upper 32 bits of a 64-bit register.
-    }
-  else
-    value = data;
+      if (size > csr->size())
+        return false;
 
-  writeCsr(csr->number(), value);
-  return true;
+      uint64_t offset = addr - addr_;
+      if (offset > csr->offset() and size == 8)
+        return false;   // Crossing a CSR boundary
+
+      if (size == 4)
+        data = (data << 32) >> 32;   // Clear upper 32 bits.
+
+      uint64_t value = csr->read();
+
+      if (offset > csr->offset())
+        {
+          value = (value << 32) >> 32;
+          value |= data << 32;  // Writing upper 32 bits of a 64-bit register.
+        }
+      else
+        value = data;
+
+      writeCsr(csr->number(), value);
+      return true;
+    }
+
+  // For PMPCFG/PMADDR access, size must be 8 and address must double-word aligned
+  if (pmpEnabled_)
+    {
+      if (isPmpcfgAddr(addr))
+        {
+          const unsigned pmpcfgSize = 8;
+          if (size != pmpcfgSize or (addr & (pmpcfgSize - 1)) != 0)
+            return false;
+          unsigned ix = (addr - pmpcfgAddr_) / pmpcfgSize;
+          assert(0  && "legalize pmpcfg value");
+          pmpcfg_.at(ix) = data;
+          updateMemoryProtection();
+          return true;
+        }
+
+      if (isPmpaddrAddr(addr))
+        {
+          const unsigned pmpaddrSize = 8;
+          if (size != pmpaddrSize or (addr & (pmpaddrSize - 1)) != 0)
+            return false;
+          unsigned ix = (addr - pmpaddrAddr_) / pmpaddrSize;
+          pmpaddr_.at(ix) = data;
+
+          uint8_t cfgByte =  getPmpcfgByte(ix);
+          if (((cfgByte >> 3) & 3) != 0)   // If type != Off
+            updateMemoryProtection();
+          return true;
+        }
+    }
+
+  if (pmaEnabled_ and isPmacfgAddr(addr))
+    {
+      const unsigned pmacfgSize = 8;
+      if (size != pmacfgSize or (addr & (pmacfgSize - 1)) != 0)
+        return false;
+      unsigned ix = (addr - pmacfgAddr_) / pmacfgSize;
+      assert(0 && "legalize pmacfg value");
+      pmacfg_.at(ix) = data;
+      updateMemoryAttributes(ix);
+      return true;
+    }
+
+  return false;
 }
 
 
@@ -764,7 +843,7 @@ Iommu::readForDevice(const IommuRequest& req, uint64_t& data, unsigned& cause)
     return false;
 
   // FIX Should we consider device endianness?
-  return memRead_(pa, req.size, data);
+  return memRead(pa, req.size, data);
 }
 
 
@@ -783,7 +862,7 @@ Iommu::writeForDevice(const IommuRequest& req, uint64_t data, unsigned& cause)
     return false;
 
   // FIX Should we consider device endianness?
-  return memWrite_(pa, req.size, data);
+  return memWrite(pa, req.size, data);
 }
 
 
@@ -2663,4 +2742,130 @@ Iommu::t2gpaTranslate(const IommuRequest& req, uint64_t& gpa, unsigned& cause)
   // which will then undergo second-stage translation
   
   return true;
+}
+
+
+bool
+Iommu::definePmpRegs(uint64_t cfgAddr, unsigned cfgCount,
+                     uint64_t addrAddr, unsigned addrCount)
+{
+  if (cfgCount == 0 and addrCount == 0)
+    {
+      pmpcfgCount_ = cfgCount;
+      pmpaddrCount_ = addrCount;
+      pmpEnabled_ = false;
+      return true;
+    }
+
+  if (addrCount != 8 and addrCount != 16 and addrCount != 64)
+    {
+      std::cerr << "Invalid IOMMU PMPADDR count: " << addrCount << " -- expecting "
+                << "8, 16, or 64\n";
+      return false;
+    }
+
+  if ((addrCount / 8) != cfgCount)
+    {
+      std::cerr << "Invalid IOMMU PMPCFG count: " << cfgCount << " -- expecting "
+                << (addrCount / 8) << "\n";
+      return false;
+    }
+
+  if ((cfgAddr & 7) != 0)
+    {
+      std::cerr << "Invalid IOMMU PMPCFG address: " << cfgAddr << ": must be "
+                << "double-word aligned\n";
+      return false;
+    }
+      
+  if ((addrAddr & 7) != 0)
+    {
+      std::cerr << "Invalid IOMMU PMPADDR address: " << addrAddr << ": must be "
+                << "double-word aligned\n";
+      return false;
+    }
+
+  pmpcfgCount_ = cfgCount;
+  pmpaddrCount_ = addrCount;
+  pmpcfgAddr_ = cfgAddr;
+  pmpaddrAddr_ = addrAddr;
+
+  pmacfg_.clear();
+  pmpcfg_.resize(pmpcfgCount_);
+
+  pmpaddr_.clear();
+  pmpaddr_.resize(pmpaddrCount_);
+
+  pmpEnabled_ = true;
+  return true;
+}
+
+
+void
+Iommu::updateMemoryProtection()
+{
+  pmpMgr_.reset();
+
+  for (unsigned ix = 0; ix < pmpaddrCount_; ++ix)
+    {
+      uint64_t low = 0, high = 0;
+      Pmp::Type type = Pmp::Type::Off;
+      Pmp::Mode mode = Pmp::Mode::None;
+      bool locked = false;
+
+      uint8_t cfgByte = getPmpcfgByte(ix);
+      uint64_t val = pmpaddr_.at(ix);
+      uint64_t precVal =  (ix == 0) ? 0 : pmpaddr_.at(ix - 1);  // Preceding PMPADDR reg.
+
+      pmpMgr_.unpackMemoryProtection(cfgByte, val, precVal, false /*rv32*/, mode,
+                                     type, locked, low, high);
+
+      pmpMgr_.defineRegion(low, high, type, mode, ix, locked);
+    }
+}
+
+
+bool
+Iommu::definePmaRegs(uint64_t cfgAddr, unsigned cfgCount)
+{
+  if (cfgCount == 0)
+    {
+      pmacfgCount_ = cfgCount;
+      pmaEnabled_ = false;
+      return true;
+    }
+
+  if ((cfgAddr & 7) != 0)
+    {
+      std::cerr << "Invalid IOMMU PMACFG address: " << cfgAddr << ": must be "
+                << "double-word aligned\n";
+      return false;
+    }
+      
+  pmacfgCount_ = cfgCount;
+  pmacfgAddr_ = cfgAddr;
+
+  pmacfg_.clear();
+  pmacfg_.resize(pmacfgCount_);
+
+  pmaEnabled_ = true;
+  return true;
+}
+
+
+void
+Iommu::updateMemoryAttributes(unsigned pmacfgIx)
+{
+  uint64_t val = pmacfg_.at(pmacfgIx);
+
+  uint64_t low = 0, high = 0;
+  Pma pma;
+  bool valid = false;
+
+  pmaMgr_.unpackPmacfg(val, valid, low, high, pma);
+  if (valid)
+    {
+      if (not pmaMgr_.defineRegion(pmacfgIx, low, high, pma))
+	assert(0);
+    }
 }

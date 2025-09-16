@@ -31,6 +31,9 @@
 #include "Uart8250.hpp"
 #include "Uartsf.hpp"
 #include "pci/virtio/Blk.hpp"
+#if REMOTE_FRAME_BUFFER
+#include "RemoteFrameBuffer.hpp"
+#endif
 
 
 using namespace WdRiscv;
@@ -204,6 +207,28 @@ System<URV>::defineUart(const std::string& type, uint64_t addr, uint64_t size,
 
   return true;
 }
+
+#if REMOTE_FRAME_BUFFER
+template <typename URV>
+bool
+System<URV>::defineFrameBuffer(const std::string& type, uint64_t addr, uint64_t width, uint64_t height, uint64_t bytes_per_pixel)
+{
+  std::shared_ptr<IoDevice> dev;
+
+  if (type == "rfb")
+    dev = std::make_shared<RemoteFrameBuffer>(addr, width, height, bytes_per_pixel);
+  else
+    {
+      std::cerr << "System::defineFrameBuffer: Invalid frame_buffer type: " << type << "\n";
+      return false;
+    }
+
+  memory_->registerIoDevice(dev);
+  ioDevs_.push_back(std::move(dev));
+
+  return true;
+}
+#endif
 
 template <typename URV>
 System<URV>::~System()
@@ -906,7 +931,8 @@ template <typename URV>
 bool
 System<URV>::configIommu(uint64_t base_addr, uint64_t size, uint64_t capabilities)
 {
-  iommu_ = std::make_shared<TT_IOMMU::Iommu>(base_addr, size);
+  uint64_t memSize = this->memory_->size();
+  iommu_ = std::make_shared<TT_IOMMU::Iommu>(base_addr, size, memSize);
 
   iommu_->configureCapabilities(capabilities);
   iommu_->reset();
@@ -1565,7 +1591,7 @@ extern void forceUserStop(int);
 
 template <typename URV>
 bool
-System<URV>::batchRun(std::vector<FILE*>& traceFiles, bool waitAll, uint64_t stepWinLo, uint64_t stepWinHi)
+System<URV>::batchRun(std::vector<FILE*>& traceFiles, bool waitAll, uint64_t stepWinLo, uint64_t stepWinHi, bool earlyRoiTerminate)
 {
   auto forceSnapshot = [this]() -> void {
       uint64_t tag = ++snapIx_;
@@ -1590,10 +1616,22 @@ System<URV>::batchRun(std::vector<FILE*>& traceFiles, bool waitAll, uint64_t ste
 
   while (true)
     {
-      struct {
+      struct ExitCondition {
         bool prog = false;
         bool stop = false;
-      } snap;
+        bool roi = false;
+
+        ExitCondition() = default;
+
+        ExitCondition(CoreException::Type type) {
+          if (type == CoreException::Type::Snapshot or
+              type == CoreException::Type::SnapshotAndStop)
+            prog = true;
+          roi = (type == CoreException::Type::RoiEntry);
+          stop = (type != CoreException::Type::Snapshot) and not roi;
+        };
+
+      } cond;
 
       std::atomic<bool> result = true;
 
@@ -1606,13 +1644,11 @@ System<URV>::batchRun(std::vector<FILE*>& traceFiles, bool waitAll, uint64_t ste
 #if FAST_SLOPPY
               hart.reportOpenedFiles(std::cout);
 #endif
+              cond = ExitCondition(CoreException::Type::Exit);
             }
           catch (const CoreException& ce)
             {
-              if (ce.type() == CoreException::Type::Snapshot or
-                  ce.type() == CoreException::Type::SnapshotAndStop)
-                snap.prog = true;
-              snap.stop = ce.type() != CoreException::Type::Snapshot;
+              cond = ExitCondition(ce.type());
             }
         }
       else if (not stepWinLo and not stepWinHi)
@@ -1621,18 +1657,16 @@ System<URV>::batchRun(std::vector<FILE*>& traceFiles, bool waitAll, uint64_t ste
           std::vector<std::thread> threadVec;
           std::atomic<unsigned> finished = 0;  // Count of finished threads.
 
-          auto threadFunc = [&result, &finished, &snap] (Hart<URV>* hart, FILE* traceFile) {
+          auto threadFunc = [&result, &finished, &cond] (Hart<URV>* hart, FILE* traceFile) {
                               try
                                 {
                                   bool r = hart->run(traceFile);
                                   result = result and r;
+                                  cond = ExitCondition(CoreException::Type::Exit);
                                 }
                               catch (const CoreException& ce)
                                 {
-                                  if (ce.type() == CoreException::Type::Snapshot or
-                                      ce.type() == CoreException::Type::SnapshotAndStop)
-                                    snap.prog = true;
-                                  snap.stop = ce.type() != CoreException::Type::Snapshot;
+                                  cond = ExitCondition(ce.type());
                                 }
                               finished++;
                             };
@@ -1653,7 +1687,7 @@ System<URV>::batchRun(std::vector<FILE*>& traceFiles, bool waitAll, uint64_t ste
 
           for (auto& t : threadVec)
             {
-              if (snap.prog)
+              if (cond.prog or cond.roi)
                 forceUserStop(0);
               t.join();
             }
@@ -1684,30 +1718,30 @@ System<URV>::batchRun(std::vector<FILE*>& traceFiles, bool waitAll, uint64_t ste
                       bool stop;
                       result = hptr->runSteps(steps, stop, traceFiles.at(ix)) and result;
                       stopped.at(ix) = stop;
+                      cond = ExitCondition(CoreException::Type::Exit);
                     }
                   catch (const CoreException& ce)
                     {
-                      if (ce.type() == CoreException::Type::Snapshot or
-                          ce.type() == CoreException::Type::SnapshotAndStop)
-                        snap.prog = true;
-                      snap.stop = ce.type() != CoreException::Type::Snapshot;
+                      cond = ExitCondition(ce.type());
                     }
                   if (stopped.at(ix))
                     finished++;
                 }
 
-              if (snap.prog)
+              if (cond.prog or cond.roi)
                 break;
             }
         }
 
-      if (snap.prog)
+      if (cond.prog or (cond.roi and earlyRoiTerminate))
         {
           forceSnapshot();
-          if (snap.stop)
+          if (cond.stop or
+              (cond.roi and earlyRoiTerminate))
             return result;
         }
-      else
+      else if (cond.stop or
+               (cond.roi and earlyRoiTerminate))
         return result;
     }
 }
@@ -1719,63 +1753,124 @@ System<URV>::batchRun(std::vector<FILE*>& traceFiles, bool waitAll, uint64_t ste
 /// 0. Return true on success and false on failure.
 template <typename URV>
 bool
-System<URV>::snapshotRun(std::vector<FILE*>& traceFiles, const std::vector<uint64_t>& periods)
+System<URV>::snapshotRun(std::vector<FILE*>& traceFiles, const std::vector<uint64_t>& periods, bool aperiodic)
 {
   if (hartCount() == 0)
     return true;
 
+  if (periods.size() > 1 and not aperiodic)
+    assert(false);
+
   Hart<URV>& hart0 = *ithHart(0);
 
-  uint64_t globalLimit = hart0.getInstructionCountLimit();
+  // Turns on roi-offset snapshots.
+  bool hasRoi = hart0.hasRoiTraceEnabled();
+  std::string origSnapDir = snapDir_;
+  int roiIx = -1;
 
-  for (size_t ix = 0; true; ++ix)
+  // For the first ROI, we run until the end -- then apply a user specified limit (if specified)
+  uint64_t globalLimit = hasRoi? ~uint64_t(0) : hart0.getInstructionCountLimit();
+  uint64_t userLimit = hart0.getInstructionCountLimit();
+
+  while (true)
     {
-      uint64_t nextLimit = globalLimit;
-      if (not periods.empty())
-	{
-	  if (periods.size() == 1)
-	    nextLimit = hart0.getInstructionCount() + periods.at(0);
-	  else
-	    nextLimit = ix < periods.size() ? periods.at(ix) : globalLimit;
-	}
+      uint64_t offset = 0;
+      bool done = false; ++roiIx;
+      // Fast-forward to ROI.
+      if (hasRoi)
+        {
+          snapIx_ = -1;
+          snapDir_ = origSnapDir + "-roi" + std::to_string(roiIx) + "-";
 
-      nextLimit = std::min(nextLimit, globalLimit);
+          for (auto hartPtr : sysHarts_)
+            hartPtr->setInstructionCountLimit(globalLimit);
 
-      uint64_t tag = 0;
-      if (periods.size() > 1)
-	tag = ix < periods.size() ? periods.at(ix) : nextLimit;
-      else
-        tag = ++snapIx_;
-      std::string pathStr = snapDir_ + std::to_string(tag);
-      Filesystem::path path = pathStr;
-      if (not Filesystem::is_directory(path) and
-	  not Filesystem::create_directories(path))
-	{
-	  std::cerr << "Error: Failed to create snapshot directory " << pathStr << '\n';
-	  return false;
-	}
+          batchRun(traceFiles, true /*waitAll*/, 0 /*stepWindowLo*/, 0 /*stepWindowHi*/, true /*earlyRoiTerminate*/);
 
-      for (auto hartPtr : sysHarts_)
-	hartPtr->setInstructionCountLimit(nextLimit);
+          offset = hart0.getInstructionCount();
+          for (auto& hartPtr : sysHarts_)
+            done = done or hartPtr->hasTargetProgramFinished() or (offset >= globalLimit);
+          if (userLimit != ~uint64_t(0))
+            globalLimit = offset + userLimit;
+        }
 
-      batchRun(traceFiles, true /*waitAll*/, 0 /*stepWindowLo*/, 0 /*stepWindowHi*/);
-
-      bool done = false;
-      for (auto& hartPtr : sysHarts_)
-	if (hartPtr->hasTargetProgramFinished() or nextLimit >= globalLimit)
-	  {
-	    done = true;
-	    Filesystem::remove_all(path);
-	    break;
-	  }
       if (done)
-	break;
+        break;
 
-      if (not saveSnapshot(pathStr))
-	{
-	  std::cerr << "Error: Failed to save a snapshot\n";
-	  return false;
-	}
+      for (size_t ix = 0; ix < periods.size();)
+        {
+          uint64_t nextLimit = globalLimit;
+          if (not periods.empty())
+            {
+              if (not aperiodic)
+                {
+                  nextLimit = hart0.getInstructionCount() + periods.at(0);
+                  // early exit if we exited the ROI for periodic snaps
+                  if (hasRoi)
+                    {
+                      bool inRoi = false;
+                      for (auto& hartPtr : sysHarts_)
+                        inRoi = inRoi or hartPtr->traceOn();
+                      if (not inRoi)
+                        break;
+                    }
+                }
+              else
+                nextLimit = offset + periods.at(ix);
+            }
+          nextLimit = std::min(nextLimit, globalLimit);
+
+          uint64_t tag = 0;
+          if (aperiodic)
+            {
+              tag = periods.at(ix);
+              ++ix;
+            }
+          else
+            tag = ++snapIx_;
+          std::string pathStr = snapDir_ + std::to_string(tag);
+          Filesystem::path path = pathStr;
+          if (not Filesystem::is_directory(path) and
+              not Filesystem::create_directories(path))
+            {
+              std::cerr << "Error: Failed to create snapshot directory " << pathStr << '\n';
+              return false;
+            }
+
+          for (auto hartPtr : sysHarts_)
+            hartPtr->setInstructionCountLimit(nextLimit);
+
+          batchRun(traceFiles, true /*waitAll*/, 0 /*stepWinLo*/, 0 /*stepWinHi*/);
+
+          for (auto& hartPtr : sysHarts_)
+            if (hartPtr->hasTargetProgramFinished() or nextLimit >= globalLimit)
+              {
+                done = true;
+                Filesystem::remove_all(path);
+                break;
+              }
+          if (done)
+            break;
+
+          if (not saveSnapshot(pathStr))
+            {
+              std::cerr << "Error: Failed to save a snapshot\n";
+              return false;
+            }
+        }
+
+      if (done)
+        break;
+
+      // Finish the run if not using ROI.
+      if (not hasRoi)
+        {
+          for (auto hartPtr : sysHarts_)
+            hartPtr->setInstructionCountLimit(userLimit);
+
+          batchRun(traceFiles, true /*waitAll*/, 0 /*stepWinLo*/, 0 /*stepWinHi*/);
+          break;
+        }
     }
 
   // Incremental branch traces are in snapshot directories. Turn off

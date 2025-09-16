@@ -24,7 +24,8 @@
 #include "Triggers.hpp"
 #include "PerfRegs.hpp"
 #include "CsrFields.hpp"
-#include "Imsic.hpp"
+#include "PmpManager.hpp"
+#include "imsic/Imsic.hpp"
 #include "util.hpp"
 
 
@@ -880,7 +881,7 @@ namespace WdRiscv
     friend class Hart<uint32_t>;
     friend class Hart<uint64_t>;
 
-    CsRegs();
+    CsRegs(const PmpManager& pmpMgr);
     
     ~CsRegs();
 
@@ -1715,9 +1716,9 @@ namespace WdRiscv
     bool mdseacLocked() const
     { return mdseacLocked_; }
 
-    /// Adjust the value of the PMPADDR register according to the
-    /// grain mask and the A field of the corresponding PMPCFG.
-    /// Return adjusted value.
+    /// Adjust the value of the PMPADDR register according to the grain mask and the A
+    /// field of the corresponding PMPCFG. Return adjusted value. This is done on a CSR
+    /// read since the read value of PMPADDR may be different than its internal value.
     URV adjustPmpValue(CsrNumber csrn, URV value) const;
 
     /// Read value of SIP (MIP masked with MIDELEG). This may
@@ -1802,12 +1803,6 @@ namespace WdRiscv
     /// Helper to read method.
     bool readMtopei();
 
-    /// Legalize the PMPCFG value before updating such a register: If
-    /// the grain factor G is greater than or equal to 1, then the NA4
-    /// mode is not selectable in the A field. If a field is locked it
-    /// is replaced by the current value. Return the legalized value.
-    URV legalizePmpcfg(URV current, URV value) const;
-
     /// Legalize a PMACFG value. Return legalized value.
     URV legalizePmacfg(URV current, URV value) const;
 
@@ -1823,16 +1818,6 @@ namespace WdRiscv
     /// Return true if given CSR number is a PMPADDR register and if
     /// that register is locked.  Return false otherwise.
     bool isPmpaddrLocked(CsrNumber csrn) const;
-
-    /// Set the physical memory protection G parameter. The grain size
-    /// is 2 to the power G+2.  The values returned by a read operation
-    /// of the PMPADDR registers are adjusted according to G.
-    void setPmpG(unsigned value)
-    { pmpG_ = value; }
-
-    /// Return the physical memory protection G parameter. See setPmpG.
-    unsigned getPmpG() const
-    { return pmpG_; }
 
     /// Set the max number of guest interrupt count. This should be
     /// done before hypervisor mode is enable.
@@ -1858,14 +1843,6 @@ namespace WdRiscv
     /// Enable/disable svadu
     void enableSvadu(bool flag)
     { enableMenvcfgAdue(flag); }
-
-    /// Enable/disable top-of-range mode in pmp configurations.
-    void enablePmpTor(bool flag)
-    { pmpTor_ = flag; }
-
-    /// Enable/disable NA4 mode in pmp configurations.
-    void enablePmpNa4(bool flag)
-    { pmpNa4_ = flag; }
 
     /// Update implementation status of Sstc (supervisor timer)
     /// related CSRs.  This is called when Sstc related configuration
@@ -2396,6 +2373,9 @@ namespace WdRiscv
   private:
 
     bool rv32_ = sizeof(URV) == 4;
+
+    const PmpManager& pmpMgr_;
+
     std::vector< Csr<URV> > regs_;
     std::unordered_map<std::string, CsrNumber, util::string_hash, std::equal_to<>> nameToNumber_;
 
@@ -2423,7 +2403,6 @@ namespace WdRiscv
 
     URV shadowSie_ = 0;     // Used where mideleg is 0 and mvien is 1.
 
-    unsigned pmpG_ = 0;     // PMP G value: ln2(pmpGrain) - 2
     unsigned geilen_ = 0;   // Guest interrupt count.
 
     bool userEnabled_ = false;    // User mode enabled
@@ -2434,8 +2413,6 @@ namespace WdRiscv
     bool stateenOn_ = false;      // Mstateen extension.
     bool sdtrigOn_ = false;       // Stdtrig (debug triggers) extension.
     bool ssqosidOn_ = false;      // Ssqosid extension.
-    bool pmpTor_ = true;          // Top-of-range PMP mode enabled
-    bool pmpNa4_ = true;          // Na4 PMP mode enabled
     bool aiaEnabled_ = false;     // Aia extension.
     bool mcdelegEnabled_ = true;  // Mvdeleg extension (counter delegation).
 

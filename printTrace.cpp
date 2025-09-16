@@ -305,6 +305,9 @@ Hart<URV>::printDecodedInstTrace(const DecodedInst& di, uint64_t tag, std::strin
   if (not out)
     return;
 
+  if (not traceOn_)
+    return;
+
   if (csvTrace_)
     {
       printInstCsvTrace(di, out);
@@ -377,7 +380,11 @@ Hart<URV>::printDecodedInstTrace(const DecodedInst& di, uint64_t tag, std::strin
   URV value = 0;
   if (reg > 0)
     {
-      if (di.instId() == InstId::amocas_q)  // amocas_q modifies 2 registers.
+      bool twoRegsUpdated = (
+        (di.instId() == InstId::amocas_q) or
+        (di.instId() == InstId::amocas_d and sizeof(URV) == 4)
+      );
+      if (twoRegsUpdated)
 	{
 	  assert((reg & 1) == 1);
 	  value = intRegs_.read(reg - 1);
@@ -857,7 +864,7 @@ Hart<URV>::printInstCsvTrace(const DecodedInst& di, FILE* out)
       printWalks(true);  // Instruction fetch walks.
       buffer.printChar(',');
 
-      printWalks(false); // Data access walks. 
+      printWalks(false); // Data access walks.
     }
 
   buffer.printChar('\n');
@@ -890,6 +897,9 @@ Hart<URV>::reportInstsPerSec(uint64_t instCount, uint64_t retInstCount, double e
   if (elapsed > 0)
     std::cerr << "Info:   " << uint64_t(double(instCount)/elapsed) << " inst/s";
   std::cerr << " hart=" << hartIx_ << '\n';
+
+  if (hasRoiTraceEnabled())
+    std::cerr << "Info: Traced " << traceCount_ << " instructions\n";
 }
 
 
@@ -912,7 +922,8 @@ Hart<URV>::logStop(const CoreException& ce, uint64_t counter, FILE* traceFile)
       success = ce.value() == 0;
       setTargetProgramFinished(true);
     }
-  else if (ce.type() == CoreException::Snapshot)
+  else if (ce.type() == CoreException::Snapshot or
+           ce.type() == CoreException::RoiEntry)
     {
       isRetired = true;
       success = true;
@@ -948,6 +959,8 @@ Hart<URV>::logStop(const CoreException& ce, uint64_t counter, FILE* traceFile)
       cerr << "Info: Target program exited with code " << ce.value() << '\n';
     else if (ce.type() == CoreException::Snapshot)
       cerr << "Info: Attempting to snapshot\n";
+    else if (ce.type() == CoreException::RoiEntry)
+      cerr << "Info: Entering ROI\n";
     else if (ce.type() == CoreException::SnapshotAndStop)
       cerr << "Info: Successful stop: Hart " << hartIx_ << ": attempting to snapshot and stop\n";
     else

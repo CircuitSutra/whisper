@@ -32,7 +32,6 @@ endif
 
 VIRT_MEM := 1
 ifeq ($(VIRT_MEM), 1)
-  override CPPFLAGS += -Ivirtual_memory
   virtual_memory_build := $(wildcard $(shell pwd)/virtual_memory/)
   virtual_memory_lib := $(virtual_memory_build)/libvirtual_memory.a
 endif
@@ -47,14 +46,12 @@ endif
 
 PCI := 1
 ifeq ($(PCI), 1)
-  override CPPFLAGS += -I$(shell pwd)/pci
   pci_build := $(wildcard $(shell pwd)/pci/)
   pci_lib := $(shell pwd)/pci/libpci.a
 endif
 
 TRACE_READER := 1
 ifeq ($(TRACE_READER), 1)
-  override CPPFLAGS += -I$(shell pwd)/trace-reader
   trace_reader_build := $(wildcard $(shell pwd)/trace-reader/)
   trace_reader_lib := $(shell pwd)/trace-reader/TraceReader.a
 endif
@@ -76,6 +73,11 @@ endif
 ifeq ($(LZ4_COMPRESS), 1)
   override CPPFLAGS += -DLZ4_COMPRESS
   EXTRA_LIBS += -llz4
+endif
+
+ifeq ($(REMOTE_FRAME_BUFFER), 1)
+  override CPPFLAGS += -DREMOTE_FRAME_BUFFER
+  EXTRA_LIBS += -lvncserver
 endif
 
 
@@ -161,8 +163,13 @@ RVCORE_SRCS := IntRegs.cpp CsRegs.cpp FpRegs.cpp instforms.cpp \
             amo.cpp SparseMem.cpp InstProfile.cpp Isa.cpp Mcm.cpp \
             crypto.cpp Decoder.cpp Trace.cpp cbo.cpp Uart8250.cpp \
             Uartsf.cpp hypervisor.cpp vector-crypto.cpp WhisperMessage.cpp \
-            Imsic.cpp Args.cpp Session.cpp PerfApi.cpp dot-product.cpp \
-            aplic/Domain.cpp aplic/Aplic.cpp numa.cpp iommu/Iommu.cpp
+            imsic/Imsic.cpp Args.cpp Session.cpp PerfApi.cpp dot-product.cpp \
+            aplic/Domain.cpp aplic/Aplic.cpp numa.cpp iommu/Iommu.cpp \
+	          iommu/IommuPmaManager.cpp
+
+ifeq ($(REMOTE_FRAME_BUFFER), 1)
+  RVCORE_SRCS += RemoteFrameBuffer.cpp
+endif
 
 # List of All CPP Sources for the project
 SRCS_CXX += $(RVCORE_SRCS) whisper.cpp

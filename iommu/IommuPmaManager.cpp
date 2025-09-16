@@ -15,9 +15,9 @@
 #include <iostream>
 #include <cmath>
 #include <cassert>
-#include "PmaManager.hpp"
+#include "IommuPmaManager.hpp"
 
-using namespace WdRiscv;
+using namespace TT_IOMMU;
 
 
 bool

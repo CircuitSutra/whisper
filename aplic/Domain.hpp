@@ -15,6 +15,26 @@ enum Privilege {
     Supervisor,
 };
 
+struct DomainParams {
+    std::string name;
+    std::optional<std::string> parent;
+    std::optional<size_t> child_index;
+    uint64_t base;
+    uint64_t size;
+    Privilege privilege;
+    std::vector<unsigned> hart_indices {};
+    unsigned ipriolen = 8;
+    unsigned eiidlen = 11;
+    bool direct_mode_supported = true;
+    bool msi_mode_supported = true;
+    bool le_supported = true;
+    bool be_supported = true;
+    uint32_t mmsiaddrcfg = 0;
+    uint32_t mmsiaddrcfgh = 0;
+    uint32_t smsiaddrcfg = 0;
+    uint32_t smsiaddrcfgh = 0;
+};
+
 typedef std::function<bool(unsigned hart_index, Privilege privilege, bool xeip)> DirectDeliveryCallback;
 typedef std::function<bool(uint64_t addr, uint32_t data)> MsiDeliveryCallback;
 
@@ -70,16 +90,16 @@ union Smsiaddrcfgh {
 union Target {
     uint32_t value = 0;
 
-    void legalize(Privilege privilege, DeliveryMode dm, unsigned ipriolen, unsigned eiidlen) {
+    void legalize(DeliveryMode dm, const DomainParams& params) {
         if (dm == Direct) {
             value &= 0b1111'1111'1111'1100'0000'0000'1111'1111;
-            dm0.iprio &= (1 << ipriolen) - 1;
+            dm0.iprio &= (1 << params.ipriolen) - 1;
             if (dm0.iprio == 0)
                 dm0.iprio = 1;
         } else {
             value &= 0b1111'1111'1111'1111'1111'0111'1111'1111;
-            dm1.eiid &= (1 << eiidlen) - 1;
-            if (privilege == Machine)
+            dm1.eiid &= (1 << params.eiidlen) - 1;
+            if (params.privilege == Machine)
               dm1.guest_index = 0;
         }
     }
@@ -124,13 +144,13 @@ struct Idc {
 union Domaincfg {
     uint32_t value = 0x80000000;
 
-    void legalize(bool dm0_ok, bool dm1_ok, bool be0_ok, bool be1_ok) {
+    void legalize(const DomainParams& params) {
         value &= 0x00000105;
         value |= 0x80000000;
-        if (!dm0_ok) value |= 4;
-        if (!dm1_ok) value &= ~4;
-        if (!be0_ok) value |= 1;
-        if (!be1_ok) value &= ~1;
+        if (!params.direct_mode_supported)  value |= 4;
+        if (!params.msi_mode_supported)     value &= ~4;
+        if (!params.le_supported)           value |= 1;
+        if (!params.be_supported)           value &= ~1;
     }
 
     struct {
@@ -197,38 +217,23 @@ union Genmsi {
 
 class Aplic;
 
-struct DomainParams {
-    std::string name;
-    std::optional<std::string> parent;
-    std::optional<size_t> child_index;
-    uint64_t base;
-    uint64_t size;
-    Privilege privilege;
-    std::vector<unsigned> hart_indices {};
-    unsigned ipriolen = 8;
-    unsigned eiidlen = 11;
-    bool direct_mode_supported = true;
-    bool msi_mode_supported = true;
-    bool le_supported = true;
-    bool be_supported = true;
-};
-
 class Domain
 {
     friend Aplic;
 
 public:
 
-    const std::string& name() const { return name_; }
+    const std::string& name() const { return params_.name; }
     std::shared_ptr<Domain> root() const;
     std::shared_ptr<Domain> parent() const { return parent_.lock(); }
 
-    uint64_t base() const { return base_; }
-    uint64_t size() const { return size_; }
-    Privilege privilege() const { return privilege_; }
-    std::span<const unsigned> hartIndices() const { return hart_indices_; }
+    uint64_t base() const { return params_.base; }
+    uint64_t size() const { return params_.size; }
+    Privilege privilege() const { return params_.privilege; }
+    std::span<const unsigned> hartIndices() const { return params_.hart_indices; }
     bool includesHart(unsigned hart_index) const {
-        return std::find(hart_indices_.begin(), hart_indices_.end(), hart_index) != hart_indices_.end();
+        const auto& indices = params_.hart_indices;
+        return std::find(indices.begin(), indices.end(), hart_index) != indices.end();
     }
 
     size_t numChildren() const { return children_.size(); }
@@ -241,11 +246,11 @@ public:
     auto end() const    { return children_.end(); }
 
     bool overlaps(uint64_t base, uint64_t size) const {
-        return (base < (base_ + size_)) and (base_ < (base + size));
+        return (base < (params_.base + params_.size)) and (params_.base < (base + size));
     }
 
     bool containsAddr(uint64_t addr) const {
-        if (addr >= base_ and addr < base_ + size_)
+        if (addr >= params_.base and addr < params_.base + params_.size)
             return true;
         return false;
     }
@@ -254,8 +259,8 @@ public:
 
     void writeDomaincfg(uint32_t value) {
         domaincfg_.value = value;
-        domaincfg_.legalize(dm0_ok_, dm1_ok_, be0_ok_, be1_ok_);
-        if (domaincfg_.fields.dm == Direct)
+        domaincfg_.legalize(params_);
+        if (dmIsDirect())
           genmsi_.value = 0;
         runCallbacksAsRequired();
     }
@@ -276,30 +281,42 @@ public:
         if (old_child and new_child != old_child)
             old_child->undelegate(i);
 
+        bool riv_before = rectifiedInputValue(i);
         bool source_was_active = sourceIsActive(i);
         sourcecfg_[i] = new_sourcecfg;
+        bool riv_after = rectifiedInputValue(i);
         bool source_is_active = sourceIsActive(i);
+
+        bool riv_posedge = not riv_before and riv_after;
 
         if (not source_is_active) {
             target_[i].value = 0;
             clearIe(i);
             clearIp(i);
-        } else if (not source_was_active and domaincfg_.fields.dm == Direct) {
+        } else if (not source_was_active and dmIsDirect()) {
             target_[i].dm0.iprio = 1;
         }
 
-        // source may becoming pending under new source mode
-        // TODO: this might have edge cases (suppose DM=1, SM was Level1 and
-        // is now Edge1, pending bit was cleared when forwarded by MSI or
-        // clripnum; should not set pending bit even though RIV is high)
-        if (rectifiedInputValue(i))
-            setIp(i);
+        if (sourceIsEdgeSensitive(i)) {
+            if (riv_posedge)
+                setIp(i);
+        } else if (sourceIsLevelSensitive(i)) {
+            if (not riv_after)
+                clearIp(i);
+            if (dmIsDirect()) {
+                if (riv_after)
+                    setIp(i);
+            } else {
+                if (riv_posedge)
+                    setIp(i);
+            }
+        }
 
         runCallbacksAsRequired();
     }
 
     uint32_t readMmsiaddrcfg() const {
-        if (privilege_ != Machine)
+        if (params_.privilege != Machine)
             return 0;
         if (parent())
             return root()->mmsiaddrcfg_;
@@ -315,7 +332,7 @@ public:
     }
 
     uint32_t readMmsiaddrcfgh() const {
-        if (privilege_ != Machine)
+        if (params_.privilege != Machine)
             return 0;
         if (parent()) {
             auto mmsiaddrcfgh = root()->mmsiaddrcfgh_;
@@ -335,7 +352,7 @@ public:
     }
 
     uint32_t readSmsiaddrcfg() const {
-        if (privilege_ != Machine)
+        if (params_.privilege != Machine)
             return 0;
         if (parent())
             return root()->smsiaddrcfg_;
@@ -351,7 +368,7 @@ public:
     }
 
     uint32_t readSmsiaddrcfgh() const {
-        if (privilege_ != Machine)
+        if (params_.privilege != Machine)
             return 0;
         if (parent())
             return root()->smsiaddrcfgh_.value;
@@ -450,26 +467,26 @@ public:
     uint32_t readSetipnumLe() const { return 0; }
 
     void writeSetipnumLe(uint32_t value) {
-        if (be0_ok_)
+        if (params_.le_supported)
             writeSetipnum(value);
     }
 
     uint32_t readSetipnumBe() const { return 0; }
 
     void writeSetipnumBe(uint32_t value) {
-        if (be1_ok_)
+        if (params_.be_supported)
             writeSetipnum(value);
     }
 
     uint32_t readGenmsi() const { return genmsi_.value; }
 
     void writeGenmsi(uint32_t value) {
-        if (domaincfg_.fields.dm == Direct)
+        if (dmIsDirect())
             return;
         if (genmsi_.fields.busy)
             return;
         genmsi_.value = value;
-        genmsi_.legalize(eiidlen_);
+        genmsi_.legalize(params_.eiidlen);
         genmsi_.fields.busy = 1;
     }
 
@@ -479,7 +496,7 @@ public:
         if (not sourceIsActive(i))
             return;
         Target target{value};
-        target.legalize(privilege_, DeliveryMode(domaincfg_.fields.dm), ipriolen_, eiidlen_);
+        target.legalize(DeliveryMode(domaincfg_.fields.dm), params_);
         target_[i] = target;
         updateTopi();
         runCallbacksAsRequired();
@@ -502,7 +519,7 @@ public:
     uint32_t readIthreshold(unsigned hart_index) const { return idcs_.at(hart_index).ithreshold; }
 
     void writeIthreshold(unsigned hart_index, uint32_t value) {
-        value &= (1 << ipriolen_) - 1;
+        value &= (1 << params_.ipriolen) - 1;
         idcs_.at(hart_index).ithreshold = value;
         updateTopi();
     }
@@ -513,7 +530,7 @@ public:
 
     uint32_t readClaimi(unsigned hart_index) {
         auto topi = idcs_.at(hart_index).topi;
-        if (domaincfg_.fields.dm == Direct) {
+        if (dmIsDirect()) {
             auto sm = sourcecfg_[topi.fields.iid].d0.sm;
             if (topi.value == 0)
                 idcs_.at(hart_index).iforce = 0;
@@ -525,6 +542,27 @@ public:
     }
 
     void writeClaimi(unsigned /*hart_index*/, uint32_t /*value*/) {}
+
+    bool forwardViaMsi(unsigned i) {
+        if (not readyToForwardViaMsi(i))
+            return false;
+        if (i == 0) {
+            if (msi_callback_) {
+                uint64_t addr = msiAddr(genmsi_.fields.hart_index, 0); 
+                uint32_t data = genmsi_.fields.eiid;
+                msi_callback_(addr, data);
+            }   
+            genmsi_.fields.busy = 0;
+        } else {
+            if (msi_callback_) {
+                uint64_t addr = msiAddr(target_[i].dm1.hart_index, target_[i].dm1.guest_index);
+                uint32_t data = target_[i].dm1.eiid;
+                msi_callback_(addr, data);
+            }   
+            clearIp(i);
+        }
+        return true;
+    }
 
     uint32_t peekDomaincfg()            { return domaincfg_.value; }
     uint32_t peekSourcecfg(unsigned i)  { return sourcecfg_.at(i).value; }
@@ -574,7 +612,7 @@ private:
 
     bool use_be(uint64_t addr)
     {
-        uint64_t offset = addr - base_;
+        uint64_t offset = addr - params_.base;
         bool is_setipnum_le = offset == 0x2000;
         bool is_setipnum_be = offset == 0x2004;
         return (domaincfg_.fields.be or is_setipnum_be) and not is_setipnum_le;
@@ -591,8 +629,8 @@ private:
     uint32_t read_le(uint64_t addr)
     {
         assert(addr % 4 == 0);
-        assert(addr >= base_ and addr < base_ + size_);
-        uint64_t offset = addr - base_;
+        assert(addr >= params_.base and addr < params_.base + params_.size);
+        uint64_t offset = addr - params_.base;
         switch (offset) {
             case 0x0000: return readDomaincfg();
             case 0x1bc0: return readMmsiaddrcfg();
@@ -653,8 +691,8 @@ private:
     void write_le(uint64_t addr, uint32_t data)
     {
         assert(addr % 4 == 0);
-        assert(addr >= base_ and addr < base_ + size_);
-        uint64_t offset = addr - base_;
+        assert(addr >= params_.base and addr < params_.base + params_.size);
+        uint64_t offset = addr - params_.base;
         switch (offset) {
             case 0x0000: writeDomaincfg(data); return;
             case 0x1bc0: writeMmsiaddrcfg(data); return;
@@ -754,28 +792,25 @@ private:
         return domaincfg_.fields.ie and pending(i) and enabled(i);
     }
 
-    void forwardViaMsi(unsigned i) {
-        assert(readyToForwardViaMsi(i));
-        if (i == 0) {
-            if (msi_callback_) {
-                uint64_t addr = msiAddr(genmsi_.fields.hart_index, 0);
-                uint32_t data = genmsi_.fields.eiid;
-                msi_callback_(addr, data);
-            }
-            genmsi_.fields.busy = 0;
-        } else {
-            if (msi_callback_) {
-                uint64_t addr = msiAddr(target_[i].dm1.hart_index, target_[i].dm1.guest_index);
-                uint32_t data = target_[i].dm1.eiid;
-                msi_callback_(addr, data);
-            }
-            clearIp(i);
-        }
-    }
-
     uint64_t msiAddr(unsigned hart_index, unsigned guest_index) const;
 
     bool rectifiedInputValue(unsigned i) const;
+
+    bool sourceIsLevelSensitive(unsigned i) const
+    {
+        if (not sourceIsActive(i))
+            return false;
+        auto sm = sourcecfg_[i].d0.sm;
+        return sm == Level1 or sm == Level0;
+    }
+
+    bool sourceIsEdgeSensitive(unsigned i) const
+    {
+        if (not sourceIsActive(i))
+            return false;
+        auto sm = sourcecfg_[i].d0.sm;
+        return sm == Edge1 or sm == Edge0;
+    }
 
     bool sourceIsImplemented(unsigned i) const;
 
@@ -813,7 +848,7 @@ private:
                 break;
             case Level0:
             case Level1:
-                if (domaincfg_.fields.dm == MSI and rectifiedInputValue(i))
+                if (dmIsMsi() and rectifiedInputValue(i))
                     setIp(i);
                 break;
             default: assert(false);
@@ -832,7 +867,7 @@ private:
                 break;
             case Level0:
             case Level1:
-                if (domaincfg_.fields.dm == MSI)
+                if (dmIsMsi())
                     clearIp(i);
                 break;
             default:
@@ -865,20 +900,12 @@ private:
     bool enabled(unsigned i) const { return bool((setie_.at(i/32) >> (i % 32)) & 1); }
     bool pending(unsigned i) const { return bool((setip_.at(i/32) >> (i % 32)) & 1); }
 
-    const unsigned ipriolen_;
-    const unsigned eiidlen_;
-    const bool dm0_ok_;
-    const bool dm1_ok_;
-    const bool be0_ok_;
-    const bool be1_ok_;
+    bool dmIsDirect() const { return domaincfg_.fields.dm == Direct; }
+    bool dmIsMsi() const { return domaincfg_.fields.dm == MSI; }
 
     const Aplic * aplic_;
-    std::string name_;
     std::weak_ptr<Domain> parent_;
-    uint64_t base_;
-    uint64_t size_;
-    Privilege privilege_;
-    std::vector<unsigned> hart_indices_;
+    DomainParams params_;
     std::vector<std::shared_ptr<Domain>> children_;
     DirectDeliveryCallback direct_callback_ = nullptr;
     MsiDeliveryCallback msi_callback_ = nullptr;

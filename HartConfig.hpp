@@ -18,7 +18,6 @@
 #include <string>
 #include <string_view>
 #include <nlohmann/json_fwd.hpp>
-#include "aplic/Aplic.hpp"
 
 
 namespace WdRiscv
@@ -90,6 +89,11 @@ namespace WdRiscv
 
     template <typename URV>
     bool applyIommuConfig(System<URV>& system) const;
+
+#if REMOTE_FRAME_BUFFER
+    template<typename URV>
+    bool applyFrameBufferConfig(System<URV>& system) const;
+#endif
 
     template<typename URV>
     bool applyPciConfig(System<URV>&) const;

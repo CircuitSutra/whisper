@@ -87,11 +87,13 @@ parseNumber(std::string_view numberStr, TYPE& number)
 template <typename URV>
 Hart<URV>::Hart(unsigned hartIx, URV hartId, unsigned numHarts, Memory& memory,
                 Syscall<URV>& syscall, std::atomic<uint64_t>& time)
-  : hartIx_(hartIx), numHarts_(numHarts), memory_(memory), intRegs_(32),
+  : hartIx_(hartIx), numHarts_(numHarts), memory_(memory),
+    pmpManager_(),
+    intRegs_(32),
+    csRegs_(pmpManager_),
     fpRegs_(32),
     syscall_(syscall),
     time_(time),
-    pmpManager_(),
     virtMem_(hartIx, memory.pageSize(), 2048)
 {
   setupVirtMemCallbacks();
@@ -653,20 +655,6 @@ Hart<URV>::processExtensions(bool verbose)
 }
 
 
-static
-Pmp::Mode
-getModeFromPmpconfigByte(uint8_t byte)
-{
-  unsigned m = 0;
-
-  if (byte & 1) m = Pmp::Read  | m;
-  if (byte & 2) m = Pmp::Write | m;
-  if (byte & 4) m = Pmp::Exec  | m;
-
-  return Pmp::Mode(m);
-}
-
-
 template <typename URV>
 void
 Hart<URV>::updateMemoryProtection()
@@ -715,79 +703,22 @@ Hart<URV>::unpackMemoryProtection(unsigned entryIx, Pmp::Type& type,
 
   CsrNumber csrn = CsrNumber(unsigned(CsrNumber::PMPADDR0) + entryIx);
 
-  unsigned config = csRegs_.getPmpConfigByteFromPmpAddr(csrn);
-  type = Pmp::Type((config >> 3) & 3);
-  locked = config & 0x80;
-  mode = getModeFromPmpconfigByte(config);
-
   URV pmpVal = 0;
   if (not peekCsr(csrn, pmpVal))
     return false;  // PMPADDRn not implemented.
 
-  if (type == Pmp::Type::Off)
-    return true;   // Entry is off.
-
-  unsigned pmpG = csRegs_.getPmpG();
-
-  if (type == Pmp::Type::Tor)    // Top of range
+  URV lowerVal = 0;   // Value of preceding PMPADDR CSR if any.
+  if (entryIx > 0)
     {
-      if (entryIx > 0)
-        {
-          CsrNumber lowerCsrn = CsrNumber(unsigned(csrn) - 1);
-	  URV lowerVal = 0;
-          if (not peekCsr(lowerCsrn, lowerVal))
-	    return false;  // Should not happen
-          low = lowerVal;
-          low = (low >> pmpG) << pmpG;  // Clear least sig G bits.
-          low = low << 2;
-        }
-
-      high = pmpVal;
-      high = (high >> pmpG) << pmpG;
-      high = high << 2;
-      if (high == 0)
-        {
-          type = Pmp::Type::Off;  // Empty range.
-          return true;
-        }
-
-      high = high - 1;
-      return true;
+      auto lowerCsrn = CsrNumber(unsigned(csrn) - 1);
+      if (not peekCsr(lowerCsrn, lowerVal))
+        return false;  // Should not happen
     }
 
-  uint64_t sizeM1 = 3;     // Size minus 1
-  uint64_t napot = pmpVal;  // Naturally aligned power of 2.
-  if (type == Pmp::Type::Napot)  // Naturally algined power of 2.
-    {
-      unsigned rzi = 0;  // Righmost-zero-bit index in pmpval.
-      if (pmpVal == URV(-1))
-        {
-          // Handle special case where pmpVal is set to maximum value
-          napot = 0;
-          rzi = mxlen_;
-        }
-      else
-        {
-          rzi = std::countr_zero(~pmpVal); // rightmost-zero-bit ix.
-          napot = (napot >> rzi) << rzi; // Clear bits below rightmost zero bit.
-        }
+  unsigned config = csRegs_.getPmpConfigByteFromPmpAddr(csrn);
 
-      // Avoid overflow when computing 2 to the power 64 or
-      // higher. This is incorrect but should work in practice where
-      // the physical address space is 64-bit wide or less.
-      if (rzi + 3 >= 64)
-        sizeM1 = -1L;
-      else
-        sizeM1 = (uint64_t(1) << (rzi + 3)) - 1;
-    }
-  else
-    assert(type == Pmp::Type::Na4);
-
-  low = napot;
-  low = (low >> pmpG) << pmpG;
-  low = low << 2;
-  high = low + sizeM1;
-  return true;
+  return pmpManager_.unpackMemoryProtection(config, pmpVal, lowerVal, not rv64_,
+                                            mode, type, locked, low, high);
 }
 
 
@@ -1484,22 +1415,30 @@ Hart<URV>::execAddi(const DecodedInst* di)
   SRV v = intRegs_.read(di->op1()) + imm;
   intRegs_.write(di->op0(), v);
 
-  if (hintOps_)
+  if (hintOps_ and di->op0() == 0)
     {
-      if (di->op0() == 0 and di->op1() == 31)
+      if (di->op1() == 31)
         throw CoreException(CoreException::Snapshot, "Taking snapshot from HINT.");
-      if (di->op0() == 0 and di->op1() == 30)
+      if (di->op1() == 30)
         throw CoreException(CoreException::Stop, "Stopping run from HINT.");
-      if (di->op0() == 0 and di->op1() == 29)
+      if (di->op1() == 29)
         throw CoreException(CoreException::SnapshotAndStop, "Taking snapshot and stopping run from HINT.");
-      if (di->op0() == 0 and di->op1() == 26)
+      if (di->op1() == 26)
         std::cerr << "Info: Executed instructions: " << instCounter_ << "\n";
-      if (di->op0() == 0 and di->op1() == 25)
+      if (di->op1() == 25)
         setPendingNmi(URV(v));
-      if (di->op0() == 0 and di->op1() == 24)
+      if (di->op1() == 24)
         clearPendingNmi();
-      if (di->op0() == 0 and di->op1() == 23)
+      if (di->op1() == 23)
         defineNmiPc(URV(v));
+
+      if (hasRoiRange_)
+        {
+          if (di->op1() == 12)
+            traceOn_ = false;
+          if (di->op1() == 11)
+            traceOn_ = true;
+        }
     }
 }
 
@@ -3860,81 +3799,6 @@ Hart<URV>::peekCsr(CsrNumber csrn, std::string_view field, URV& val) const
 }
 
 
-static
-void
-unpackPmacfg(uint64_t val, bool& valid, uint64_t& low, uint64_t& high, Pma& pma)
-{
-  // Recover n = log2 of size.
-  uint64_t n = val >> 58;   // Bits 63:58
-  valid = n != 0;
-  if (not valid)
-    return;
-
-  if (n < 12)
-    n = 12;
-
-  unsigned attrib = 0;
-
-  // Misaligned allowed everywhere (msial for AMO/LR/SC is separate).
-  attrib |= Pma::Attrib::MisalOk;
-
-  if (val & 1)
-    attrib |= Pma::Attrib::Read;
-
-  if (val & 2)
-    attrib |= Pma::Attrib::Write;
-
-  if (val & 4)
-    attrib |= Pma::Attrib::Exec;
-
-  bool cacheable = val & 0x80;  // Bit 7
-
-  // TBD FIX : Support io channel0 and channel1
-  unsigned memType = (val >> 3) & 3;   // Bits 4:3
-  if (memType != 0)
-    {
-      attrib |= Pma::Attrib::Io;
-      attrib &= ~Pma::Attrib::MisalOk;  // No misaligned IO region access.
-      attrib |= Pma::Attrib::MisalAccFault;
-    }
-  else
-    {
-      // Regular memory.
-      if (cacheable)
-	{
-	  attrib |= Pma::Attrib::Rsrv;
-
-	  unsigned amoType = (val >> 5) & 3;   // Bits 6:5
-	  if (amoType == 1)
-	    attrib |= Pma::Attrib::AmoSwap;
-	  else if (amoType == 2)
-	    attrib |= Pma::Attrib::AmoLogical;
-	  else if (amoType == 3)
-	    attrib |= Pma::Attrib::AmoArith;
-	}
-
-      if (cacheable)  // Bit 7
-	attrib |= Pma::Attrib::Cacheable;
-    }
-
-  pma = Pma(Pma::Attrib(attrib));
-
-  // Recover base address: Bits 55:12
-  uint64_t addr = (val << 8) >> 8;  // Clear top 8 bits of val.
-  addr = (addr >> 12) << 12;   // Clear least sig 12 bits of val.
-  low = addr;
-
-  low = (low  >> n) << n;  // Clear least sig n bits.
-
-  high = ~uint64_t(0);
-  if (n < 56)
-    {
-      high = low;
-      high |= (uint64_t(1) << n) - 1; // Set bits 0 to n-1
-    }
-}
-
-
 template <typename URV>
 bool
 Hart<URV>::processPmaChange(CsrNumber csr)
@@ -3954,7 +3818,7 @@ Hart<URV>::processPmaChange(CsrNumber csr)
   uint64_t low = 0, high = 0;
   Pma pma;
   bool valid = false;
-  unpackPmacfg(val, valid, low, high, pma);
+  memory_.pmaMgr_.unpackPmacfg(val, valid, low, high, pma);
   if (valid)
     {
       if (not definePmaRegion(ix, low, high, pma))
@@ -4497,7 +4361,7 @@ Hart<URV>::configMemoryProtectionGrain(uint64_t size)
     }
 
   unsigned pmpG = log2Size - 2;
-  csRegs_.setPmpG(pmpG);
+  pmpManager_.setPmpG(pmpG);
 
   return ok;
 }
@@ -5479,7 +5343,9 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
   if (enableGdb_)
     handleExceptionForGdb(*this, gdbInputFd_);
 
-  while (pc_ != address and instCounter_ < instLim and
+  uint64_t& effectiveInstCounter = hasRoiTraceEnabled()? traceCount_ : instCounter_;
+
+  while (pc_ != address and effectiveInstCounter < instLim and
            retInstCounter_ < retInstLim)
     {
       if (userStop)
@@ -5487,6 +5353,7 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
 
       resetExecInfo(); clearTraceData();
 
+      bool traceWasOn = traceOn_;
       if (enableGdb_ and ++gdbCount >= gdbLimit)
         {
           gdbCount = 0;
@@ -5626,7 +5493,14 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
 
 	  if (doStats)
 	    accumulateInstructionStats(*di);
-	  printDecodedInstTrace(*di, instCounter_, instStr, traceFile);
+
+	  if (traceOn_) // and lastPriv_ == PrivilegeMode::User)
+	    {
+	      traceCount_++;
+	      printDecodedInstTrace(*di, instCounter_, instStr, traceFile);
+              if (not traceWasOn)
+                throw CoreException(CoreException::RoiEntry, "Taking snapshot on ROI entry.");
+	    }
 
           if (sdtrigOn_)
             evaluateDebugStep();
@@ -5639,8 +5513,9 @@ Hart<URV>::untilAddress(uint64_t address, FILE* traceFile)
       catch (const CoreException& ce)
 	{
 	  bool success = logStop(ce, instCounter_, traceFile);
-          if (ce.type() == CoreException::Type::Snapshot or
-              ce.type() == CoreException::Type::SnapshotAndStop)
+          if (ce.type() == CoreException::Snapshot or
+              ce.type() == CoreException::RoiEntry or
+              ce.type() == CoreException::SnapshotAndStop)
             throw;
           return success;
 	}
@@ -5763,8 +5638,9 @@ Hart<URV>::simpleRun()
   catch (const CoreException& ce)
     {
       success = logStop(ce, 0, nullptr);
-      if (ce.type() == CoreException::Type::Snapshot or
-          ce.type() == CoreException::Type::SnapshotAndStop)
+      if (ce.type() == CoreException::Snapshot or
+          ce.type() == CoreException::RoiEntry or
+          ce.type() == CoreException::SnapshotAndStop)
         throw;
     }
 
@@ -5817,6 +5693,9 @@ template <typename URV>
 void
 Hart<URV>::countBasicBlocks(bool isBranch, uint64_t physPc)
 {
+  if (not traceOn_)
+    return;
+
   if (bbInsts_ >= bbLimit_)
     dumpBasicBlocks();
 
@@ -5850,16 +5729,20 @@ Hart<URV>::simpleRunWithLimit()
 
   bool traceBranchOn = branchBuffer_.max_size() and not branchTraceFile_.empty();
 
+  uint64_t& effectiveInstCounter = hasRoiTraceEnabled()? traceCount_ : instCounter_;
+
   const uint64_t instLim = instCountLim_;
   const uint64_t retInstLim = retInstCountLim_;
 
   while (noUserStop and
-         instCounter_ < instLim and
+         effectiveInstCounter < instLim and
          retInstCounter_ < retInstLim)
     {
       tickTime();
 
       resetExecInfo();
+
+      bool traceWasOn = traceOn_;
 
       currPc_ = pc_;
       ++instCounter_;
@@ -5905,6 +5788,13 @@ Hart<URV>::simpleRunWithLimit()
 
       if (traceBranchOn and (di->isBranch() or di->isXRet()))
 	traceBranch(di);
+
+      if (traceOn_) // and lastPriv_ == PrivilegeMode::User)
+        {
+          traceCount_++;
+          if (not traceWasOn)
+            throw CoreException(CoreException::RoiEntry, "Taking snapshot on ROI entry.");
+        }
     }
 
   return true;
@@ -6600,8 +6490,9 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
       evaluateDebugStep();
 
       stepResult_ = logStop(ce, instCounter_, traceFile);
-      if (ce.type() == CoreException::Type::Snapshot or
-          ce.type() == CoreException::Type::SnapshotAndStop)
+      if (ce.type() == CoreException::Snapshot or
+          ce.type() == CoreException::RoiEntry or
+          ce.type() == CoreException::SnapshotAndStop)
         throw;
     }
 }

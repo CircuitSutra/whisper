@@ -727,7 +727,8 @@ Session<URV>::applyCmdLineArgs(const Args& args, Hart<URV>& hart,
 
   // Load ELF/HEX/binary files. Entry point of first ELF file sets the start PC unless in
   // raw mode.
-  if (hart.sysHartIndex() == 0)
+  auto hartIx = hart.sysHartIndex();
+  if (hartIx == 0)
     {
       StringVec paths;
       for (const auto& target : args.expandedTargets)
@@ -787,7 +788,7 @@ Session<URV>::applyCmdLineArgs(const Args& args, Hart<URV>& hart,
 	  not args.stdinFile.empty())
 	std::cerr << "Info: Options --stdin/--stdout/--stderr are ignored with --loadfrom\n";
     }
-  else
+  else if (hartIx == 0)
     {
       if (not args.stdoutFile.empty())
 	if (not hart.redirectOutputDescriptor(STDOUT_FILENO, args.stdoutFile))
@@ -944,6 +945,15 @@ Session<URV>::applyCmdLineArgs(const Args& args, Hart<URV>& hart,
         errors++;
       if (not args.interactive and commandLog_)
         system.perfApiCommandLog(commandLog_);
+    }
+
+  if (args.roi)
+    {
+      std::cerr << "Info: Running with ROI tracing, disabling trace until ROI\n";
+      hart.enableRoiRange(true);
+
+      if (not args.hintOps)
+        std::cerr << "Warning: Running with ROI tracing without HINT ops enabled\n";
     }
 
   if (not args.snapshotPeriods.empty())
@@ -1269,7 +1279,8 @@ Session<URV>::run(const Args& args)
     }
 
   if (not args.snapshotPeriods.empty())
-    return system.snapshotRun(traceFiles_, args.snapshotPeriods);
+    return system.snapshotRun(traceFiles_, args.snapshotPeriods,
+                              args.snapshotPeriods.size() > 1 or args.aperiodicSnaps);
 
   bool waitAll = not args.quitOnAnyHart;
   unsigned seed = args.seed.value_or(time(NULL));
