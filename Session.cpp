@@ -727,7 +727,8 @@ Session<URV>::applyCmdLineArgs(const Args& args, Hart<URV>& hart,
 
   // Load ELF/HEX/binary files. Entry point of first ELF file sets the start PC unless in
   // raw mode.
-  if (hart.sysHartIndex() == 0)
+  auto hartIx = hart.sysHartIndex();
+  if (hartIx == 0)
     {
       StringVec paths;
       for (const auto& target : args.expandedTargets)
@@ -787,7 +788,7 @@ Session<URV>::applyCmdLineArgs(const Args& args, Hart<URV>& hart,
 	  not args.stdinFile.empty())
 	std::cerr << "Info: Options --stdin/--stdout/--stderr are ignored with --loadfrom\n";
     }
-  else
+  else if (hartIx == 0)
     {
       if (not args.stdoutFile.empty())
 	if (not hart.redirectOutputDescriptor(STDOUT_FILENO, args.stdoutFile))
