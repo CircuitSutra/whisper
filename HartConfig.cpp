@@ -1652,6 +1652,7 @@ HartConfig::applyAplicConfig(System<URV>& system) const
   return system.configAplic(num_sources, domain_params_list);
 }
 
+
 template <typename URV>
 bool
 HartConfig::applyIommuConfig(System<URV>& system) const
@@ -1800,6 +1801,7 @@ parseTriggerAllAddr(const nlohmann::json& arr, const std::string_view tag,
   return errors == 0;
 }
 
+#if REMOTE_FRAME_BUFFER
 template<typename URV>
 bool
 HartConfig::applyFrameBufferConfig(System<URV>& system) const
@@ -1878,6 +1880,7 @@ HartConfig::applyFrameBufferConfig(System<URV>& system) const
 
   return system.defineFrameBuffer(type, base, width, height, bytes_per_pixel);
 }
+#endif
 
 
 template<typename URV>
@@ -3108,8 +3111,10 @@ HartConfig::configHarts(System<URV>& system, bool userMode, bool verbose) const
   if (not applyPciConfig(system))
     return false;
 
+#if REMOTE_FRAME_BUFFER
   if (not applyFrameBufferConfig(system))
     return false;
+#endif
 
   return finalizeCsrConfig(system);
 }
@@ -3517,8 +3522,10 @@ HartConfig::applyIommuConfig(System<uint32_t>&) const;
 template bool
 HartConfig::applyIommuConfig(System<uint64_t>&) const;
 
+#if REMOTE_FRAME_BUFFER
 template bool
 HartConfig::applyFrameBufferConfig(System<uint32_t>&) const;
 
 template bool
 HartConfig::applyFrameBufferConfig(System<uint64_t>&) const;
+#endif

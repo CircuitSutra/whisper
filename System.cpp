@@ -31,7 +31,9 @@
 #include "Uart8250.hpp"
 #include "Uartsf.hpp"
 #include "pci/virtio/Blk.hpp"
+#if REMOTE_FRAME_BUFFER
 #include "RemoteFrameBuffer.hpp"
+#endif
 
 
 using namespace WdRiscv;
@@ -206,6 +208,7 @@ System<URV>::defineUart(const std::string& type, uint64_t addr, uint64_t size,
   return true;
 }
 
+#if REMOTE_FRAME_BUFFER
 template <typename URV>
 bool
 System<URV>::defineFrameBuffer(const std::string& type, uint64_t addr, uint64_t width, uint64_t height, uint64_t bytes_per_pixel)
@@ -225,6 +228,7 @@ System<URV>::defineFrameBuffer(const std::string& type, uint64_t addr, uint64_t 
 
   return true;
 }
+#endif
 
 template <typename URV>
 System<URV>::~System()

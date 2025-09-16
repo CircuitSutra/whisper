@@ -1,5 +1,3 @@
-#define REMOTE_FRAME_BUFFER
-
 #include <iostream>
 #include <sys/mman.h>
 #include <cassert>
@@ -7,9 +5,7 @@
 #include <chrono>
 #include <fstream>
 #include <cstring>
-#ifdef REMOTE_FRAME_BUFFER
 #include <rfb/rfb.h>
-#endif
 
 #include "RemoteFrameBuffer.hpp"
 

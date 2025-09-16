@@ -280,10 +280,12 @@ namespace WdRiscv
           dev->enable();
     }
 
+#if REMOTE_FRAME_BUFFER
     /// Frame Buffer that can drive a display. Specify the width, height, and 
     /// the number of bytes per pixel. 
     bool defineFrameBuffer(const std::string& type, uint64_t addr, uint64_t width, 
         uint64_t height, uint64_t bytes_per_pixel);
+#endif
 
     /// Return the memory page size.
     size_t pageSize() const
