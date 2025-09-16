@@ -24,6 +24,7 @@ BOOST_LIBS := boost_program_options
 
 # Add extra dependency libraries here
 EXTRA_LIBS := -lpthread -lm -lz -ldl -static-libstdc++ -lrt -lutil
+EXTRA_LIBS += -lvncserver
 
 # Needed to link against boost libraries which were compiled using older ABI
 ifeq ($(BOOST_ROOT), /tools_vendor/FOSS/boost/1.82)
