@@ -51,7 +51,7 @@ System<URV>::System(unsigned coreCount, unsigned hartsPerCore,
                     unsigned hartIdOffset, size_t memSize,
                     size_t pageSize)
   : hartCount_(coreCount * hartsPerCore), hartsPerCore_(hartsPerCore),
-    imsicMgr_((coreCount * hartsPerCore), pageSize), time_(0)
+    imsicMgr_(pageSize), time_(0)
 {
   cores_.resize(coreCount);
 
@@ -752,6 +752,8 @@ System<URV>::configImsic(uint64_t mbase, uint64_t mstride,
                          bool maplic, bool saplic, bool trace)
 {
   using std::cerr;
+
+  imsicMgr_.createImsics(hartCount_);
 
   size_t ps = pageSize();
 

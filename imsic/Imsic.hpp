@@ -279,6 +279,12 @@ namespace TT_IMSIC      // TensTorrent Incoming Message Signaled Interrupt Contr
     bool loadSnapshot(const std::string& filename)
     {
       std::ifstream ifs(filename);
+      if (not ifs.is_open())
+        {
+          std::cerr << "Warning: Imsic::saveSnapshot could not open snapshot file for reading: '" << filename << "'\n";
+          return true;
+        }
+
       std::string line;
       uint64_t errors = 0;
       unsigned lineNum = 0;
@@ -777,7 +783,15 @@ namespace TT_IMSIC      // TensTorrent Incoming Message Signaled Interrupt Contr
   public:
 
     /// Constructor.
-    ImsicMgr(unsigned hartCount, unsigned pageSize);
+    ImsicMgr(unsigned pageSize);
+
+    /// Instantiate Imsics, one per hart
+    void createImsics(unsigned hartCount)
+    {
+      imsics_.resize(hartCount);
+      for (unsigned ix = 0; ix < hartCount; ++ix)
+        imsics_.at(ix) = std::make_shared<Imsic>();
+    }
 
     /// Configure machine privilege IMISC files (one per
     /// hart). Machine files will be at addresses addr, addr + stride,
