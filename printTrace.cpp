@@ -895,7 +895,7 @@ Hart<URV>::reportInstsPerSec(uint64_t instCount, uint64_t retInstCount, double e
             << (retInstCount > 1? "s" : "")
             << " in " << secStr;
   if (elapsed > 0)
-    std::cerr << "Info:   " << uint64_t(double(instCount)/elapsed) << " inst/s";
+    std::cerr << " -- " << uint64_t(double(instCount)/elapsed) << " inst/s";
   std::cerr << " hart=" << hartIx_ << '\n';
 
   if (hasRoiTraceEnabled())

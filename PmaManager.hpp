@@ -203,6 +203,7 @@ namespace WdRiscv
     {
       addr = (addr >> 2) << 2; // Make word aligned.
 
+#ifndef FAST_SLOPPY
       // Search regions in order. Return first matching.
       auto it = std::find_if(regions_.begin(), regions_.end(),
           [addr] (const auto& region) {
@@ -219,6 +220,7 @@ namespace WdRiscv
 	    return region.pma_;
           return memMappedPma(region.pma_, addr);
         }
+#endif
 
       if (addr >= memSize_)
 	return noAccessPma_;
