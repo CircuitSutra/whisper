@@ -168,17 +168,7 @@ int main()
   testIotinvalVmaCommand();
   testIotinvalGvmaCommand();
   
-  std::cout << "🎉 All IOTINVAL command structure tests PASSED!" << std::endl;
-  std::cout << std::endl;
-  std::cout << "Implementation Status:" << std::endl;
-  std::cout << "  ✓ Command structures defined" << std::endl;
-  std::cout << "  ✓ Opcode and function assignments" << std::endl;
-  std::cout << "  ✓ Command queue integration" << std::endl;
-  std::cout << "  ✓ Stub execution methods" << std::endl;
-  std::cout << "  ⚠ Actual cache invalidation logic - TODO (left unimplemented as requested)" << std::endl;
-  std::cout << std::endl;
-  std::cout << "The stub implementation correctly parses commands and validates parameters," << std::endl;
-  std::cout << "but does not perform actual IOATC invalidation operations." << std::endl;
+  std::cout << "All IOTINVAL command structure tests PASSED!" << std::endl;
   
   return 0;
 }
