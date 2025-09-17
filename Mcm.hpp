@@ -47,6 +47,7 @@ namespace WdRiscv
     bool       canceled_  : 1  = false;
     bool       bypass_    : 1  = false;   // True if a bypass operation.
     bool       isIo_      : 1  = false;   // True if in IO region.
+    bool       cache_     : 1  = false;   // True if operation goes to cache. 
 
     /// Return true if address range of this operation overlaps that of the given one.
     bool overlaps(const MemoryOp& other) const
@@ -790,6 +791,8 @@ namespace WdRiscv
     bool instrHasRead(const McmInstr& instr) const;
 
     bool instrHasWrite(const McmInstr& instr) const;
+
+    bool instrHasBypassPlusCache(const McmInstr& instr) const;
 
     bool checkStoreComplete(unsigned hartIx, const McmInstr& instr) const;
 

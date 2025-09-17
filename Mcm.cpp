@@ -1048,6 +1048,7 @@ Mcm<URV>::bypassOp(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa,
   op.elemIx_ = elemIx;
   op.field_ = field;
   op.isIo_ = hart.getPma(op.pa_).isIo();
+  op.cache_ = cache;
 
   // Associate write op with instruction.
   instr->addMemOp(sysMemOps_.size());
@@ -1326,6 +1327,15 @@ Mcm<URV>::retire(Hart<URV>& hart, uint64_t time, uint64_t tag,
     return checkSfenceInvalIr(hart, *instr);
   if (instr->di_.instId() == InstId::sfence_w_inval)
     return checkSfenceWInval(hart, *instr);
+
+  // Sanity check that we only expect bypass+cache to occur with AMO/CMO/SC
+  // instructions.
+  if ((not di.isAmo() and not di.isCmo() and not di.isSc()) and instrHasBypassPlusCache(*instr))
+    {
+      cerr << "Error: hart-id=" << hart.hartId()
+           << " tag=" << tag << " unexpected cache set for non-AMO/non-CMO/non-SC instruction\n";
+      return false;
+    }
 
   if (di.isCmo())
     return retireCmo(hart, *instr);
@@ -3418,6 +3428,16 @@ Mcm<URV>::instrHasWrite(const McmInstr& instr) const
   return std::ranges::any_of(instr.memOps_,
                              [this](auto opIx) { return opIx < sysMemOps_.size() &&
                                                         not sysMemOps_.at(opIx).isRead_; });
+}
+
+
+template <typename URV>
+bool
+Mcm<URV>::instrHasBypassPlusCache(const McmInstr& instr) const
+{
+  return std::ranges::any_of(instr.memOps_,
+                              [this](auto opIx) { return opIx < sysMemOps_.size() &&
+                                                         sysMemOps_.at(opIx).bypass_ and sysMemOps_.at(opIx).cache_; });
 }
 
 
