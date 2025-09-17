@@ -22,6 +22,8 @@ namespace TT_IOMMU
   struct AtsInvalCommand;
   struct AtsPrgrCommand;
   struct IofenceCCommand;
+  struct IotinvalVmaCommand;
+  struct IotinvalGvmaCommand;
 
   // ATS command functions as defined in section 4.1.4
   enum class AtsFunc : uint32_t
@@ -38,10 +40,19 @@ namespace TT_IOMMU
     // 1-15 reserved for future standard use
   };
 
+  // IOTINVAL command functions for page table cache invalidation
+  enum class IotinvalFunc : uint32_t
+  {
+    VMA = 0,   // Invalidate first-stage page table cache entries (IOTINVAL.VMA)
+    GVMA = 1   // Invalidate second-stage page table cache entries (IOTINVAL.GVMA)
+    // 2-15 reserved for future standard use
+  };
+
   // Command opcodes
   enum class CommandOpcode : uint32_t
   {
-    // 0-1 reserved
+    // 0 reserved
+    IOTINVAL = 1, // IOMMU Translation Table Cache invalidation commands
     IOFENCE = 2,  // IOMMU fence commands
     // 3 reserved  
     ATS = 4       // IOMMU PCIe ATS commands
@@ -145,6 +156,74 @@ namespace TT_IOMMU
     }
   };
 
+  // IOTINVAL.VMA command structure for first-stage page table invalidation
+  struct IotinvalVmaCommand
+  {
+    CommandOpcode   opcode      : 7;  // Command opcode (bits 0-6) = IOTINVAL (0x1)
+    IotinvalFunc    func3       : 3;  // Function (bits 7-9) = VMA (0x0)
+    uint64_t        AV          : 1;  // Address Valid (bit 10)
+    uint64_t        reserved0   : 1;  // Reserved bit (bit 11)
+    uint64_t        PSCID       : 20; // Process Soft-Context ID (bits 12-31)
+    uint64_t        PSCV        : 1;  // PSCID Valid (bit 32)
+    uint64_t        GV          : 1;  // GSCID Valid (bit 33)
+    uint64_t        reserved1   : 6;  // Reserved bits (bits 34-39)
+    uint64_t        GSCID       : 16; // Guest Soft-Context ID (bits 40-55)
+    uint64_t        reserved2   : 8;  // Reserved bits (bits 56-63)
+    uint64_t        ADDR        : 52; // Address[63:12] for page-aligned addresses (bits 64-115)
+    uint64_t        reserved3   : 12; // Reserved bits (bits 116-127)
+
+    // Constructor to initialize opcode and func3
+    IotinvalVmaCommand()
+    {
+      opcode = CommandOpcode::IOTINVAL;
+      func3 = IotinvalFunc::VMA;
+      AV = 0;
+      reserved0 = 0;
+      PSCID = 0;
+      PSCV = 0;
+      GV = 0;
+      reserved1 = 0;
+      GSCID = 0;
+      reserved2 = 0;
+      ADDR = 0;
+      reserved3 = 0;
+    }
+  };
+
+  // IOTINVAL.GVMA command structure for second-stage page table invalidation
+  struct IotinvalGvmaCommand
+  {
+    CommandOpcode   opcode      : 7;  // Command opcode (bits 0-6) = IOTINVAL (0x1)
+    IotinvalFunc    func3       : 3;  // Function (bits 7-9) = GVMA (0x1)
+    uint64_t        AV          : 1;  // Address Valid (bit 10)
+    uint64_t        reserved0   : 1;  // Reserved bit (bit 11)
+    uint64_t        reserved1   : 20; // Reserved bits (bits 12-31) - PSCID not used for GVMA
+    uint64_t        PSCV        : 1;  // PSCID Valid (bit 32) - must be 0 for GVMA
+    uint64_t        GV          : 1;  // GSCID Valid (bit 33)
+    uint64_t        reserved2   : 6;  // Reserved bits (bits 34-39)
+    uint64_t        GSCID       : 16; // Guest Soft-Context ID (bits 40-55)
+    uint64_t        reserved3   : 8;  // Reserved bits (bits 56-63)
+    uint64_t        ADDR        : 52; // Address[63:12] for page-aligned addresses (bits 64-115)
+    uint64_t        reserved4   : 12; // Reserved bits (bits 116-127)
+
+    // Constructor to initialize opcode and func3
+    IotinvalGvmaCommand()
+    {
+      opcode = CommandOpcode::IOTINVAL;
+      func3 = IotinvalFunc::GVMA;
+      AV = 0;
+      reserved0 = 0;
+      reserved1 = 0;
+      PSCV = 0;  // Must be 0 for GVMA per specification
+      GV = 0;
+      reserved2 = 0;
+      GSCID = 0;
+      reserved3 = 0;
+      ADDR = 0;
+      reserved4 = 0;
+    }
+  };
+
   // Union to reinterpret 2 double words as different commands.
   union Command
   {
@@ -161,6 +240,16 @@ namespace TT_IOMMU
     /// Construct from an IofenceCCommand
     Command(IofenceCCommand iofence)
       : iofence(iofence)
+    {}
+
+    /// Construct from an IotinvalVmaCommand
+    Command(IotinvalVmaCommand iotinval_vma)
+      : iotinval_vma(iotinval_vma)
+    {}
+
+    /// Construct from an IotinvalGvmaCommand
+    Command(IotinvalGvmaCommand iotinval_gvma)
+      : iotinval_gvma(iotinval_gvma)
     {}
 
     /// Construct from an AtsCommandData.
@@ -181,6 +270,10 @@ namespace TT_IOMMU
     bool isIofence() const
     { return (CommandOpcode)iofence.opcode == CommandOpcode::IOFENCE; }
 
+    /// True if the opcode corresponds to IOTINVAL.
+    bool isIotinval() const
+    { return (CommandOpcode)iotinval_vma.opcode == CommandOpcode::IOTINVAL; }
+
     /// True if ATS invalidate command.
     bool isInval() const
     { return isAts() and inval.func3 == AtsFunc::INVAL; }
@@ -193,6 +286,14 @@ namespace TT_IOMMU
     bool isIofenceC() const
     { return isIofence() and iofence.func3 == IofenceFunc::C; }
 
+    /// True if IOTINVAL.VMA command.
+    bool isIotinvalVma() const
+    { return isIotinval() and iotinval_vma.func3 == IotinvalFunc::VMA; }
+
+    /// True if IOTINVAL.GVMA command.
+    bool isIotinvalGvma() const
+    { return isIotinval() and iotinval_gvma.func3 == IotinvalFunc::GVMA; }
+
     /// Return the first double word of this command.
     uint64_t dw0() const
     { return data.dw0; }
@@ -201,10 +302,12 @@ namespace TT_IOMMU
     uint64_t dw1() const
     { return data.dw1; }
 
-    AtsInvalCommand   inval;
-    AtsPrgrCommand    prgr;
-    IofenceCCommand   iofence;
-    AtsCommandData    data;
+    AtsInvalCommand     inval;
+    AtsPrgrCommand      prgr;
+    IofenceCCommand     iofence;
+    IotinvalVmaCommand  iotinval_vma;
+    IotinvalGvmaCommand iotinval_gvma;
+    AtsCommandData      data;
   };
 
   // For backward compatibility

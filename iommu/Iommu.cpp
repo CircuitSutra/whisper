@@ -1806,6 +1806,14 @@ Iommu::processCommandQueue()
     {
       executeIofenceCCommand(cmdData);
     }
+    else if (isIotinvalVmaCommand(cmd))
+    {
+      executeIotinvalVmaCommand(cmdData);
+    }
+    else if (isIotinvalGvmaCommand(cmd))
+    {
+      executeIotinvalGvmaCommand(cmdData);
+    }
     else
     {
       // Unknown command type, potentially log error
@@ -2111,6 +2119,111 @@ Iommu::executeIofenceCCommand(const AtsCommandData& cmdData)
   }
   
   printf("IOFENCE.C: Command completed\n");
+}
+
+void
+Iommu::executeIotinvalVmaCommand(const AtsCommandData& cmdData)
+{
+  // Parse IOTINVAL.VMA command
+  IotinvalVmaCommand cmd;
+  cmd = *reinterpret_cast<const IotinvalVmaCommand*>(&cmdData);
+  
+  // Extract command fields
+  bool AV = cmd.AV;        // Address Valid
+  bool PSCV = cmd.PSCV;    // Process Soft-Context Valid
+  bool GV = cmd.GV;        // Guest Soft-Context Valid
+  uint32_t PSCID = cmd.PSCID;  // Process Soft-Context ID
+  uint32_t GSCID = cmd.GSCID;  // Guest Soft-Context ID
+  uint64_t addr = cmd.ADDR << 12; // Convert from ADDR[63:12] to full address (page-aligned)
+  
+  printf("IOTINVAL.VMA: AV=%d, PSCV=%d, GV=%d, PSCID=0x%x, GSCID=0x%x, addr=0x%lx\n", 
+         AV, PSCV, GV, PSCID, GSCID, addr);
+  
+  // Validate command parameters according to specification
+  if (PSCV && !AV) {
+    printf("IOTINVAL.VMA: Invalid combination - PSCV=1 requires AV=1\n");
+    return;
+  }
+  
+  // Determine invalidation scope based on operand combination
+  if (!GV && !AV && !PSCV) {
+    printf("IOTINVAL.VMA: Invalidating all first-stage page table cache entries for all host address spaces\n");
+  }
+  else if (!GV && !AV && PSCV) {
+    printf("IOTINVAL.VMA: Invalidating first-stage entries for host address space with PSCID=0x%x\n", PSCID);
+  }
+  else if (!GV && AV && !PSCV) {
+    printf("IOTINVAL.VMA: Invalidating first-stage entries for address 0x%lx in all host address spaces\n", addr);
+  }
+  else if (!GV && AV && PSCV) {
+    printf("IOTINVAL.VMA: Invalidating first-stage entries for address 0x%lx in host address space PSCID=0x%x\n", addr, PSCID);
+  }
+  else if (GV && !AV && !PSCV) {
+    printf("IOTINVAL.VMA: Invalidating all first-stage entries for VM address spaces with GSCID=0x%x\n", GSCID);
+  }
+  else if (GV && !AV && PSCV) {
+    printf("IOTINVAL.VMA: Invalidating first-stage entries for VM address space PSCID=0x%x, GSCID=0x%x\n", PSCID, GSCID);
+  }
+  else if (GV && AV && !PSCV) {
+    printf("IOTINVAL.VMA: Invalidating first-stage entries for address 0x%lx in all VM address spaces with GSCID=0x%x\n", addr, GSCID);
+  }
+  else if (GV && AV && PSCV) {
+    printf("IOTINVAL.VMA: Invalidating first-stage entries for address 0x%lx in VM address space PSCID=0x%x, GSCID=0x%x\n", addr, PSCID, GSCID);
+  }
+  
+  // TODO: Implement actual IOATC (IOMMU Address Translation Cache) invalidation
+  // This is a stub implementation - actual invalidation logic would:
+  // 1. Identify matching IOATC entries based on the invalidation scope
+  // 2. Remove/invalidate those entries from the translation cache
+  // 3. Ensure ordering with respect to previous memory operations per specification
+  
+  printf("IOTINVAL.VMA: Command completed (stub implementation)\n");
+}
+
+void
+Iommu::executeIotinvalGvmaCommand(const AtsCommandData& cmdData)
+{
+  // Parse IOTINVAL.GVMA command
+  IotinvalGvmaCommand cmd;
+  cmd = *reinterpret_cast<const IotinvalGvmaCommand*>(&cmdData);
+  
+  // Extract command fields
+  bool AV = cmd.AV;        // Address Valid
+  bool PSCV = cmd.PSCV;    // Process Soft-Context Valid (must be 0 for GVMA)
+  bool GV = cmd.GV;        // Guest Soft-Context Valid
+  uint32_t GSCID = cmd.GSCID;  // Guest Soft-Context ID
+  uint64_t addr = cmd.ADDR << 12; // Convert from ADDR[63:12] to full address (page-aligned)
+  
+  printf("IOTINVAL.GVMA: AV=%d, PSCV=%d, GV=%d, GSCID=0x%x, addr=0x%lx\n", 
+         AV, PSCV, GV, GSCID, addr);
+  
+  // Validate command parameters according to specification
+  if (PSCV) {
+    printf("IOTINVAL.GVMA: Invalid command - PSCV must be 0 for GVMA commands\n");
+    return;
+  }
+  
+  // Determine invalidation scope based on operand combination
+  if (!GV && !AV) {
+    printf("IOTINVAL.GVMA: Invalidating all second-stage page table cache entries for all host address spaces\n");
+  }
+  else if (!GV && AV) {
+    printf("IOTINVAL.GVMA: Invalidating second-stage entries for address 0x%lx in all host address spaces\n", addr);
+  }
+  else if (GV && !AV) {
+    printf("IOTINVAL.GVMA: Invalidating all second-stage entries for VM address spaces with GSCID=0x%x\n", GSCID);
+  }
+  else if (GV && AV) {
+    printf("IOTINVAL.GVMA: Invalidating second-stage entries for address 0x%lx in VM address space GSCID=0x%x\n", addr, GSCID);
+  }
+  
+  // TODO: Implement actual IOATC (IOMMU Address Translation Cache) invalidation
+  // This is a stub implementation - actual invalidation logic would:
+  // 1. Identify matching second-stage IOATC entries based on the invalidation scope
+  // 2. Remove/invalidate those entries from the translation cache
+  // 3. Ensure ordering with respect to previous memory operations per specification
+  
+  printf("IOTINVAL.GVMA: Command completed (stub implementation)\n");
 }
 
 void
