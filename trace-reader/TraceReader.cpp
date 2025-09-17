@@ -215,35 +215,41 @@ TraceRecord::clear()
 
 
 void
-TraceRecord::print(std::ostream& os) const
+TraceReader::printRecord(std::ostream& os, const TraceRecord& rec) const
 {
   boost::io::ios_flags_saver restore_flags(os);
-  os << "PC=" << std::hex << virtPc;
-  if (physPc != virtPc)
-    os << ":" << std::hex << physPc;
-  os << "  inst=" << std::hex << inst << " size=" << unsigned(instSize);
-  if (instType != 0)
-    os << " type=" << instType;
-  os << " virt=" << virt;
-  if (size_t(priv) < privChar.size())
-    os << " priv=" << privChar.at(size_t(priv));
-  if (hasTrap)
-    os << " trap=" << std::hex << trap;
-  if (not assembly.empty())
-    os << " disas=\"" << assembly << '"';
-  if (dataSize)
-    os << " dataSize=" << std::dec << unsigned(dataSize);
+  os << "PC=0x" << std::hex << rec.virtPc;
+  if (rec.physPc != rec.virtPc)
+    os << ":0x" << rec.physPc;
+  os << "  inst=0x" << rec.inst << " size=" << std::dec << unsigned(rec.instSize);
+  if (rec.instType != 0)
+    os << " type=" << rec.instType;
+  os << " virt=" << rec.virt;
+  if (size_t(rec.priv) < privChar.size())
+    os << " priv=" << privChar.at(size_t(rec.priv));
+  if (rec.hasTrap)
+    os << " trap=0x" << std::hex << rec.trap << std::dec;
+  if (not rec.assembly.empty())
+    os << " disas=\"" << rec.assembly << '"';
+  if (rec.dataSize)
+    os << " dataSize=" << unsigned(rec.dataSize);
   os << '\n';
 
-  if (not hasTrap and (instType == 'j' or instType == 'c' or instType == 't'
-		       or instType == 'c'))
-    os << "  branch_target: " << std::hex << takenBranchTarget << '\n';
-
-  for (const auto& mreg : modifiedRegs)
+  if (rec.isVector())
     {
-      os << "  dest: " << operandTypeChar.at(size_t(mreg.type))
-	 << std::dec << mreg.number
-	 << '=';
+      os << "vl=" << vlValue() << " vstart=" << vstartValue() << " groupX8="
+         << groupMultiplierX8() << " sewib=" << vecElemWidthInBytes()
+         << " ta=" << tailAgnositic() << " ma=" << maskAgnostic()
+         << " vill=" << vtypeVill() << '\n';
+    }
+
+  if (not rec.hasTrap and (rec.instType == 'j' or rec.instType == 'c'
+                           or rec.instType == 't' or rec.instType == 'c'))
+    os << "  branch_target: " << std::hex << rec.takenBranchTarget << std::dec << '\n';
+
+  for (const auto& mreg : rec.modifiedRegs)
+    {
+      os << "  dest: " << operandTypeChar.at(size_t(mreg.type))	 << mreg.number << '=';
 
       if (mreg.type == OperandType::Vec)
         {
@@ -259,23 +265,23 @@ TraceRecord::print(std::ostream& os) const
       else
         os << std::hex << mreg.value << " prev=" << mreg.prevValue;
 
-      os << '\n';
+      os << std::dec << '\n';
     }
 
-  if (instType == 'f')
+  if (rec.instType == 'f')
     {
-      os << "  fp_flags: " << std::hex << unsigned(fpFlags) << '\n';
-      os << "  rounding_mode: " << std::hex << unsigned(roundingMode) << '\n';
+      os << "  fp_flags: 0x" << std::hex << unsigned(rec.fpFlags) << '\n';
+      os << "  rounding_mode: 0x" << unsigned(rec.roundingMode) << '\n';
+      os << std::dec;
     }
 
-  for (const auto& src : sourceOperands)
+  for (const auto& src : rec.sourceOperands)
     {
       if (src.type == OperandType::Imm)
-	os << "  src: imm=" << std::hex << src.value << '\n';
+	os << "  src: imm=0x" << std::hex << src.value << std::dec << '\n';
       else
 	{
-	  os << "  src: " << operandTypeChar.at(size_t(src.type));
-	  os << std::dec << src.number;
+	  os << "  src: " << operandTypeChar.at(size_t(src.type)) << src.number;
           os << '=';
 	  if (src.type == OperandType::Vec)
 	    {
@@ -286,57 +292,57 @@ TraceRecord::print(std::ostream& os) const
 	    }
 	  else
 	    os << std::hex << src.value;
-	  os << '\n';
+	  os << std::dec << '\n';
 	}
     }
 
-  if (not virtAddrs.empty())
+  if (not rec.virtAddrs.empty())
     {
-      os << (virtAddrs.size() == 1 ? "  mem: "  :  "  mems:\n");
-      for (size_t i = 0; i < virtAddrs.size(); ++i)
+      os << (rec.virtAddrs.size() == 1 ? "  mem: "  :  "  mems:\n");
+      for (size_t i = 0; i < rec.virtAddrs.size(); ++i)
 	{
-	  if (virtAddrs.size() > 1)
+	  if (rec.virtAddrs.size() > 1)
 	    os << "    ";
-	  os << std::hex << virtAddrs.at(i);
-	  if (i < physAddrs.size() and physAddrs.at(i) != virtAddrs.at(i))
-	    os << ":" << std::hex << physAddrs.at(i);
-	  if (i < memVals.size())
-	    os << "=" << std::hex << memVals.size();
-	  if (i < maskedAddrs.size() and maskedAddrs.at(i))
+	  os << "0x" << std::hex << rec.virtAddrs.at(i);
+	  if (i < rec.physAddrs.size() and rec.physAddrs.at(i) != rec.virtAddrs.at(i))
+	    os << ":0x" << rec.physAddrs.at(i);
+	  if (i < rec.memVals.size())
+	    os << "=" << rec.memVals.size();
+	  if (i < rec.maskedAddrs.size() and rec.maskedAddrs.at(i))
 	    os << " masked";
-	  os << '\n';
+	  os << std::dec << '\n';
 	}
     }
 
-  if (not ipteAddrs.empty())
+  if (not rec.ipteAddrs.empty())
     {
       os << "  ipte addrs:\n";
-      for (const auto& [key, val] : ipteAddrs)
+      for (const auto& [key, val] : rec.ipteAddrs)
         {
           const char* sep = "";
-          os << "   " << std::hex << key << ":";
+          os << "   0x" << std::hex << key << ":";
           for (auto addr : val)
             {
-              os << sep << " " << addr;
+              os << sep << " 0x" << addr;
               sep = ",";
             }
-          os << '\n';
+          os << std::dec << '\n';
         }
     }
 
-  if (not dpteAddrs.empty())
+  if (not rec.dpteAddrs.empty())
     {
       os << "  dpte addrs:\n";
-      for (const auto& [key, val] : dpteAddrs)
+      for (const auto& [key, val] : rec.dpteAddrs)
         {
           const char* sep = "";
-          os << "   " << std::hex << key << ":";
+          os << "   0x" << std::hex << key << ":";
           for (auto addr : val)
             {
-              os << sep << " " << addr;
+              os << sep << " 0x" << addr;
               sep = ",";
             }
-          os << '\n';
+          os << std::dec << '\n';
         }
     }
 }

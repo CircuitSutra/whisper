@@ -18,7 +18,7 @@ TraceReader.a: $(OBJS)
 	$(AR) cr $@ $^
 
 sample-reader: sample-reader.o TraceReader.a
-	$(CXX) -o $@ $^ -L$(BOOST_LIB_DIR) -lboost_iostreams -lz
+	$(CXX) -o $@ $^ -L$(BOOST_LIB_DIR) -l:libboost_iostreams.a -lz
 
 -include $(DEPS)
 

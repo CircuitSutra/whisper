@@ -201,9 +201,6 @@ namespace WhisperUtil  {
     // Clear this record.
     void clear();
 
-    // Print this record to the given stream
-    void print(std::ostream& os) const;
-
     // Return true if this is a floating point instruction.
     bool isFp() const
     { return instType == 'f'; }
@@ -297,11 +294,6 @@ namespace WhisperUtil  {
 
   };
 
-  inline std::ostream & operator<<(std::ostream & os, const TraceRecord & data)
-  {
-    data.print(os);
-    return os;
-  }
 
   // Reader for whisper CSV log file.
   // Samle usage:
@@ -309,7 +301,7 @@ namespace WhisperUtil  {
   //   TraceReader reader;
   //   while (reader.nextRecord(record))
   //     {
-  //        record.print(std::cout);
+  //        reader.printRecord(std::cout, record);
   //     }
   class TraceReader
   {
@@ -396,6 +388,63 @@ namespace WhisperUtil  {
     // of nextRecord.
     const std::vector<uint8_t>& vecRegValue(unsigned ix) const
     { return vecRegs_.at(ix); }
+
+    /// Return the current value of the vector start (VL) CSR.
+    uint64_t vstartValue() const
+    { return csrValue(0x8); }
+
+    /// Return the current value of the vector length (VL) CSR.
+    uint64_t vlValue() const
+    { return csrValue(0xc20); }
+
+    /// Return the current value of the vector type (VTYPE) CSR.
+    uint64_t vtypeValue() const
+    { return csrValue(0xc21); }
+
+    /// Retrun the raw vector group multiplier (from the current value of the VTYPE CSR).
+    /// Encoding: m1=0, m2=1, m4=2, m8=3, reserved=4, mf8=5, mf4=6, mf2=7
+    unsigned rawLmul() const
+    { return vtypeValue() & 7; }
+
+    /// Return the group multiplier times 8: mf8=1, mf4=2, mf2=1, m1=8, m2=16, m4=32,
+    /// m8=64.  Return zero if lmul value is reserved.
+    unsigned groupMultiplierX8() const
+    {
+      unsigned raw = rawLmul();
+      assert(raw < 8);
+
+      if (raw == 4)
+        return 0;
+
+      if (raw < 4)
+        return (1 << raw)*8;
+
+      return (1 << (raw-5));
+    }
+
+    /// Return the raw SEW field  from the current value of the VTYPE CSR.
+    unsigned rawSew() const
+    { return vtypeValue() >> 3 & 7; }
+
+    /// Return the vector element width (in bytes) from the current value of the VTYPE
+    /// CSR.
+    unsigned vecElemWidthInBytes() const
+    { return 1 << rawSew(); }
+
+    /// Return the tail aganostic (VTA) flag from the current value of the VTYPE CSR.
+    bool tailAgnositic() const
+    { return (vtypeValue() >> 6) & 1; }
+
+    /// Return the mask aganostic (VMA) flag from the current value of the VTYPE CSR.
+    bool maskAgnostic() const
+    { return (vtypeValue() >> 7) & 1; }
+
+    /// Return the illegal flag (VILL) from the current value of the VTYPE CSR. This is a
+    /// hack. We need to know whether we are in RV32 or RV64 to do this right.
+    bool vtypeVill() const
+    { return ((vtypeValue() >> 31) & 1) | ((vtypeValue() >> 63) & 1); }
+
+    void printRecord(std::ostream& stream, const TraceRecord& record) const;
 
   protected:
 

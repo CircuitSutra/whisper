@@ -36,7 +36,7 @@ main(int argc, char* argv[])
   uint64_t nn = 0;
   while (reader->nextRecord(record))
     {
-      record.print(std::cout);
+      reader->printRecord(std::cout, record);
     }
 
   if (not reader->eof())
