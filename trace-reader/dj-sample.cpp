@@ -24,7 +24,7 @@ main(int argc, char* argv[])
           unsigned sewib = reader.vecElemWidthInBytes();
           std::string name = record.instructionName();
           std::cout << name << " ta=" << ta << " ma=" << ma << " vstart=" << vstart
-                    << " vl=" << vl << "sweib=" << sewib << " groupx8=" << gx8 << '\n';
+                    << " vl=" << vl << " sweib=" << sewib << " groupx8=" << gx8 << '\n';
         }
     }
 
