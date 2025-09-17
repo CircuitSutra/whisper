@@ -5,9 +5,8 @@
 #include <chrono>
 #include <fstream>
 #include <cstring>
-#include <rfb/rfb.h>
-
 #include "RemoteFrameBuffer.hpp"
+#include <rfb/rfb.h>
 
 using namespace WdRiscv;
 
