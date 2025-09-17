@@ -239,7 +239,7 @@ TraceReader::printRecord(std::ostream& os, const TraceRecord& rec) const
     {
       os << "  vl=" << vlValue() << " vstart=" << vstartValue() << " groupX8="
          << groupMultiplierX8() << " sewib=" << vecElemWidthInBytes()
-         << " ta=" << tailAgnositic() << " ma=" << maskAgnostic()
+         << " ta=" << tailAgnostic() << " ma=" << maskAgnostic()
          << " vill=" << vtypeVill() << '\n';
     }
 

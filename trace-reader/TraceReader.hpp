@@ -292,6 +292,14 @@ namespace WhisperUtil  {
     bool isIllegal() const
     { return inst == 0 or ~inst == 0; }
 
+    // Return the instruction name.
+    std::string instructionName() const
+    {
+      auto pos = assembly.find(' ');
+      if (pos == std::string::npos)
+        return assembly;
+      return assembly.substr(0, pos);
+    }
   };
 
 
@@ -432,7 +440,7 @@ namespace WhisperUtil  {
     { return 1 << rawSew(); }
 
     /// Return the tail aganostic (VTA) flag from the current value of the VTYPE CSR.
-    bool tailAgnositic() const
+    bool tailAgnostic() const
     { return (vtypeValue() >> 6) & 1; }
 
     /// Return the mask aganostic (VMA) flag from the current value of the VTYPE CSR.

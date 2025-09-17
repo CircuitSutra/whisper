@@ -12,12 +12,15 @@ SRCS := TraceReader.cpp PageTableMaker.cpp
 OBJS := $(SRCS:.cpp=.o)
 DEPS := $(OBJS:.o=.d)
 
-default: sample-reader
+default: sample-reader dj-sample
 
 TraceReader.a: $(OBJS)
 	$(AR) cr $@ $^
 
 sample-reader: sample-reader.o TraceReader.a
+	$(CXX) -o $@ $^ -L$(BOOST_LIB_DIR) -l:libboost_iostreams.a -lz
+
+dj-sample: dj-sample.o TraceReader.a
 	$(CXX) -o $@ $^ -L$(BOOST_LIB_DIR) -l:libboost_iostreams.a -lz
 
 -include $(DEPS)
