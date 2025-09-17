@@ -280,6 +280,11 @@ namespace TT_IOMMU
     /// testing.
     uint64_t getCsrAddress(CsrNumber csrn) const
     { return addr_ + csrs_.at(size_t(csrn)).offset_; }
+    
+    /// Return the base address of the queue associated with the given queue base CSR.
+    /// Public wrapper for testing.
+    uint64_t getQueueAddress(CsrNumber qbase) const
+    { return queueAddress(qbase); }
 
     /// Load device context given a device id. Return true on success and false on
     /// failure. Set cause to failure cause on failure.
@@ -549,11 +554,22 @@ namespace TT_IOMMU
     bool isAtsPrgrCommand(const AtsCommand& cmd) const
     { return cmd.isPrgr(); }
 
+    /// Return true if the given command is an IOFENCE command (has the correct opcode).
+    bool isIofenceCommand(const AtsCommand& cmd) const
+    { return cmd.isIofence(); }
+
+    bool isIofenceCCommand(const AtsCommand& cmd) const
+    { return cmd.isIofenceC(); }
+
     /// Execute an ATS.INVAL command for address translation cache invalidation
     void executeAtsInvalCommand(const AtsCommandData& cmdData);
     
     /// Execute an ATS.PRGR command for page request group response
     void executeAtsPrgrCommand(const AtsCommandData& cmdData);
+
+    /// Execute an IOFENCE.C command for command queue fence
+    void executeIofenceCCommand(const AtsCommandData& cmdData);
+
 
     /// Process pending page requests in the page request queue
     void processPageRequestQueue();
@@ -759,6 +775,7 @@ namespace TT_IOMMU
     };
     
     std::vector<PageRequest> pendingPageRequests_;
+
 
     bool pmpEnabled_ = false;        // Physical memory protection (PMP)
     unsigned pmpcfgCount_ = 0;       // Number of PMPCFG registers
