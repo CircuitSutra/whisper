@@ -237,7 +237,7 @@ TraceReader::printRecord(std::ostream& os, const TraceRecord& rec) const
 
   if (rec.isVector())
     {
-      os << "vl=" << vlValue() << " vstart=" << vstartValue() << " groupX8="
+      os << "  vl=" << vlValue() << " vstart=" << vstartValue() << " groupX8="
          << groupMultiplierX8() << " sewib=" << vecElemWidthInBytes()
          << " ta=" << tailAgnositic() << " ma=" << maskAgnostic()
          << " vill=" << vtypeVill() << '\n';
@@ -251,19 +251,20 @@ TraceReader::printRecord(std::ostream& os, const TraceRecord& rec) const
     {
       os << "  dest: " << operandTypeChar.at(size_t(mreg.type))	 << mreg.number << '=';
 
+      os << std::hex;
       if (mreg.type == OperandType::Vec)
         {
 	  auto& vv = mreg.vecValue;
           for (auto it = vv.rbegin(); it != vv.rend(); ++it)
-            os << std::hex << std::setw(2) << std::setfill('0') << (unsigned) *it;
+            os << "0x" << std::setw(2) << std::setfill('0') << (unsigned) *it;
 
           os << " prev=";
 	  auto& pv = mreg.vecPrevValue;
           for (auto it = pv.rbegin(); it != pv.rend(); ++it)
-            os << std::hex << std::setw(2) << std::setfill('0') << (unsigned) *it;
+            os << "0x" << std::setw(2) << std::setfill('0') << (unsigned) *it;
         }
       else
-        os << std::hex << mreg.value << " prev=" << mreg.prevValue;
+        os << "0x" << mreg.value << " prev=0x" << mreg.prevValue;
 
       os << std::dec << '\n';
     }
@@ -281,17 +282,17 @@ TraceReader::printRecord(std::ostream& os, const TraceRecord& rec) const
 	os << "  src: imm=0x" << std::hex << src.value << std::dec << '\n';
       else
 	{
-	  os << "  src: " << operandTypeChar.at(size_t(src.type)) << src.number;
-          os << '=';
+	  os << "  src: " << operandTypeChar.at(size_t(src.type)) << src.number
+             << std::hex << "=0x";
 	  if (src.type == OperandType::Vec)
 	    {
               for (auto val : src.vecValue)
-                os << std::hex << std::setw(2) << std::setfill('0') << (unsigned) val;
+                os << "0x" << std::setw(2) << std::setfill('0') << (unsigned) val;
 	      if (src.emul != 1)
 		os << "m" << src.emul;
 	    }
 	  else
-	    os << std::hex << src.value;
+	    os << src.value;
 	  os << std::dec << '\n';
 	}
     }
