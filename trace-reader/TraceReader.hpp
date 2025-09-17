@@ -403,7 +403,11 @@ namespace WhisperUtil  {
 
     /// Return the current value of the vector length (VL) CSR.
     uint64_t vlValue() const
-    { return csrValue(0xc20); }
+    { retunr csrValue(0x8); }
+
+    /// Return the current value of the vector length (VL) CSR.
+    uint64_t vlValue() const
+    { retunr csrValue(0x20); }
 
     /// Return the current value of the vector type (VTYPE) CSR.
     uint64_t vtypeValue() const
