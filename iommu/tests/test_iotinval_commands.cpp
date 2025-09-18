@@ -36,10 +36,6 @@ void testIotinvalVmaCommand()
   assert(cmd1.isIotinvalVma() == true);
   assert(cmd1.isIotinvalGvma() == false);
   
-  std::cout << "  IOTINVAL.VMA (global): opcode=" << static_cast<int>(vmaCmd1.opcode) 
-            << ", func3=" << static_cast<int>(vmaCmd1.func3)
-            << ", GV=" << vmaCmd1.GV << ", AV=" << vmaCmd1.AV 
-            << ", PSCV=" << vmaCmd1.PSCV << std::endl;
   
   // Test 2: Address-specific invalidation (GV=0, AV=1, PSCV=0)
   IotinvalCommand vmaCmd2(IotinvalFunc::VMA);
@@ -51,9 +47,6 @@ void testIotinvalVmaCommand()
   Command cmd2(vmaCmd2);
   assert(cmd2.isIotinvalVma() == true);
   
-  std::cout << "  IOTINVAL.VMA (address-specific): GV=" << vmaCmd2.GV 
-            << ", AV=" << vmaCmd2.AV << ", PSCV=" << vmaCmd2.PSCV 
-            << ", ADDR=0x" << std::hex << vmaCmd2.ADDR << std::dec << std::endl;
   
   // Test 3: Process and address specific (GV=0, AV=1, PSCV=1)
   IotinvalCommand vmaCmd3(IotinvalFunc::VMA);
@@ -66,10 +59,6 @@ void testIotinvalVmaCommand()
   Command cmd3(vmaCmd3);
   assert(cmd3.isIotinvalVma() == true);
   
-  std::cout << "  IOTINVAL.VMA (process+address): GV=" << vmaCmd3.GV 
-            << ", AV=" << vmaCmd3.AV << ", PSCV=" << vmaCmd3.PSCV 
-            << ", PSCID=0x" << std::hex << vmaCmd3.PSCID 
-            << ", ADDR=0x" << vmaCmd3.ADDR << std::dec << std::endl;
   
   std::cout << "  ✓ IOTINVAL.VMA command structure test PASSED!" << std::endl << std::endl;
 }
@@ -91,10 +80,6 @@ void testIotinvalGvmaCommand()
   assert(cmd1.isIotinvalGvma() == true);
   assert(cmd1.isIotinvalVma() == false);
   
-  std::cout << "  IOTINVAL.GVMA (global): opcode=" << static_cast<int>(gvmaCmd1.opcode) 
-            << ", func3=" << static_cast<int>(gvmaCmd1.func3)
-            << ", GV=" << gvmaCmd1.GV << ", AV=" << gvmaCmd1.AV 
-            << ", PSCV=" << gvmaCmd1.PSCV << std::endl;
   
   // Test 2: Guest-specific invalidation (GV=1, AV=0, PSCV=0)
   IotinvalCommand gvmaCmd2(IotinvalFunc::GVMA);
@@ -106,9 +91,6 @@ void testIotinvalGvmaCommand()
   Command cmd2(gvmaCmd2);
   assert(cmd2.isIotinvalGvma() == true);
   
-  std::cout << "  IOTINVAL.GVMA (guest-specific): GV=" << gvmaCmd2.GV 
-            << ", AV=" << gvmaCmd2.AV << ", PSCV=" << gvmaCmd2.PSCV 
-            << ", GSCID=0x" << std::hex << gvmaCmd2.GSCID << std::dec << std::endl;
   
   std::cout << "  ✓ IOTINVAL.GVMA command structure test PASSED!" << std::endl << std::endl;
 }
@@ -126,43 +108,15 @@ void testCommandOpcodes()
   assert(static_cast<uint32_t>(IotinvalFunc::VMA) == 0);
   assert(static_cast<uint32_t>(IotinvalFunc::GVMA) == 1);
   
-  std::cout << "  Opcodes: IOTINVAL=" << static_cast<int>(CommandOpcode::IOTINVAL)
-            << ", IOFENCE=" << static_cast<int>(CommandOpcode::IOFENCE)  
-            << ", ATS=" << static_cast<int>(CommandOpcode::ATS) << std::endl;
-  
-  std::cout << "  Functions: VMA=" << static_cast<int>(IotinvalFunc::VMA)
-            << ", GVMA=" << static_cast<int>(IotinvalFunc::GVMA) << std::endl;
   
   std::cout << "  ✓ Command opcode assignments are correct!" << std::endl << std::endl;
 }
 
-void printSpecificationOverview()
-{
-  std::cout << "=== RISC-V IOMMU IOTINVAL Command Implementation ===" << std::endl;
-  std::cout << "This implementation provides stub support for:" << std::endl;
-  std::cout << "  - IOTINVAL.VMA  (First-stage page table cache invalidation)" << std::endl;
-  std::cout << "  - IOTINVAL.GVMA (Second-stage page table cache invalidation)" << std::endl;
-  std::cout << std::endl;
-  
-  std::cout << "Command format according to RISC-V IOMMU Specification 3.1.1:" << std::endl;
-  std::cout << "  GV: Guest-Soft-Context ID (GSCID) operand valid" << std::endl;
-  std::cout << "  AV: Address (ADDR) operand valid" << std::endl;
-  std::cout << "  PSCV: Process Soft-Context ID (PSCID) operand valid (VMA only)" << std::endl;
-  std::cout << std::endl;
-  
-  std::cout << "Invalidation scopes based on operand combinations:" << std::endl;
-  std::cout << "  GV=0, AV=0, PSCV=0: Invalidate all entries for all address spaces" << std::endl;
-  std::cout << "  GV=0, AV=0, PSCV=1: Invalidate entries for specific PSCID (VMA only)" << std::endl;
-  std::cout << "  GV=0, AV=1, PSCV=0: Invalidate entries for specific address" << std::endl;
-  std::cout << "  GV=0, AV=1, PSCV=1: Invalidate entries for specific address+PSCID (VMA only)" << std::endl;
-  std::cout << "  GV=1, AV=0, PSCV=0: Invalidate all entries for specific GSCID" << std::endl;
-  std::cout << "  GV=1, AV=1, PSCV=0: Invalidate entries for specific address+GSCID" << std::endl;
-  std::cout << std::endl;
-}
 
 int main()
 {
-  printSpecificationOverview();
+  std::cout << "RISC-V IOMMU IOTINVAL Command Test" << std::endl;
+  std::cout << "===================================" << std::endl << std::endl;
   
   testCommandOpcodes();
   testIotinvalVmaCommand();
