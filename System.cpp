@@ -1736,14 +1736,9 @@ System<URV>::batchRun(std::vector<FILE*>& traceFiles, bool waitAll, uint64_t ste
         }
 
       if (cond.prog or (cond.roi and earlyRoiTerminate))
-        {
-          forceSnapshot();
-          if (cond.stop or
-              (cond.roi and earlyRoiTerminate))
-            return result;
-        }
-      else if (cond.stop or
-               (cond.roi and earlyRoiTerminate))
+        forceSnapshot();
+      if (cond.stop or
+          (cond.roi and earlyRoiTerminate))
         return result;
     }
 }
