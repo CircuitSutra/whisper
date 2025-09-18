@@ -1192,6 +1192,13 @@ Decoder::decodeVecStore(uint32_t f3, uint32_t imm12, uint32_t& fieldCount) const
 	      if (f3 == 6) return instTable_.getEntry(InstId::vsuxei32_v);
 	      if (f3 == 7) return instTable_.getEntry(InstId::vsuxei64_v);
 	    }
+          else
+            {
+	      if (f3 == 0) return instTable_.getEntry(InstId::vsuxei128_v);
+	      if (f3 == 5) return instTable_.getEntry(InstId::vsuxei256_v);
+	      if (f3 == 6) return instTable_.getEntry(InstId::vsuxei512_v);
+	      if (f3 == 7) return instTable_.getEntry(InstId::vsuxei1024_v);
+            }
 	}
       else
 	{
@@ -1203,6 +1210,13 @@ Decoder::decodeVecStore(uint32_t f3, uint32_t imm12, uint32_t& fieldCount) const
 	      if (f3 == 6) return instTable_.getEntry(InstId::vsuxsegei32_v);
 	      if (f3 == 7) return instTable_.getEntry(InstId::vsuxsegei64_v);
 	    }
+          else
+            {
+	      if (f3 == 0) return instTable_.getEntry(InstId::vsuxsegei128_v);
+	      if (f3 == 5) return instTable_.getEntry(InstId::vsuxsegei256_v);
+	      if (f3 == 6) return instTable_.getEntry(InstId::vsuxsegei512_v);
+	      if (f3 == 7) return instTable_.getEntry(InstId::vsuxsegei1024_v);
+            }
 	}
     }
 
