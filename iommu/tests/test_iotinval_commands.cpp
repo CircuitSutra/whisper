@@ -26,7 +26,7 @@ void testIotinvalVmaCommand()
   // Test creating IOTINVAL.VMA command with different combinations
   
   // Test 1: Global invalidation (GV=0, AV=0, PSCV=0)
-  IotinvalVmaCommand vmaCmd1;
+  IotinvalCommand vmaCmd1(IotinvalFunc::VMA);
   vmaCmd1.GV = 0;
   vmaCmd1.AV = 0;
   vmaCmd1.PSCV = 0;
@@ -42,7 +42,7 @@ void testIotinvalVmaCommand()
             << ", PSCV=" << vmaCmd1.PSCV << std::endl;
   
   // Test 2: Address-specific invalidation (GV=0, AV=1, PSCV=0)
-  IotinvalVmaCommand vmaCmd2;
+  IotinvalCommand vmaCmd2(IotinvalFunc::VMA);
   vmaCmd2.GV = 0;
   vmaCmd2.AV = 1;
   vmaCmd2.PSCV = 0;
@@ -56,7 +56,7 @@ void testIotinvalVmaCommand()
             << ", ADDR=0x" << std::hex << vmaCmd2.ADDR << std::dec << std::endl;
   
   // Test 3: Process and address specific (GV=0, AV=1, PSCV=1)
-  IotinvalVmaCommand vmaCmd3;
+  IotinvalCommand vmaCmd3(IotinvalFunc::VMA);
   vmaCmd3.GV = 0;
   vmaCmd3.AV = 1;
   vmaCmd3.PSCV = 1;
@@ -81,10 +81,10 @@ void testIotinvalGvmaCommand()
   // Test creating IOTINVAL.GVMA command
   
   // Test 1: Global second-stage invalidation (GV=0, AV=0, PSCV=0)
-  IotinvalGvmaCommand gvmaCmd1;
+  IotinvalCommand gvmaCmd1(IotinvalFunc::GVMA);
   gvmaCmd1.GV = 0;
   gvmaCmd1.AV = 0;
-  gvmaCmd1.PSCV = 0;  // Must be 0 for GVMA
+  // PSCV is already 0 by constructor for GVMA
   
   Command cmd1(gvmaCmd1);
   assert(cmd1.isIotinval() == true);
@@ -97,10 +97,10 @@ void testIotinvalGvmaCommand()
             << ", PSCV=" << gvmaCmd1.PSCV << std::endl;
   
   // Test 2: Guest-specific invalidation (GV=1, AV=0, PSCV=0)
-  IotinvalGvmaCommand gvmaCmd2;
+  IotinvalCommand gvmaCmd2(IotinvalFunc::GVMA);
   gvmaCmd2.GV = 1;
   gvmaCmd2.AV = 0;
-  gvmaCmd2.PSCV = 0;
+  // PSCV remains 0 for GVMA
   gvmaCmd2.GSCID = 0x5678;
   
   Command cmd2(gvmaCmd2);

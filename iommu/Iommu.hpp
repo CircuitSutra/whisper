@@ -580,11 +580,8 @@ namespace TT_IOMMU
     /// Execute an IOFENCE.C command for command queue fence
     void executeIofenceCCommand(const AtsCommandData& cmdData);
 
-    /// Execute an IOTINVAL.VMA command for first-stage page table cache invalidation
-    void executeIotinvalVmaCommand(const AtsCommandData& cmdData);
-
-    /// Execute an IOTINVAL.GVMA command for second-stage page table cache invalidation
-    void executeIotinvalGvmaCommand(const AtsCommandData& cmdData);
+    /// Execute an IOTINVAL command for page table cache invalidation (VMA or GVMA)
+    void executeIotinvalCommand(const AtsCommandData& cmdData);
 
 
     /// Process pending page requests in the page request queue
