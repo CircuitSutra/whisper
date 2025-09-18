@@ -4671,16 +4671,22 @@ Mcm<URV>::ppoRule9(Hart<URV>& hart, const McmInstr& instrB) const
 
   // FIX : Issue error if A and B are both cacheable.
 
-  for (auto opIx : instrB.memOps_)
-    {
-      if (opIx < sysMemOps_.size() and sysMemOps_.at(opIx).time_ <= addrTime)
-	{
-	  cerr << "Warning: PPO rule 9 failed: hart-id=" << hart.hartId() << " tag1="
-	       << instrB.addrProducer_ << " tag2=" << instrB.tag_
-               << " time1=" << addrTime << " time2=" << sysMemOps_.at(opIx).time_ << '\n';
-	  return true;  // Temporary
-	}
-    }
+  auto hartIx = hart.sysHartIndex();
+  const auto& instrVec = hartData_.at(hartIx).instrVec_;
+
+  const auto& instrA = instrVec.at(instrB.addrProducer_);
+
+  if (not instrA.isCanceled())
+    for (auto opIx : instrB.memOps_)
+      {
+        if (opIx < sysMemOps_.size() and sysMemOps_.at(opIx).time_ <= addrTime)
+          {
+            cerr << "Warning: PPO rule 9 failed: hart-id=" << hart.hartId() << " tag1="
+                 << instrB.addrProducer_ << " tag2=" << instrB.tag_
+                 << " time1=" << addrTime << " time2=" << sysMemOps_.at(opIx).time_ << '\n';
+            return true;  // Temporary
+          }
+      }
 
   // Check address dependency of index registers of vector instruction B.
 
@@ -4714,25 +4720,29 @@ Mcm<URV>::ppoRule10(Hart<URV>& hart, const McmInstr& instrB) const
   if (bdi.isStore() and bdi.op0() == 0)
     return true;  // No dependency on X0
 
+  auto hartIx = hart.sysHartIndex();
+  const auto& instrVec = hartData_.at(hartIx).instrVec_;
+  const auto& instrA = instrVec.at(instrB.dataProducer_);
+
+  if (instrA.isCanceled())
+    return true;
+
   if (bdi.isStore() or bdi.isAmo())
     {
-      if ((bdi.isSc() and bdi.op1() == 0) or (bdi.isStore() and bdi.op0() == 0))
-	return true;
       uint64_t dataTime = instrB.dataTime_;
 
       for (auto opIx : instrB.memOps_)
-	{
-	  if (opIx < sysMemOps_.size() and sysMemOps_.at(opIx).time_ <= dataTime)
-	    {
-	      cerr << "Error: PPO rule 10 failed: hart-id=" << hart.hartId() << " tag1="
-		   << instrB.dataProducer_  << " tag2=" << instrB.tag_ << " time1="
-		   << dataTime << " time2=" << sysMemOps_.at(opIx).time_ << '\n';
-	      return false;
-	    }
-	}
+        {
+          if (opIx < sysMemOps_.size() and sysMemOps_.at(opIx).time_ <= dataTime)
+            {
+              cerr << "Error: PPO rule 10 failed: hart-id=" << hart.hartId() << " tag1="
+                   << instrB.dataProducer_  << " tag2=" << instrB.tag_ << " time1="
+                   << dataTime << " time2=" << sysMemOps_.at(opIx).time_ << '\n';
+              return false;
+            }
+        }
     }
-
-  if (bdi.isVectorStore())
+  else if (bdi.isVectorStore())
     {
       auto hartIx = hart.sysHartIndex();
 
@@ -4782,7 +4792,7 @@ Mcm<URV>::ppoRule11(Hart<URV>& hart, const McmInstr& instrB) const
     if (producerTag >= instrVec.size() or producerTag == 0)
       return true;
     const auto& producer = instrVec.at(producerTag);
-    if (not producer.di_.isValid())
+    if (not producer.di_.isValid() or producer.isCanceled())
       return true;
 
     auto producerTime = producer.retireTime_;
@@ -4999,7 +5009,7 @@ Mcm<URV>::ppoRule12(Hart<URV>& hart, const McmInstr& instrB) const
 	  auto addrTime = instrM.addrTime_;
 	  auto dataTime = instrM.dataTime_;
 
-	  if (mapt != 0 and ap.isMemory())
+	  if (mapt != 0 and ap.isMemory() and not ap.isCanceled())
 	    if (not ap.complete_ or byteTime <= addrTime)
 	      {
 		cerr << "Error: PPO rule 12 failed: hart-id=" << hart.hartId() << " tag1="
@@ -5008,7 +5018,7 @@ Mcm<URV>::ppoRule12(Hart<URV>& hart, const McmInstr& instrB) const
 		return false;
 	      }
 
-	  if (mdpt != 0 and dp.isMemory())
+	  if (mdpt != 0 and dp.isMemory() and not dp.isCanceled())
 	    if (not dp.complete_ or byteTime <= dataTime)
 	      {
 		cerr << "Error: PPO rule 12 failed: hart-id=" << hart.hartId() << " tag1="
@@ -5051,7 +5061,7 @@ Mcm<URV>::ppoRule12(Hart<URV>& hart, const McmInstr& instrB) const
 		break;  // No producer of data vec.
 
 	      auto& instrA = instrVec.at(aTag);
-	      if (not instrA.isMemory())
+	      if (not instrA.isMemory() or instrA.isCanceled())
 		break;
 
 	      // Check B against A.
@@ -5134,7 +5144,7 @@ Mcm<URV>::ppoRule13(Hart<URV>& hart, const McmInstr& instrB) const
       auto mapt = instrM.addrProducer_;  // M address producer tag.
       const auto& ap = instrVec.at(mapt);  // Address producer.
 
-      if (ap.isMemory())
+      if (ap.isMemory() and not ap.isCanceled())
 	if (not ap.complete_ or isBeforeInMemoryTime(instrB, ap))
 	  {
             uint64_t apTime = ap.complete_ ? latestOpTime(ap) : ~uint64_t(0);
