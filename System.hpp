@@ -284,7 +284,7 @@ namespace WdRiscv
     /// Frame Buffer that can drive a display. Specify the width, height, and 
     /// the number of bytes per pixel. 
     bool defineFrameBuffer(const std::string& type, uint64_t addr, uint64_t width, 
-        uint64_t height, uint64_t bytes_per_pixel);
+        uint64_t height, uint64_t bytes_per_pixel, int port);
 #endif
 
     /// Return the memory page size.

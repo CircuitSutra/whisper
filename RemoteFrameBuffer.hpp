@@ -11,7 +11,7 @@ namespace WdRiscv
   class RemoteFrameBuffer : public IoDevice
   {
     public:
-      RemoteFrameBuffer(uint64_t addr, uint64_t width, uint64_t height, uint64_t bytes_per_pixel);
+      RemoteFrameBuffer(uint64_t addr, uint64_t width, uint64_t height, uint64_t bytes_per_pixel, int port);
       ~RemoteFrameBuffer() override;
 
       uint32_t read(uint64_t addr) override;
@@ -29,6 +29,7 @@ namespace WdRiscv
       uint64_t width_;
       uint64_t height_;
       uint64_t bytes_per_pixel_;
+      int port_;
 
       uint32_t* frame_buffer_;
 

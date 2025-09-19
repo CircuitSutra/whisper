@@ -211,12 +211,12 @@ System<URV>::defineUart(const std::string& type, uint64_t addr, uint64_t size,
 #if REMOTE_FRAME_BUFFER
 template <typename URV>
 bool
-System<URV>::defineFrameBuffer(const std::string& type, uint64_t addr, uint64_t width, uint64_t height, uint64_t bytes_per_pixel)
+System<URV>::defineFrameBuffer(const std::string& type, uint64_t addr, uint64_t width, uint64_t height, uint64_t bytes_per_pixel, int port)
 {
   std::shared_ptr<IoDevice> dev;
 
   if (type == "rfb")
-    dev = std::make_shared<RemoteFrameBuffer>(addr, width, height, bytes_per_pixel);
+    dev = std::make_shared<RemoteFrameBuffer>(addr, width, height, bytes_per_pixel, port);
   else
     {
       std::cerr << "System::defineFrameBuffer: Invalid frame_buffer type: " << type << "\n";

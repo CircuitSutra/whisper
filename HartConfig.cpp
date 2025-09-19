@@ -1817,7 +1817,7 @@ HartConfig::applyFrameBufferConfig(System<URV>& system) const
   const auto& frame_buffer_cfg = config_ -> at(tag);
 
   std::string type = "";
-  uint64_t base, width, height, bytes_per_pixel = 0;
+  uint64_t base, width, height, bytes_per_pixel = 0, port = 5998;
 
   tag = "type";
   if (frame_buffer_cfg.contains(tag))
@@ -1878,7 +1878,14 @@ HartConfig::applyFrameBufferConfig(System<URV>& system) const
       return false;
     }
 
-  return system.defineFrameBuffer(type, base, width, height, bytes_per_pixel);
+  tag = "port";
+  if (frame_buffer_cfg.contains(tag))
+    {
+      if (not getJsonUnsigned("frame_buffer.port", frame_buffer_cfg.at(tag), port))
+        return false;
+    }
+
+  return system.defineFrameBuffer(type, base, width, height, bytes_per_pixel, port);
 }
 #endif
 
