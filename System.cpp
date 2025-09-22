@@ -1619,7 +1619,7 @@ System<URV>::batchRun(std::vector<FILE*>& traceFiles, bool waitAll, uint64_t ste
   while (true)
     {
       struct ExitCondition {
-        bool prog = false;
+        bool snap = false;
         bool stop = false;
         bool roi = false;
 
@@ -1628,9 +1628,16 @@ System<URV>::batchRun(std::vector<FILE*>& traceFiles, bool waitAll, uint64_t ste
         ExitCondition(CoreException::Type type) {
           if (type == CoreException::Type::Snapshot or
               type == CoreException::Type::SnapshotAndStop)
-            prog = true;
+            snap = true;
           roi = (type == CoreException::Type::RoiEntry);
           stop = (type != CoreException::Type::Snapshot) and not roi;
+        };
+
+        ExitCondition& operator|=(const ExitCondition& other) {
+          snap = snap or other.snap,
+          stop = stop or other.stop,
+          roi = roi or other.roi;
+          return *this;
         };
 
       } cond;
@@ -1664,7 +1671,7 @@ System<URV>::batchRun(std::vector<FILE*>& traceFiles, bool waitAll, uint64_t ste
                                 {
                                   bool r = hart->run(traceFile);
                                   result = result and r;
-                                  cond = ExitCondition(CoreException::Type::Exit);
+                                  cond |= ExitCondition(CoreException::Type::Exit);
                                 }
                               catch (const CoreException& ce)
                                 {
@@ -1689,7 +1696,7 @@ System<URV>::batchRun(std::vector<FILE*>& traceFiles, bool waitAll, uint64_t ste
 
           for (auto& t : threadVec)
             {
-              if (cond.prog or cond.roi)
+              if (cond.snap or cond.roi)
                 forceUserStop(0);
               t.join();
             }
@@ -1720,22 +1727,24 @@ System<URV>::batchRun(std::vector<FILE*>& traceFiles, bool waitAll, uint64_t ste
                       bool stop;
                       result = hptr->runSteps(steps, stop, traceFiles.at(ix)) and result;
                       stopped.at(ix) = stop;
-                      cond = ExitCondition(CoreException::Type::Exit);
+                      if (stop)
+                        cond |= ExitCondition(CoreException::Type::Exit);
                     }
                   catch (const CoreException& ce)
                     {
                       cond = ExitCondition(ce.type());
+                      stopped.at(ix) = cond.stop or (cond.roi and earlyRoiTerminate);
                     }
                   if (stopped.at(ix))
                     finished++;
                 }
 
-              if (cond.prog or cond.roi)
+              if (cond.snap or cond.roi)
                 break;
             }
         }
 
-      if (cond.prog or (cond.roi and earlyRoiTerminate))
+      if (cond.snap or (cond.roi and earlyRoiTerminate))
         forceSnapshot();
       if (cond.stop or
           (cond.roi and earlyRoiTerminate))
