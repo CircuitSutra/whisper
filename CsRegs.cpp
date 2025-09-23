@@ -5324,7 +5324,7 @@ CsRegs<URV>::hyperWrite(Csr<URV>* csr)
       // Updating MIE is refelected into aliased bits of VSIE.
       URV mask = hideleg->read() & mideleg->read();
       val = mie->read();
-      val = (sInterruptToVs(vsie->read()) & ~mask) | (val & mask);
+      val = (sInterruptToVs(vsie->value()) & ~mask) | (val & mask);
       updateCsr(vsie, vsInterruptToS(val), true /*write*/);
     }
   else if (num == CsrNumber::VSIE)
@@ -5364,6 +5364,7 @@ CsRegs<URV>::hyperPoke(Csr<URV>* csr)
   auto mip = getImplementedCsr(CsrNumber::MIP);
   // auto vsip = getImplementedCsr(CsrNumber::VSIP);
   auto hideleg = getImplementedCsr(CsrNumber::HIDELEG);
+  auto mideleg = getImplementedCsr(CsrNumber::MIDELEG);
   auto hvien = getImplementedCsr(CsrNumber::HVIEN);
   auto hstatus = getImplementedCsr(CsrNumber::HSTATUS);
   auto hgeip = getImplementedCsr(CsrNumber::HGEIP);
@@ -5505,8 +5506,10 @@ CsRegs<URV>::hyperPoke(Csr<URV>* csr)
         hie->poke(val | (hie->read() & ~hieMask));
       if (vsie)
         {
-	  if (hideleg)
-	    val &= hideleg->read();
+          // Updating MIE is refelected into aliased bits of VSIE.
+          URV mask = hideleg->read() & mideleg->read();
+          val = mie->read();
+          val = (sInterruptToVs(vsie->value()) & ~mask) | (val & mask);
           vsie->poke(vsInterruptToS(val));
         }
     }
