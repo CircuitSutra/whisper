@@ -22,6 +22,7 @@ namespace TT_IOMMU
   struct AtsInvalCommand;
   struct AtsPrgrCommand;
   struct IofenceCCommand;
+  struct IotinvalCommand;
 
   // ATS command functions as defined in section 4.1.4
   enum class AtsFunc : uint32_t
@@ -38,10 +39,19 @@ namespace TT_IOMMU
     // 1-15 reserved for future standard use
   };
 
+  // IOTINVAL command functions for page table cache invalidation
+  enum class IotinvalFunc : uint32_t
+  {
+    VMA = 0,   // Invalidate first-stage page table cache entries (IOTINVAL.VMA)
+    GVMA = 1   // Invalidate second-stage page table cache entries (IOTINVAL.GVMA)
+    // 2-15 reserved for future standard use
+  };
+
   // Command opcodes
   enum class CommandOpcode : uint32_t
   {
-    // 0-1 reserved
+    // 0 reserved
+    IOTINVAL = 1, // IOMMU Translation Table Cache invalidation commands
     IOFENCE = 2,  // IOMMU fence commands
     // 3 reserved  
     ATS = 4       // IOMMU PCIe ATS commands
@@ -145,6 +155,49 @@ namespace TT_IOMMU
     }
   };
 
+  // IOTINVAL command structure for page table cache invalidation (both VMA and GVMA)
+  struct IotinvalCommand
+  {
+    CommandOpcode   opcode      : 7;  // Command opcode (bits 0-6) = IOTINVAL (0x1)
+    IotinvalFunc    func3       : 3;  // Function (bits 7-9) = VMA (0x0) or GVMA (0x1)
+    uint64_t        AV          : 1;  // Address Valid (bit 10)
+    uint64_t        reserved0   : 1;  // Reserved bit (bit 11)
+    uint64_t        PSCID       : 20; // Process Soft-Context ID (bits 12-31)
+    uint64_t        PSCV        : 1;  // PSCID Valid (bit 32) - must be 0 for GVMA
+    uint64_t        GV          : 1;  // GSCID Valid (bit 33)
+    uint64_t        reserved1   : 10; // Reserved bits (bits 34-43)
+    uint64_t        GSCID       : 16; // Guest Soft-Context ID (bits 44-59)
+    uint64_t        reserved2   : 14; // Reserved bits (bits 60-73)
+    uint64_t        ADDR        : 52; // Address[63:12] for page-aligned addresses (bits 74-125)
+    uint64_t        reserved3   : 2;  // Reserved bits (bits 126-127)
+
+    // Default constructor
+    IotinvalCommand()
+    {
+      opcode = CommandOpcode::IOTINVAL;
+      func3 = IotinvalFunc::VMA;  // Default to VMA
+      AV = 0;
+      reserved0 = 0;
+      PSCID = 0;
+      PSCV = 0;
+      GV = 0;
+      reserved1 = 0;
+      GSCID = 0;
+      reserved2 = 0;
+      ADDR = 0;
+      reserved3 = 0;
+    }
+
+    // Constructor for VMA command
+    IotinvalCommand(IotinvalFunc func) : IotinvalCommand()
+    {
+      func3 = func;
+      if (func == IotinvalFunc::GVMA) {
+        PSCV = 0;  // Must be 0 for GVMA per specification
+      }
+    }
+  };
+
   // Union to reinterpret 2 double words as different commands.
   union Command
   {
@@ -161,6 +214,11 @@ namespace TT_IOMMU
     /// Construct from an IofenceCCommand
     Command(IofenceCCommand iofence)
       : iofence(iofence)
+    {}
+
+    /// Construct from an IotinvalCommand
+    Command(IotinvalCommand iotinval)
+      : iotinval(iotinval)
     {}
 
     /// Construct from an AtsCommandData.
@@ -181,6 +239,10 @@ namespace TT_IOMMU
     bool isIofence() const
     { return (CommandOpcode)iofence.opcode == CommandOpcode::IOFENCE; }
 
+    /// True if the opcode corresponds to IOTINVAL.
+    bool isIotinval() const
+    { return (CommandOpcode)iotinval.opcode == CommandOpcode::IOTINVAL; }
+
     /// True if ATS invalidate command.
     bool isInval() const
     { return isAts() and inval.func3 == AtsFunc::INVAL; }
@@ -193,6 +255,14 @@ namespace TT_IOMMU
     bool isIofenceC() const
     { return isIofence() and iofence.func3 == IofenceFunc::C; }
 
+    /// True if IOTINVAL.VMA command.
+    bool isIotinvalVma() const
+    { return isIotinval() and iotinval.func3 == IotinvalFunc::VMA; }
+
+    /// True if IOTINVAL.GVMA command.
+    bool isIotinvalGvma() const
+    { return isIotinval() and iotinval.func3 == IotinvalFunc::GVMA; }
+
     /// Return the first double word of this command.
     uint64_t dw0() const
     { return data.dw0; }
@@ -204,6 +274,7 @@ namespace TT_IOMMU
     AtsInvalCommand   inval;
     AtsPrgrCommand    prgr;
     IofenceCCommand   iofence;
+    IotinvalCommand   iotinval;
     AtsCommandData    data;
   };
 

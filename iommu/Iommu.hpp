@@ -561,6 +561,16 @@ namespace TT_IOMMU
     bool isIofenceCCommand(const AtsCommand& cmd) const
     { return cmd.isIofenceC(); }
 
+    /// Return true if the given command is an IOTINVAL command (has the correct opcode).
+    bool isIotinvalCommand(const AtsCommand& cmd) const
+    { return cmd.isIotinval(); }
+
+    bool isIotinvalVmaCommand(const AtsCommand& cmd) const
+    { return cmd.isIotinvalVma(); }
+
+    bool isIotinvalGvmaCommand(const AtsCommand& cmd) const
+    { return cmd.isIotinvalGvma(); }
+
     /// Execute an ATS.INVAL command for address translation cache invalidation
     void executeAtsInvalCommand(const AtsCommandData& cmdData);
     
@@ -569,6 +579,9 @@ namespace TT_IOMMU
 
     /// Execute an IOFENCE.C command for command queue fence
     void executeIofenceCCommand(const AtsCommandData& cmdData);
+
+    /// Execute an IOTINVAL command for page table cache invalidation (VMA or GVMA)
+    void executeIotinvalCommand(const AtsCommandData& cmdData);
 
 
     /// Process pending page requests in the page request queue
