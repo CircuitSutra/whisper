@@ -265,6 +265,46 @@ CsRegs<URV>::readVsip(URV& value) const
 
 template <typename URV>
 bool
+CsRegs<URV>::readHip(URV& value) const
+{
+  value = 0;
+  auto hip = getImplementedCsr(CsrNumber::HIP);
+  if (not hip)
+    return false;
+
+  value = hip->read();
+
+  // Bit 10 (VSEIP) of HIP is the or of bit 10 of HVIP and HGEIP bit selected by
+  // GVEIN.
+  auto hstatus = getImplementedCsr(CsrNumber::HSTATUS);
+  auto hgeip = getImplementedCsr(CsrNumber::HGEIP);
+
+  HstatusFields<URV> hsf(hstatus->read());
+  unsigned vgein = hsf.bits_.VGEIN;
+  unsigned bit = (hgeip->read() >> vgein) & 1;  // Bit of HGEIP selected by VGEIN
+  value &= ~(URV(1) << 10);  // Clear bit 10
+  value |=  bit << 10;  // Or HGEIP bit selected by GVEIN.
+
+  // Bit 6 (VSTIP) of HIP is the or of HVIP and timer interrupt: time + htimedelta >=
+  // vstimecmp.
+  value &= ~(URV(1) << 6);  // Clear bit 6.
+  if (virtTimerExpired())
+    value |= 1 << 6;    // Or VSTIP (bit 6) if time + htimedelta >= vstimecmp.
+
+  // Or bits 10 and 6 from HVIP
+  auto hvip = getImplementedCsr(CsrNumber::HVIP);
+  if (hvip)
+    {
+      URV hipMask = 0x440;  // Mask of bits injected into HIP from HVIP.
+      value |= hvip->read() & hipMask;
+    }
+
+  return true;
+}
+
+
+template <typename URV>
+bool
 CsRegs<URV>::readMvip(URV& value) const
 {
   value = 0;
@@ -609,6 +649,8 @@ CsRegs<URV>::read(CsrNumber num, PrivilegeMode mode, URV& value) const
     }
   else if (num == CN::MVIP)
     return readMvip(value);
+  else if (num == CN::HIP)
+    return readHip(value);
 
   value = csr->read();
 
@@ -3646,6 +3688,8 @@ CsRegs<URV>::peek(CsrNumber num, URV& value, bool virtMode) const
     return readVsip(value);
   else if (num == CN::MVIP)
     return readMvip(value);
+  else if (num == CN::HIP)
+    return readHip(value);
 
   value = csr->read();
 
