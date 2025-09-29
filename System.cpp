@@ -959,9 +959,9 @@ System<URV>::configIommu(uint64_t base_addr, uint64_t size, uint64_t capabilitie
   };
 
   auto writeCb = [this](uint64_t addr, unsigned size, uint64_t data) -> bool {
-    uint8_t data8 = data = 0;
-    uint16_t data16 = data = 0;
-    uint32_t data32 = data = 0;
+    uint8_t data8 = data;
+    uint16_t data16 = data;
+    uint32_t data32 = data;
     switch (size)
       {
         case 1: return this->memory_->write(0, addr, data8);
