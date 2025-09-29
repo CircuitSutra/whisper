@@ -1332,9 +1332,8 @@ Mcm<URV>::retire(Hart<URV>& hart, uint64_t time, uint64_t tag,
   // instructions.
   if ((not di.isAmo() and not di.isCmo() and not di.isSc()) and instrHasBypassPlusCache(*instr))
     {
-      cerr << "Error: hart-id=" << hart.hartId()
+      cerr << "Warning: hart-id=" << hart.hartId()
            << " tag=" << tag << " unexpected cache set for non-AMO/non-CMO/non-SC instruction\n";
-      return false;
     }
 
   if (di.isCmo())
