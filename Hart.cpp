@@ -6668,6 +6668,7 @@ Hart<URV>::execLui(const DecodedInst* di)
 }
 
 
+// NOLINTBEGIN(readability-function-size)
 template <typename URV>
 void
 Hart<URV>::execute(const DecodedInst* di)
@@ -10369,6 +10370,7 @@ Hart<URV>::execute(const DecodedInst* di)
 
   assert(0 && "Error: Shouldn't be able to get here if all cases above returned");
 }
+// NOLINTEND(readability-function-size)
 
 
 template <typename URV>
