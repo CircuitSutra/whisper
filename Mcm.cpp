@@ -56,7 +56,7 @@ Mcm<URV>::updateTime(const char* method, uint64_t time)
 
 template <typename URV>
 bool
-Mcm<URV>::referenceModelRead(Hart<URV>& hart, uint64_t pa, unsigned size, uint64_t& data)
+Mcm<URV>::referenceModelRead(Hart<URV>& hart, uint64_t pa, unsigned size, uint64_t& data, bool cache)
 {
   data = 0;
 
@@ -74,32 +74,32 @@ Mcm<URV>::referenceModelRead(Hart<URV>& hart, uint64_t pa, unsigned size, uint64
   if (size == 1)
     {
       uint8_t val = 0;
-      ok = hart.peekMemory(pa, val, true /*usePma*/);
+      ok = hart.peekMemory(pa, val, true /*usePma*/, not cache);
       data = val;
     }
   else if (size == 2)
     {
       uint16_t val = 0;
-      ok = hart.peekMemory(pa, val, true /*usePma*/);
+      ok = hart.peekMemory(pa, val, true /*usePma*/, not cache);
       data = val;
     }
   else if (size == 4)
     {
       uint32_t val = 0;
-      ok = hart.peekMemory(pa, val, true /*usePma*/);
+      ok = hart.peekMemory(pa, val, true /*usePma*/, not cache);
       data = val;
     }
   else if (size == 8)
     {
       uint64_t val = 0;
-      ok = hart.peekMemory(pa, val, true /*usePma*/);
+      ok = hart.peekMemory(pa, val, true /*usePma*/, not cache);
       data = val;
     }
   else if (size < 8)
     {
       uint8_t val = 0;
       for (unsigned i = 0; i < size; ++i)
-	if (not hart.peekMemory(pa + i, val, true))
+	if (not hart.peekMemory(pa + i, val, true, not cache))
 	  {
 	    ok = false;
 	    break;
@@ -117,7 +117,7 @@ Mcm<URV>::referenceModelRead(Hart<URV>& hart, uint64_t pa, unsigned size, uint64
 template <typename URV>
 bool
 Mcm<URV>::readOp(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa, unsigned size,
-		 uint64_t rtlData, unsigned elemIx, unsigned field)
+		 uint64_t rtlData, unsigned elemIx, unsigned field, bool cache)
 {
   if (not updateTime("Mcm::readOp", time))
     return false;
@@ -138,19 +138,19 @@ Mcm<URV>::readOp(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa, unsi
       uint64_t pa2 = pa + size1;
       uint64_t rtlData1 = rtlData & ((uint64_t(1) << (size1*8)) - 1);
       uint64_t rtlData2 = rtlData >> (size1*8);
-      bool ok = readOp_(hart, time, tag, pa, size1, rtlData1, elemIx, field);
-      ok = readOp_(hart, time, tag, pa2, size2, rtlData2, elemIx, field) and ok;
+      bool ok = readOp_(hart, time, tag, pa, size1, rtlData1, elemIx, field, cache);
+      ok = readOp_(hart, time, tag, pa2, size2, rtlData2, elemIx, field, cache) and ok;
       return ok;
     }
 
-  return readOp_(hart, time, tag, pa, size, rtlData, elemIx, field);
+  return readOp_(hart, time, tag, pa, size, rtlData, elemIx, field, cache);
 }
 
 
 template <typename URV>
 bool
 Mcm<URV>::readOp_(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa, unsigned size,
-                  uint64_t rtlData, unsigned elemIx, unsigned field)
+                  uint64_t rtlData, unsigned elemIx, unsigned field, bool cache)
 {
   unsigned hartIx = hart.sysHartIndex();
 
@@ -176,6 +176,7 @@ Mcm<URV>::readOp_(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa, uns
   op.elemIx_ = elemIx;
   op.field_ = field;
   op.isIo_ = hart.getPma(op.pa_).isIo();
+  op.cache_ = cache;
 
   assert(pageNum(pa) == pageNum(pa + size - 1));
 
@@ -184,7 +185,7 @@ Mcm<URV>::readOp_(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa, uns
   // Read Whisper memory and keep it in op, this will be updated when the load is retired
   // by forwarding from preceding stores.
   uint64_t refVal = 0;
-  if (referenceModelRead(hart, pa, size, refVal))
+  if (referenceModelRead(hart, pa, size, refVal, cache))
     op.data_ = refVal;
   else
     op.failRead_ = true;

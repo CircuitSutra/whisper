@@ -2217,12 +2217,17 @@ Interactive<URV>::mreadCommand(Hart<URV>& hart, const std::string& line,
     if (not parseCmdLineNumber("element-field", tokens.at(6), field))
       return false;
 
+  bool cache = true; // For backwards compatibility.
+  if (tokens.size() > 7)
+    if (not parseCmdLineNumber("cache", tokens.at(7), cache))
+      return false;
+
   if (size <= 8)
     {
       uint64_t data = 0;
       if (not parseCmdLineNumber("data", tokens.at(4), data))
 	return false;
-      return system_.mcmRead(hart, this->time_, tag, addr, size, data, elem, field);
+      return system_.mcmRead(hart, this->time_, tag, addr, size, data, elem, field, cache);
     }
 
   // mread for a vector load, expected size is half a cache line size (32)
@@ -2261,19 +2266,19 @@ Interactive<URV>::mreadCommand(Hart<URV>& hart, const std::string& line,
     {
       const uint64_t* vdata = reinterpret_cast<const uint64_t*> (bytes.data());
       for (unsigned i = 0; i < size and ok; i += 8, ++vdata, addr += 8)
-	ok = system_.mcmRead(hart, this->time_, tag, addr, 8, *vdata, elem, field);
+	ok = system_.mcmRead(hart, this->time_, tag, addr, 8, *vdata, elem, field, cache);
     }
   else if ((size & 0x3) == 0 and (addr & 0x3) == 0)
     {
       const uint32_t* vdata = reinterpret_cast<const uint32_t*> (bytes.data());
       for (unsigned i = 0; i < size and ok; i += 4, ++vdata, addr += 4)
-	ok = system_.mcmRead(hart, this->time_, tag, addr, 4, *vdata, elem, field);
+	ok = system_.mcmRead(hart, this->time_, tag, addr, 4, *vdata, elem, field, cache);
     }
   else
     {
       const uint8_t* vdata = bytes.data();
       for (unsigned i = 0; i < size and ok; ++i, ++vdata, ++addr)
-	ok = system_.mcmRead(hart, this->time_, tag, addr, 1, *vdata, elem, field);
+	ok = system_.mcmRead(hart, this->time_, tag, addr, 1, *vdata, elem, field, cache);
     }
 
   return ok;
