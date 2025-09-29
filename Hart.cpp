@@ -157,6 +157,8 @@ Hart<URV>::~Hart()
 {
   if (branchBuffer_.max_size() and not branchTraceFile_.empty())
     saveBranchTrace(branchTraceFile_);
+  if (cacheBuffer_.max_size() and not cacheTraceFile_.empty())
+    saveCacheTrace(cacheTraceFile_);
 }
 
 
@@ -2368,6 +2370,9 @@ Hart<URV>::readForLoad([[maybe_unused]] const DecodedInst* di, uint64_t virtAddr
   if (dataLineTrace_)
     memory_.traceDataLine(virtAddr, addr1);
 
+  if (cacheBuffer_.max_size() and not cacheTraceFile_.empty())
+    traceCache(virtAddr, addr1, addr2, true, false, false, false, false);
+
   // Check for load-data-trigger.
   if (hasActiveTrigger())
     {
@@ -2606,6 +2611,10 @@ Hart<URV>::writeForStore(uint64_t virtAddr, uint64_t pa1, uint64_t pa2, STORE_TY
   STORE_TYPE temp = 0;
   memPeek(pa1, pa2, temp, false /*usePma*/);
   ldStData_ = temp;
+
+  if (cacheBuffer_.max_size() and not cacheTraceFile_.empty())
+    traceCache(virtAddr, pa1, pa2, false, true, false, false, false);
+
   return true;
 }
 
@@ -2907,6 +2916,9 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr,
       if (initStateFile_)
 	dumpInitState("fetch", virtAddr, physAddr);
 
+      if (cacheBuffer_.max_size() and not cacheTraceFile_.empty())
+        traceCache(virtAddr, physAddr, physAddr, false, false, true, false, false);
+
       if (isCompressedInst(inst))
 	inst = (inst << 16) >> 16;
       return ExceptionCause::NONE;
@@ -2928,7 +2940,11 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr,
     dumpInitState("fetch", virtAddr, physAddr);
   inst = half;
   if (isCompressedInst(inst))
-    return ExceptionCause::NONE;
+    {
+      if (cacheBuffer_.max_size() and not cacheTraceFile_.empty())
+        traceCache(virtAddr, physAddr, physAddr, false, false, true, false, false);
+      return ExceptionCause::NONE;
+    }
 
   // If we cross page boundary, translate address of other page.
   physAddr2 = steePhysAddr + 2;
@@ -2990,6 +3006,9 @@ Hart<URV>::fetchInstNoTrap(uint64_t& virtAddr, uint64_t& physAddr,
 
   if (initStateFile_)
     dumpInitState("fetch", virtAddr, physAddr2);
+
+  if (cacheBuffer_.max_size() and not cacheTraceFile_.empty())
+    traceCache(virtAddr, physAddr, physAddr2, false, false, true, false, false);
 
   inst = inst | (uint32_t(upperHalf) << 16);
   return ExceptionCause::NONE;
@@ -5619,7 +5638,7 @@ Hart<URV>::simpleRun()
         {
           bool hasLim = (instCountLim_ < ~uint64_t(0));
           if (hasLim or bbFile_ or instrLineTrace_ or not branchTraceFile_.empty() or
-	      isRvs() or isRvu() or isRvv() or hasAclint())
+	      not cacheTraceFile_.empty() or isRvs() or isRvu() or isRvv() or hasAclint())
             simpleRunWithLimit();
           else
             simpleRunNoLimit();
@@ -5925,6 +5944,148 @@ Hart<URV>::traceBranch(const DecodedInst* di)
 
   if (branchBuffer_.max_size())
     branchBuffer_.push_back(BranchRecord(type, currPc_, pc_, di->instSize()));
+}
+
+
+template <typename URV>
+bool
+Hart<URV>::saveCacheTrace(const std::string& path)
+{
+  FILE* file = fopen(path.c_str(), "w");
+  if (not file)
+    {
+      std::cerr << "Error: Failed to open cache-trace output file '" << path << "' for writing\n";
+      return false;
+    }
+
+  for (auto iter = cacheBuffer_.begin(); iter != cacheBuffer_.end(); ++iter)
+    {
+      auto& rec = *iter;
+      if (rec.type_ != 0)
+	fprintf(file, "%c 0x%jx 0x%jx 0x%jx\n", rec.type_, uintmax_t(rec.vlineNum_),
+		uintmax_t(rec.plineNum_), uintmax_t(rec.count_));
+    }
+  fclose(file);
+  return true;
+}
+
+
+template <typename URV>
+bool
+Hart<URV>::loadCacheTrace(const std::string& path)
+{
+  if (not cacheBuffer_.max_size())
+    return true;
+
+  std::ifstream ifs(path);
+
+  if (not ifs.good())
+    {
+      std::cerr << "Error: Failed to open cache trace file " << path << "' for input.\n";
+      return false;
+    }
+
+  std::string line;
+  while (std::getline(ifs, line))
+    {
+      std::vector<std::string> tokens;
+      boost::split(tokens, line, boost::is_any_of("\t "), boost::token_compress_on);
+
+      if (tokens.size() != 4)
+        {
+          std::cerr << "Error: Failed to load cache record from line.\n";
+          return false;
+        }
+
+      char type = tokens.at(0).at(0);
+      uint64_t va = strtoull(tokens.at(1).c_str(), nullptr, 0);
+      uint64_t pa = strtoull(tokens.at(2).c_str(), nullptr, 0);
+      uint64_t count = strtoull(tokens.at(3).c_str(), nullptr, 0);
+
+      cacheBuffer_.push_back(CacheRecord(type, va, pa, count));
+    }
+  return true;
+}
+
+
+template <typename URV>
+void
+Hart<URV>::traceCache(uint64_t va, uint64_t pa1, uint64_t pa2, bool r, bool w, bool x, bool fencei, bool inval)
+{
+  assert(unsigned(r) + unsigned(w) + unsigned(x) + unsigned(fencei) + unsigned(inval) == 1);
+
+  char type = r? 'r' : w? 'w' : x? 'x' : fencei? 'e' : 'v';
+
+  uint64_t lineNum1 = cacheLineNum(pa1);
+  uint64_t lineNum2 = cacheLineNum(pa2);
+
+  // We only want fence.i and cbo.inval to show up once.
+  bool line1Cache = true;
+  bool line2Cache = false;
+  if (r or w or x)
+    {
+      // We only include cacheable lines.
+      Pma pma = memory_.pmaMgr_.getPma(pa1);
+      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt());
+      line1Cache = pma.isCacheable();
+
+      pma = memory_.pmaMgr_.getPma(pa2);
+      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt());
+      line2Cache = pma.isCacheable() and (lineNum1 != lineNum2);
+    }
+
+  CacheRecord* last = x? lastCacheFetch_ : lastCacheData_;
+  if (fencei or inval)
+    last = nullptr;
+
+  if (last)
+    {
+      if ((line1Cache and lineNum1 == last->plineNum_) or
+          (line2Cache and lineNum2 == last->plineNum_))
+        {
+          last->vlineNum_ = cacheLineNum(va);
+          last->count_ = instCounter_;
+          // change r to w.
+          if (w)
+            last->type_ = 'w';
+        }
+    }
+
+  bool updateLast;
+  if ((not last or lineNum1 != last->plineNum_) and line1Cache)
+    {
+      cacheBuffer_.push_back(CacheRecord(type, cacheLineNum(va), lineNum1, instCounter_));
+      updateLast = true;
+    }
+
+  if ((not last or lineNum2 != last->plineNum_) and line2Cache)
+    {
+      cacheBuffer_.push_back(CacheRecord(type, cacheLineNum(va), lineNum2, instCounter_));
+      updateLast = true;
+    }
+
+  if (updateLast and (r or w or x))
+    {
+      if (r or w)
+        lastCacheData_ = &cacheBuffer_.back();
+      if (x)
+        lastCacheFetch_ = &cacheBuffer_.back();
+      return;
+    }
+
+  if (inval)
+    {
+      assert(lineNum1 == lineNum2);
+      if (lineNum1 == lastCacheData_->plineNum_)
+        lastCacheData_ = nullptr;
+      return;
+    }
+
+  if (fencei)
+    {
+      lastCacheFetch_ = nullptr;
+      return;
+    }
 }
 
 
@@ -10707,6 +10868,9 @@ Hart<URV>::execFencei(const DecodedInst* di)
 
   if (mcm_ and fetchCache_)
     fetchCache_->clear();
+
+  if (cacheBuffer_.max_size() and not cacheTraceFile_.empty())
+    traceCache(0, 0, 0, false, false, false, true, false);
 
   // invalidateDecodeCache();  // No need for this. We invalidate on each write.
 }

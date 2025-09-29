@@ -176,6 +176,9 @@ Hart<URV>::execCbo_clean(const DecodedInst* di)
     }
 
   ldStPhysAddr1_ = ldStPhysAddr2_ = physAddr;
+
+  if (cacheBuffer_.max_size() and not cacheTraceFile_.empty())
+    traceCache(virtAddr, physAddr, physAddr, false, false, false, false, true);
 }
 
 
@@ -304,6 +307,12 @@ Hart<URV>::execCbo_inval(const DecodedInst* di)
     }
 
   ldStPhysAddr1_ = ldStPhysAddr2_ = physAddr;
+
+  if (cacheBuffer_.max_size() and not cacheTraceFile_.empty())
+    {
+      // FIXME: check CBIE bits.
+      traceCache(virtAddr, physAddr, physAddr, false, false, false, false, true);
+    }
 }
 
 
@@ -391,6 +400,9 @@ Hart<URV>::execCbo_zero(const DecodedInst* di)
   uint64_t pa = cacheLineAlign(physAddr);
   for (unsigned i = 0; i < cacheLineSize_; i += 8, pa += 8)
     memWrite(pa, pa, uint64_t(0));
+
+  if (cacheBuffer_.max_size() and not cacheTraceFile_.empty())
+    traceCache(virtAddr, pa, pa, false, true, false, false, false);
 }
 
 

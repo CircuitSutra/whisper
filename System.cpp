@@ -668,6 +668,10 @@ System<URV>::saveSnapshot(const std::string& dir)
   if (not hart0.saveBranchTrace(branchPath))
     return false;
 
+  Filesystem::path cachePath = dirPath / "cache-trace";
+  if (not hart0.saveCacheTrace(cachePath))
+    return false;
+
   Filesystem::path imsicPath = dirPath / "imsic";
   if (not imsicMgr_.saveSnapshot(imsicPath))
     return false;
@@ -1973,6 +1977,10 @@ System<URV>::loadSnapshot(const std::string& snapDir, bool restoreTrace)
 
       Filesystem::path branchPath = dirPath / "branch-trace";
       if (not hart0.loadBranchTrace(branchPath))
+        return false;
+
+      Filesystem::path cachePath = dirPath / "cache-trace";
+      if (not hart0.loadCacheTrace(cachePath))
         return false;
     }
 

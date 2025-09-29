@@ -2021,6 +2021,14 @@ namespace WdRiscv
     /// Restore the collected branch traces at the given path.
     bool loadBranchTrace(const std::string& path);
 
+    /// Same as branch trace but for explicit cache accesses.
+    void traceCacheAccesses(const std::string& file, uint64_t n)
+    { cacheTraceFile_ = file; cacheBuffer_.resize(n); }
+
+    bool saveCacheTrace(const std::string& path);
+
+    bool loadCacheTrace(const std::string& path);
+
     /// Set behavior of first access to a virtual memory page: Either
     /// we take a page fault (flag is true) or we update the A/D bits
     /// of the PTE. When V is on, this applies to the first stage (VS)
@@ -3810,6 +3818,10 @@ namespace WdRiscv
     /// Emit a trace record for the given branch instruction or trap in the
     /// branch trace file.
     void traceBranch(const DecodedInst* di);
+
+    /// Emit a cache trace record.
+    void traceCache(uint64_t virtAddr, uint64_t pa1, uint64_t pa2, bool r, bool w,
+                    bool x, bool fencei, bool inval);
 
     /// Called at the end of successful vector instruction to clear the
     /// vstart register and mark VS dirty if a vector register was
@@ -6080,6 +6092,21 @@ namespace WdRiscv
       uint8_t size_ = 0;
     };
     boost::circular_buffer<BranchRecord> branchBuffer_;
+
+    // Record of combined I and D cache line-aligned accesses. This includes CMOs and fence.i.
+    // This only has explicit addresses (not implicit like ptw). We collapse consecutive I-side
+    // and D-side accesses separately.
+    std::string cacheTraceFile_;
+    struct CacheRecord
+    {
+      char type_ = 0;             // R/W/X/E (fence.i)/V (inval).
+      uint64_t vlineNum_ = 0;     // Cache line address.
+      uint64_t plineNum_ = 0;
+      uint64_t count_ = 0;        // Last total instr associated with this access (instCounter_).
+    };
+    boost::circular_buffer<CacheRecord> cacheBuffer_;
+    CacheRecord* lastCacheFetch_ = nullptr;
+    CacheRecord* lastCacheData_ = nullptr;
 
     std::shared_ptr<Mcm<URV>> mcm_;    // Memory consistency model.
     std::shared_ptr<PerfApi> perfApi_; // Memory consistency model.

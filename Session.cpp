@@ -776,6 +776,12 @@ Session<URV>::applyCmdLineArgs(const Args& args, Hart<URV>& hart,
   if (not args.branchTraceFile.empty())
     hart.traceBranches(args.branchTraceFile, window);
 
+  window = 1000000;
+  if (args.cacheWindow)
+    window = *args.cacheWindow;
+  if (not args.cacheTraceFile.empty())
+    hart.traceCacheAccesses(args.cacheTraceFile, window);
+
   if (args.logStart)
     hart.setLogStart(*args.logStart);
 
