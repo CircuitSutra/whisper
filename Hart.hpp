@@ -931,16 +931,16 @@ namespace WdRiscv
     /// returning true on success and false if address is out of
     /// bounds. Memory is little-endian. Bypass physical memory
     /// attribute checking if usePma is false.
-    bool peekMemory(uint64_t addr, uint8_t& val, bool usePma) const;
+    bool peekMemory(uint64_t addr, uint8_t& val, bool usePma, bool skipData = false) const;
 
     /// Half-word version of the preceding method.
-    bool peekMemory(uint64_t addr, uint16_t& val, bool usePma) const;
+    bool peekMemory(uint64_t addr, uint16_t& val, bool usePma, bool skipData = false) const;
 
     /// Word version of the preceding method.
-    bool peekMemory(uint64_t addr, uint32_t& val, bool usePma) const;
+    bool peekMemory(uint64_t addr, uint32_t& val, bool usePma, bool skipData = false) const;
 
     /// Double-word version of the preceding method.
-    bool peekMemory(uint64_t addr, uint64_t& val, bool usePma) const;
+    bool peekMemory(uint64_t addr, uint64_t& val, bool usePma, bool skipData = false) const;
 
     /// Set the memory byte at the given address to the given value.
     /// Return true on success and false on failure (address out of
@@ -1512,13 +1512,6 @@ namespace WdRiscv
     /// Similar to above but performs an "access".
     Pma accessPma(uint64_t addr) const
     { return memory_.pmaMgr_.accessPma(addr); }
-
-    bool isPmaCacheable(uint64_t addr) const
-    {
-      Pma pma = memory_.pmaMgr_.getPma(addr);
-      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt());
-      return pma.isCacheable();
-    }
 
     /// Set memory protection access reason.
     void setMemProtAccIsFetch(bool fetch)
