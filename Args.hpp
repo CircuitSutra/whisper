@@ -77,11 +77,12 @@ namespace WdRiscv
     std::string configFile;                 // Configuration (JSON) file.
     std::string bblockFile;                 // Basci block file.
     std::string branchTraceFile;            // Branch trace file.
+    std::string cacheTraceFile;             // Combined cache trace file.
     std::string tracerLib;                  // Path to tracer extension shared library.
     std::string isa;
     std::string snapshotDir = "snapshot";   // Dir prefix for saving snapshots
     std::string compressionType = "gzip";   // Compression type for snapshots.
-    std::string decompressionType = "gzip"; // Decompression type for snapshots. 
+    std::string decompressionType = "gzip"; // Decompression type for snapshots.
     std::string loadFrom;                   // Directory for loading a snapshot
     std::string stdoutFile;                 // Redirect target program stdout to this.
     std::string stderrFile;                 // Redirect target program stderr to this.
@@ -129,6 +130,7 @@ namespace WdRiscv
     std::optional<uint64_t> clint;        // Advanced core-local-interrupt (CLINT) mem mapped address
     std::optional<uint64_t> instCounter;
     std::optional<uint64_t> branchWindow;
+    std::optional<uint64_t> cacheWindow;
     std::optional<uint64_t> logStart;
     std::optional<unsigned> mcmls;
     std::optional<unsigned> harts;

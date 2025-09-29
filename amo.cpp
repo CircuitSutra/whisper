@@ -281,6 +281,9 @@ Hart<URV>::loadReserve(const DecodedInst* di, uint32_t rd, uint32_t rs1)
   if (not hasOooVal)
     memRead(addr1, addr1, uval);
 
+  if (cacheBuffer_.max_size() and not cacheTraceFile_.empty())
+    traceCache(virtAddr, addr1, addr1, true, false, false, false, false);
+
   URV value = uval;
   if (not std::is_same<ULT, LOAD_TYPE>::value)
     value = SRV(LOAD_TYPE(uval)); // Sign extend.
@@ -419,6 +422,9 @@ Hart<URV>::storeConditional(const DecodedInst* di, URV virtAddr, STORE_TYPE stor
   STORE_TYPE temp = 0;
   memPeek(addr1, addr2, temp, false /*usePma*/);
   ldStData_ = temp;
+
+  if (cacheBuffer_.max_size() and not cacheTraceFile_.empty())
+    traceCache(virtAddr, addr1, addr1, false, true, false, false, false);
 
   invalidateDecodeCache(addr1, sizeof(STORE_TYPE));
   return true;
