@@ -983,6 +983,19 @@ namespace WdRiscv
       return sip;
     }
 
+    /// Return the effective VSIP value.
+    URV effectiveVsip() const
+    {
+      URV sip = effectiveSip();
+      URV vsip = sip & peekHideleg();
+      if (aiaEnabled_ and superEnabled_)
+        {
+          URV hvip = peekHvip() & ~peekHideleg() & peekHvien();
+          vsip |= hvip;
+        }
+      return vsip;
+    }
+
   protected:
 
     /// Advance a csr number by the given amount (add amount to number).
@@ -1512,19 +1525,6 @@ namespace WdRiscv
     {
       const auto& csr = regs_.at(size_t(CsrNumber::HVICTL));
       return csr.read();
-    }
-
-    /// Return the effective VSIP value.
-    URV effectiveVsip() const
-    {
-      URV sip = effectiveSip();
-      URV vsip = sip & peekHideleg();
-      if (aiaEnabled_ and superEnabled_)
-        {
-          URV hvip = peekHvip() & ~peekHideleg() & peekHvien();
-          vsip |= hvip;
-        }
-      return vsip;
     }
 
     /// Return the machine effective interrupt enable mask. This is

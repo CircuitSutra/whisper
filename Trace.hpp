@@ -271,6 +271,12 @@ namespace WdRiscv
         {
           if (not hart_->peekCsr(csr, value, false))
             continue;
+          if (csr == CsrNumber::MIP)
+            value = hart_->csRegs().effectiveMip();
+          if (csr == CsrNumber::SIP)
+            value = hart_->csRegs().effectiveSip();
+          if (csr == CsrNumber::VSIP)
+            value = hart_->csRegs().effectiveVsip();
           if (csr >= CsrNumber::TDATA1 and csr <= CsrNumber::TINFO)
             continue; // Debug trigger values collected below.
           cvps.push_back(CVP(URV(csr), value));
@@ -316,7 +322,7 @@ namespace WdRiscv
       for (auto [select, size] : mselects)
         {
           if (size == 4)
-          {            
+          {
             ok = imsic.template readMireg<uint32_t>(select, value32);
             value = value32;
           }
@@ -330,7 +336,7 @@ namespace WdRiscv
       for (auto [select, size] : sselects)
         {
           if (size == 4)
-          {            
+          {
             ok = imsic.template readSireg<uint32_t>(false, 0 /* guest */, select, value32);
             value = value32;
           }
@@ -347,7 +353,7 @@ namespace WdRiscv
           for (auto [select, size] : gselects.at(i))
             {
               if (size == 4)
-              {                
+              {
                 ok = imsic.template readSireg<uint32_t>(true, i, select, value32);
                 value = value32;
               }
