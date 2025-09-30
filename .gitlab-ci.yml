@@ -48,9 +48,7 @@ variables:
     - echo "Commits to cherry-pick:"
     - echo "$COMMITS"
 
-    # Create temporary branch based on target branch
-    - TEMP_BRANCH="mr-from-master-${CI_PIPELINE_ID}-${TARGET_BRANCH//\//-}"
-    - git checkout -b "$TEMP_BRANCH" origin/"$TARGET_BRANCH"
+    - git checkout origin/"$TARGET_BRANCH"
 
     # Cherry-pick commits
     - |
@@ -67,37 +65,14 @@ variables:
       set -e
 
     # Push branch to origin
-    - git push -u origin "$TEMP_BRANCH"
-
-    # Check if MR already exists
-    - |
-      EXISTING_MR=$(curl --silent --header "PRIVATE-TOKEN: $CI_JOB_TOKEN" \
-        "https://gitlab.com/api/v4/projects/$CI_PROJECT_ID/merge_requests?source_branch=$TEMP_BRANCH&target_branch=$TARGET_BRANCH&state=opened")
-      if echo "$EXISTING_MR" | jq -e '.[0]' >/dev/null; then
-        echo "⚠️  Merge request from $TEMP_BRANCH to $TARGET_BRANCH already exists. Exiting."
-        exit 0
-      fi
-
-    # Create merge request
-    - |
-      echo "Creating merge request from $TEMP_BRANCH to $TARGET_BRANCH ..."
-      curl --silent --fail --request POST "https://gitlab.com/api/v4/projects/$CI_PROJECT_ID/merge_requests" \
-        --header "PRIVATE-TOKEN: $CI_JOB_TOKEN" \
-        --header "Content-Type: application/json" \
-        --data "{
-          \"source_branch\": \"$TEMP_BRANCH\",
-          \"target_branch\": \"$TARGET_BRANCH\",
-          \"title\": \"Cherry-pick pipeline commits from master to $TARGET_BRANCH\",
-          \"description\": \"This MR includes commits from master pushed in pipeline #$CI_PIPELINE_ID\"
-        }"
-      echo "✅ Merge request created."
+    - git push origin "$TARGET_BRANCH"
 
 stages:
   - build
   - test
   - upload
-  - pre-release
   - notify
+  - pre-release
 
 build-job:
   stage: build
