@@ -137,9 +137,6 @@ release_to_ascalon:
     # Fetch all branches
     - git fetch origin
 
-    # Get commit range for this pipeline on master
-    - echo "Commit range: $CI_COMMIT_BEFORE_SHA .. $CI_COMMIT_SHA"
-
     # Generate list of commits in the push
     - COMMITS=$(git rev-list --reverse $CI_COMMIT_BEFORE_SHA..$CI_COMMIT_SHA)
     - echo "Commits to cherry-pick:"
