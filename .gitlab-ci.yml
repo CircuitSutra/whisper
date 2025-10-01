@@ -2,7 +2,7 @@
 
 
 image:
-  name: $CI_REGISTRY/$CI_PROJECT_NAMESPACE/risc-p-cores/risc-p-cores/dev:57d6ff91cbea7745d26747983c26a41b2aecc62e2fc74d73cadcb4d13eec8276
+  name: $CI_REGISTRY/$CI_PROJECT_NAMESPACE/risc-p-cores/risc-p-cores/dev:189fcc9e1cc7c41211ae67afb79fefd6083b3e15986d82ceaf175c108014be13
   entrypoint: [""]
 
 
@@ -146,6 +146,30 @@ kvm-boot-job:
     - build-Linux/whisper --tohost 0x70000008 --fromhost 0x70000000 --configfile whisper.json --memorysize 0xc0000000 fw_payload-2c.elf --hart 2 --quitany 2>&1 | tee output.log
     - grep -q "Halt and catch fire!" output.log
   timeout: 2 hours
+
+snapshot-job:
+  stage: test
+  dependencies:
+    - "build-job"
+  script:
+    - curl --location --output rvsw-tools.zip "https://yyz-gitlab.local.tenstorrent.com/api/v4/projects/665/jobs/artifacts/main/download?job=package_tools"
+    - unzip rvsw-tools.zip && tar -xvf rvsw-tools.tar.xz
+    - curl --location --output build_snapshots.zip ""https://yyz-gitlab.local.tenstorrent.com/api/v4/projects/906/jobs/artifacts/main/download?job=build_snapshots""
+    - unzip build_snapshots.zip
+    - rvsw-tools/wb --no-cpubind -n=3 --whisper ./build-Linux/whisper --sbi rvsw-snapshots/fw_jump.elf --kernel rvsw-snapshots/Image --initrd rvsw-snapshots/sysbench.cpio --platform ascalon-rtl --append 'init=mini-init trigger="Threads started!" command="sysbench memory --threads=3 --memory-block-size=1M --memory-scope=global --memory-oper=read --memory-access-mode=seq --memory-total-size=16M run"' -- --hintops --snapshotdir sysbench_memory_3c_3t_1M_global_read_seq_16M_snapshot
+    - rvsw-tools/wb --sbi /dev/null --kernel /dev/null --smp 3 --platform ascalon-rtl --json > whisper.json
+    - build-Linux/whisper --tohost 0x70000008 --fromhost 0x70000000 --configfile whisper.json --harts 3 --quitany --loadfrom sysbench_memory_3c_3t_1M_global_read_seq_16M_snapshot0 | tee output.log
+    - grep -q "Throughput:" output.log
+    - grep -q "Command(s) completed, halting." output.log
+    - grep -q "System halted" output.log
+    - rvsw-tools/wb --no-cpubind -n=1 --whisper ./build-Linux/whisper --sbi rvsw-snapshots/fw_jump.elf --kernel rvsw-snapshots/Image --initrd rvsw-snapshots/rvv-bench/rvv-bench.cpio --platform ascalon-rtl --append 'init=mini-init command="bin/linux/instructions/scalar/scalar" trigger_immediate=true' -- --hintops --snapshotdir rvvbench_bin-linux-instructions-scalar-scalar_snapshot
+    - rvsw-tools/wb --sbi /dev/null --kernel /dev/null --platform ascalon-rtl --json > whisper.json
+    - build-Linux/whisper --tohost 0x70000008 --fromhost 0x70000000 --configfile whisper.json --harts 1 --loadfrom rvvbench_bin-linux-instructions-scalar-scalar_snapshot0 | tee output.log
+    - grep -q 'add t0, t1, t2' output.log
+    - grep -q 'fmadd.d ft0, ft1, ft2, ft3' output.log
+    - grep -q 'bseti t0, t1, 13' output.log
+    - grep -q 'Command(s) completed, halting.' output.log
+    - grep -q 'System halted' output.log
 
 notify-riescue:
   <<: *notify-template
