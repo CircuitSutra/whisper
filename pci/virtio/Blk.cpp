@@ -22,7 +22,7 @@ Blk::open_file(const std::string& filename)
 
   if (fd_ < 0)
     {
-      std::cerr << "Error: Failed to open file " << filename << " as block device " << std::endl;
+      std::cerr << "Error: Failed to open file " << filename << " as block device " << '\n';
       return false;
     }
 
@@ -42,7 +42,7 @@ Blk::operator()(unsigned vq)
   while (not finished)
     {
       std::vector<virtqueue::descriptor> reads, writes;
-      unsigned head;
+      unsigned head = 0;
 
       if (not get_descriptors(vq, reads, writes, head, finished))
         break;
@@ -50,14 +50,14 @@ Blk::operator()(unsigned vq)
       // order of descriptors is header, buffer, status
       if ((reads.size() + writes.size()) != 3)
         {
-          std::cerr << "Error: Unexpected descriptors for virtio-blk (expected 3): " << reads.size() + writes.size() << std::endl;
+          std::cerr << "Error: Unexpected descriptors for virtio-blk (expected 3): " << reads.size() + writes.size() << '\n';
           break;
         }
 
       unsigned read_ptr = 0, write_ptr = 0;
       auto desc = reads.at(read_ptr++);
-      uint32_t header_type;
-      uint64_t header_sector;
+      uint32_t header_type = 0;
+      uint64_t header_sector = 0;
       read_mem(desc.address + offsetof(virtio_blk_outhdr, type), header_type);
       read_mem(desc.address + offsetof(virtio_blk_outhdr, sector), header_sector);
 

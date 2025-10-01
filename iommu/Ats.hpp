@@ -70,128 +70,128 @@ namespace TT_IOMMU
   // ATS.INVAL command structure
   struct AtsInvalCommand
   {
-    AtsOpcode     opcode    : 7;  // Command opcode (bits 0-6)
-    AtsFunc       func3     : 3;  // Function (bits 7-9)
-    uint64_t      reserved0 : 2;  // Reserved bits (bits 10-11)
-    uint64_t      PID       : 20; // PASID (bits 12-31)
-    uint64_t      PV        : 1;  // PASID Valid (bit 32)
-    uint64_t      DSV       : 1;  // Destination Segment Valid (bit 33)
-    uint64_t      reserved1 : 6;  // Reserved bits (bits 34-39)
-    uint64_t      RID       : 16; // PCIe Routing ID (bits 40-55)
-    uint64_t      DSEG      : 8;  // Destination Segment Number (bits 56-63)
-    uint64_t      G         : 1;  
-    uint64_t      zero      : 10; 
-    uint64_t      s         : 1;  
-    uint64_t      address   : 52; 
+    AtsOpcode     opcode    : 7{AtsOpcode::ATS};  // Command opcode (bits 0-6)
+    AtsFunc       func3     : 3{AtsFunc::INVAL};  // Function (bits 7-9)
+    uint64_t      reserved0 : 2{0};  // Reserved bits (bits 10-11)
+    uint64_t      PID       : 20 = 0UL; // PASID (bits 12-31)
+    uint64_t      PV        : 1 = 0UL;  // PASID Valid (bit 32)
+    uint64_t      DSV       : 1 = 0UL;  // Destination Segment Valid (bit 33)
+    uint64_t      reserved1 : 6{0};  // Reserved bits (bits 34-39)
+    uint64_t      RID       : 16 = 0UL; // PCIe Routing ID (bits 40-55)
+    uint64_t      DSEG      : 8 = 0UL;  // Destination Segment Number (bits 56-63)
+    uint64_t      G         : 1 = 0UL;  
+    uint64_t      zero      : 10{0}; 
+    uint64_t      s         : 1 = 0UL;  
+    uint64_t      address   : 52 = 0UL; 
 
     // Constructor to initialize opcode and func3
     AtsInvalCommand()
     {
-      opcode = AtsOpcode::ATS;
-      func3 = AtsFunc::INVAL;
-      reserved0 = 0;
-      reserved1 = 0;
-      zero = 0;
+      
+      
+      
+      
+      
     }
   };
 
   // ATS.PRGR command structure
   struct AtsPrgrCommand
   {
-    AtsOpcode     opcode    : 7;  // Command opcode (bits 0-6)
-    AtsFunc       func3     : 3;  // Function (bits 7-9)
-    uint64_t      reserved0 : 2;  // Reserved bits (bits 10-11)
-    uint64_t      PID       : 20; // PASID (bits 12-31)
-    uint64_t      PV        : 1;  // PASID Valid (bit 32)
-    uint64_t      DSV       : 1;  // Destination Segment Valid (bit 33)
-    uint64_t      reserved1 : 6;  // Reserved bits (bits 34-39)
-    uint64_t      RID       : 16; // PCIe Routing ID (bits 40-55)
-    uint64_t      DSEG      : 8;  // Destination Segment Number (bits 56-63)
-    uint64_t      zero0         : 32;  
-    uint64_t      prgi          : 9;  
-    uint64_t      zero1         : 3; 
-    uint64_t      responsecode  : 4; 
-    uint64_t      destId        : 16; 
+    AtsOpcode     opcode    : 7{AtsOpcode::ATS};  // Command opcode (bits 0-6)
+    AtsFunc       func3     : 3{AtsFunc::PRGR};  // Function (bits 7-9)
+    uint64_t      reserved0 : 2{0};  // Reserved bits (bits 10-11)
+    uint64_t      PID       : 20 = 0UL; // PASID (bits 12-31)
+    uint64_t      PV        : 1 = 0UL;  // PASID Valid (bit 32)
+    uint64_t      DSV       : 1 = 0UL;  // Destination Segment Valid (bit 33)
+    uint64_t      reserved1 : 6{0};  // Reserved bits (bits 34-39)
+    uint64_t      RID       : 16 = 0UL; // PCIe Routing ID (bits 40-55)
+    uint64_t      DSEG      : 8 = 0UL;  // Destination Segment Number (bits 56-63)
+    uint64_t      zero0         : 32{0};  
+    uint64_t      prgi          : 9 = 0UL;  
+    uint64_t      zero1         : 3{0}; 
+    uint64_t      responsecode  : 4 = 0UL; 
+    uint64_t      destId        : 16{0}; 
 
     // Constructor to initialize opcode and func3
     AtsPrgrCommand()
     {
-      opcode = AtsOpcode::ATS;
-      func3 = AtsFunc::PRGR;
-      reserved0 = 0;
-      reserved1 = 0;
-      zero0 = 0;
-      zero1 = 0;
-      destId = 0;
+      
+      
+      
+      
+      
+      
+      
     }
   };
   
   // IOFENCE.C command structure based on specification
   struct IofenceCCommand
   {
-    CommandOpcode   opcode      : 7;  // Command opcode (bits 0-6) = IOFENCE (0x2)
-    IofenceFunc     func3       : 3;  // Function (bits 7-9) = C (0x0)
-    uint64_t        AV          : 1;  // Address Valid (bit 10)
-    uint64_t        WSI         : 1;  // Wire-Signaled-Interrupt (bit 11)
-    uint64_t        PR          : 1;  // Previous Reads (bit 12)
-    uint64_t        PW          : 1;  // Previous Writes (bit 13)
-    uint64_t        reserved0   : 18; // Reserved bits (bits 14-31)
-    uint64_t        DATA        : 32; // Data to write (bits 32-63)
-    uint64_t        ADDR        : 62; // Address[63:2] for 4-byte aligned writes (bits 64-125)
-    uint64_t        reserved1   : 2;
+    CommandOpcode   opcode      : 7{CommandOpcode::IOFENCE};  // Command opcode (bits 0-6) = IOFENCE (0x2)
+    IofenceFunc     func3       : 3{IofenceFunc::C};  // Function (bits 7-9) = C (0x0)
+    uint64_t        AV          : 1{0};  // Address Valid (bit 10)
+    uint64_t        WSI         : 1{0};  // Wire-Signaled-Interrupt (bit 11)
+    uint64_t        PR          : 1{0};  // Previous Reads (bit 12)
+    uint64_t        PW          : 1{0};  // Previous Writes (bit 13)
+    uint64_t        reserved0   : 18{0}; // Reserved bits (bits 14-31)
+    uint64_t        DATA        : 32{0}; // Data to write (bits 32-63)
+    uint64_t        ADDR        : 62{0}; // Address[63:2] for 4-byte aligned writes (bits 64-125)
+    uint64_t        reserved1   : 2 = 0UL;
 
     // Constructor to initialize opcode and func3
     IofenceCCommand()
     {
-      opcode = CommandOpcode::IOFENCE;
-      func3 = IofenceFunc::C;
-      AV = 0;
-      WSI = 0;
-      PR = 0;
-      PW = 0;
-      reserved0 = 0;
-      DATA = 0;
-      ADDR = 0;
+      
+      
+      
+      
+      
+      
+      
+      
+      
     }
   };
 
   // IOTINVAL command structure for page table cache invalidation (both VMA and GVMA)
   struct IotinvalCommand
   {
-    CommandOpcode   opcode      : 7;  // Command opcode (bits 0-6) = IOTINVAL (0x1)
-    IotinvalFunc    func3       : 3;  // Function (bits 7-9) = VMA (0x0) or GVMA (0x1)
-    uint64_t        AV          : 1;  // Address Valid (bit 10)
-    uint64_t        reserved0   : 1;  // Reserved bit (bit 11)
-    uint64_t        PSCID       : 20; // Process Soft-Context ID (bits 12-31)
-    uint64_t        PSCV        : 1;  // PSCID Valid (bit 32) - must be 0 for GVMA
-    uint64_t        GV          : 1;  // GSCID Valid (bit 33)
-    uint64_t        reserved1   : 10; // Reserved bits (bits 34-43)
-    uint64_t        GSCID       : 16; // Guest Soft-Context ID (bits 44-59)
-    uint64_t        reserved2   : 14; // Reserved bits (bits 60-73)
-    uint64_t        ADDR        : 52; // Address[63:12] for page-aligned addresses (bits 74-125)
-    uint64_t        reserved3   : 2;  // Reserved bits (bits 126-127)
+    CommandOpcode   opcode      : 7{CommandOpcode::IOTINVAL};  // Command opcode (bits 0-6) = IOTINVAL (0x1)
+    IotinvalFunc    func3       : 3{IotinvalFunc::VMA};  // Function (bits 7-9) = VMA (0x0) or GVMA (0x1)
+    uint64_t        AV          : 1{0};  // Address Valid (bit 10)
+    uint64_t        reserved0   : 1{0};  // Reserved bit (bit 11)
+    uint64_t        PSCID       : 20{0}; // Process Soft-Context ID (bits 12-31)
+    uint64_t        PSCV        : 1{0};  // PSCID Valid (bit 32) - must be 0 for GVMA
+    uint64_t        GV          : 1{0};  // GSCID Valid (bit 33)
+    uint64_t        reserved1   : 10{0}; // Reserved bits (bits 34-43)
+    uint64_t        GSCID       : 16{0}; // Guest Soft-Context ID (bits 44-59)
+    uint64_t        reserved2   : 14{0}; // Reserved bits (bits 60-73)
+    uint64_t        ADDR        : 52{0}; // Address[63:12] for page-aligned addresses (bits 74-125)
+    uint64_t        reserved3   : 2{0};  // Reserved bits (bits 126-127)
 
     // Default constructor
     IotinvalCommand()
     {
-      opcode = CommandOpcode::IOTINVAL;
-      func3 = IotinvalFunc::VMA;  // Default to VMA
-      AV = 0;
-      reserved0 = 0;
-      PSCID = 0;
-      PSCV = 0;
-      GV = 0;
-      reserved1 = 0;
-      GSCID = 0;
-      reserved2 = 0;
-      ADDR = 0;
-      reserved3 = 0;
+      
+       // Default to VMA
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
     }
 
     // Constructor for VMA command
-    IotinvalCommand(IotinvalFunc func) : IotinvalCommand()
+    IotinvalCommand(IotinvalFunc func) : IotinvalCommand(), func3(func)
     {
-      func3 = func;
+      
       if (func == IotinvalFunc::GVMA) {
         PSCV = 0;  // Must be 0 for GVMA per specification
       }

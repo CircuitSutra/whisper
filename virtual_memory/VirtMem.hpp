@@ -189,7 +189,7 @@ namespace WdRiscv
       std::fill(supportedModes_.begin(), supportedModes_.end(), false);
       for (auto mode : modes)
       {
-        unsigned ix = unsigned(mode);
+        auto ix = unsigned(mode);
         if (ix < supportedModes_.size())
           supportedModes_.at(ix) = true;
       }
@@ -199,7 +199,7 @@ namespace WdRiscv
     /// supported but that can be modified with setSupportedModes.
     bool isModeSupported(Mode mode)
     {
-      unsigned ix = unsigned(mode);
+      auto ix = unsigned(mode);
       return ix < supportedModes_.size() ? supportedModes_.at(ix) : false;
     }
 
@@ -214,7 +214,7 @@ namespace WdRiscv
       { assert(type != Type::PA); }
 
       WalkEntry(uint64_t addr)
-        : addr_(addr), type_(Type::PA)
+        : addr_(addr) 
       { }
 
       uint64_t addr_ = 0;
@@ -766,8 +766,8 @@ namespace WdRiscv
     const Walk emptyWalk_;
 
     // Track page crossing information
-    bool fetchPageCross_;
-    bool dataPageCross_;
+    bool fetchPageCross_ = false;
+    bool dataPageCross_ = false;
 
     // Extra trap information
     bool s1ImplAccTrap_ = false;

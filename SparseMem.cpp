@@ -37,7 +37,7 @@ SparseMem::read(uint64_t addr, unsigned size, uint64_t& value)
     {
       if (aligned)
         return read<uint16_t>(addr, value);
-      uint64_t low, high;
+      uint64_t low = 0, high = 0;
       if (read<uint8_t>(addr, low) and read<uint8_t>(addr+1, high))
         {
           value = (high << 8) | low;
@@ -50,7 +50,7 @@ SparseMem::read(uint64_t addr, unsigned size, uint64_t& value)
     {
       if (aligned)
         return read<uint32_t>(addr, value);
-      uint64_t a0, a1, a2, a3;
+      uint64_t a0 = 0, a1 = 0, a2 = 0, a3 = 0;
       if (read<uint8_t>(addr, a0) and read<uint8_t>(addr+1, a1) and
           read<uint8_t>(addr+2, a2) and read<uint8_t>(addr+3, a3))
         {
@@ -64,7 +64,7 @@ SparseMem::read(uint64_t addr, unsigned size, uint64_t& value)
     {
       if (aligned)
         return read<uint64_t>(addr, value);
-      uint64_t a0, a1, a2, a3, a4, a5, a6, a7;
+      uint64_t a0 = 0, a1 = 0, a2 = 0, a3 = 0, a4 = 0, a5 = 0, a6 = 0, a7 = 0;
       if (read<uint8_t>(addr, a0) and read<uint8_t>(addr+1, a1) and
           read<uint8_t>(addr+2, a2) and read<uint8_t>(addr+3, a3) and
           read<uint8_t>(addr+4, a4) and read<uint8_t>(addr+5, a5) and

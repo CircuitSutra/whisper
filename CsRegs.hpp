@@ -15,6 +15,7 @@
 #pragma once
 
 #include <cstdint>
+#include <utility>
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
@@ -499,8 +500,8 @@ namespace WdRiscv
   public:
 
     /// Default constructor.
-    Csr()
-    { valuePtr_ = &value_; }
+    Csr() : valuePtr_(&value_)
+    { }
 
     /// Constructor. The mask indicates which bits are writable: A zero bit
     /// in the mask corresponds to a non-writable (preserved) bit in the
@@ -509,11 +510,11 @@ namespace WdRiscv
     Csr(std::string name, CsrNumber number, bool mandatory,
 	bool implemented, URV value, URV writeMask = ~URV(0))
       : name_(std::move(name)), number_(unsigned(number)), mandatory_(mandatory),
-	implemented_(implemented), initialValue_(value), value_(value),
-	writeMask_(writeMask), pokeMask_(writeMask)
+	implemented_(implemented), initialValue_(value), privMode_(PrivilegeMode((number_ & 0x300) >> 8)), value_(value),
+	valuePtr_(&value_), writeMask_(writeMask), pokeMask_(writeMask)
     {
-      valuePtr_ = &value_;
-      privMode_ = PrivilegeMode((number_ & 0x300) >> 8);
+      
+      
     }
 
     /// Copy constructor is not available.
@@ -661,7 +662,7 @@ namespace WdRiscv
     struct Field
     {
       std::string field;
-      unsigned width;
+      unsigned width = 0U;
     };
 
     // Returns CSR fields
@@ -953,7 +954,7 @@ namespace WdRiscv
 
     /// Associate an IMSIC with this register file.
     void attachImsic(std::shared_ptr<TT_IMSIC::Imsic> imsic)
-    { imsic_ = imsic; }
+    { imsic_ = std::move(imsic); }
 
     /// Return true if the given CSR number corresponds to a custom CSR (See table 3 of
     /// section 2.2 of the privileged spec version 20241017).
@@ -1023,7 +1024,7 @@ namespace WdRiscv
     /// implemented.
     Csr<URV>* getImplementedCsr(CsrNumber num)
     {
-      size_t ix = size_t(num);
+      auto ix = size_t(num);
       if (ix >= regs_.size()) return nullptr;
       Csr<URV>* csr = &regs_.at(ix);
       return csr->isImplemented() ? csr : nullptr;
@@ -1034,7 +1035,7 @@ namespace WdRiscv
     /// implemented.
     const Csr<URV>* getImplementedCsr(CsrNumber num) const
     {
-      size_t ix = size_t(num);
+      auto ix = size_t(num);
       if (ix >= regs_.size()) return nullptr;
       const Csr<URV>* csr = &regs_.at(ix);
       return csr->isImplemented() ? csr : nullptr;
@@ -1213,8 +1214,8 @@ namespace WdRiscv
 	{
 	  auto offset = tempPair.first;
 	  auto val = tempPair.second;
-	  CsrNumber csrn = CsrNumber(unsigned(offset) + unsigned(CsrNumber::TDATA1));
-	  change.push_back(std::pair<CsrNumber, uint64_t>(csrn, val));
+	  auto csrn = CsrNumber(unsigned(offset) + unsigned(CsrNumber::TDATA1));
+	  change.emplace_back(csrn, val);
 	}
     }
 
@@ -1358,7 +1359,7 @@ namespace WdRiscv
     /// Return true if given number corresponds to an implemented CSR.
     bool isImplemented(CsrNumber num) const
     {
-      size_t ix = size_t(num);
+      auto ix = size_t(num);
       return ix< regs_.size() and regs_.at(ix).isImplemented();
     }
 
@@ -1961,7 +1962,7 @@ namespace WdRiscv
     /// Return true if given CSR is a hypervisor CSR.
     bool isHypervisor(CsrNumber csrn) const
     {
-      size_t ix = size_t(csrn);
+      auto ix = size_t(csrn);
       if (ix < regs_.size())
         return regs_.at(ix).isHypervisor();
       return false;
@@ -1970,7 +1971,7 @@ namespace WdRiscv
     /// Return true if given CSR is an AIA CSR.
     bool isAia(CsrNumber csrn) const
     {
-      size_t ix = size_t(csrn);
+      auto ix = size_t(csrn);
       if (ix < regs_.size())
         return regs_.at(ix).isAia();
       return false;

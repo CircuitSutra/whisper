@@ -76,7 +76,7 @@ namespace util
   static std::string join(std::string_view separator, Arg arg, Args&&... args)
   {
     constexpr auto getLen = [](auto&& stringOrStringWiew) -> std::size_t {
-      if constexpr (std::is_convertible<decltype(stringOrStringWiew), const char*>::value)
+      if constexpr (std::is_convertible_v<decltype(stringOrStringWiew), const char*>)
         {
           return std::strlen(stringOrStringWiew);
         }
@@ -97,7 +97,7 @@ namespace util
 
   /// Until we have C++23 and std::byteswap
   template <typename T,
-              std::enable_if_t<std::is_integral<T>::value, int> = 0>
+              std::enable_if_t<std::is_integral_v<T>, int> = 0>
   constexpr T byteswap(T x)
   {
     if constexpr (sizeof(x) == 1)

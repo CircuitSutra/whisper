@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string_view>
+#include <utility>
 #include "aplic/Aplic.hpp"
 
 namespace WdRiscv
@@ -13,12 +14,12 @@ namespace WdRiscv
 
     /// Define a memory mapped io device at the given address using
     /// size bytes of the address space.
-    IoDevice(const std::string& type, uint64_t addr, uint64_t size)
-      : type_(type), addr_(addr), size_(size), aplic_(nullptr), iid_(0)
+    IoDevice(std::string  type, uint64_t addr, uint64_t size)
+      : type_(std::move(type)), addr_(addr), size_(size), aplic_(nullptr), iid_(0)
     { }
 
-    IoDevice(const std::string& type, uint64_t addr, uint64_t size, std::shared_ptr<TT_APLIC::Aplic> aplic, uint32_t iid)
-      : type_(type), addr_(addr), size_(size), aplic_(iid != 0 ? aplic : nullptr), iid_(iid)
+    IoDevice(std::string  type, uint64_t addr, uint64_t size, std::shared_ptr<TT_APLIC::Aplic> aplic, uint32_t iid)
+      : type_(std::move(type)), addr_(addr), size_(size), aplic_(iid != 0 ? std::move(aplic) : nullptr), iid_(iid)
     { }
 
     virtual ~IoDevice() = default;

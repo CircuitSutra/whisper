@@ -3,6 +3,7 @@
 #include <fstream>
 #include <sstream>
 #include <boost/algorithm/string.hpp>
+#include <utility>
 #include <unistd.h>
 #include <poll.h>
 #include <termios.h>
@@ -49,7 +50,7 @@ size_t FDChannel::read(uint8_t *arr, size_t n) {
       // Terminated
       if ((pollfds_[1].revents & POLLIN))
         {
-          char buf;
+          char buf = 0;
           (void) ::read(terminate_pipe_[0], &buf, 1);
           return 0;
         }
@@ -90,7 +91,7 @@ size_t FDChannel::read(uint8_t *arr, size_t n) {
 }
 
 void FDChannel::write(uint8_t byte) {
-  int written;
+  int written = 0;
   do {
     written = ::write(out_fd_, &byte, 1);
   } while (written != 1 && written != -1);
@@ -115,9 +116,9 @@ void FDChannel::restoreTermios() {
 FDChannel::~FDChannel() {
   restoreTermios();
   
-  for (uint8_t i = 0; i < 2; i++) {
-    if (terminate_pipe_[i] != -1)
-      close(terminate_pipe_[i]);
+  for (int i : terminate_pipe_) {
+    if (i != -1)
+      close(i);
   }
 }
 
@@ -139,12 +140,12 @@ PTYChannelBase::~PTYChannelBase()
 }
 
 
-PTYChannel::PTYChannel() : PTYChannelBase(), FDChannel(master_, master_)
+PTYChannel::PTYChannel() :  FDChannel(master_, master_)
 { }
 
 
 SocketChannelBase::SocketChannelBase(int server_fd) {
-  struct sockaddr_in client_addr;
+  struct sockaddr_in client_addr{};
   socklen_t client_len = sizeof(client_addr);
   conn_fd_ = accept(server_fd, (struct sockaddr *)&client_addr, &client_len);
   if (conn_fd_ < 0)
@@ -182,7 +183,7 @@ void ForkChannel::terminate() {
 Uart8250::Uart8250(uint64_t addr, uint64_t size,
     std::shared_ptr<TT_APLIC::Aplic> aplic, uint32_t iid,
     std::unique_ptr<UartChannel> channel, bool enableInput, unsigned regShift)
-  : IoDevice("uart8250", addr, size, aplic, iid), channel_(std::move(channel)), regShift_(regShift)
+  : IoDevice("uart8250", addr, size, std::move(aplic), iid), channel_(std::move(channel)), regShift_(regShift)
 {
   if (enableInput)
     this->enable();
@@ -369,7 +370,7 @@ bool Uart8250::loadSnapshot(const std::string& filename)
       std::istringstream iss(data);
       iss >> std::hex;
       std::string regName;
-      unsigned value;
+      unsigned value = 0;
       if (not (iss >> regName >> value))
         {
           std::cerr << "Error: failed to parse UART snapshot file " << filename << " line " << lineno << ": \n" << line << '\n';
@@ -409,7 +410,7 @@ void Uart8250::monitorInput() {
     if (terminate_)
       return;
 
-    std::array<uint8_t, FIFO_SIZE> arr;
+    std::array<uint8_t, FIFO_SIZE> arr{};
     size_t count = channel_->read(arr.data(), FIFO_SIZE);
     if (count == 0)
       // EOF

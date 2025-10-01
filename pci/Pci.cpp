@@ -44,7 +44,7 @@ void
 Pci::config_mmio<uint64_t>([[maybe_unused]] uint32_t addr,
                            [[maybe_unused]] uint64_t& data,
                            [[maybe_unused]] bool w)
-{ return; }
+{ }
 
 
 template <typename T>

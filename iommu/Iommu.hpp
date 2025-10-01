@@ -303,7 +303,7 @@ namespace TT_IOMMU
     /// will be zero.
     uint64_t readCsr(CsrNumber csrn) const
     {
-      auto& csr = csrs_.at(unsigned(csrn));
+      const auto& csr = csrs_.at(unsigned(csrn));
       uint64_t val = csr.read();
       if (csr.size() == 4)
         val = (val << 32) >> 32;
@@ -316,7 +316,7 @@ namespace TT_IOMMU
     void writeCsr(CsrNumber csrn, uint64_t data);
 
     /// Return the device directory table leaf entry size.
-    unsigned devDirTableLeafSize(bool extended) const
+    static unsigned devDirTableLeafSize(bool extended) 
     { return extended ? sizeof(ExtendedDeviceContext) : sizeof(BaseDeviceContext); }
 
     /// Return the pagesize.
@@ -525,7 +525,7 @@ namespace TT_IOMMU
       assert(leafSize <= sizeof(dc));
       assert((leafSize % 8) == 0);
 
-      const uint64_t* ptr = reinterpret_cast<const uint64_t*>(&dc);
+      const auto* ptr = reinterpret_cast<const uint64_t*>(&dc);
 
       bool ok = true;
       for (unsigned i = 0; i < leafSize; i += 8, addr += 8, ++ptr)
@@ -545,30 +545,30 @@ namespace TT_IOMMU
     { walk = processDirWalk_; }
 
     /// Return true if the given command is an ATS command (has the correct opcode).
-    bool isAtsCommand(const AtsCommand& cmd) const
+    static bool isAtsCommand(const AtsCommand& cmd) 
     { return cmd.isAts(); }
 
-    bool isAtsInvalCommand(const AtsCommand& cmd) const
+    static bool isAtsInvalCommand(const AtsCommand& cmd) 
     { return cmd.isInval(); }
     
-    bool isAtsPrgrCommand(const AtsCommand& cmd) const
+    static bool isAtsPrgrCommand(const AtsCommand& cmd) 
     { return cmd.isPrgr(); }
 
     /// Return true if the given command is an IOFENCE command (has the correct opcode).
-    bool isIofenceCommand(const AtsCommand& cmd) const
+    static bool isIofenceCommand(const AtsCommand& cmd) 
     { return cmd.isIofence(); }
 
-    bool isIofenceCCommand(const AtsCommand& cmd) const
+    static bool isIofenceCCommand(const AtsCommand& cmd) 
     { return cmd.isIofenceC(); }
 
     /// Return true if the given command is an IOTINVAL command (has the correct opcode).
-    bool isIotinvalCommand(const AtsCommand& cmd) const
+    static bool isIotinvalCommand(const AtsCommand& cmd) 
     { return cmd.isIotinval(); }
 
-    bool isIotinvalVmaCommand(const AtsCommand& cmd) const
+    static bool isIotinvalVmaCommand(const AtsCommand& cmd) 
     { return cmd.isIotinvalVma(); }
 
-    bool isIotinvalGvmaCommand(const AtsCommand& cmd) const
+    static bool isIotinvalGvmaCommand(const AtsCommand& cmd) 
     { return cmd.isIotinvalGvma(); }
 
     /// Execute an ATS.INVAL command for address translation cache invalidation
@@ -724,7 +724,7 @@ namespace TT_IOMMU
     /// PmaManager.
     void updateMemoryAttributes(unsigned pmacfgIx);
 
-  protected:
+  
 
     /// Return the configuration byte of a PMPCFG register corresponding to the PMPADDR
     /// register having the given index (index 0 corresponds to PMPADDR0). Given index

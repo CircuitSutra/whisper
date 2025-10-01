@@ -581,7 +581,7 @@ namespace WdRiscv
 
     /// Write given buffer to the page at the given address. Buffer size
     /// must be >= pageSize_.
-    bool initializePage(uint64_t addr, const std::span<uint8_t> buffer);
+    bool initializePage(uint64_t addr, std::span<uint8_t> buffer);
 
     /// Clear the information associated with last write.
     void clearLastWriteInfo(unsigned sysHartIx)
@@ -722,7 +722,7 @@ namespace WdRiscv
       uint64_t order = 0;   // Reference order.
       bool clean = true;    // True if line is never written.
     };
-    typedef std::unordered_map<uint64_t, LineEntry> LineMap;
+    using LineMap = std::unordered_map<uint64_t, LineEntry>;
 
     bool saveAddressTrace(std::string_view tag, const LineMap& lineMap,
                           const std::string& path, bool skipClean = false,

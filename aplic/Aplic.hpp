@@ -28,13 +28,13 @@ public:
 
     bool containsAddr(uint64_t addr) const;
 
-    bool read(uint64_t addr, size_t size, uint32_t& data);
+    bool read(uint64_t addr, size_t size, uint32_t& data) const;
 
-    bool write(uint64_t addr, size_t size, uint32_t data);
+    bool write(uint64_t addr, size_t size, uint32_t data) const;
 
-    void setDirectCallback(DirectDeliveryCallback callback);
+    void setDirectCallback(const DirectDeliveryCallback& callback);
 
-    void setMsiCallback(MsiDeliveryCallback callback);
+    void setMsiCallback(const MsiDeliveryCallback& callback);
 
     bool getSourceState(unsigned i) const { return source_states_.at(i); }
 

@@ -28,8 +28,8 @@ namespace WdRiscv
   {
     /// Constructor: Either pass a valid r-form value or start with any
     /// value and then use an encode method.
-    RFormInst(uint32_t inst)
-    { code = inst; }
+    RFormInst(uint32_t inst) : code(inst)
+    { }
 
     /// Return top 5-bits of instruction (for atomic insts).
     unsigned top5() const
@@ -172,8 +172,8 @@ namespace WdRiscv
   {
     /// Constructor: Either pass a valid b-form value or start with any
     /// value and then use an encode method.
-    BFormInst(uint32_t inst)
-    { code = inst; }
+    BFormInst(uint32_t inst) : code(inst)
+    { }
 
     /// Return immediate value as signed.
     int32_t immed() const
@@ -219,8 +219,8 @@ namespace WdRiscv
   {
     /// Constructor: Either pass a valid i-form value or start with any
     /// value and then use an encode method.
-    IFormInst(uint32_t inst)
-    { code = inst; }
+    IFormInst(uint32_t inst) : code(inst)
+    { }
 
     /// Return immediate value as signed.
     int32_t immed() const
@@ -405,8 +405,8 @@ namespace WdRiscv
   {
     /// Constructor: Either pass a valid s-form value or start with any
     /// value and then use an encode method.
-    SFormInst(uint32_t inst)
-    { code = inst; }
+    SFormInst(uint32_t inst) : code(inst)
+    { }
 
     /// Return immediate value as signed.
     int32_t immed() const
@@ -463,8 +463,8 @@ namespace WdRiscv
   {
     /// Constructor: Either pass a valid u-form value or start with
     /// any value and then use an encode method.
-    UFormInst(uint32_t inst)
-    { code = inst; }
+    UFormInst(uint32_t inst) : code(inst)
+    { }
 
     /// Return immediate value as signed.
     int32_t immed() const
@@ -492,8 +492,8 @@ namespace WdRiscv
   {
     /// Constructor: Either pass a valid u-form value or start with
     /// any value and then use an encode method.
-    JFormInst(uint32_t inst)
-    { code = inst; }
+    JFormInst(uint32_t inst) : code(inst)
+    { }
 
     /// Return immediate value as signed.
     int32_t immed() const
@@ -522,8 +522,8 @@ namespace WdRiscv
   {
     /// Constructor: Either pass a valid cb-form value or start with
     /// any value and then use an encode method.
-    CbFormInst(uint16_t inst)
-    { code = inst; }
+    CbFormInst(uint16_t inst) : code(inst)
+    { }
 
     /// Return immediate value encoded in this object.
     int immed() const
@@ -561,8 +561,8 @@ namespace WdRiscv
   /// c.sub, c.xor, c.or and c.and.
   union CaiFormInst
   {
-    CaiFormInst(uint16_t inst)
-    { code = inst; }
+    CaiFormInst(uint16_t inst) : code(inst)
+    { }
     
     int andiImmed() const
     {
@@ -611,8 +611,8 @@ namespace WdRiscv
   /// c.lui, c.lwsp, c.slli, c.ebreak, c.jalr and c.jr
   union CiFormInst
   {
-    CiFormInst(uint16_t inst)
-    { code = inst; }
+    CiFormInst(uint16_t inst) : code(inst)
+    { }
 
     uint32_t code;
 
@@ -685,8 +685,8 @@ namespace WdRiscv
   /// Pack/unpack cl-form instructions: c.lw, c.ld
   union ClFormInst
   {
-    ClFormInst(uint16_t inst)
-    { code = inst; }
+    ClFormInst(uint16_t inst) : code(inst)
+    { }
 
     uint32_t code;
 
@@ -721,8 +721,8 @@ namespace WdRiscv
   // Encode c.addi4spn
   union CiwFormInst
   {
-    CiwFormInst(uint16_t inst)
-    { code = inst; }
+    CiwFormInst(uint16_t inst) : code(inst)
+    { }
 
     uint32_t code;
 
@@ -754,8 +754,8 @@ namespace WdRiscv
   /// Pack/unpack compressed cj-form instructions: c.jal and c.j
   union CjFormInst
   {
-    CjFormInst(uint16_t inst)
-    { code = inst; }
+    CjFormInst(uint16_t inst) : code(inst)
+    { }
 
     uint32_t code;
 
@@ -788,8 +788,8 @@ namespace WdRiscv
   /// Pack/unpack c.swsp and similar instructions.
   union CswspFormInst
   {
-    CswspFormInst(uint16_t inst)
-    { code = inst; }
+    CswspFormInst(uint16_t inst) : code(inst)
+    { }
 
     uint32_t code;
 
@@ -822,8 +822,8 @@ namespace WdRiscv
   /// Pack/unpack c.sw and similar instructions.
   union CsFormInst
   {
-    CsFormInst(uint16_t inst)
-    { code = inst; }
+    CsFormInst(uint16_t inst) : code(inst)
+    { }
 
     uint32_t code;
 
@@ -858,8 +858,8 @@ namespace WdRiscv
   // Pack/unpack Zcb instructions (CLB, CSB, CLH, CSH. CU. and CMMV formats).
   union ClbFormInst
   {
-    ClbFormInst(uint16_t inst)
-    { code = inst; }
+    ClbFormInst(uint16_t inst) : code(inst)
+    { }
 
     unsigned funct1() const
     { return bits.uimm >> 1; }

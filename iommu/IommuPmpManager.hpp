@@ -153,7 +153,7 @@ namespace TT_IOMMU
 
     /// Constructor: Mark all memory as no access to user/supervisor.
     PmpManager()
-    { }
+    = default;
 
     /// Destructor.
     ~PmpManager() = default;
@@ -529,7 +529,7 @@ namespace TT_IOMMU
     }
 
     /// Print current pmp map matching a particular address.
-    void printRegion(std::ostream& os, Region region) const
+    static void printRegion(std::ostream& os, Region region) 
     {
       const auto& pmp = region.pmp_;
       os << "pmp ix: " << std::dec << pmp.pmpIndex() << "\n";

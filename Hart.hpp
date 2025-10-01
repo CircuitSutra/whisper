@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <bitset>
+#include <utility>
 #include <vector>
 #include <set>
 #include <unordered_map>
@@ -917,7 +918,7 @@ namespace WdRiscv
     { return virtMem_.clearPageTableWalk(); }
 
     /// Return the IMSIC associated with this hart.
-    const std::shared_ptr<TT_IMSIC::Imsic> imsic() const
+    std::shared_ptr<TT_IMSIC::Imsic> imsic() const
     { return imsic_; }
 
     /// Locate the ELF function containing the give address returning true
@@ -2253,7 +2254,7 @@ namespace WdRiscv
                 std::shared_ptr<TT_CACHE::Cache> fetchCache,
                 std::shared_ptr<TT_CACHE::Cache> dataCache);
 
-    typedef TT_PERF::PerfApi PerfApi;
+    using PerfApi = TT_PERF::PerfApi;
 
     /// Enable performance model API.
     void setPerfApi(std::shared_ptr<PerfApi> perfApi);
@@ -2358,8 +2359,8 @@ namespace WdRiscv
       imsic_ = imsic;
       imsicMbase_ = mbase; imsicMend_ = mend;
       imsicSbase_ = sbase; imsicSend_ = send;
-      imsicRead_ = readFunc;
-      imsicWrite_ = writeFunc;
+      imsicRead_ = std::move(readFunc);
+      imsicWrite_ = std::move(writeFunc);
       imsic_->enableTrace(trace);
       csRegs_.attachImsic(imsic);
 
@@ -2390,13 +2391,13 @@ namespace WdRiscv
     }
 
     void attachPci(std::shared_ptr<Pci> pci)
-    { pci_ = pci; }
+    { pci_ = std::move(pci); }
 
     void attachAplic(std::shared_ptr<TT_APLIC::Aplic> aplic)
-    { aplic_ = aplic; }
+    { aplic_ = std::move(aplic); }
 
     void attachIommu(std::shared_ptr<TT_IOMMU::Iommu> iommu)
-    { iommu_ = iommu; }
+    { iommu_ = std::move(iommu); }
 
     /// Return true if given extension is enabled.
     constexpr bool extensionIsEnabled(RvExtension ext) const
@@ -2470,9 +2471,8 @@ namespace WdRiscv
             return memory_.peek(addr, data, false);
           return true;
         }
-      else
-        {
-          bool ok = true;
+      
+                  bool ok = true;
           for (unsigned i = 0; i < sizeof(SZ); ++i)
             {
               uint8_t byte = 0;
@@ -2481,7 +2481,7 @@ namespace WdRiscv
               data |= (SZ(byte) << (i*8));
             }
           return ok;
-        }
+       
     }
 
     /// Return pointer to the memory consistency model object.
@@ -2998,7 +2998,7 @@ namespace WdRiscv
     // Return true if FS field of mstatus is not off.
     bool isFpEnabled() const
     {
-      unsigned fpOff = unsigned(FpStatus::Off);
+      auto fpOff = unsigned(FpStatus::Off);
       if (virtMode_)
 	return mstatus_.bits_.FS != fpOff and vsstatus_.bits_.FS != fpOff;
       return mstatus_.bits_.FS != fpOff;
@@ -3066,7 +3066,7 @@ namespace WdRiscv
     // Return true if VS field of mstatus is not off.
     bool isVecEnabled() const
     {
-      unsigned vecOff = unsigned(VecStatus::Off);
+      auto vecOff = unsigned(VecStatus::Off);
       if (virtMode_)
 	return mstatus_.bits_.VS != vecOff and vsstatus_.bits_.VS != vecOff;
       return mstatus_.bits_.VS != vecOff;

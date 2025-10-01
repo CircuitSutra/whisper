@@ -114,7 +114,7 @@ namespace WdRiscv
     /// off in this PTE or if it does not apply to the ith PPN. See the SVNAPOT extension
     /// spec. Currently (version 1.0) this applies to PPN0 and the number of NAPOT bits is
     /// 4.
-    unsigned napotBits(unsigned i) const
+    static unsigned napotBits(unsigned i) 
     { return (i > 0 or not hasNapot()) ? 0 : 4; }
 
     /// Return the ith physical page number (PPN) field encoded in

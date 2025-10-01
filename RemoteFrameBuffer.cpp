@@ -11,11 +11,15 @@
 using namespace WdRiscv;
 
 // Don't change these
-#define RFB_BITS_PER_SAMPLE 8
-#define RFB_SAMPLES_PER_PIXEL 3
+enum {
+RFB_BITS_PER_SAMPLE = 8,
+RFB_SAMPLES_PER_PIXEL = 3
+};
 
 // Time between RFB updates
-#define RFB_FRAME_TIME_US  100000 
+enum {
+RFB_FRAME_TIME_US =  100000 
+};
 
 RemoteFrameBuffer::RemoteFrameBuffer(uint64_t addr, uint64_t width, uint64_t height, uint64_t bytes_per_pixel, int port)
   : IoDevice("frame_buffer", addr, width*height*bytes_per_pixel), width_(width), height_(height), bytes_per_pixel_(bytes_per_pixel), port_(port) {

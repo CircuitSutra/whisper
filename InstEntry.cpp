@@ -27,8 +27,8 @@ InstEntry::InstEntry(std::string name, InstId id,
   : name_(std::move(name)), id_(id), code_(code), codeMask_(mask), ext_(ext), fmt_(fmt),
     op0Mask_(op0Mask), op1Mask_(op1Mask), op2Mask_(op2Mask), op3Mask_(op3Mask),
     op0Type_(op0Type), op1Type_(op1Type), op2Type_(op2Type), op3Type_(op3Type),
-    op0Mode_(op0Mode), op1Mode_(op1Mode), op2Mode_(op2Mode), op3Mode_(op3Mode),
-    opCount_(0)
+    op0Mode_(op0Mode), op1Mode_(op1Mode), op2Mode_(op2Mode), op3Mode_(op3Mode)
+    
 {
   unsigned count = 0;
 
@@ -289,7 +289,7 @@ InstTable::InstTable()
 
 
   // Mark floating point instruction that modify FFLAGS.
-  for (unsigned i = unsigned(InstId::flw); i <= unsigned(InstId::fcvt_h_lu); ++i)
+  for (auto i = unsigned(InstId::flw); i <= unsigned(InstId::fcvt_h_lu); ++i)
     instVec_.at(i).setModifiesFflags(true);
 
   for (auto id : { InstId::flw, InstId::fsw, InstId::fsgnj_s, InstId::fsgnjn_s,
@@ -313,7 +313,7 @@ InstTable::InstTable()
     instVec_.at(unsigned(id)).setModifiesFflags(false);
 
   // Mark Zfa instructions that modify FFLAGS
-  for (unsigned i = unsigned(InstId::fcvtmod_w_d); i <= unsigned(InstId::froundnx_d); ++i)
+  for (auto i = unsigned(InstId::fcvtmod_w_d); i <= unsigned(InstId::froundnx_d); ++i)
     instVec_.at(i).setModifiesFflags(true);
 
   for (auto id : { InstId::fli_h, InstId::fli_s, InstId::fli_d, InstId::fleq_h, InstId::fleq_s,

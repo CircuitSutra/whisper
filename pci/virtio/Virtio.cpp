@@ -5,26 +5,26 @@
 #include "../msix.hpp"
 
 Virtio::Virtio(unsigned subsys_id, unsigned class_code, unsigned num_queues)
-  : subsys_id_(subsys_id), class_code_(class_code), num_queues_(num_queues)
+  : features_(uint64_t(1) << VIRTIO_F_VERSION_1), subsys_id_(subsys_id), class_code_(class_code), num_queues_(num_queues)
 {
   initialize_header();
   msix::initialize_header(*this);
   vqs_.resize(num_queues);
-  features_ = uint64_t(1) << VIRTIO_F_VERSION_1;
+  
 }
 
 
 bool
 Virtio::setup()
 {
-  uint32_t common_cap_offset;
-  uint32_t msix_cap_offset;
+  uint32_t common_cap_offset = 0;
+  uint32_t msix_cap_offset = 0;
   if (not msix::allocate_cap(*this, num_queues_ + 1 /* config? */, msix_cap_,
                               msix_cap_offset, msix_table_, pba_table_) or not
           allocate_caps(common_cap_offset))
     {
 
-      std::cerr << "Error: Failed to allocate all caps for virtio" << std::endl;
+      std::cerr << "Error: Failed to allocate all caps for virtio" << '\n';
       return false;
     }
 
@@ -53,7 +53,7 @@ Virtio::setup()
       case VIRTIO_PCI_COMMON_STATUS:
         if (data & VIRTIO_CONFIG_S_FAILED)
           {
-            std::cerr << "Error: Driver gave up on device" << std::endl;
+            std::cerr << "Error: Driver gave up on device" << '\n';
             return;
           }
         if (!data)
@@ -128,7 +128,7 @@ Virtio::setup()
         return vq.used_addr >> 32;
     };
 
-    uint64_t data;
+    uint64_t data = 0;
     memcpy(&data, bar->bytes_.data() + offset, len);
     return data;
   };
@@ -151,10 +151,10 @@ void
 Virtio::signal_used(unsigned num, const std::vector<virtqueue::used_ring::elem>& elems)
 {
   auto& vq = get_vq(num);
-  if (not vq.enable or (elems.size() == 0))
+  if (not vq.enable or (elems.empty()))
     return;
 
-  uint16_t used_idx;
+  uint16_t used_idx = 0;
   read_mem(vq.used_addr + offsetof(virtqueue::used_ring, idx), used_idx);
   for (const auto& elem : elems)
     {
@@ -165,7 +165,7 @@ Virtio::signal_used(unsigned num, const std::vector<virtqueue::used_ring::elem>&
     }
   write_mem(vq.used_addr + offsetof(virtqueue::used_ring, idx), used_idx);
 
-  uint16_t avail_flags;
+  uint16_t avail_flags = 0;
   read_mem(vq.avail_addr + offsetof(virtqueue::avail_ring, flags), avail_flags);
   uint16_t msix = vq.msix_vector;
   if (msix != VIRTIO_MSI_NO_VECTOR and not (avail_flags & VIRTQ_AVAIL_F_NO_INTERRUPT))
@@ -203,13 +203,13 @@ Virtio::get_descriptors(const unsigned num, std::vector<virtqueue::descriptor>& 
   if (not vq.enable)
     return false;
 
-  uint16_t avail_idx;
+  uint16_t avail_idx = 0;
   read_mem(vq.avail_addr + offsetof(virtqueue::avail_ring, idx), avail_idx);
   if (vq.last_avail_idx == avail_idx)
     return false;
 
   uint16_t next_avail_idx = vq.last_avail_idx % vq.size;
-  uint16_t desc_idx;
+  uint16_t desc_idx = 0;
   read_mem(vq.avail_addr + offsetof(virtqueue::avail_ring, ring) + sizeof(desc_idx)*next_avail_idx, desc_idx);
   head = desc_idx;
 
@@ -219,10 +219,10 @@ Virtio::get_descriptors(const unsigned num, std::vector<virtqueue::descriptor>& 
       assert(desc_idx < vq.size);
 
       // Weird C++ compile problem
-      decltype(virtqueue::descriptor::address) address;
-      decltype(virtqueue::descriptor::length) length;
-      decltype(virtqueue::descriptor::flags) flags;
-      decltype(virtqueue::descriptor::next) next;
+      decltype(virtqueue::descriptor::address) address = 0;
+      decltype(virtqueue::descriptor::length) length = 0;
+      decltype(virtqueue::descriptor::flags) flags = 0;
+      decltype(virtqueue::descriptor::next) next = 0;
 
       const auto desc_size = sizeof(virtqueue::descriptor);
       read_mem(vq.desc_addr + desc_size*desc_idx + offsetof(virtqueue::descriptor, address), address);
@@ -270,7 +270,7 @@ Virtio::allocate_caps(uint32_t& common_cap_offset)
   common_cap_ = reinterpret_cast<cap*>(ask_header_blocks<uint32_t>(sizeof(cap), common_cap_offset));
   if (not common_cap_)
     {
-      std::cerr << "Error: No more space for VIRTIO common cap entry" << std::endl;
+      std::cerr << "Error: No more space for VIRTIO common cap entry" << '\n';
       return false;
     }
 
@@ -279,11 +279,11 @@ Virtio::allocate_caps(uint32_t& common_cap_offset)
   common_cap_->type = VIRTIO_PCI_CAP_COMMON_CFG;
   common_cap_->bar = 1;
 
-  uint32_t common_cfg_offset;
+  uint32_t common_cfg_offset = 0;
   common_cfg_ = reinterpret_cast<common_cfg*>(ask_bar_blocks<uint32_t>(1, sizeof(common_cfg), common_cfg_offset));
   if (not common_cfg_)
     {
-      std::cerr << "Error: No more space for VIRTIO common cfg structure" << std::endl;
+      std::cerr << "Error: No more space for VIRTIO common cfg structure" << '\n';
       return false;
     }
   common_cap_->cfg_offset = common_cfg_offset;
@@ -292,11 +292,11 @@ Virtio::allocate_caps(uint32_t& common_cap_offset)
   common_cfg_->msix_config = VIRTIO_MSI_NO_VECTOR;
   common_cfg_->num_queues = num_queues_;
 
-  uint32_t notify_cap_offset;
+  uint32_t notify_cap_offset = 0;
   notify_cap_ = reinterpret_cast<notify_cap*>(ask_header_blocks<uint32_t>(sizeof(notify_cap), notify_cap_offset));
   if (not notify_cap_)
     {
-      std::cerr << "Error: No more space for VIRTIO notify cap entry" << std::endl;
+      std::cerr << "Error: No more space for VIRTIO notify cap entry" << '\n';
       return false;
     }
   notify_cap_->cap.cap = PCI_CAP_ID_VNDR;
@@ -306,22 +306,22 @@ Virtio::allocate_caps(uint32_t& common_cap_offset)
   // we set to 0, so same notify address is used for all queues
   notify_cap_->notify_off_multiplier = 0;
 
-  uint32_t notify_cfg_offset;
+  uint32_t notify_cfg_offset = 0;
   notify_cfg_ = reinterpret_cast<notify_cfg*>(ask_bar_blocks<uint32_t>(1, sizeof(notify_cfg), notify_cfg_offset));
   if (not notify_cfg_)
     {
-      std::cerr << "Error: No more space for VIRTIO notify cfg structure" << std::endl;
+      std::cerr << "Error: No more space for VIRTIO notify cfg structure" << '\n';
       return false;
     }
   notify_cap_->cap.cfg_offset = notify_cfg_offset;
   notify_cap_->cap.cfg_length = sizeof(notify_cfg);
 
   // Since we use MSI-X, we don't need this either.
-  uint32_t isr_cap_offset;
+  uint32_t isr_cap_offset = 0;
   isr_cap_ = reinterpret_cast<cap*>(ask_header_blocks<uint32_t>(sizeof(cap), isr_cap_offset));
   if (not isr_cap_)
     {
-      std::cerr << "Error: No more space for VIRTIO isr cap entry" << std::endl;
+      std::cerr << "Error: No more space for VIRTIO isr cap entry" << '\n';
       return false;
     }
   isr_cap_->cap = PCI_CAP_ID_VNDR;
@@ -329,21 +329,21 @@ Virtio::allocate_caps(uint32_t& common_cap_offset)
   isr_cap_->type = VIRTIO_PCI_CAP_ISR_CFG;
   isr_cap_->bar = 1;
 
-  uint32_t isr_cfg_offset;
+  uint32_t isr_cfg_offset = 0;
   isr_cfg_ = reinterpret_cast<uint32_t*>(ask_bar_blocks<uint32_t>(1, sizeof(uint32_t), isr_cfg_offset));
   if (not isr_cfg_)
     {
-      std::cerr << "Error: No more space for VIRTIO isr cfg structure" << std::endl;
+      std::cerr << "Error: No more space for VIRTIO isr cfg structure" << '\n';
       return false;
     }
   isr_cap_->cfg_offset = isr_cfg_offset;
   isr_cap_->cfg_length = sizeof(uint32_t);
 
-  uint32_t device_cap_offset;
+  uint32_t device_cap_offset = 0;
   device_cap_ = reinterpret_cast<cap*>(ask_header_blocks<uint32_t>(sizeof(cap), device_cap_offset));
   if (not device_cap_)
     {
-      std::cerr << "Error: No more space for VIRTIO device cap entry" << std::endl;
+      std::cerr << "Error: No more space for VIRTIO device cap entry" << '\n';
       return false;
     }
   device_cap_->cap = PCI_CAP_ID_VNDR;
@@ -351,12 +351,12 @@ Virtio::allocate_caps(uint32_t& common_cap_offset)
   device_cap_->type = VIRTIO_PCI_CAP_DEVICE_CFG;
   device_cap_->bar = 1;
 
-  uint32_t device_cfg_offset;
+  uint32_t device_cfg_offset = 0;
   // device dependent allocation, let's just allocate 128B
   device_cfg_ = ask_bar_blocks<uint32_t>(1, 128*sizeof(uint8_t), device_cfg_offset);
   if (not device_cfg_)
     {
-      std::cerr << "Error: No more space for VIRTIO device cfg structure" << std::endl;
+      std::cerr << "Error: No more space for VIRTIO device cfg structure" << '\n';
       return false;
     }
   device_cap_->cfg_offset = device_cfg_offset;
@@ -364,11 +364,11 @@ Virtio::allocate_caps(uint32_t& common_cap_offset)
 
   // Apparently nobody uses this for accessing BAR registers so we don't keep it around and we
   // don't allocate its corresponding structure.
-  uint32_t pci_cap_offset;
-  auto pci_cap_ = reinterpret_cast<pci_cap*>(ask_header_blocks<uint32_t>(sizeof(pci_cap), pci_cap_offset));
+  uint32_t pci_cap_offset = 0;
+  auto *pci_cap_ = reinterpret_cast<pci_cap*>(ask_header_blocks<uint32_t>(sizeof(pci_cap), pci_cap_offset));
   if (not pci_cap_)
     {
-      std::cerr << "Error: No more space for VIRTIO pci cap entry" << std::endl;
+      std::cerr << "Error: No more space for VIRTIO pci cap entry" << '\n';
       return false;
     }
   pci_cap_->cap.cap = PCI_CAP_ID_VNDR;
@@ -401,5 +401,5 @@ Virtio::initialize_header()
   if (not bar_size(1))
     set_bar_size(1, 0x1000);
   else
-    std::cerr << "Error: Bar 1 size already set" << std::endl;
+    std::cerr << "Error: Bar 1 size already set" << '\n';
 }

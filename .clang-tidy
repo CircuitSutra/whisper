@@ -22,7 +22,10 @@ Checks: >
     -cppcoreguidelines-special-member-functions,
     -readability-function-cognitive-complexity,
     -readability-named-parameter,
-    -readability-uppercase-literal-suffix
+    -readability-uppercase-literal-suffix,
+    -cppcoreguidelines-macro-usage,
+    -cppcoreguidelines-avoid-const-or-ref-data-members,
+    -cppcoreguidelines-non-private-member-variables-in-classes
 
 CheckOptions:
   - key:   bugprone-reserved-identifier.AllowedIdentifiers
@@ -31,3 +34,5 @@ CheckOptions:
     value: 'int8_t'
   - key:   cppcoreguidelines-pro-type-member-init.UseAssignment
     value: true
+
+HeaderFilterRegex: ''

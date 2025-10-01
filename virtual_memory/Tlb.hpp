@@ -380,7 +380,7 @@ namespace WdRiscv
 
     /// Return the size of a page/megapage for the given mode and TLB entry level in units
     /// of 4k-bytes.
-    uint64_t sizeIn4kBytes(Mode mode, unsigned level) const
+    static uint64_t sizeIn4kBytes(Mode mode, unsigned level) 
     {
       if (mode == Mode::Bare)
         return 0;
@@ -424,7 +424,7 @@ namespace WdRiscv
     inline TlbEntry* getEntry(uint64_t pageNum)
     {
       unsigned ix = pageNum & (entries_.size() - 1);
-      return (entries_.size())? &entries_.at(ix) : nullptr;
+      return (!entries_.empty())? &entries_.at(ix) : nullptr;
     }
 
     std::vector<TlbEntry> entries_;

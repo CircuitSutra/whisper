@@ -139,7 +139,7 @@ namespace WdRiscv
 
     /// Constructor: Mark all memory as no access to user/supervisor.
     PmpManager()
-    { }
+    = default;
 
     /// Destructor.
     ~PmpManager() = default;
@@ -515,7 +515,7 @@ namespace WdRiscv
     }
 
     /// Print current pmp map matching a particular address.
-    void printRegion(std::ostream& os, Region region) const
+    static void printRegion(std::ostream& os, Region region) 
     {
       const auto& pmp = region.pmp_;
       os << "pmp ix: " << std::dec << pmp.pmpIndex() << "\n";

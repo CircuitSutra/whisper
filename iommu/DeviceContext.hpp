@@ -48,7 +48,7 @@ namespace TT_IOMMU
       : value_(value)
     { }
 
-    unsigned ithDdi(unsigned i, bool extended)
+    unsigned ithDdi(unsigned i, bool extended) const
     {
       assert(i <= 2);
       if (extended)
@@ -263,7 +263,7 @@ namespace TT_IOMMU
 
     /// Extract the interrupt file number from given shifted address
     /// and MSI mask (see section 2.3.3 of IOMMU spec).
-    uint64_t extractMsiBits(uint64_t addr, uint64_t mask) const
+    static uint64_t extractMsiBits(uint64_t addr, uint64_t mask) 
     {
       uint64_t res = 0;
       unsigned n = 0;  // Count of extracted bits
@@ -412,27 +412,27 @@ namespace TT_IOMMU
     { return (msipat_ << 12) >> 12; }
 
     /// Return mask of reserved bits in TC field.
-    uint64_t tcResMask() const
+    static uint64_t tcResMask() 
     { return 0xffff'ffff'00ff'f000; }
 
     /// Return mask of reserved bits in TA field.
-    uint64_t taResMask() const
+    static uint64_t taResMask() 
     { return 0xffff'ffff'0000'0fff; }
 
     /// Return mask of reserved bits in FSC field.
-    uint64_t fscResMask() const
+    static uint64_t fscResMask() 
     { return 0x0fff'f000'0000'0000; }
 
     /// Return mask of reserved bits in msitp field.
-    uint64_t msiptpResMask() const
+    static uint64_t msiptpResMask() 
     { return 0x0fff'f000'0000'0000; }
 
     /// Return mask of reserved bits in msi addr field.
-    uint64_t msiAddrResMask() const
+    static uint64_t msiAddrResMask() 
     { return 0xfff0'0000'0000'0000; }
 
     /// Return mask of reserved bits in msi pattern field.
-    uint64_t msiPatternResMask() const
+    static uint64_t msiPatternResMask() 
     { return 0xfff0'0000'0000'0000; }
     
     /// Comparison operator. Compare all the fields.

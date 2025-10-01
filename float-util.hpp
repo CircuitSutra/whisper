@@ -100,7 +100,7 @@ setSimulatorRoundingMode(RoundingMode mode)
     };
 
   int      previous = std::fegetround();
-  uint32_t ix       = uint32_t(mode);
+  auto ix       = uint32_t(mode);
   int      next     = riscvToFe.at(ix);
   if (next != previous)
     std::fesetround(next);
@@ -184,7 +184,7 @@ activeSimulatorFpFlags()
 inline void
 raiseSimulatorFpFlags(FpFlags flags)
 {
-  using underlying_t = typename std::underlying_type<FpFlags>::type;
+  using underlying_t = std::underlying_type_t<FpFlags>;
 #if SOFT_FLOAT
   if (static_cast<underlying_t>(flags) & static_cast<underlying_t>(FpFlags::Inexact))
     softfloat_exceptionFlags |= softfloat_flag_inexact;
@@ -219,7 +219,7 @@ raiseSimulatorFpFlags(FpFlags flags)
 /// parameter.
 template <typename To, typename From>
 auto fpConvertTo(From x)
-  -> typename std::enable_if<is_fp<To>::value && std::numeric_limits<From>::is_integer, To>::type
+  -> std::enable_if_t<is_fp<To>::value && std::numeric_limits<From>::is_integer, To>
 {
 #if SOFT_FLOAT
 
@@ -291,7 +291,7 @@ auto fpConvertTo(From x)
 /// parameter.
 template <typename To, typename From>
 auto fpConvertTo(From x)
-  -> typename std::enable_if<std::numeric_limits<To>::is_integer && is_fp<From>::value, To>::type
+  -> std::enable_if_t<std::numeric_limits<To>::is_integer && is_fp<From>::value, To>
 {
 #if SOFT_FLOAT
 
@@ -365,7 +365,7 @@ auto fpConvertTo(From x)
 
 #else
 
-  double working = static_cast<double>(x);
+  auto working = static_cast<double>(x);
 
   To   result;
   bool valid = false;
@@ -431,7 +431,7 @@ auto fpConvertTo(From x)
 // is inferred from the parameter.
 template <typename To, bool CANONICALIZE_NAN, typename From>
 auto fpConvertTo(From x)
-  -> typename std::enable_if<is_fp<To>::value && is_fp<From>::value, To>::type
+  -> std::enable_if_t<is_fp<To>::value && is_fp<From>::value, To>
 {
 #if SOFT_FLOAT
 
@@ -550,7 +550,7 @@ template <> struct getSameWidthFloatType<uint64_t>  { using type = double; };
 template <typename T>
 inline auto
 isSnan(T f)
-  -> typename std::enable_if<is_fp<T>::value, bool>::type
+  -> std::enable_if_t<is_fp<T>::value, bool>
 {
   using uint_fsize_t = typename getSameWidthUintType<T>::type;
 
@@ -598,7 +598,7 @@ float flipSign(float x)
   {
     uint32_t u;
     float f;
-  } uf;
+  } uf{};
 
   uf.f = x;
   uf.u ^= uint32_t(1) << 31;
@@ -614,7 +614,7 @@ double flipSign(double x)
   {
     uint64_t u;
     double d;
-  } ud;
+  } ud{};
 
   ud.d = x;
   ud.u ^= uint64_t(1) << 63;
@@ -889,7 +889,7 @@ void setAllBits(float& x)
   {
     uint32_t u;
     float f;
-  } uf;
+  } uf{};
   uf.u = ~uint32_t(0);
   x = uf.f;
 }
@@ -902,7 +902,7 @@ void setAllBits(double& x)
   {
     uint64_t u;
     double d;
-  } ud;
+  } ud{};
   ud.u = ~uint64_t(0);
   x = ud.d;
 }

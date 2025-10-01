@@ -77,7 +77,7 @@ Triggers<URV>::readData1(URV trigIx, URV& value) const
     return false;
 
   auto& trigger = triggers_.at(trigIx);
-  unsigned typeIx = unsigned(trigger.type());
+  auto typeIx = unsigned(trigger.type());
 
   URV readMask = typeIx < data1ReadMasks_.size() ? data1ReadMasks_.at(typeIx) : 0;
 
@@ -94,7 +94,7 @@ Triggers<URV>::peekData1(URV trigIx, URV& value) const
     return false;
 
   auto& trigger = triggers_.at(trigIx);
-  unsigned typeIx = unsigned(trigger.type());
+  auto typeIx = unsigned(trigger.type());
 
   URV readMask = typeIx < data1ReadMasks_.size() ? data1ReadMasks_.at(typeIx) : 0;
 
@@ -185,7 +185,7 @@ Triggers<URV>::writeData1(URV trigIx, bool debugMode, URV value)
   if (valBits.type() != TriggerType::None and not preserveType)
     {
       // If new type is not supported by this trigger, preserve old type.
-      unsigned typeNumber = unsigned(valBits.type());
+      auto typeNumber = unsigned(valBits.type());
       unsigned mask = 1 << typeNumber;
       TinfoBits tinfo(trig.readInfo());
       preserveType = not (tinfo.info() & mask);
@@ -599,7 +599,7 @@ Triggers<URV>::config(unsigned triggerIx,
 
   auto& trigger = triggers_.at(triggerIx);
 
-  if (resets.size() > 0)
+  if (!resets.empty())
     trigger.configData1(resets.at(0), masks.at(0), pokeMasks.at(0));
 
   if (resets.size() > 1)
@@ -645,7 +645,7 @@ Triggers<URV>::setSupportedTypes(const std::vector<TriggerType>& types)
 
   for (auto type : types)
     {
-      unsigned ix = unsigned(type);
+      auto ix = unsigned(type);
       if (type == TT::None)
 	hasNone = true;
       else if (type == TT::Disabled)
@@ -718,7 +718,7 @@ Triggers<URV>::setSupportedActions(const std::vector<TriggerAction>& actions)
 
   for (auto action : actions)
     {
-      unsigned ix = unsigned(action);
+      auto ix = unsigned(action);
       if (action == TriggerAction::RaiseBreak)
         hasRaiseBreak = true;
       supportedActions_.at(ix) = true;
@@ -1048,7 +1048,7 @@ Trigger<URV>::matchLdStAddr(URV address, unsigned size, TriggerTiming timing, bo
 	    }
 	}
 
-      Match match = Match(data1_.mcontrol_.match_);
+      auto match = Match(data1_.mcontrol_.match_);
       if (matchAllDataAddresses(match))
 	{
 	  // Match all addresses covered by size.
@@ -1081,8 +1081,7 @@ Trigger<URV>::matchLdStAddr(URV address, unsigned size, TriggerTiming timing, bo
     return false;  // Not an address trigger.
   if (data1_.isMcontrol())
     return matchLdStAddr<decltype(data1_.mcontrol_)>(address, size, timing, isLoad, mode, virtMode);
-  else
-    return matchLdStAddr<decltype(data1_.mcontrol6_)>(address, size, timing, isLoad, mode, virtMode);
+      return matchLdStAddr<decltype(data1_.mcontrol6_)>(address, size, timing, isLoad, mode, virtMode);
 }
 
 
@@ -1122,7 +1121,7 @@ Trigger<URV>::matchLdStData(URV value, TriggerTiming timing, bool isLoad,
   if (getTiming() == timing and Select(ctl.select_) == Select::MatchData and
       ((isLoad and ctl.load_) or (isStore and ctl.store_)))
     {
-      Match match = Match(data1_.mcontrol_.match_);
+      auto match = Match(data1_.mcontrol_.match_);
       return doMatch(value, match);
     }
   return false;
@@ -1138,8 +1137,7 @@ Trigger<URV>::matchLdStData(URV value, TriggerTiming timing, bool isLoad,
     return false;  // Not an address trigger.
   if (data1_.isMcontrol())
     return matchLdStData<decltype(data1_.mcontrol_)>(value, timing, isLoad, mode, virtMode);
-  else
-    return matchLdStData<decltype(data1_.mcontrol6_)>(value, timing, isLoad, mode, virtMode);
+      return matchLdStData<decltype(data1_.mcontrol6_)>(value, timing, isLoad, mode, virtMode);
 }
 
 
@@ -1192,8 +1190,7 @@ Trigger<URV>::doMatch(URV item, Match match) const
 
   if (match >= Match::Equal and match <= Match::MaskLowEqualHigh)
     return helper(item, data2, match);
-  else
-    return not helper(item, data2, Match(uint32_t(match) - 8));
+      return not helper(item, data2, Match(uint32_t(match) - 8));
 }
 
 
@@ -1267,7 +1264,7 @@ Trigger<URV>::matchInstAddr(URV address, unsigned size, TriggerTiming timing, Pr
 	    }
 	}
 
-      Match match = Match(data1_.mcontrol_.match_);
+      auto match = Match(data1_.mcontrol_.match_);
       if (matchAllInstrAddresses(match))
         {
 	  // Match all addresses covered by size.
@@ -1299,8 +1296,7 @@ Trigger<URV>::matchInstAddr(URV address, unsigned size, TriggerTiming timing,
     return false;  // Not an address trigger.
   if (data1_.isMcontrol())
     return matchInstAddr<decltype(data1_.mcontrol_)>(address, size, timing, mode, virtMode);
-  else
-    return matchInstAddr<decltype(data1_.mcontrol6_)>(address, size, timing, mode, virtMode);
+      return matchInstAddr<decltype(data1_.mcontrol6_)>(address, size, timing, mode, virtMode);
 }
 
 
@@ -1337,7 +1333,7 @@ Trigger<URV>::matchInstOpcode(URV opcode, TriggerTiming timing,
 
   if (getTiming() == timing and Select(ctl.select_) == Select::MatchData and ctl.execute_)
     {
-      Match match = Match(data1_.mcontrol_.match_);
+      auto match = Match(data1_.mcontrol_.match_);
       return doMatch(opcode, match);
     }
 
@@ -1354,8 +1350,7 @@ Trigger<URV>::matchInstOpcode(URV opcode, TriggerTiming timing,
     return false;  // Not an address trigger.
   if (data1_.isMcontrol())
     return matchInstOpcode<decltype(data1_.mcontrol_)>(opcode, timing, mode, virtMode);
-  else
-    return matchInstOpcode<decltype(data1_.mcontrol6_)>(opcode, timing, mode, virtMode);
+      return matchInstOpcode<decltype(data1_.mcontrol6_)>(opcode, timing, mode, virtMode);
 }
 
 

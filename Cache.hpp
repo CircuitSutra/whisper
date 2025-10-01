@@ -61,14 +61,14 @@ namespace TT_CACHE
       if (not memWrite_)
         return false;
 
-      if (rtlData.size() and rtlData.size() != lineSize_)
+      if (!rtlData.empty() and rtlData.size() != lineSize_)
         {
           std::cerr << "Error: writeback line size " << rtlData.size() << " does"
                        " not match cache line size " << lineSize_ << '\n';
           return false;
         }
 
-      bool skipCheck = rtlData.size() == 0;
+      bool skipCheck = rtlData.empty();
       uint64_t lineNum = addr >> lineShift_;
 
       if (not data_.contains(lineNum))
@@ -80,7 +80,7 @@ namespace TT_CACHE
       for (unsigned i = 0; i < dwords; ++i, addr += sizeof(uint64_t))
 	{
           unsigned j = i * sizeof(uint64_t);
-          uint64_t val = uint64_t(vec.at(j));
+          auto val = uint64_t(vec.at(j));
           val |= uint64_t(vec.at(j + 1)) << 8;
           val |= uint64_t(vec.at(j + 2)) << 16;
           val |= uint64_t(vec.at(j + 3)) << 24;
@@ -91,7 +91,7 @@ namespace TT_CACHE
 
           if (not skipCheck)
             {
-              uint64_t rtlVal = uint64_t(rtlData.at(j));
+              auto rtlVal = uint64_t(rtlData.at(j));
               rtlVal |= uint64_t(rtlData.at(j + 1)) << 8;
               rtlVal |= uint64_t(rtlData.at(j + 2)) << 16;
               rtlVal |= uint64_t(rtlData.at(j + 3)) << 24;
@@ -133,7 +133,7 @@ namespace TT_CACHE
         return false;
       if (not data_.contains(lineNum))
         return false;
-      auto& vec = data_.at(lineNum);
+      const auto& vec = data_.at(lineNum);
       unsigned byteIx = addr % lineSize_;
       if constexpr (sizeof(SZ) >= sizeof(uint8_t))
         data = vec.at(byteIx);
@@ -167,11 +167,11 @@ namespace TT_CACHE
     }
 
     /// Callback to read from memory.
-    void addMemReadCallback(const std::function<bool(uint64_t, uint64_t&)> memRead)
+    void addMemReadCallback(const std::function<bool(uint64_t, uint64_t&)>& memRead)
     { memRead_ = memRead; }
 
     /// Callback to write tomemory.
-    void addMemWriteCallback(const std::function<bool(uint64_t, uint64_t)> memWrite)
+    void addMemWriteCallback(const std::function<bool(uint64_t, uint64_t)>& memWrite)
     { memWrite_ = memWrite; }
 
     /// Empty cache.

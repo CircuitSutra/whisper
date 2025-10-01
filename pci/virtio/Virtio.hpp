@@ -7,21 +7,27 @@
 #include <thread>
 #include "../PciDev.hpp"
 
-#define PCI_DEVICE_ID_VIRTIO_BASE		0x1040
-#define PCI_SUBSYS_ID_VIRTIO_BASE		0x0040
+enum {
+PCI_DEVICE_ID_VIRTIO_BASE =		0x1040,
+PCI_SUBSYS_ID_VIRTIO_BASE =		0x0040
+};
 
-#define PCI_VENDOR_ID_REDHAT_QUMRANET		0x1af4
-#define PCI_SUBSYSTEM_VENDOR_ID_REDHAT_QUMRANET	0x1af4
+enum {
+PCI_VENDOR_ID_REDHAT_QUMRANET =		0x1af4,
+PCI_SUBSYSTEM_VENDOR_ID_REDHAT_QUMRANET =	0x1af4
+};
 
-#define VIRTQ_SIZE                              32
-#define VIRTQ_USED_F_NO_NOTIFY                  1
-#define VIRTQ_AVAIL_F_NO_INTERRUPT              1
+enum {
+VIRTQ_SIZE =                              32,
+VIRTQ_USED_F_NO_NOTIFY =                  1,
+VIRTQ_AVAIL_F_NO_INTERRUPT =              1,
 /* This marks a buffer as continuing via the next field. */
-#define VIRTQ_DESC_F_NEXT       1
+VIRTQ_DESC_F_NEXT =       1,
 /* This marks a buffer as write-only (otherwise read-only). */
-#define VIRTQ_DESC_F_WRITE      2
+VIRTQ_DESC_F_WRITE =      2,
 /* This means the buffer contains a list of buffer descriptors. */
-#define VIRTQ_DESC_F_INDIRECT   4
+VIRTQ_DESC_F_INDIRECT =   4
+};
 
 namespace msix {
   struct cap;
@@ -71,7 +77,7 @@ class Virtio : public PciDev {
 
 
     struct notify_cap {
-      struct cap cap;
+      struct cap cap{};
       uint32_t notify_off_multiplier = 0;
     } __attribute__ ((packed));
 
@@ -115,17 +121,17 @@ class Virtio : public PciDev {
       uint16_t msix_vector = VIRTIO_MSI_NO_VECTOR;
       uint16_t enable = 0;
 
-      uint64_t desc_addr;
-      uint64_t avail_addr;
-      uint64_t used_addr;
+      uint64_t desc_addr = 0UL;
+      uint64_t avail_addr = 0UL;
+      uint64_t used_addr = 0UL;
       uint16_t last_avail_idx = 0;
     };
 
     Virtio(unsigned subsys_id, unsigned class_code, unsigned num_queues);
 
-    virtual ~Virtio() = default;
+    ~Virtio() override = default;
 
-    virtual bool setup();
+    bool setup() override;
 
     virtual void operator()(unsigned vq) = 0;
 
@@ -141,7 +147,7 @@ class Virtio : public PciDev {
     void signal_config();
 
     // Returns true if successful.
-    bool get_descriptors(const unsigned num, std::vector<virtqueue::descriptor>& read, std::vector<virtqueue::descriptor>& write, unsigned& head, bool& finished);
+    bool get_descriptors(unsigned num, std::vector<virtqueue::descriptor>& read, std::vector<virtqueue::descriptor>& write, unsigned& head, bool& finished);
 
     auto& get_vq(unsigned num)
     { return vqs_.at(num); }
@@ -151,7 +157,7 @@ class Virtio : public PciDev {
     { (*this)(vq); }
 
     uint64_t features_;
-    uint8_t* device_cfg_;
+    uint8_t* device_cfg_ = nullptr;
 
   private:
 
@@ -164,22 +170,22 @@ class Virtio : public PciDev {
     const unsigned class_code_;
     const unsigned num_queues_;
 
-    cap* common_cap_;
-    common_cfg* common_cfg_;
-    notify_cap* notify_cap_;
-    notify_cfg* notify_cfg_;
+    cap* common_cap_ = nullptr;
+    common_cfg* common_cfg_ = nullptr;
+    notify_cap* notify_cap_ = nullptr;
+    notify_cfg* notify_cfg_ = nullptr;
     // reading the ISR clears it, but we don't need to care if we use MSIs
-    cap* isr_cap_;
-    uint32_t* isr_cfg_;
-    cap* device_cap_;
+    cap* isr_cap_ = nullptr;
+    uint32_t* isr_cfg_ = nullptr;
+    cap* device_cap_ = nullptr;
 
-    msix::cap* msix_cap_;
-    msix::msix_table_entry* msix_table_;
-    msix::pba_table_entry* pba_table_;
+    msix::cap* msix_cap_ = nullptr;
+    msix::msix_table_entry* msix_table_ = nullptr;
+    msix::pba_table_entry* pba_table_ = nullptr;
 
     // For driver configuration
-    uint32_t device_feature_selector_;
-    uint16_t config_msix_vector_;
+    uint32_t device_feature_selector_ = 0U;
+    uint16_t config_msix_vector_ = 0U;
     uint16_t queue_selector_ = 0;
     std::vector<virtqueue> vqs_;
 };

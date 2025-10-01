@@ -9,11 +9,13 @@
 #include <mutex>
 #include <functional>
 #include <iostream>
-#include <string.h>
+#include <cstring>
 #include <optional>
 
 // under PCIe, 4096 bytes of configuration space
-#define PCI_CFG_SIZE 4096
+enum {
+PCI_CFG_SIZE = 4096
+};
 
 class PciDev {
 
@@ -66,13 +68,13 @@ class PciDev {
       std::function<uint64_t(uint32_t, size_t)> read_dev_ = nullptr;
     };
 
-    PciDev()
+    PciDev() : header_eol_(header_.data + sizeof(config::fields))
     {
       bars_.resize(6);
-      bar_eols_.resize(6, 0);
+      bar_eols_.resize(6, nullptr);
       bar_sizes_.resize(6, 0);
 
-      header_eol_ = header_.data + sizeof(config::fields);
+      
     };
 
     virtual ~PciDev() = default;
@@ -89,7 +91,7 @@ class PciDev {
       uintptr_t align = sizeof(U);
       align = (1 << (align - 1));
 
-      uint8_t* tmp = reinterpret_cast<uint8_t*>(uintptr_t(header_eol_ + align - 1) & ~(align - 1));
+      auto* tmp = reinterpret_cast<uint8_t*>(uintptr_t(header_eol_ + align - 1) & ~(align - 1));
       offset = tmp - header_.data;
       if ((tmp + size) > &(header_.data[PCI_CFG_SIZE - 1]))
         return nullptr;
@@ -109,7 +111,7 @@ class PciDev {
       uintptr_t align = 1 << (sizeof(U) - 1);
       uintptr_t addr = (bar_eol + align - 1) & ~(align - 1);
 
-      auto casted = reinterpret_cast<uint8_t*>(addr);
+      auto *casted = reinterpret_cast<uint8_t*>(addr);
       offset = casted - bars_.at(bar)->bytes_.data();
       if ((addr + size) > (bar_eol + bar_sizes_.at(bar) - 1))
         return nullptr;
@@ -123,7 +125,7 @@ class PciDev {
       header_.bits.bar[bar] = base | PCI_BASE_ADDRESS_SPACE_MEMORY;
     }
 
-    void set_bar_mmio_blocks(unsigned bar, std::shared_ptr<mmio_blocks> blocks)
+    void set_bar_mmio_blocks(unsigned bar, const std::shared_ptr<mmio_blocks>& blocks)
     {
       assert(bar < 6 and "There are only 6 bars");
       bars_.at(bar) = blocks;
@@ -177,7 +179,7 @@ class PciDev {
       // probably ok in assuming these will be 4B aligned
       if (offset >= PCI_BASE_ADDRESS_0 and offset <= (PCI_BASE_ADDRESS_5 + 3))
         {
-          bool io;
+          bool io = false;
           uint8_t bar = ((offset & ~uint32_t(0x3)) - PCI_BASE_ADDRESS_0) >> 2;
 
           if (not bar_type(bar, io))
@@ -197,7 +199,7 @@ class PciDev {
           header_.bits.bar[bar] = value;
           return;
         }
-      else if (offset == PCI_ROM_ADDRESS)
+      if (offset == PCI_ROM_ADDRESS)
         return;
 
       void* p = &header_.data[offset];
@@ -227,7 +229,7 @@ class PciDev {
     template <typename U>
     void read_mem(uint64_t addr, U& data) const
     {
-      uint64_t tmp;
+      uint64_t tmp = 0;
       read_mem_(addr, sizeof(U), tmp);
       data = U(tmp);
     }

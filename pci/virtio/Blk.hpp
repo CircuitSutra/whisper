@@ -12,7 +12,7 @@ class Blk : public Virtio {
     // input file as disk image
     Blk(bool readonly);
 
-    ~Blk()
+    ~Blk() override
     {
       if (fd_)
         close(fd_);
@@ -32,7 +32,7 @@ class Blk : public Virtio {
 
       config_ = reinterpret_cast<virtio_blk_config*>(device_cfg_);
 
-      struct stat st;
+      struct stat st{};
       fstat(fd_, &st);
       config_->capacity = st.st_size/512;
       return true;
@@ -41,5 +41,5 @@ class Blk : public Virtio {
     void operator()(unsigned vq) final;
 
     int fd_ = -1;
-    virtio_blk_config* config_;
+    virtio_blk_config* config_ = nullptr;
 };

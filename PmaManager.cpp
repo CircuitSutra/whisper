@@ -345,7 +345,7 @@ PmaManager::writeRegister(uint64_t addr, uint64_t value)
 	  value >>= 32;
 	  uint64_t& mmrv2 = iter->second.value_;
 	  uint64_t mmrm2 = iter->second.mask_;
-	  uint64_t mask = uint64_t(0xffffffff);
+	  auto mask = uint64_t(0xffffffff);
 	  mmrv2 = (mmrv2 & ~mask & mmrm2) | (value & mmrm2);
 	}
     }
@@ -424,7 +424,7 @@ PmaManager::pokeRegisterByte(uint64_t addr, uint8_t value)
 
 
 void
-PmaManager::printRegion(std::ostream& os, Region region) const
+PmaManager::printRegion(std::ostream& os, Region region) 
 {
   const auto& pma = region.pma_;
   os << "valid: " << std::hex << region.valid_ << "\n";
@@ -455,7 +455,7 @@ PmaManager::printPmas(std::ostream& os) const
   for (size_t i = 0; i < regions_.size(); ++i)
     {
       os << "Region " << i << '\n';
-      auto& region = regions_.at(i);
+      const auto& region = regions_.at(i);
       printRegion(os, region);
       os << '\n';
     }
@@ -475,7 +475,7 @@ PmaManager::updateMemMappedAttrib(unsigned ix)
 
 void
 PmaManager::unpackPmacfg(uint64_t val, bool& valid, uint64_t& low, uint64_t& high,
-                         Pma& pma) const
+                         Pma& pma) 
 {
   // Recover n = log2 of size.
   uint64_t n = val >> 58;   // Bits 63:58

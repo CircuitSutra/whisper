@@ -5,7 +5,7 @@ using namespace TT_IMSIC;
 
 /// Until we have C++23 and std::byteswap
 template <typename T,
-            std::enable_if_t<std::is_integral<T>::value, int> = 0>
+            std::enable_if_t<std::is_integral_v<T>, int> = 0>
 constexpr T byteswap(T x)
 {
   if constexpr (sizeof(x) == 1)
@@ -214,7 +214,7 @@ ImsicMgr::configureMachine(uint64_t addr, uint64_t stride, unsigned ids,
 
   mbase_ = addr;
   mstride_ = stride;
-  for (auto imsic : imsics_)
+  for (const auto& imsic : imsics_)
     {
       imsic->configureMachine(addr, ids, pageSize_, thresholdMax, aplic);
       addr += stride;
@@ -235,7 +235,7 @@ ImsicMgr::configureSupervisor(uint64_t addr, uint64_t stride, unsigned ids,
 
   sbase_ = addr;
   sstride_ = stride;
-  for (auto imsic : imsics_)
+  for (const auto& imsic : imsics_)
     {
       imsic->configureSupervisor(addr, ids, pageSize_, thresholdMax, aplic);
       addr += stride;
@@ -250,7 +250,7 @@ ImsicMgr::configureGuests(unsigned n, unsigned ids, unsigned thresholdMax)
   if (sstride_ < (n+1) * pageSize_)
     return false;  // No enough space.
 
-  for (auto imsic : imsics_)
+  for (const auto& imsic : imsics_)
     imsic->configureGuests(n, ids, pageSize_, thresholdMax);
 
   return true;

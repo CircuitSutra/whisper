@@ -5,7 +5,7 @@ using namespace TT_APLIC;
 
 Domain::Domain(
     const Aplic *aplic,
-    std::shared_ptr<Domain> parent,
+    const std::shared_ptr<Domain>& parent,
     const DomainParams& params
 ):
     aplic_(aplic),
@@ -44,7 +44,7 @@ void Domain::reset()
     for (unsigned i = 0; i < num_harts; i++)
         idcs_[i] = Idc{};
 
-    for (auto child : children_)
+    for (const auto& child : children_)
         child->reset();
 }
 
@@ -115,7 +115,7 @@ void Domain::runCallbacksAsRequired()
                 forwardViaMsi(i);
         }
     }
-    for (auto child : children_)
+    for (const auto& child : children_)
         child->runCallbacksAsRequired();
 }
 

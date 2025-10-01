@@ -1407,7 +1407,7 @@ const InstEntry&
 Decoder::decode16(uint16_t inst, uint32_t& op0, uint32_t& op1, uint32_t& op2) const
 {
   uint16_t quadrant = inst & 0x3;
-  uint16_t funct3 =  uint16_t(inst >> 13);    // Bits 15 14 and 13
+  auto funct3 =  uint16_t(inst >> 13);    // Bits 15 14 and 13
 
   op0 = 0; op1 = 0; op2 = 0;
 
@@ -1556,8 +1556,7 @@ Decoder::decode16(uint16_t inst, uint32_t& op0, uint32_t& op1, uint32_t& op2) co
 		  op0 = cif.bits.rd ; op1 = cif.addiImmed(); op2 = 0;
 		  return instTable_.getEntry(InstId::c_mop);
 		} 
-	      else
-		return instTable_.getEntry(InstId::illegal);
+	      		return instTable_.getEntry(InstId::illegal);
 	    }
 	  if (cif.bits.rd == RegSp)  // c.addi16sp
 	    {
@@ -1668,7 +1667,7 @@ Decoder::decode16(uint16_t inst, uint32_t& op0, uint32_t& op1, uint32_t& op2) co
       if (funct3 == 0)  // c.slli, c.slli64
 	{
 	  CiFormInst cif(inst);
-	  unsigned immed = unsigned(cif.slliImmed());
+	  auto immed = unsigned(cif.slliImmed());
 	  if (cif.bits.ic5 != 0 and not isRv64())
 	    return instTable_.getEntry(InstId::illegal);
 	  op0 = cif.bits.rd; op1 = cif.bits.rd; op2 = immed;
@@ -1776,7 +1775,7 @@ uint32_t
 Decoder::expandCompressedInst(uint16_t inst) const
 {
   uint16_t quadrant = inst & 0x3;
-  uint16_t funct3 =  uint16_t(inst >> 13);    // Bits 15 14 and 13
+  auto funct3 =  uint16_t(inst >> 13);    // Bits 15 14 and 13
 
   uint32_t op0 = 0, op1 = 0, op2 = 0;
 
@@ -2060,7 +2059,7 @@ Decoder::expandCompressedInst(uint16_t inst) const
       if (funct3 == 0)  // c.slli, c.slli64
 	{
 	  CiFormInst cif(inst);
-	  unsigned immed = unsigned(cif.slliImmed());
+	  auto immed = unsigned(cif.slliImmed());
 	  if (cif.bits.ic5 != 0 and not isRv64())
 	    return expanded; // Illegal
 	  op0 = cif.bits.rd; op1 = cif.bits.rd; op2 = immed;
@@ -2462,12 +2461,12 @@ Decoder::decode(uint32_t inst, uint32_t& op0, uint32_t& op1, uint32_t& op2,
                     op2 = amt;
                     return instTable_.getEntry(InstId::slli);
                   }
-                else if (top5 == 5)
+                if (top5 == 5)
                   {
                     op2 = amt;
                     return instTable_.getEntry(InstId::bseti);
                   }
-                else if (top5 == 9)
+                if (top5 == 9)
                   {
                     op2 = amt;
                     return instTable_.getEntry(InstId::bclri);
