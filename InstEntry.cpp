@@ -6618,8 +6618,8 @@ InstTable::setupInstVec()
 
       // Vector crypto (Zvksh)
       { "vsm3me.vv", InstId::vsm3me_vv,
-	0b100000'0'00000'00000'010'00000'1010111, // Opcode
-        0b111111'0'00000'00000'111'00000'1111111, // Mask of opcode bits
+	0b100000'1'00000'00000'010'00000'1110111, // Opcode
+        0b111111'1'00000'00000'111'00000'1111111, // Mask of opcode bits
         RvExtension::Zvksh, RvFormat::R,
         OperandType::VecReg, OperandMode::Write, rdMask,
         OperandType::VecReg, OperandMode::Read, rs2Mask,
@@ -6627,7 +6627,7 @@ InstTable::setupInstVec()
       },
 
       { "vsm3c.vi", InstId::vsm3c_vi,
-	0b101011'1'00000'00000'010'00000'1010111, // Opcode
+	0b101011'1'00000'00000'010'00000'1110111, // Opcode
         0b111111'1'00000'00000'111'00000'1111111, // Mask of opcode bits
         RvExtension::Zvksh, RvFormat::R,
         OperandType::VecReg, OperandMode::Write, rdMask,
