@@ -102,6 +102,11 @@ Decoder::decodeFp(uint32_t inst, uint32_t& op0, uint32_t& op1, uint32_t& op2) co
 	  if (f3 == 2)          return instTable_.getEntry(InstId::feq_d);
 	  return instTable_.getEntry(InstId::illegal);
 	}
+      if (top5 == 0x16)
+        {
+          if (f3==0)            return instTable_.getEntry(InstId::fmvp_d_x);
+	  return instTable_.getEntry(InstId::illegal);
+        }
       if (top5 == 0x18)
 	{
 	  if (op2 == 0)         return instTable_.getEntry(InstId::fcvt_w_d);
@@ -131,8 +136,6 @@ Decoder::decodeFp(uint32_t inst, uint32_t& op0, uint32_t& op1, uint32_t& op2) co
 	  if (op2==0 and f3==0) return instTable_.getEntry(InstId::fmv_d_x);
 	  if (op2==1 and f3==0) return instTable_.getEntry(InstId::fli_d);
 	}
-      if (top5 == 0x26)
-	if (f3==0) return instTable_.getEntry(InstId::fmvp_d_x);
 
       return instTable_.getEntry(InstId::illegal);
     }
