@@ -139,10 +139,10 @@ sleep_double(double interval)
     }
 }
 
-static std::map<int, int>
+static std::map<unsigned, int>
 get_cores_load(double interval)
 {
-    std::map<int, int> cores_load;
+    std::map<unsigned, int> cores_load;
 
     auto stats1 = get_stats();
     sleep_double(interval);
@@ -171,7 +171,7 @@ find_low_load_cluster(double max_load, unsigned cluster_size, double interval)
     auto cores_load = get_cores_load(interval);
 
     for (const auto& [node, cpus] : numa_nodes) {
-        std::vector<int> start_cpus;
+        std::vector<unsigned> start_cpus;
         for (auto cpu : cpus) {
             if (cpu % 2 == 0)
                 start_cpus.push_back(cpu);

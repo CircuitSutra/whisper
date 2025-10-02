@@ -28,7 +28,8 @@ Checks: >
     -cppcoreguidelines-non-private-member-variables-in-classes,
     -readability-avoid-unconditional-preprocessor-if,
     -readability-inconsistent-declaration-parameter-name,
-    -readability-simplify-boolean-expr
+    -readability-simplify-boolean-expr,
+    -cppcoreguidelines-avoid-do-while,
 
 CheckOptions:
   - key:   bugprone-reserved-identifier.AllowedIdentifiers
@@ -37,5 +38,7 @@ CheckOptions:
     value: 'int8_t'
   - key:   cppcoreguidelines-pro-type-member-init.UseAssignment
     value: true
+  - key:   clang-analyzer-optin.cplusplus.VirtualCall
+    value: false
 
 HeaderFilterRegex: ''

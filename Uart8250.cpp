@@ -22,7 +22,8 @@ using namespace WdRiscv;
 FDChannel::FDChannel(int in_fd, int out_fd)
   : in_fd_(in_fd), out_fd_(out_fd), is_tty_(isatty(in_fd_))
 {
-  if (pipe(terminate_pipe_))
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
+  if (pipe(terminate_pipe_.data()))
     throw std::runtime_error("FDChannel: Failed to get termination pipe\n");
 
   pollfds_[0].fd = in_fd_;
@@ -43,7 +44,8 @@ FDChannel::FDChannel(int in_fd, int out_fd)
 
 size_t FDChannel::read(uint8_t *arr, size_t n) {
   while (true) {
-    int code = poll(pollfds_, 2, 10);
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
+    int code = poll(pollfds_.data(), 2, 10);
 
     if (code > 0)
     {
@@ -115,7 +117,7 @@ void FDChannel::restoreTermios() {
 
 FDChannel::~FDChannel() {
   restoreTermios();
-  
+
   for (int i : terminate_pipe_) {
     if (i != -1)
       close(i);
@@ -123,11 +125,11 @@ FDChannel::~FDChannel() {
 }
 
 PTYChannelBase::PTYChannelBase() {
-  char name[256];
-  if (openpty(&master_, &slave_, name, nullptr, nullptr) < 0)
+  std::array<char, 256> name;
+  if (openpty(&master_, &slave_, name.data(), nullptr, nullptr) < 0)
     throw std::runtime_error("Failed to open a PTY\n");
 
-  std::cerr << "Info: Got PTY " << name << "\n";
+  std::cerr << "Info: Got PTY " << name.data() << "\n";
 }
 
 PTYChannelBase::~PTYChannelBase()
@@ -145,9 +147,9 @@ PTYChannel::PTYChannel() :  FDChannel(master_, master_)
 
 
 SocketChannelBase::SocketChannelBase(int server_fd) {
-  struct sockaddr_in client_addr{};
+  struct sockaddr_in client_addr;
   socklen_t client_len = sizeof(client_addr);
-  conn_fd_ = accept(server_fd, (struct sockaddr *)&client_addr, &client_len);
+  conn_fd_ = accept(server_fd, reinterpret_cast<struct sockaddr*>(&client_addr), &client_len);
   if (conn_fd_ < 0)
     throw std::runtime_error("Failed to accept socket connection\n");
 }
@@ -255,11 +257,13 @@ uint32_t Uart8250::read(uint64_t addr) {
       case 5: return lsr_;
       case 6: return msr_;
       case 7: return scr_;
+      default: assert(false);
     }
   } else {
     switch (offset) {
       case 0: return dll_;
       case 1: return dlm_;
+      default: assert(false);
     }
   }
 
@@ -424,7 +428,7 @@ void Uart8250::monitorInput() {
         return;
 
       for (; i < count && rx_fifo.size() < FIFO_SIZE; i++) {
-        rx_fifo.push(arr[i]);
+        rx_fifo.push(arr.at(i));
       }
 
       lsr_ |= 1;  // Set receiver data ready
