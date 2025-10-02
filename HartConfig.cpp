@@ -1605,7 +1605,7 @@ HartConfig::applyAplicConfig(System<URV>& system) const
       tag = "hart_indices";
       if (domain.contains(tag))
         {
-          for (auto index : domain.at(tag))
+          for (const auto& index : domain.at(tag))
             domain_params.hart_indices.push_back(index.get<unsigned>());
         }
 
@@ -3149,20 +3149,23 @@ HartConfig::getXlen(unsigned& xlen) const
   std::string isa;
   if (not getIsa(isa))
     return false;
-  if (isa.size() >= 4 and isa.at(0) == 'r' and isa.at(1) == 'v')
+
+  if (isa.empty())
+    return false;
+
+  if (isa.starts_with("rv64"))
     {
-      unsigned len = 0;
-      if (auto convResult = std::from_chars(isa.c_str() + 2, isa.c_str() + isa.size(), len);
-          convResult.ec == std::errc{})
-        {
-          if (len == 32 or len == 64)
-            {
-              xlen = len;
-              return true;
-            }
-        }
-      std::cerr << "Error: Invalid register width in isa string (" << isa << ") in config file -- ignored\n";
+      xlen = 64;
+      return true;
     }
+
+  if (isa.starts_with("rv32"))
+    {
+      xlen = 32;
+      return true;
+    }
+
+  std::cerr << "Error: Invalid register width in isa string (" << isa << ") in config file -- ignored\n";
   return false;
 }
 
