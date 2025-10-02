@@ -560,8 +560,8 @@ namespace WdRiscv
       }
 
       Operation op_;
-      std::array<uint64_t, 2> operands_;
-      uint64_t result_;
+      std::array<uint64_t, 2> operands_{};
+      uint64_t result_ = 0;
     };
 
     /// Incremental floating point flag changes from last vector instruction.

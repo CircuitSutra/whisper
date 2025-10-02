@@ -52,11 +52,11 @@ namespace WdRiscv
       if (abiNames)
         {
           if (i < numberToAbiName_.size())
-            return numberToAbiName_[i];
+            return numberToAbiName_.at(i);
           return unknown_;
         }
       if (i < numberToName_.size())
-        return numberToName_[i];
+        return numberToName_.at(i);
       return unknown_;
     }
 

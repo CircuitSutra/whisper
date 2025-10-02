@@ -1699,7 +1699,7 @@ parseInterruptArray(const nlohmann::json &arr, const std::string &context,
   unsigned errors = 0;
   for (const auto &item : arr)
     {
-      InterruptCause ic = InterruptCause{};
+      auto ic = InterruptCause{};
       if (item.is_number())
         {
           unsigned num = item.get<unsigned>();
