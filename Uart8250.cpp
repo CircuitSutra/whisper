@@ -129,7 +129,7 @@ PTYChannelBase::PTYChannelBase() {
   if (openpty(&master_, &slave_, name.data(), nullptr, nullptr) < 0)
     throw std::runtime_error("Failed to open a PTY\n");
 
-  std::cerr << "Info: Got PTY " << name << "\n";
+  std::cerr << "Info: Got PTY " << name.data() << "\n";
 }
 
 PTYChannelBase::~PTYChannelBase()
@@ -149,7 +149,7 @@ PTYChannel::PTYChannel() :  FDChannel(master_, master_)
 SocketChannelBase::SocketChannelBase(int server_fd) {
   struct sockaddr_in client_addr;
   socklen_t client_len = sizeof(client_addr);
-  conn_fd_ = accept(server_fd, client_addr, &client_len);
+  conn_fd_ = accept(server_fd, reinterpret_cast<struct sockaddr*>(&client_addr), &client_len);
   if (conn_fd_ < 0)
     throw std::runtime_error("Failed to accept socket connection\n");
 }

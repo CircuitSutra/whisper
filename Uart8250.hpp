@@ -48,7 +48,7 @@ namespace WdRiscv
 
     int in_fd_, out_fd_;
     std::array<int, 2> terminate_pipe_ = {-1, -1};
-    std::array<struct pollfd, 2> pollfds_[2]{};
+    std::array<struct pollfd, 2> pollfds_{};
     bool is_tty_;
     std::unique_ptr<termios> original_termios_;
     uint8_t prev_ = 0;  // Previous character for control sequence detection

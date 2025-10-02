@@ -171,7 +171,7 @@ find_low_load_cluster(double max_load, unsigned cluster_size, double interval)
     auto cores_load = get_cores_load(interval);
 
     for (const auto& [node, cpus] : numa_nodes) {
-        std::vector<int> start_cpus;
+        std::vector<unsigned> start_cpus;
         for (auto cpu : cpus) {
             if (cpu % 2 == 0)
                 start_cpus.push_back(cpu);
@@ -179,7 +179,7 @@ find_low_load_cluster(double max_load, unsigned cluster_size, double interval)
 
         for (auto start_cpu : start_cpus) {
             std::vector<int> cluster;
-            for (int i = 0; i < cluster_size; i++) {
+            for (unsigned i = 0; i < cluster_size; i++) {
                 if (std::find(cpus.begin(), cpus.end(), start_cpu + i) != cpus.end())
                     cluster.push_back(start_cpu + i);
             }
