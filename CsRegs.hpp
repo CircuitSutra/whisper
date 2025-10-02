@@ -2376,8 +2376,6 @@ namespace WdRiscv
 
   private:
 
-    bool rv32_ = sizeof(URV) == 4;
-
     const PmpManager& pmpMgr_;
 
     std::vector< Csr<URV> > regs_;
@@ -2392,23 +2390,24 @@ namespace WdRiscv
     // Counters implementing machine performance counters.
     PerfRegs mPerfRegs_;
 
-    bool interruptEnable_ = false;  // Cached MSTATUS MIE bit.
 
-    // These can be obtained from Triggers. Speed up access by caching
-    // them in here.
-    bool hasActiveTrigger_ = false;
-    bool hasActiveInstTrigger_ = false;
-
-    bool mdseacLocked_ = false; // Once written, MDSEAC persists until
-                                // MDEAU is written.
     URV maxEventId_ = ~URV(0);  // Default unlimited.
-    bool hasPerfEventSet_ = false;
     std::unordered_set<unsigned> perfEventSet_;
 
     URV shadowSie_ = 0;     // Used where mideleg is 0 and mvien is 1.
 
     unsigned geilen_ = 0;   // Guest interrupt count.
 
+    bool rv32_ = sizeof(URV) == 4;  // True if in RV32 (false if in RV64).
+    bool interruptEnable_ = false;  // Cached MSTATUS MIE bit.
+
+    // These can be obtained from Triggers. Speed up access by caching them in here.
+    bool hasActiveTrigger_ = false;
+    bool hasActiveInstTrigger_ = false;
+
+    bool hasPerfEventSet_ = false;  // True if perf events defiend in perfEventSet_.
+
+    bool mdseacLocked_ = false;   // Once written, MDSEAC persists until MDEAU is written.
     bool userEnabled_ = false;    // User mode enabled
     bool superEnabled_ = false;   // Supervisor
     bool hyperEnabled_ = false;   // Hypervisor
@@ -2420,16 +2419,15 @@ namespace WdRiscv
     bool aiaEnabled_ = false;     // Aia extension.
     bool mcdelegEnabled_ = true;  // Mvdeleg extension (counter delegation).
 
-    bool recordWrite_ = true;
-    bool debugMode_ = false;
+    bool recordWrite_ = true;     // True if CSR writes should be recorded (for tracing).
+    bool debugMode_ = false;      // True if in debug mode.
     bool virtMode_ = false;       // True if hart virtual (V) mode is on.
+    bool seiPin_ = false;         // Value of software external interrupt pin.
 
     std::vector<InterruptCause> mInterrupts_;
     std::vector<InterruptCause> sInterrupts_;
     std::vector<InterruptCause> vsInterrupts_;
 
     std::vector<CsrNumber> customH_;   // Custom CSR marked as belonging to H extension.
-
-    bool seiPin_ = false;
   };
 }
