@@ -15,6 +15,7 @@
 #include <random>
 #include <unistd.h>
 #include <cstring>
+#include <cassert>
 
 static std::vector<int>
 parse_cpu_list(const std::string& cpu_list_str)

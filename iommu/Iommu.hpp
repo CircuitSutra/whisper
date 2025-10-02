@@ -519,18 +519,27 @@ namespace TT_IOMMU
     bool writeDeviceContext(uint64_t addr, const DeviceContext& dc)
     {
       bool bigEnd = devDirTableBe();
-      bool extended = isDcExtended();
-      unsigned leafSize = devDirTableLeafSize(extended);
 
-      assert(leafSize <= sizeof(dc));
-      assert((leafSize % 8) == 0);
+      bool ok = memWriteDouble(addr, bigEnd, dc.transControl().value_);
+      addr += 8;
+      ok = memWriteDouble(addr, bigEnd, dc.iohgatp()) and ok;
+      addr += 8;
+      ok = memWriteDouble(addr, bigEnd, dc.transAttrib().value_) and ok;
+      addr += 8;
+      ok = memWriteDouble(addr, bigEnd, dc.firstStageContext()) and ok;
+      addr += 8;
 
-      const auto* ptr = reinterpret_cast<const uint64_t*>(&dc);
-
-      bool ok = true;
-      for (unsigned i = 0; i < leafSize; i += 8, addr += 8, ++ptr)
-        ok = memWriteDouble(addr, bigEnd, *ptr) and ok;
-
+      if (isDcExtended())
+        {
+          ok = memWriteDouble(addr, bigEnd, dc.msiTablePointer()) and ok;
+          addr += 8;
+          ok = memWriteDouble(addr, bigEnd, dc.fullMsiMask()) and ok;
+          addr += 8;
+          ok = memWriteDouble(addr, bigEnd, dc.fullMsiPattern()) and ok;
+          addr += 8;
+          ok = memWriteDouble(addr, bigEnd, 0) and ok; // Reserved field.
+          addr += 8;
+        }
       return ok;
     }
 
@@ -791,8 +800,8 @@ namespace TT_IOMMU
 
 
     bool pmpEnabled_ = false;        // Physical memory protection (PMP)
-    unsigned pmpcfgCount_ = 0;       // Number of PMPCFG registers
-    unsigned pmpaddrCount_ = 0;      // Number of PMPADDR registers
+    uint64_t pmpcfgCount_ = 0;       // Number of PMPCFG registers
+    uint64_t pmpaddrCount_ = 0;      // Number of PMPADDR registers
     uint64_t pmpcfgAddr_ = 0;        // Address of first PMPCFG register
     uint64_t pmpaddrAddr_ = 0;       // Address of first PMPADDR register
 
@@ -802,7 +811,7 @@ namespace TT_IOMMU
     PmpManager pmpMgr_;
 
     bool pmaEnabled_ = false;        // Physical memory attributes (PMA)
-    unsigned pmacfgCount_ = 0;       // Count of PMACFG registers
+    uint64_t pmacfgCount_ = 0;       // Count of PMACFG registers
     uint64_t pmacfgAddr_ = 0;        // Address of first PMACFG register
 
     std::vector<uint64_t> pmacfg_;   // Cached values of PMACFG registers

@@ -251,7 +251,7 @@ namespace TT_IOMMU
     /// Return true if given address matches the MSI address range.
     /// Return false if this is not an extended context.
     bool isMsiAddress(uint64_t gpa) const
-  {
+    {
       // Extract the upper bits that need to match
       uint64_t shiftedGpa = gpa >> 12;
       uint64_t pattern = msiPattern();
@@ -259,7 +259,7 @@ namespace TT_IOMMU
       
       // The matching criteria should be: (shifted_gpa & ~shifted_mask) == (shifted_pattern & ~shifted_mask)
       return (shiftedGpa & ~mask) == (pattern & ~mask);
-  }
+    }
 
     /// Extract the interrupt file number from given shifted address
     /// and MSI mask (see section 2.3.3 of IOMMU spec).
@@ -403,11 +403,11 @@ namespace TT_IOMMU
     uint64_t msiPpn() const
     { return (msiptp_ << 20) >> 20; }
 
-    /// MSI address mask.
+    /// MSI address mask. This zeros out the reserved bits of the mask.
     uint64_t msiMask() const
     { return (msimask_ << 12) >> 12; }
 
-    /// MSI address pattern.
+    /// MSI address pattern.  This zeros out the reserved bits of the pattern.
     uint64_t msiPattern() const
     { return (msipat_ << 12) >> 12; }
 
@@ -465,6 +465,31 @@ namespace TT_IOMMU
         }
       return 0;
     }
+
+    /// Return translation control field of this object.
+    TransControl transControl() const
+    { return TransControl{tc_}; }
+
+    /// Return translation attribute field of this object.
+    DevTransAttrib transAttrib() const
+    { return DevTransAttrib(ta_); }
+
+    /// Return first stage context field of this object.
+    uint64_t firstStageContext() const
+    { return fsc_; }
+
+    /// Return the MSIP page table pointer field of this object. The root page number is a
+    /// subset of this (use msiPpn to get root page number).
+    uint64_t msiTablePointer() const
+    { return msiptp_; }
+
+    /// Reutrn the full MSI address mask (does not zero out reserved bits).
+    uint64_t fullMsiMask() const
+    { return msimask_; }
+
+    /// Reutrn the full MSI pattern (does not zero out reserved bits).
+    uint64_t fullMsiPattern() const
+    { return msipat_; }
 
   private:
 

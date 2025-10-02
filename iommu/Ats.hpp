@@ -189,9 +189,9 @@ namespace TT_IOMMU
     }
 
     // Constructor for VMA command
-    IotinvalCommand(IotinvalFunc func) : IotinvalCommand(), func3(func)
+    IotinvalCommand(IotinvalFunc func) : IotinvalCommand()
     {
-      
+      func3 = func;
       if (func == IotinvalFunc::GVMA) {
         PSCV = 0;  // Must be 0 for GVMA per specification
       }

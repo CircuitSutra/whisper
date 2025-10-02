@@ -1,5 +1,6 @@
 #include <iostream>
 #include <string_view>
+#include <ranges>
 #include "Mcm.hpp"
 #include "System.hpp"
 
@@ -11,7 +12,7 @@ template <typename URV>
 Mcm<URV>::Mcm(unsigned hartCount, unsigned pageSize, unsigned mergeBufferSize)
   : pageSize_(pageSize), lineSize_(mergeBufferSize),
     // If no merge buffer, then memory is updated on insert messages.
-    writeOnInsert_(lineSize_ == 0);
+    writeOnInsert_(lineSize_ == 0)
 {
   sysMemOps_.reserve(200000);
 
@@ -359,11 +360,9 @@ Mcm<URV>::getLdStDataVectors(const Hart<URV>& hart, const McmInstr& instr,
   assert(elemSize != 0);
   unsigned elemsPerVec = hart.vecRegSize() / elemSize;
 
-  // NOLINTBEGIN(cppcoreguidelines-pro-type-member-init)
-  std::array<bool, 32> referenced;  for (auto& x : referenced) x = false;
-  std::array<bool, 32> active;      for (auto& x : active)     x = false;
-  std::array<bool, 32> preserve;    for (auto& x : preserve)   x = true;
-  // NOLINTEND(cppcoreguidelines-pro-type-member-init)
+  std::array<bool, 32> referenced{};
+  std::array<bool, 32> active{};
+  std::array<bool, 32> preserve{};
 
   bool maskAgn = hart.isVectorMaskAgnostic();
   bool tailAgn = hart.isVectorTailAgnostic();
@@ -1919,11 +1918,14 @@ Mcm<URV>::checkStoreData(Hart<URV>& hart, const McmInstr& store) const
     return checkVecStoreData(hart, store);
   
   // Scalar store
-  return std::ranges::all_of(store.memOps_.begin(), store.memOps_.end(),
-      [] (auto opIx) {
-        const auto& op = sysMemOps_.at(opIx);
-        return op.isRead_ or checkRtlWrite(hartId, store, op);
-      });
+  for (auto opIx : store.memOps_)
+    {
+      const auto& op = sysMemOps_.at(opIx);
+      if (not op.isRead_ and not checkRtlWrite(hartId, store, op))
+	return false;
+    }
+
+  return true;
 }
 
 
@@ -3046,7 +3048,7 @@ Mcm<URV>::vecStoreToReadForward(const McmInstr& store, MemoryOp& readOp, uint64_
       if (lastWopTime >= readOp.time_)
         {
           uint64_t offset = lastWopTime - readOp.time_;
-          const off16 = static_cast<uint16_t>(offset);  // TODO: Use gsl
+          uint16_t off16 = static_cast<uint16_t>(offset);  // TODO: Use gsl
           assert(off16 == offset);  // Check for overflow
           readOp.fwOffset_.at(rix) = std::max(readOp.fwOffset_.at(rix), off16);
         }
@@ -4855,7 +4857,6 @@ Mcm<URV>::getMinReadTagWithLargerTime(unsigned hartIx, const McmInstr& instr) co
 
   for (const auto & op : std::ranges::reverse_view(sysMemOps_))
     {
-      const auto& op = *iter;
       if (op.canceled_ or op.hartIx_ != hartIx or not op.isRead_)
 	continue;
 
