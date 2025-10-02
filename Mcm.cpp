@@ -416,8 +416,10 @@ Mcm<URV>::getLdStIndexVectors(const Hart<URV>& hart, const McmInstr& instr,
   assert(ixElemSize != 0);
   unsigned elemsPerVec = hart.vecRegSize() / ixElemSize;
 
+  // NOLINTBEGIN(cppcoreguidelines-pro-type-member-init)
   std::array<bool, 32> referenced;  for (auto& x : referenced) x = false;
   std::array<bool, 32> active;      for (auto& x : active)     x = false;
+  // NOLINTEND(cppcoreguidelines-pro-type-member-init)
 
   for (auto& elem : elems)
     {
@@ -453,7 +455,7 @@ static bool isUnitStride(const VecLdStInfo& info)
   if (not info.isStrided_)
     return true;
   unsigned nf = info.fields_ == 0 ? 1 : info.fields_;
-  return static_cast<uint64_t>(nf * info.elemSize_) == info.stride_;
+  return static_cast<uint64_t>(nf) * info.elemSize_ == info.stride_;
 }
 
 
@@ -1916,16 +1918,13 @@ Mcm<URV>::checkStoreData(Hart<URV>& hart, const McmInstr& store) const
 
   if (store.di_.isVector())
     return checkVecStoreData(hart, store);
-  
-  // Scalar store
-  for (auto opIx : store.memOps_)
-    {
-      const auto& op = sysMemOps_.at(opIx);
-      if (not op.isRead_ and not checkRtlWrite(hartId, store, op))
-	return false;
-    }
 
-  return true;
+  // Scalar store
+  return std::ranges::all_of(store.memOps_.begin(), store.memOps_.end(),
+                              [this, hartId, store] (auto opIx) {
+                                const auto& op = sysMemOps_.at(opIx);
+                                return op.isRead_ or checkRtlWrite(hartId, store, op);
+                              });
 }
 
 
@@ -1945,7 +1944,7 @@ Mcm<URV>::checkVecStoreData(Hart<URV>& hart, const McmInstr& store) const
   std::unordered_map<uint64_t, uint8_t> rtlData;
   for (auto opIx : store.memOps_)
     {
-      auto& op = sysMemOps_.at(opIx);
+      const auto& op = sysMemOps_.at(opIx);
       for (unsigned i = 0; i < op.size_; ++i)
 	{
 	  uint64_t addr = op.pa_ +i;
@@ -2316,7 +2315,7 @@ Mcm<URV>::collectVecRefElems(Hart<URV>& hart, McmInstr& instr, unsigned& activeC
 
   activeCount = 0;
 
-  for (auto& elem : elems)
+  for (const auto& elem : elems)
     {
       if (elem.skip_)
 	continue;  // Non-active element.
@@ -3131,7 +3130,7 @@ Mcm<URV>::storeToReadForward(const McmInstr& store, MemoryOp& readOp, uint64_t& 
 	fwdTime = time_;  // Happens if store.memOps_ empty.
 
       uint64_t offset = fwdTime > readOp.time_ ? fwdTime - readOp.time_ : 0;
-      uint16_t off16 = static_cast<uint16_t>(offset);  // TOD: Use gsl
+      auto off16 = static_cast<uint16_t>(offset);  // TOD: Use gsl
       readOp.fwOffset_.at(rix) = std::max(readOp.fwOffset_.at(rix), off16);
 
       uint8_t byteVal = data >> (byteAddr - il)*8;
@@ -3544,9 +3543,9 @@ Mcm<URV>::vecOverlapsRefPhysAddr(const McmInstr& instr, uint64_t addr) const
     return false;
 
   return std::any_of(vecRefs.refs_.begin(), vecRefs.refs_.end(),
-      [addr] (const auto& vecRef) {
-        return vecRef.overlaps(addr);
-      });
+                    [addr] (const auto& vecRef) {
+                      return vecRef.overlaps(addr);
+                    });
 
   return false;
 }
@@ -3586,7 +3585,7 @@ Mcm<URV>::ppoRule1(unsigned hartId, const McmInstr& instrA, const McmInstr& inst
   for (unsigned i = 0; i < instrB.memOps_.size(); ++i)
     {
       auto opIx = instrB.memOps_.at(i);
-      auto& bop = sysMemOps_.at(opIx);
+      const auto& bop = sysMemOps_.at(opIx);
 
       uint64_t tb = bop.time_;
 
@@ -3623,7 +3622,7 @@ Mcm<URV>::ppoRule1(unsigned hartId, const McmInstr& instrA, const MemoryOp& opA,
   for (unsigned i = 0; i < instrB.memOps_.size(); ++i)
     {
       auto opIx = instrB.memOps_.at(i);
-      auto& opB = sysMemOps_.at(opIx);
+      const auto& opB = sysMemOps_.at(opIx);
 
       if (not opA.overlaps(opB))
 	continue;
@@ -3661,9 +3660,8 @@ Mcm<URV>::ppoRule1(Hart<URV>& hart, const McmInstr& instrB) const
   // Process all the memory operations that may have been reordered with respect to B. If
   // an instruction A, preceding B in program order, is missing a memory operation, we
   // will catch it when we process the un-drained stores below.
-  for (auto iter = sysMemOps_.rbegin(); iter != sysMemOps_.rend(); ++iter)
+  for (const auto & op : std::ranges::reverse_view(sysMemOps_))
     {
-      const auto& op = *iter;
       if (op.isCanceled()  or  op.hartIx_ != hartIx  or  op.tag_ >= instrB.tag_)
 	continue;
 
@@ -4174,7 +4172,7 @@ Mcm<URV>::ppoRule4(Hart<URV>& hart, const McmInstr& instrB) const
           succWrite = succWrite || succOut;
         }
 
-      for (auto* aOpPtr : reordered)
+      for (const auto* aOpPtr : reordered)
 	{
 	  const auto& aOp = *aOpPtr;
 	  const auto& pred = instrVec.at(aOp.tag_);

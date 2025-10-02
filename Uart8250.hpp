@@ -6,6 +6,7 @@
 #include <condition_variable>
 #include <queue>
 #include <poll.h>
+#include <array>
 #include "IoDevice.hpp"
 
 // Forward declaring termios becausing including termios.h leaks macro
@@ -44,10 +45,10 @@ namespace WdRiscv
 
   private:
     void restoreTermios();
-    
+
     int in_fd_, out_fd_;
-    int terminate_pipe_[2] = {-1, -1};
-    struct pollfd pollfds_[2]{};
+    std::array<int, 2> terminate_pipe_ = {-1, -1};
+    std::array<struct pollfd, 2> pollfds_[2]{};
     bool is_tty_;
     std::unique_ptr<termios> original_termios_;
     uint8_t prev_ = 0;  // Previous character for control sequence detection

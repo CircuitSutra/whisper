@@ -7,7 +7,7 @@
 
 namespace WdRiscv
 {
-  
+
   class RemoteFrameBuffer : public IoDevice
   {
     public:
@@ -23,7 +23,7 @@ namespace WdRiscv
       bool loadSnapshot(const std::string& filename) override;
 
     private:
-      
+
       void vncServerLoop();
 
       uint64_t width_;
@@ -31,7 +31,7 @@ namespace WdRiscv
       uint64_t bytes_per_pixel_;
       int port_;
 
-      uint32_t* frame_buffer_;
+      std::vector<uint32_t> frame_buffer_;
 
       std::atomic<bool> terminate_ = false;
       std::atomic<bool> frame_buffer_updated_ = true;

@@ -27,6 +27,7 @@
 #include <cstdint>
 
 
+// NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast)
 namespace WdRiscv
 {
 
@@ -1125,3 +1126,4 @@ namespace WdRiscv
   }
 
 }
+// NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)

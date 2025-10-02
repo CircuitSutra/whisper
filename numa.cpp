@@ -139,10 +139,10 @@ sleep_double(double interval)
     }
 }
 
-static std::map<int, int>
+static std::map<unsigned, int>
 get_cores_load(double interval)
 {
-    std::map<int, int> cores_load;
+    std::map<unsigned, int> cores_load;
 
     auto stats1 = get_stats();
     sleep_double(interval);
@@ -179,7 +179,7 @@ find_low_load_cluster(double max_load, unsigned cluster_size, double interval)
 
         for (auto start_cpu : start_cpus) {
             std::vector<int> cluster;
-            for (unsigned i = 0; i < cluster_size; i++) {
+            for (int i = 0; i < cluster_size; i++) {
                 if (std::find(cpus.begin(), cpus.end(), start_cpu + i) != cpus.end())
                     cluster.push_back(start_cpu + i);
             }

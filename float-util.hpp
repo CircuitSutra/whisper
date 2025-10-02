@@ -161,7 +161,7 @@ activeSimulatorFpFlags()
     }
 #else
 #if __x86_64__
-  int flags = _mm_getcsr() & 0x3f;
+  int flags = std::bit_cast<int>(_mm_getcsr()) & 0x3f;
 #else
   int flags = fetestexcept(FE_ALL_EXCEPT);
 #endif
@@ -403,7 +403,7 @@ auto fpConvertTo(From x)
           // std::lprint will produce an overflow if most sig bit
           // of result is 1 (it thinks there's an overflow).  We
           // compensate with the divide multiply by 2.
-          if (working < (uint64_t(1) << 63))
+          if (std::bit_cast<uint64_t>(working) < (uint64_t(1) << 63))
             result = std::llrint(working);
           else
             {
