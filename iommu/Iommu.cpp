@@ -1796,23 +1796,23 @@ Iommu::processCommandQueue()
     // Process the command based on its type
     if (isAtsInvalCommand(cmd))
     {
-      executeAtsInvalCommand(cmdData);
+      executeAtsInvalCommand(cmd);
     }
     else if (isAtsPrgrCommand(cmd))
     {
-      executeAtsPrgrCommand(cmdData);
+      executeAtsPrgrCommand(cmd);
     }
     else if (isIodirCommand(cmd))
     {
-      executeIodirCommand(cmdData);
+      executeIodirCommand(cmd);
     }
     else if (isIofenceCCommand(cmd))
     {
-      executeIofenceCCommand(cmdData);
+      executeIofenceCCommand(cmd);
     }
     else if (isIotinvalVmaCommand(cmd) || isIotinvalGvmaCommand(cmd))
     {
-      executeIotinvalCommand(cmdData);
+      executeIotinvalCommand(cmd);
     }
     else
     {
@@ -1827,11 +1827,10 @@ Iommu::processCommandQueue()
 }
 
 void 
-Iommu::executeAtsInvalCommand(const AtsCommandData& cmdData)
+Iommu::executeAtsInvalCommand(const AtsCommand& atsCmd)
 {
   // Parse ATS.INVAL command
-  AtsInvalCommand cmd;
-  cmd = *reinterpret_cast<const AtsInvalCommand*>(&cmdData);
+  auto& cmd = atsCmd.inval;  // Reinterpret generic command as an AtsInvalCommand.
   
   // Check if ATS capability is enabled
   Capabilities caps{readCsr(CsrNumber::Capabilities)};
@@ -1956,11 +1955,10 @@ Iommu::executeAtsInvalCommand(const AtsCommandData& cmdData)
 }
 
 void 
-Iommu::executeAtsPrgrCommand(const AtsCommandData& cmdData)
+Iommu::executeAtsPrgrCommand(const AtsCommand& atsCmd)
 {
   // Parse ATS.PRGR command
-  AtsPrgrCommand cmd;
-  cmd = *reinterpret_cast<const AtsPrgrCommand*>(&cmdData);
+  const auto& cmd = atsCmd.prgr; // Reinterpret generic command as AtsPrgrCommand
   
   // Check if ATS capability is enabled
   Capabilities caps{readCsr(CsrNumber::Capabilities)};
@@ -2070,11 +2068,10 @@ Iommu::executeAtsPrgrCommand(const AtsCommandData& cmdData)
 }
 
 void
-Iommu::executeIodirCommand(const AtsCommandData& cmdData)
+Iommu::executeIodirCommand(const AtsCommand& atsCmd)
 {
   // TODO
-  IodirCommand cmd;
-  cmd = *reinterpret_cast<const IodirCommand*>(&cmdData);
+  const auto& cmd = atsCmd.iodir;  // Retinterpret genric command as IodirCommand.
   bool isInvalDdt = cmd.func3 == IodirFunc::INVAL_DDT;
   bool isInvalPdt = cmd.func3 == IodirFunc::INVAL_PDT;
   if (isInvalDdt)
@@ -2084,11 +2081,10 @@ Iommu::executeIodirCommand(const AtsCommandData& cmdData)
 }
 
 void 
-Iommu::executeIofenceCCommand(const AtsCommandData& cmdData)
+Iommu::executeIofenceCCommand(const AtsCommand& atsCmd)
 {
   // Parse IOFENCE.C command
-  IofenceCCommand cmd;
-  cmd = *reinterpret_cast<const IofenceCCommand*>(&cmdData);
+  const auto& cmd = atsCmd.iofence; // Reinterpret generic command as IofenceCCommand
   
   // Extract command fields
   bool AV = cmd.AV;
@@ -2136,11 +2132,10 @@ Iommu::executeIofenceCCommand(const AtsCommandData& cmdData)
 }
 
 void
-Iommu::executeIotinvalCommand(const AtsCommandData& cmdData)
+Iommu::executeIotinvalCommand(const AtsCommand& atsCmd)
 {
   // Parse IOTINVAL command (handles both VMA and GVMA)
-  IotinvalCommand cmd;
-  cmd = *reinterpret_cast<const IotinvalCommand*>(&cmdData);
+  const auto& cmd = atsCmd.iotinval; // Reinterpret genric command as IotinvalCommand
   
   // Extract command fields
   bool AV = cmd.AV;        // Address Valid
