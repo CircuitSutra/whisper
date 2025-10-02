@@ -31,7 +31,8 @@ Checks: >
     -readability-simplify-boolean-expr,
     -cppcoreguidelines-avoid-do-while,
     -cppcoreguidelines-pro-type-vararg,
-    -modernize-macro-to-enum
+    -modernize-macro-to-enum,
+    -bugprone-assignment-in-if-condition
 
 CheckOptions:
   - key:   bugprone-reserved-identifier.AllowedIdentifiers

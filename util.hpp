@@ -22,6 +22,8 @@
 #include <type_traits>
 #include <cassert>
 #include <utility>
+#include <sys/stat.h>
+#include <memory>
 
 namespace util
 {
@@ -123,4 +125,32 @@ namespace util
       return hash_type{}(std::forward<T>(str));
     }
   };
+
+  // For closing owned files.
+  struct FileCloser
+  {
+    void operator()(FILE* file) const {
+      if (not file or file == stdout)
+        return;
+
+      int fd = fileno(file);
+      if (fd == -1)
+        assert(false);
+
+      struct stat st{};
+      if (fstat(fd, &st) == -1)
+        assert(false);
+
+      if (S_ISFIFO(st.st_mode))
+        pclose(file);
+      else
+        std::fclose(file);
+    }
+  };
+
+  using SharedFile = std::shared_ptr<FILE>;
+
+  inline SharedFile make_shared_file(FILE* file) {
+      return SharedFile(file, FileCloser{});
+  }
 }

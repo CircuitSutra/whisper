@@ -789,8 +789,8 @@ namespace WdRiscv
     { conIoValid_ = false; }
 
     /// Console output gets directed to given file.
-    void setConsoleOutput(FILE* out)
-    { consoleOut_ = out; }
+    void setConsoleOutput(util::SharedFile out)
+    { consoleOut_ = std::move(out); }
 
     /// If a console io memory mapped location is defined then put its
     /// address in address and return true; otherwise, return false
@@ -848,7 +848,7 @@ namespace WdRiscv
     /// Set the output file in which to dump the state of accessed
     /// memory lines. Return true on success and false if file cannot
     /// be opened.
-    void setInitialStateFile(FILE* file)
+    void setInitialStateFile(util::SharedFile file)
     { initStateFile_ = file; }
 
     /// Disassemble given instruction putting results into the given
@@ -2246,8 +2246,8 @@ namespace WdRiscv
 
     /// Enable basic block stats if given file is non-null. Print
     /// stats every instCount instructions.
-    void enableBasicBlocks(FILE* file, uint64_t instCount)
-    { bbFile_ = file; bbLimit_ = instCount; }
+    void enableBasicBlocks(util::SharedFile file, uint64_t instCount)
+    { bbFile_ = std::move(file); bbLimit_ = instCount; }
 
     /// Enable memory consistency model.
     void setMcm(std::shared_ptr<Mcm<URV>> mcm,
@@ -5964,7 +5964,7 @@ namespace WdRiscv
     bool mipPoked_ = false;          // Prevent MIP pokes from being clobbered by CLINT.
     bool seiPin_ = false;            // Supervisor external interrupt pin value.
     unsigned mxlen_ = 8*sizeof(URV);
-    FILE* consoleOut_ = nullptr;
+    util::SharedFile consoleOut_ = nullptr;
 
     int gdbInputFd_ = -1;  // Input file descriptor when running in gdb mode.
 
@@ -6074,7 +6074,7 @@ namespace WdRiscv
     bool bbPrevIsBranch_ = true;
 
     std::unordered_map<uint64_t, BbStat> basicBlocks_; // Map pc to basic-block frequency.
-    FILE* bbFile_ = nullptr;            // Basic block file.
+    util::SharedFile bbFile_;
 
     std::shared_ptr<TT_CACHE::Cache> fetchCache_;
     std::shared_ptr<TT_CACHE::Cache> dataCache_;
@@ -6114,7 +6114,7 @@ namespace WdRiscv
 
     bool wrsCancelsLr_ = true;         // wrs_sto/wrs_nto instructions do cancel-lr.
 
-    FILE* initStateFile_ = nullptr;
+    util::SharedFile initStateFile_;
     std::unordered_set<uint64_t> initInstrLines_;
     std::unordered_set<uint64_t> initDataLines_;
 

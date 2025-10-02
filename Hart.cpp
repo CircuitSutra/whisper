@@ -2037,7 +2037,7 @@ Hart<URV>::dumpInitState(const char* tag, uint64_t vaddr, uint64_t paddr)
 
   uint64_t vline = memory_.getLineNumber(vaddr);
   unsigned lineSize = memory_.lineSize();
-  fprintf(initStateFile_, "%s,%0jx,%0jx,", tag, uintmax_t(vline*lineSize), uintmax_t(pline*lineSize));
+  fprintf(initStateFile_.get(), "%s,%0jx,%0jx,", tag, uintmax_t(vline*lineSize), uintmax_t(pline*lineSize));
 
   uint64_t byteAddr = pline * lineSize + lineSize - 1;
   for (unsigned i = 0; i < lineSize; ++i, --byteAddr)
@@ -2045,12 +2045,12 @@ Hart<URV>::dumpInitState(const char* tag, uint64_t vaddr, uint64_t paddr)
       uint8_t byte = 0;
       memory_.peek(byteAddr, byte, false);
       virtMem_.getPrevByte(byteAddr, byte); // Get PTE value before PTE update.
-      fprintf(initStateFile_, "%02x", unsigned(byte));
+      fprintf(initStateFile_.get(), "%02x", unsigned(byte));
     }
 
   bool cacheable = memory_.pmaMgr_.getPma(paddr).isCacheable();
-  fprintf(initStateFile_, ",%d", cacheable);
-  fprintf(initStateFile_, "\n");
+  fprintf(initStateFile_.get(), ",%d", cacheable);
+  fprintf(initStateFile_.get(), "\n");
 }
 
 
@@ -2551,9 +2551,9 @@ Hart<URV>::writeForStore(uint64_t virtAddr, uint64_t pa1, uint64_t pa2, STORE_TY
     {
       if (consoleOut_)
 	{
-	  fputc(storeVal, consoleOut_);
+	  fputc(storeVal, consoleOut_.get());
 	  if (storeVal == '\n')
-	    fflush(consoleOut_);
+	    fflush(consoleOut_.get());
 	}
       return true;
     }
@@ -5685,15 +5685,15 @@ Hart<URV>::dumpBasicBlocks()
             {
               if (first)
                 {
-                  fprintf(bbFile_, "T");
+                  fprintf(bbFile_.get(), "T");
                   first = false;
                 }
-              fprintf(bbFile_, ":%" PRIu64 ":%" PRIu64 ":%" PRIu64 ":%" PRIu64 " ", kv.first,
+              fprintf(bbFile_.get(), ":%" PRIu64 ":%" PRIu64 ":%" PRIu64 ":%" PRIu64 " ", kv.first,
 		      stat.count_, stat.access_, stat.hit_);
             }
         }
       if (not first)
-        fprintf(bbFile_, "\n");
+        fprintf(bbFile_.get(), "\n");
     }
   bbInsts_ = 0;
 

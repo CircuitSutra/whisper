@@ -246,7 +246,7 @@ System<URV>::~System()
       uint64_t size = std::get<2>(bf);
       std::cerr << "Info: Updating " << path << " from addr: 0x" << std::hex << addr
 		<< std::dec << " size: " << size << '\n';
-      FILE* file = fopen(path.c_str(), "w");
+      util::SharedFile file = util::make_shared_file(fopen(path.c_str(), "w"));
       if (not file)
 	{
 	  std::cerr << "Error: Failed to open " << path << " for update\n";
@@ -256,9 +256,8 @@ System<URV>::~System()
 	{
 	  uint8_t byte = 0;
 	  memory_->peek(addr + i, byte, false);
-	  fputc(byte, file);
+	  fputc(byte, file.get());
 	}
-      fclose(file);
     }
 }
 
@@ -1597,7 +1596,7 @@ extern void forceUserStop(int);
 
 template <typename URV>
 bool
-System<URV>::batchRun(std::vector<FILE*>& traceFiles, bool waitAll, uint64_t stepWinLo, uint64_t stepWinHi, bool earlyRoiTerminate)
+System<URV>::batchRun(std::vector<util::SharedFile>& traceFiles, bool waitAll, uint64_t stepWinLo, uint64_t stepWinHi, bool earlyRoiTerminate)
 {
   auto forceSnapshot = [this]() -> void {
       uint64_t tag = ++snapIx_;
@@ -1653,7 +1652,7 @@ System<URV>::batchRun(std::vector<FILE*>& traceFiles, bool waitAll, uint64_t ste
           auto& hart = *ithHart(0);
           try
             {
-              result = hart.run(traceFiles.at(0));
+              result = hart.run(traceFiles.at(0).get());
 #if FAST_SLOPPY
               hart.reportOpenedFiles(std::cout);
 #endif
@@ -1687,7 +1686,7 @@ System<URV>::batchRun(std::vector<FILE*>& traceFiles, bool waitAll, uint64_t ste
           for (unsigned i = 0; i < hartCount(); ++i)
             {
               Hart<URV>* hart = ithHart(i).get();
-              threadVec.emplace_back(std::thread(threadFunc, hart, traceFiles.at(i)));
+              threadVec.emplace_back(std::thread(threadFunc, hart, traceFiles.at(i).get()));
             }
 
           if (not waitAll)
@@ -1729,7 +1728,7 @@ System<URV>::batchRun(std::vector<FILE*>& traceFiles, bool waitAll, uint64_t ste
                   try
                     {
                       bool stop;
-                      result = hptr->runSteps(steps, stop, traceFiles.at(ix)) and result;
+                      result = hptr->runSteps(steps, stop, traceFiles.at(ix).get()) and result;
                       stopped.at(ix) = stop;
                       if (stop)
                         cond |= ExitCondition(CoreException::Type::Exit);
@@ -1763,7 +1762,7 @@ System<URV>::batchRun(std::vector<FILE*>& traceFiles, bool waitAll, uint64_t ste
 /// 0. Return true on success and false on failure.
 template <typename URV>
 bool
-System<URV>::snapshotRun(std::vector<FILE*>& traceFiles, const std::vector<uint64_t>& periods, bool aperiodic)
+System<URV>::snapshotRun(std::vector<util::SharedFile>& traceFiles, const std::vector<uint64_t>& periods, bool aperiodic)
 {
   if (hartCount() == 0)
     return true;
