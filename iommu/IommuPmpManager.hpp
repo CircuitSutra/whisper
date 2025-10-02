@@ -152,8 +152,7 @@ namespace TT_IOMMU
     enum AccessReason { None, Fetch, LdSt };
 
     /// Constructor: Mark all memory as no access to user/supervisor.
-    PmpManager()
-    = default;
+    PmpManager() = default;
 
     /// Destructor.
     ~PmpManager() = default;
@@ -575,6 +574,6 @@ namespace TT_IOMMU
 
     // PMPs used in most recent instruction
     mutable std::vector<PmpTrace> pmpTrace_;
-    AccessReason reason_;
+    AccessReason reason_{};
   };
 }

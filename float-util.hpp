@@ -556,7 +556,7 @@ isSnan(T f)
 
   if (std::isnan(f))
     {
-      uint_fsize_t u = std::bit_cast<uint_fsize_t>(f);
+      auto u = std::bit_cast<uint_fsize_t>(f);
       return ((u >> (std::numeric_limits<T>::digits - 2)) & 1) == 0; // Most sig bit of significand must be zero.
     }
   return false;

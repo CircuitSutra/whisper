@@ -157,6 +157,10 @@ namespace TT_IOMMU
   /// Union to pack/unpack device context translation control
   union TransControl
   {
+    TransControl(uint64_t value = 0)
+      : value_(value)
+    { }
+
     uint64_t value_ = 0; // First variant.
 
     struct Bits  // Second variant.
@@ -468,11 +472,11 @@ namespace TT_IOMMU
 
     /// Return translation control field of this object.
     TransControl transControl() const
-    { return TransControl{tc_}; }
+    { return tc_; }
 
     /// Return translation attribute field of this object.
     DevTransAttrib transAttrib() const
-    { return DevTransAttrib(ta_); }
+    { return ta_; }
 
     /// Return first stage context field of this object.
     uint64_t firstStageContext() const

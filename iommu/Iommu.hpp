@@ -307,7 +307,7 @@ namespace TT_IOMMU
       uint64_t val = csr.read();
       if (csr.size() == 4)
         val = (val << 32) >> 32;
-      return csr.read();
+      return val;
     }
 
     /// Write the given CSR. If the CSR is of size 4, the top 32 bits of data are ignored.
@@ -538,7 +538,6 @@ namespace TT_IOMMU
           ok = memWriteDouble(addr, bigEnd, dc.fullMsiPattern()) and ok;
           addr += 8;
           ok = memWriteDouble(addr, bigEnd, 0) and ok; // Reserved field.
-          addr += 8;
         }
       return ok;
     }

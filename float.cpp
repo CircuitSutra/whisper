@@ -683,7 +683,7 @@ Hart<URV>::execFmv_x_w(const DecodedInst* di)
 
   // This operation does not check for proper NAN boxing. We read raw bits.
   uint64_t v1 = fpRegs_.readBitsRaw(di->op1());
-  int32_t  s1 = static_cast<int32_t>(v1);  // Keep lower 32 bits
+  auto s1 = static_cast<int32_t>(v1);  // Keep lower 32 bits
 
   SRV value = SRV(s1); // Sign extend.
 
@@ -2040,7 +2040,7 @@ Hart<URV>::execFmin_h(const DecodedInst* di)
 
   Float16 in1 = fpRegs_.readHalf(di->op1());
   Float16 in2 = fpRegs_.readHalf(di->op2());
-  Float16 res;
+  Float16 res{};
 
   bool isNan1 = std::isnan(in1), isNan2 = std::isnan(in2);
   if (isNan1 and isNan2)
@@ -2075,7 +2075,7 @@ Hart<URV>::execFmax_h(const DecodedInst* di)
 
   Float16 in1 = fpRegs_.readHalf(di->op1());
   Float16 in2 = fpRegs_.readHalf(di->op2());
-  Float16 res;
+  Float16 res{};
 
   bool isNan1 = std::isnan(in1), isNan2 = std::isnan(in2);
   if (isNan1 and isNan2)
@@ -2258,7 +2258,7 @@ Hart<URV>::execFmv_x_h(const DecodedInst* di)
 
   // This operation does not check for proper NAN boxing. We read raw bits.
   uint64_t v1 = fpRegs_.readBitsRaw(di->op1());
-  int16_t  s1 = static_cast<int16_t>(v1);  // Keep lower 16 bits
+  auto  s1 = static_cast<int16_t>(v1);  // Keep lower 16 bits
 
   SRV value = SRV(s1); // Sign extend.
 
@@ -2574,7 +2574,7 @@ Hart<URV>::execFcvtmod_w_d(const DecodedInst* di)
     }
   else
     {
-      int    exp;
+      int    exp = 0;
       // frexp uses (-1, .5] and [.5, 1) for the fraction component
       double frac  = std::frexp(d1, &exp);
 
@@ -2596,7 +2596,7 @@ Hart<URV>::execFcvtmod_w_d(const DecodedInst* di)
               frac = std::ldexp(std::fabs(frac),
                                 std::numeric_limits<double>::min_exponent);
 
-              int      shift    = exp - std::numeric_limits<double>::digits;
+              int shift = exp - std::numeric_limits<double>::digits;
               result64 = std::bit_cast<uint64_t>(frac);
               if (shift > 0)
                 result64 <<= shift;
@@ -2608,10 +2608,13 @@ Hart<URV>::execFcvtmod_w_d(const DecodedInst* di)
                 result32 = -result32;
 	      result = result32;  // Sign extend.
             }
-          if (exp > (1 + std::numeric_limits<int32_t>::digits))
-            raiseSimulatorFpFlags(FpFlags::Invalid);
-          else if (result64 > (sign? std::bit_cast<uint32_t>(std::numeric_limits<int32_t>::min()) :
-                                     std::bit_cast<uint32_t>(std::numeric_limits<int32_t>::max())))
+
+          uint32_t minInt32 = std::bit_cast<uint32_t>(std::numeric_limits<int32_t>::min());
+          uint32_t maxInt32 = std::bit_cast<uint32_t>(std::numeric_limits<int32_t>::max());
+
+          bool expOverflow = exp > (1 + std::numeric_limits<int32_t>::digits);
+
+          if (expOverflow or result64 > (sign? minInt32 : maxInt32))
             raiseSimulatorFpFlags(FpFlags::Invalid);
           else if (result != d1)
             raiseSimulatorFpFlags(FpFlags::Inexact);
