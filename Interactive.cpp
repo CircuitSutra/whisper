@@ -362,7 +362,7 @@ Interactive<URV>::peekAllCsrs(Hart<URV>& hart, std::ostream& out)
 
   for (size_t i = 0; i <= size_t(CsrNumber::MAX_CSR_); ++i)
     {
-      CsrNumber csr = CsrNumber(i);
+      auto csr = CsrNumber(i);
       std::string_view name;
       URV val = 0;
       if (hart.peekCsr(csr, val, name))
@@ -493,7 +493,7 @@ peekMemory(Hart<URV>& hart, uint64_t addr0, uint64_t addr1, std::ostream& out)
           return false;
         }
       out << (boost::format(hexForm) % addr) << ": ";
-      out << (boost::format("0x%08x") % word) << std::endl;
+      out << (boost::format("0x%08x") % word) << '\n';
     }
 
   return true;
@@ -555,7 +555,7 @@ Interactive<URV>::peekCommand(Hart<URV>& hart, const std::string& line,
   if (resource == "pc")
     {
       URV pc = hart.peekPc();
-      out << (boost::format(hexForm) % pc) << std::endl;
+      out << (boost::format(hexForm) % pc) << '\n';
       return true;
     }
 
@@ -609,7 +609,7 @@ Interactive<URV>::peekCommand(Hart<URV>& hart, const std::string& line,
 	}
       if (hart.peekIntReg(intReg, val))
 	{
-	  out << (boost::format(hexForm) % val) << std::endl;
+	  out << (boost::format(hexForm) % val) << '\n';
 	  return true;
 	}
       cerr << "Error: Failed to read integer register: " << addrStr << '\n';
@@ -639,7 +639,7 @@ Interactive<URV>::peekCommand(Hart<URV>& hart, const std::string& line,
       uint64_t fpVal = 0;
       if (hart.peekFpReg(fpReg, fpVal))
 	{
-	  out << (boost::format("0x%016x") % fpVal) << std::endl;
+	  out << (boost::format("0x%016x") % fpVal) << '\n';
 	  return true;
 	}
       cerr << "Error: Failed to read fp register: " << addrStr << '\n';
@@ -676,7 +676,7 @@ Interactive<URV>::peekCommand(Hart<URV>& hart, const std::string& line,
           else if (csrn == CsrNumber::SIP)
             out << " " << (boost::format(hexForm) % hart.csRegs().effectiveSip());
 #endif
-          out << std::endl;
+          out << '\n';
 	  return true;
 	}
       cerr << "Failed to read CSR: " << addrStr << '\n';
@@ -733,7 +733,7 @@ Interactive<URV>::peekCommand(Hart<URV>& hart, const std::string& line,
 	{
 	  out << (boost::format(hexForm) % v1) << ' '
               << (boost::format(hexForm) % v2) << ' '
-              << (boost::format(hexForm) % v3) << std::endl;
+              << (boost::format(hexForm) % v3) << '\n';
 	  return true;
 	}
       cerr << "Error: Trigger number out of bounds: " << addrStr << '\n';
@@ -744,11 +744,11 @@ Interactive<URV>::peekCommand(Hart<URV>& hart, const std::string& line,
     {
       bool ok = true;
       if (addrStr == "pm")
-	out << unsigned(hart.privilegeMode()) << std::endl;
+	out << unsigned(hart.privilegeMode()) << '\n';
       else if (addrStr == "ppm")
-	out << unsigned(hart.lastPrivMode()) << std::endl;
+	out << unsigned(hart.lastPrivMode()) << '\n';
       else if (addrStr == "iff")
-	out << (boost::format("0x%x") % hart.lastFpFlags()) << std::endl;
+	out << (boost::format("0x%x") % hart.lastFpFlags()) << '\n';
       else if (addrStr == "iv")
         {
           std::vector<uint8_t> fpFlags; std::vector<uint8_t> vxsat;
@@ -788,11 +788,11 @@ Interactive<URV>::peekCommand(Hart<URV>& hart, const std::string& line,
             }
         }
       else if (addrStr == "trap")
-	out << (hart.lastInstructionTrapped() ? "1" : "0") << std::endl;
+	out << (hart.lastInstructionTrapped() ? "1" : "0") << '\n';
       else if (addrStr == "defi")
-	out << (boost::format("0x%x") % hart.deferredInterrupts()) << std::endl;
+	out << (boost::format("0x%x") % hart.deferredInterrupts()) << '\n';
       else if (addrStr == "seipin")
-	out << (boost::format("%d") % hart.getSeiPin()) << std::endl;
+	out << (boost::format("%d") % hart.getSeiPin()) << '\n';
       else if (addrStr == "effma")
 	{
 	  uint64_t va = 0, pa = 0;
@@ -802,14 +802,14 @@ Interactive<URV>::peekCommand(Hart<URV>& hart, const std::string& line,
               auto& virtMem = hart.virtMem();
 	      auto effpbmt = virtMem.lastEffectivePbmt();
 	      pma = hart.overridePmaWithPbmt(pma, effpbmt);
-              out << (boost::format("0x%x") % pma.attributesToInt()) << std::endl;
+              out << (boost::format("0x%x") % pma.attributesToInt()) << '\n';
 	    }
 	}
       else if (addrStr == "lastldst")
     {
       uint64_t va = 0, pa = 0;
       if (hart.lastLdStAddress(va, pa))
-	out << (boost::format("0x%x") % pa) << std::endl;
+	out << (boost::format("0x%x") % pa) << '\n';
     }
       else
 	ok = false;

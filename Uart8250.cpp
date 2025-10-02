@@ -14,6 +14,7 @@
 #endif
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <span>
 #include "Uart8250.hpp"
 
 
@@ -42,7 +43,7 @@ FDChannel::FDChannel(int in_fd, int out_fd)
   }
 }
 
-size_t FDChannel::read(uint8_t *arr, size_t n) {
+size_t FDChannel::read(std::span<uint8_t> arr, size_t n) {
   while (true) {
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
     int code = poll(pollfds_.data(), 2, 10);
@@ -59,7 +60,7 @@ size_t FDChannel::read(uint8_t *arr, size_t n) {
 
       if ((pollfds_[0].revents & POLLIN) != 0)
       {
-        ssize_t count = ::read(in_fd_, arr, n);
+        ssize_t count = ::read(in_fd_, arr.data(), n);
         // std::cout << "Read " << count << " bytes from in_fd_\n";
         if (count < 0)
           throw std::runtime_error("FDChannel: Failed to read from in_fd_\n");
@@ -125,7 +126,7 @@ FDChannel::~FDChannel() {
 }
 
 PTYChannelBase::PTYChannelBase() {
-  std::array<char, 256> name;
+  std::array<char, 256> name{};
   if (openpty(&master_, &slave_, name.data(), nullptr, nullptr) < 0)
     throw std::runtime_error("Failed to open a PTY\n");
 
@@ -147,9 +148,9 @@ PTYChannel::PTYChannel() :  FDChannel(master_, master_)
 
 
 SocketChannelBase::SocketChannelBase(int server_fd) {
-  struct sockaddr_in client_addr;
-  socklen_t client_len = sizeof(client_addr);
-  conn_fd_ = accept(server_fd, reinterpret_cast<struct sockaddr*>(&client_addr), &client_len);
+  struct sockaddr client_addr{};
+  socklen_t client_len = sizeof(struct sockaddr_in);
+  conn_fd_ = accept(server_fd, &client_addr, &client_len);
   if (conn_fd_ < 0)
     throw std::runtime_error("Failed to accept socket connection\n");
 }
@@ -168,7 +169,7 @@ SocketChannel::SocketChannel(int server_fd) : SocketChannelBase(server_fd), FDCh
 ForkChannel::ForkChannel(std::unique_ptr<UartChannel> readWriteChannel, std::unique_ptr<UartChannel> writeOnlyChannel)
   : readWriteChannel_(std::move(readWriteChannel)), writeOnlyChannel_(std::move(writeOnlyChannel)) {}
 
-size_t ForkChannel::read(uint8_t *buf, size_t size) {
+size_t ForkChannel::read(std::span<uint8_t> buf, size_t size) {
   return readWriteChannel_->read(buf, size);
 }
 
@@ -415,7 +416,7 @@ void Uart8250::monitorInput() {
       return;
 
     std::array<uint8_t, FIFO_SIZE> arr{};
-    size_t count = channel_->read(arr.data(), FIFO_SIZE);
+    size_t count = channel_->read(arr, FIFO_SIZE);
     if (count == 0)
       // EOF
       return;

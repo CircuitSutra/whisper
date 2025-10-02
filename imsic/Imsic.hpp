@@ -8,6 +8,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <algorithm>
 
 
 namespace TT_IMSIC      // TensTorrent Incoming Message Signaled Interrupt Controller.
@@ -447,10 +448,10 @@ namespace TT_IMSIC      // TensTorrent Incoming Message Signaled Interrupt Contr
     {
       if (mfile_.isValidAddress(addr) or sfile_.isValidAddress(addr))
 	return true;
-      for (const auto& gfile : gfiles_)
-	if (gfile.isValidAddress(addr))
-	  return true;
-      return false;
+      return std::any_of(gfiles_.begin(), gfiles_.end(),
+                          [addr] (const auto& gfile) {
+                            return gfile.isValidAddress(addr);
+                          });
     }
 
     /// Write to this IMSIC. Return false doing nothing if address is

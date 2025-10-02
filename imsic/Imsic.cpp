@@ -27,15 +27,16 @@ File::iregRead(unsigned sel, URV& val) const
   using EIC = ExternalInterruptCsr;
   val = 0;
 
+  if ((sel == EIC::SRES0) or
+      (sel >= EIC::SRES1 and sel <= EIC::SRES2))
+    return true;
+  if (sel >= EIC::IPRIO0 and sel <= EIC::IPRIO15) // accessible when V=1
+    return true;
+
   if (sel == EIC::DELIVERY)
     val = delivery_;
   else if (sel == EIC::THRESHOLD)
     val = threshold_;
-  else if ((sel == EIC::SRES0) or
-           (sel >= EIC::SRES1 and sel <= EIC::SRES2))
-    return true;
-  else if (sel >= EIC::IPRIO0 and sel <= EIC::IPRIO15) // accessible when V=1
-    return true;
   else
     {
       unsigned offset = 0;
@@ -79,6 +80,12 @@ File::iregWrite(unsigned sel, URV val)
   if (trace_)
     selects_.emplace_back(sel, sizeof(URV));
 
+  if ((sel == EIC::SRES0) or
+           (sel >= EIC::SRES1 and sel <= EIC::SRES2))
+    return true;
+  if (sel >= EIC::IPRIO0 and sel <= EIC::IPRIO15)
+    return true;
+
   if (sel == EIC::DELIVERY)
     {
       // Legalize value.
@@ -88,11 +95,6 @@ File::iregWrite(unsigned sel, URV val)
     }
   else if (sel == EIC::THRESHOLD)
     threshold_ = val & thresholdMask_;
-  else if ((sel == EIC::SRES0) or
-           (sel >= EIC::SRES1 and sel <= EIC::SRES2))
-    return true;
-  else if (sel >= EIC::IPRIO0 and sel <= EIC::IPRIO15)
-    return true;
   else
     {
       unsigned offset = 0;
@@ -119,9 +121,9 @@ File::iregWrite(unsigned sel, URV val)
 
       auto& vec = *vecPtr;
       constexpr size_t bits = sizeof(URV)*8;
-      int begin = offset*32;
-      int end = std::min(begin + bits, vec.size());
-      for (int i = begin; i < end; i++)
+      unsigned begin = offset*32;
+      unsigned end = std::min(begin + bits, vec.size());
+      for (unsigned i = begin; i < end; i++)
         vec[i] = (val >> (i - begin)) & 1;
 
       updateTopId();
@@ -247,7 +249,7 @@ ImsicMgr::configureSupervisor(uint64_t addr, uint64_t stride, unsigned ids,
 bool
 ImsicMgr::configureGuests(unsigned n, unsigned ids, unsigned thresholdMax)
 {
-  if (sstride_ < (n+1) * pageSize_)
+  if (sstride_ < static_cast<uint64_t>((n+1) * pageSize_))
     return false;  // No enough space.
 
   for (const auto& imsic : imsics_)
