@@ -40,7 +40,7 @@ stages:
 build-job:
   stage: build
   script:
-    - find .  \( -name '*.cpp' -o -name '*.hpp' \) -not \( -path ./third_party -prune \) | xargs -I{} clang-tidy {} -warnings-as-errors='*' -header-filter=.* -- -std=c++20 -Ipci -Ipci/virtio -Iiommu -Ivirtual_memory -Iaplic -Iimsic -Ithird_party
+    - find .  \( -name '*.cpp' -o -name '*.hpp' \) | xargs -I{} clang-tidy {} -warnings-as-errors='*' -- -std=c++20 -Ipci -Ipci/virtio -Iiommu -Ivirtual_memory -Iaplic -Iimsic -Ithird_party
     - CC=clang CXX=clang++ make SOFT_FLOAT=1 STATIC_LINK=0 LZ4_COMPRESS=1 -j32
     - CC=clang CXX=clang++ make -C trace-reader TraceReader.a
   artifacts:

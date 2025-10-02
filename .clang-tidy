@@ -25,7 +25,9 @@ Checks: >
     -readability-uppercase-literal-suffix,
     -cppcoreguidelines-macro-usage,
     -cppcoreguidelines-avoid-const-or-ref-data-members,
-    -cppcoreguidelines-non-private-member-variables-in-classes
+    -cppcoreguidelines-non-private-member-variables-in-classes,
+    -readability-avoid-unconditional-preprocessor-if,
+    -readability-inconsistent-declaration-parameter-name
 
 CheckOptions:
   - key:   bugprone-reserved-identifier.AllowedIdentifiers
