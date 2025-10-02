@@ -57,11 +57,6 @@
 using namespace WdRiscv;
 using StringVec = std::vector<std::string>;
 
-template <typename URV>
-Session<URV>::Session()
-{
-}
-
 
 template <typename URV>
 std::shared_ptr<System<URV>>
@@ -287,7 +282,7 @@ Session<URV>::checkAndRepairMemoryParams(size_t& memSize, size_t& pageSize)
 {
   bool ok = true;
 
-  unsigned logPageSize = static_cast<unsigned>(std::log2(pageSize));
+  auto logPageSize = static_cast<unsigned>(std::log2(pageSize));
   size_t p2PageSize = size_t(1) << logPageSize;
   if (p2PageSize != pageSize)
     {
@@ -363,10 +358,10 @@ Session<URV>::openUserFiles(const Args& args)
                     {
                       std::string cmd = "/usr/bin/gzip -c > ";
                       cmd += name;
-                      traceFile = popen(cmd.c_str(), "w");
+                      traceFile = util::make_shared_file(popen(cmd.c_str(), "w"));
                     }
                   else
-                    traceFile = fopen(name.c_str(), "w");
+                    traceFile = util::make_shared_file(fopen(name.c_str(), "w"));
                 }
               else
                 traceFile = traceFiles_.at(0);   // point the same File pointer to each hart
@@ -379,28 +374,28 @@ Session<URV>::openUserFiles(const Args& args)
                 }
             }
 
-          if (args.trace and traceFile == nullptr)
-            traceFile = stdout;
+          if (args.trace and not traceFile)
+            traceFile = util::make_shared_file(stdout);
           ++ix;
         }
     }
 
   if (not args.commandLogFile.empty())
     {
-      commandLog_ = fopen(args.commandLogFile.c_str(), "w");
+      commandLog_ = util::make_shared_file(fopen(args.commandLogFile.c_str(), "w"));
       if (not commandLog_)
 	{
 	  std::cerr << "Error: Failed to open command log file '"
 		    << args.commandLogFile << "' for output\n";
 	  return false;
 	}
-      setlinebuf(commandLog_);  // Make line-buffered.
+      setlinebuf(commandLog_.get());  // Make line-buffered.
     }
 
-  consoleOut_ = stdout;
+  consoleOut_ = util::make_shared_file(stdout);
   if (not args.consoleOutFile.empty())
     {
-      consoleOut_ = fopen(args.consoleOutFile.c_str(), "w");
+      consoleOut_ = util::make_shared_file(fopen(args.consoleOutFile.c_str(), "w"));
       if (not consoleOut_)
 	{
 	  std::cerr << "Error: Failed to open console output file '"
@@ -411,7 +406,7 @@ Session<URV>::openUserFiles(const Args& args)
 
   if (not args.bblockFile.empty())
     {
-      bblockFile_ = fopen(args.bblockFile.c_str(), "w");
+      bblockFile_ = util::make_shared_file(fopen(args.bblockFile.c_str(), "w"));
       if (not bblockFile_)
 	{
 	  std::cerr << "Error: Failed to open basic block file '"
@@ -422,7 +417,7 @@ Session<URV>::openUserFiles(const Args& args)
 
   if (not args.initStateFile.empty())
     {
-      initStateFile_ = fopen(args.initStateFile.c_str(), "w");
+      initStateFile_ = util::make_shared_file(fopen(args.initStateFile.c_str(), "w"));
       if (not initStateFile_)
 	{
 	  std::cerr << "Error: Failed to open init state file '"
@@ -432,42 +427,6 @@ Session<URV>::openUserFiles(const Args& args)
     }
 
   return true;
-}
-
-
-template<typename URV>
-void
-Session<URV>::closeUserFiles()
-{
-  if (consoleOut_ and consoleOut_ != stdout)
-    fclose(consoleOut_);
-  consoleOut_ = nullptr;
-
-  FILE* prev = nullptr;
-  for (auto& traceFile : traceFiles_)
-    {
-      if (traceFile and traceFile != stdout and traceFile != prev)
-	{
-	  if (doGzip_)
-	    pclose(traceFile);
-	  else
-	    fclose(traceFile);
-	}
-      prev = traceFile;
-      traceFile = nullptr;
-    }
-
-  if (commandLog_ and commandLog_ != stdout)
-    fclose(commandLog_);
-  commandLog_ = nullptr;
-
-  if (bblockFile_ and bblockFile_ != stdout)
-    fclose(bblockFile_);
-  bblockFile_ = nullptr;
-
-  if (initStateFile_ and initStateFile_ != stdout)
-    fclose(initStateFile_);
-  initStateFile_ = nullptr;
 }
 
 
@@ -685,7 +644,7 @@ applyCmdLineRegInit(const Args& args, Hart<URV>& hart)
 	hart.pokeIntReg(reg, val);
       else if (hart.findFpReg(regName, reg))
 	hart.pokeFpReg(reg, val);
-      else if ((csr = hart.findCsr(regName)) != nullptr)
+      else if ((csr = hart.findCsr(regName)); csr != nullptr)
 	hart.pokeCsr(csr->getNumber(), val);
       else
 	{
@@ -926,7 +885,7 @@ Session<URV>::applyCmdLineArgs(const Args& args, Hart<URV>& hart,
 	  std::vector<unsigned> enabledPpos;
 	  if (not config.getEnabledPpos(enabledPpos))
 	    errors++;
-	  else if (not system.enableMcm(mcmLineSize, checkAll, enableCaches, enabledPpos))
+	  if (not system.enableMcm(mcmLineSize, checkAll, enableCaches, enabledPpos))
 	    errors++;
 	}
     }
@@ -947,10 +906,14 @@ Session<URV>::applyCmdLineArgs(const Args& args, Hart<URV>& hart,
 
   if (args.perfApi)
     {
-      if (not system.enablePerfApi(traceFiles_))
+      std::vector<FILE*> filePtrs;
+      std::transform(traceFiles_.begin(), traceFiles_.end(),
+                     std::back_inserter(filePtrs),
+                     [](const auto& f) { return f.get(); });
+      if (not system.enablePerfApi(filePtrs))
         errors++;
       if (not args.interactive and commandLog_)
-        system.perfApiCommandLog(commandLog_);
+        system.perfApiCommandLog(commandLog_.get());
     }
 
   if (args.roi)
@@ -1079,7 +1042,7 @@ Session<URV>::runServer(const std::string& serverFile)
 	std::cerr << "Error: Failed to open file '" << serverFile << "' for output\n";
 	return false;
       }
-    out << hostName.data() << ' ' << ntohs(socAddr.sin_port) << std::endl;
+    out << hostName.data() << ' ' << ntohs(socAddr.sin_port) << '\n';
   }
 
   sockaddr_in clientAddr;
@@ -1099,7 +1062,7 @@ Session<URV>::runServer(const std::string& serverFile)
   try
     {
       Server<URV> server(system);
-      ok = server.interact(newSoc, traceFile, commandLog);
+      ok = server.interact(newSoc, traceFile.get(), commandLog.get());
     }
   catch(...)
     {
@@ -1134,6 +1097,7 @@ Session<URV>::runServerShm(const std::string& serverFile)
       return false;
     }
 
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
   char* shm = (char*) mmap(nullptr, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
   if (shm == MAP_FAILED)
     {
@@ -1146,7 +1110,7 @@ Session<URV>::runServerShm(const std::string& serverFile)
   try
     {
       Server<URV> server(system);
-      ok = server.interact(std::span<char>(shm, 4096), traceFile, commandLog);
+      ok = server.interact(std::span<char>(shm, 4096), traceFile.get(), commandLog.get());
     }
   catch(...)
     {
@@ -1185,14 +1149,14 @@ Session<URV>::runInteractive(std::ostream& out)
 {
   // Ignore keyboard interrupt for most commands. Long running
   // commands will enable keyboard interrupts while they run.
-  struct sigaction newAction;
+  struct sigaction newAction{};
   sigemptyset(&newAction.sa_mask);
   newAction.sa_flags = 0;
   newAction.sa_handler = kbdInterruptHandler;
   sigaction(SIGINT, &newAction, nullptr);
 
   Interactive interactive(*system_, out);
-  return interactive.interact(traceFiles_.at(0), commandLog_);
+  return interactive.interact(traceFiles_.at(0).get(), commandLog_.get());
 }
 
 
@@ -1289,7 +1253,7 @@ Session<URV>::run(const Args& args)
                               args.snapshotPeriods.size() > 1 or args.aperiodicSnaps);
 
   bool waitAll = not args.quitOnAnyHart;
-  unsigned seed = args.seed.value_or(time(NULL));
+  unsigned seed = args.seed.value_or(time(nullptr));
   srand(seed);
 
   uint64_t stepWinLo = 0, stepWinHi = 0;
@@ -1301,12 +1265,12 @@ Session<URV>::run(const Args& args)
                 << " and steps distribution between " << stepWinLo << " and " << stepWinHi << "\n";
     }
 
-  struct timeval t0;
+  struct timeval t0{};
   gettimeofday(&t0, nullptr);
 
   bool ok = system.batchRun(traceFiles_, waitAll, stepWinLo, stepWinHi);
 
-  struct timeval t1;
+  struct timeval t1{};
   gettimeofday(&t1, nullptr);
 
   // Report retired isntructions for deterministic runs.
@@ -1417,7 +1381,7 @@ static
 bool
 reportInstructionFrequency(Hart<URV>& hart, const std::string& outPath)
 {
-  FILE* outFile = fopen(outPath.c_str(), "w");
+  util::SharedFile outFile = util::make_shared_file(fopen(outPath.c_str(), "w"));
   if (not outFile)
     {
       std::cerr << "Error: Failed to open instruction frequency file '" << outPath
@@ -1425,12 +1389,10 @@ reportInstructionFrequency(Hart<URV>& hart, const std::string& outPath)
       return false;
     }
 
-  hart.reportInstructionFrequency(outFile);
-  hart.reportTrapStat(outFile);
-  fprintf(outFile, "\n");
-  hart.reportLrScStat(outFile);
-
-  fclose(outFile);
+  hart.reportInstructionFrequency(outFile.get());
+  hart.reportTrapStat(outFile.get());
+  fprintf(outFile.get(), "\n");
+  hart.reportLrScStat(outFile.get());
   return true;
 }
 
@@ -1456,13 +1418,12 @@ Session<URV>::cleanup(const Args& args)
         assert(false && "Not compiled with sparse memory");
       for (const auto& [_, size] : blocks)
         bytes += size;
-      std::cerr << "Info: Used blocks: 0x" << std::hex << bytes << std::endl;
+      std::cerr << "Info: Used blocks: 0x" << std::hex << bytes << '\n';
     }
 
   if (not args.eorMemDump.empty())
     result = eorMemDump(args.eorMemDump, args.eorMemDumpRanges) and result;
 
-  closeUserFiles();
   return result;
 }
 

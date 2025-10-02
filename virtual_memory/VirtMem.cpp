@@ -593,7 +593,7 @@ VirtMem::pageTableWalk(uint64_t address, PrivilegeMode privMode, bool read, bool
       // 2.
       uint64_t pteAddr = root + va.vpn(ii)*pteSize;
 
-      int walkEntryIx = 0;
+      size_t walkEntryIx = 0;
       if (trace_)
         {
           walkVec.back().emplace_back(pteAddr);
@@ -774,7 +774,7 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
       // 2.
       uint64_t pteAddr = root + va.vpn(ii)*pteSize;
 
-      int walkEntryIx = 0;
+      size_t walkEntryIx = 0;
       if (trace_)
         {
           walkVec.back().emplace_back(pteAddr);
@@ -966,7 +966,7 @@ VirtMem::stage1PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
       if (ec != ExceptionCause::NONE)
 	return stage2ExceptionToStage1(ec, read, write, exec);
 
-      int walkEntryIx = 0;
+      size_t walkEntryIx = 0;
       if (trace_)
         {
           walkVec.back().emplace_back(pteAddr);
