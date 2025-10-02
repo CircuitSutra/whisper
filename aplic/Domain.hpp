@@ -7,6 +7,7 @@
 #include <memory>
 #include <cassert>
 #include <algorithm>
+#include <optional>
 
 namespace TT_APLIC {
 
@@ -223,6 +224,9 @@ class Domain
 
 public:
 
+    Domain(const Domain&) = delete;
+    Domain& operator=(const Domain&) = delete;
+
     const std::string& name() const { return params_.name; }
     std::shared_ptr<Domain> root() const;
     std::shared_ptr<Domain> parent() const { return parent_.lock(); }
@@ -231,6 +235,7 @@ public:
     uint64_t size() const { return params_.size; }
     Privilege privilege() const { return params_.privilege; }
     std::span<const unsigned> hartIndices() const { return params_.hart_indices; }
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     bool includesHart(unsigned hart_index) const {
         const auto& indices = params_.hart_indices;
         return std::find(indices.begin(), indices.end(), hart_index) != indices.end();
@@ -546,17 +551,17 @@ public:
             return false;
         if (i == 0) {
             if (msi_callback_) {
-                uint64_t addr = msiAddr(genmsi_.fields.hart_index, 0); 
+                uint64_t addr = msiAddr(genmsi_.fields.hart_index, 0);
                 uint32_t data = genmsi_.fields.eiid;
                 msi_callback_(addr, data);
-            }   
+            }
             genmsi_.fields.busy = 0;
         } else {
             if (msi_callback_) {
                 uint64_t addr = msiAddr(target_.at(i).dm1.hart_index, target_.at(i).dm1.guest_index);
                 uint32_t data = target_.at(i).dm1.eiid;
                 msi_callback_(addr, data);
-            }   
+            }
             clearIp(i);
         }
         return true;
@@ -630,6 +635,7 @@ private:
         assert(addr % 4 == 0);
         assert(addr >= params_.base and addr < params_.base + params_.size);
         uint64_t offset = addr - params_.base;
+        // NOLINTBEGIN(bugprone-switch-missing-default-case)
         switch (offset) {
             case 0x0000: return readDomaincfg();
             case 0x1bc0: return readMmsiaddrcfg();
@@ -666,7 +672,7 @@ private:
             return readTarget(i);
         } if (offset >= 0x4000) {
             unsigned hart_index = (offset - 0x4000)/32;
-            unsigned idc_offset = (offset - 0x4000) - 32*hart_index;
+            unsigned idc_offset = (offset - 0x4000) - static_cast<uint32_t>(32*hart_index);
             if (hart_index >= idcs_.size())
                 return 0;
             switch (idc_offset) {
@@ -678,6 +684,7 @@ private:
                 default: ;
             }
         }
+        // NOLINTEND(bugprone-switch-missing-default-case)
 
         return 0;
     }
@@ -694,6 +701,7 @@ private:
         assert(addr % 4 == 0);
         assert(addr >= params_.base and addr < params_.base + params_.size);
         uint64_t offset = addr - params_.base;
+        // NOLINTBEGIN(bugprone-switch-missing-default-case)
         switch (offset) {
             case 0x0000: writeDomaincfg(data); return;
             case 0x1bc0: writeMmsiaddrcfg(data); return;
@@ -729,7 +737,7 @@ private:
             writeTarget(i, data);
         } else if (offset >= 0x4000) {
             unsigned hart_index = (offset - 0x4000)/32;
-            unsigned idc_offset = (offset - 0x4000) - 32*hart_index;
+            unsigned idc_offset = (offset - 0x4000) - static_cast<uint32_t>(32*hart_index);
             if (hart_index >= idcs_.size())
                 return;
             switch (idc_offset) {
@@ -740,6 +748,7 @@ private:
                 case 0x1c: writeClaimi(hart_index, data); return;
                 default: ;
             }
+        // NOLINTEND(bugprone-switch-missing-default-case)
         }
     }
 

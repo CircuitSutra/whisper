@@ -118,7 +118,7 @@ RemoteFrameBuffer::saveSnapshot(const std::string& filename) const
     }
 
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-  ofs.write(reinterpret_cast<const char*>(frame_buffer_.data()), size());
+  ofs.write(reinterpret_cast<const char*>(frame_buffer_.data()), long(size()));
 
   if (!ofs)
     {
@@ -140,7 +140,7 @@ RemoteFrameBuffer::loadSnapshot(const std::string& filename)
     }
 
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-  ifs.read(reinterpret_cast<char*>(frame_buffer_.data()), size());
+  ifs.read(reinterpret_cast<char*>(frame_buffer_.data()), long(size()));
 
   if (!ifs)
     {

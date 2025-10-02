@@ -71,7 +71,7 @@ Blk::operator()(unsigned vq)
       if (header_type != VIRTIO_BLK_T_GET_ID)
         {
           // TODO: use pread/pwrite instead
-          if (lseek(fd_, header_sector * 512, SEEK_SET) < 0)
+          if (lseek(fd_, static_cast<uint32_t>(header_sector * 512), SEEK_SET) < 0)
             {
               write_mem(status_addr, VIRTIO_BLK_S_IOERR);
               elems.push_back({head, 0});
@@ -104,6 +104,8 @@ Blk::operator()(unsigned vq)
             write_mem(buffer_addr, '0');
             write_mem(buffer_addr + 1, '\0');
             break;
+          default:
+            assert(false);
         }
 
       write_mem(status_addr, (res < 0)? VIRTIO_BLK_S_IOERR : VIRTIO_BLK_S_OK);

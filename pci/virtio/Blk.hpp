@@ -30,6 +30,7 @@ class Blk : public Virtio {
       if (not fd_)
         return false;
 
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
       config_ = reinterpret_cast<virtio_blk_config*>(device_cfg_);
 
       struct stat st{};

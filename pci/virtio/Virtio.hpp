@@ -5,29 +5,24 @@
 #include <linux/virtio_pci.h>
 #include <condition_variable>
 #include <thread>
+#include <span>
 #include "../PciDev.hpp"
 
-enum {
-PCI_DEVICE_ID_VIRTIO_BASE =		0x1040,
-PCI_SUBSYS_ID_VIRTIO_BASE =		0x0040
-};
+#define PCI_DEVICE_ID_VIRTIO_BASE		0x1040
+#define PCI_SUBSYS_ID_VIRTIO_BASE		0x0040
 
-enum {
-PCI_VENDOR_ID_REDHAT_QUMRANET =		0x1af4,
-PCI_SUBSYSTEM_VENDOR_ID_REDHAT_QUMRANET =	0x1af4
-};
+#define PCI_VENDOR_ID_REDHAT_QUMRANET		0x1af4
+#define PCI_SUBSYSTEM_VENDOR_ID_REDHAT_QUMRANET	0x1af4
 
-enum {
-VIRTQ_SIZE =                              32,
-VIRTQ_USED_F_NO_NOTIFY =                  1,
-VIRTQ_AVAIL_F_NO_INTERRUPT =              1,
+#define VIRTQ_SIZE                              32
+#define VIRTQ_USED_F_NO_NOTIFY                  1
+#define VIRTQ_AVAIL_F_NO_INTERRUPT              1
 /* This marks a buffer as continuing via the next field. */
-VIRTQ_DESC_F_NEXT =       1,
+#define VIRTQ_DESC_F_NEXT                       1
 /* This marks a buffer as write-only (otherwise read-only). */
-VIRTQ_DESC_F_WRITE =      2,
+#define VIRTQ_DESC_F_WRITE                      2
 /* This means the buffer contains a list of buffer descriptors. */
-VIRTQ_DESC_F_INDIRECT =   4
-};
+#define VIRTQ_DESC_F_INDIRECT                   4
 
 namespace msix {
   struct cap;
@@ -46,7 +41,7 @@ class Virtio : public PciDev {
       uint8_t len;
       uint8_t type;
       uint8_t bar;
-      uint8_t padding[3];
+      std::array<uint8_t, 3> padding;
       uint32_t cfg_offset;
       uint32_t cfg_length;
     } __attribute__ ((packed));
@@ -89,7 +84,7 @@ class Virtio : public PciDev {
 
     struct pci_cap {
       struct cap cap;
-      uint8_t pci_cfg_data[4];
+      std::array<uint8_t, 4> pci_cfg_data;
     } __attribute__ ((packed));
 
     struct virtqueue {
@@ -104,7 +99,7 @@ class Virtio : public PciDev {
       struct avail_ring {
         uint16_t flags;
         uint16_t idx;
-        uint16_t ring[VIRTQ_SIZE];
+        std::array<uint16_t, VIRTQ_SIZE> ring;
       } __attribute__((packed));
 
       struct used_ring {
@@ -114,7 +109,7 @@ class Virtio : public PciDev {
           uint32_t idx;
           uint32_t len;
         };
-        elem ring[VIRTQ_SIZE];
+        std::array<elem, VIRTQ_SIZE> ring;
       } __attribute__((packed));
 
       uint16_t size = VIRTQ_SIZE;
