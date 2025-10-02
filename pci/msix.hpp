@@ -1,6 +1,7 @@
 #pragma once
 
 #include <iostream>
+#include <span>
 #include "PciDev.hpp"
 
 namespace msix {
@@ -34,6 +35,7 @@ namespace msix {
     if (num == 0)
       return false;
 
+    // NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast)
     cap_entry = reinterpret_cast<cap*>(dev.template ask_header_blocks<uint32_t>(sizeof(cap), cap_offset));
     if (not cap_entry)
       {
@@ -63,6 +65,7 @@ namespace msix {
         std::cerr << "Error: No more space for MSIX PBA table" << '\n';
         return false;
       }
+    // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
 
     cap_entry->pba_table = pba_table_offset | 2;
     return true;
@@ -77,6 +80,7 @@ namespace msix {
     if (not (cap_entry->ctrl & PCI_MSIX_FLAGS_ENABLE) or (cap_entry->ctrl & PCI_MSIX_FLAGS_MASKALL))
       return;
 
+    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
     for (unsigned i = 0; i < num; i += pba_width)
       {
         auto& pba = pba_table[i/pba_width];
@@ -97,6 +101,7 @@ namespace msix {
               }
           }
       }
+    // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
   }
 
 

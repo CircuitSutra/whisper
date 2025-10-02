@@ -179,9 +179,9 @@ find_low_load_cluster(double max_load, unsigned cluster_size, double interval)
 
         for (auto start_cpu : start_cpus) {
             std::vector<int> cluster;
-            for (unsigned i = 0; i < cluster_size; i++) {
+            for (int i = 0; i < int(cluster_size); i++) {
                 if (std::find(cpus.begin(), cpus.end(), start_cpu + i) != cpus.end())
-                    cluster.push_back(start_cpu + i);
+                    cluster.push_back(int(start_cpu) + i);
             }
 
             if (cluster.size() != cluster_size)

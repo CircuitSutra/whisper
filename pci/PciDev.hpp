@@ -13,10 +13,11 @@
 #include <optional>
 
 // under PCIe, 4096 bytes of configuration space
-enum {
-PCI_CFG_SIZE = 4096
-};
+#define PCI_CFG_SIZE 4096
 
+
+// FIXME: int-to-ptr
+// NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast, cppcoreguidelines-pro-bounds-pointer-arithmetic, performance-no-int-to-ptr)
 class PciDev {
 
   public:
@@ -30,18 +31,18 @@ class PciDev {
         uint16_t command;
         uint16_t status;
         uint8_t revision_id;
-        uint8_t class_code[3];
+        std::array<uint8_t, 3> class_code;
         uint8_t cache_line_size;
         uint8_t latency_timer;
         uint8_t header_type;
         uint8_t bist;
-        uint32_t bar[6];
+        std::array<uint32_t, 6> bar;
         uint32_t card_bus;
         uint16_t subsys_vendor_id;
         uint16_t subsys_id;
         uint32_t exp_rom_bar;
         uint8_t cap;
-        uint8_t reserved[7];
+        std::array<uint8_t, 7> reserved;
         uint8_t interrupt_line; // not needed?
         uint8_t interrupt_pin;  // not needed?
         uint8_t min_gnt;
@@ -49,7 +50,7 @@ class PciDev {
       } __attribute__ ((packed));
 
       fields bits;
-      uint8_t data[PCI_CFG_SIZE] = {0};
+      std::array<uint8_t, PCI_CFG_SIZE> data{};
     };
 
     struct mmio_blocks
@@ -68,13 +69,13 @@ class PciDev {
       std::function<uint64_t(uint32_t, size_t)> read_dev_ = nullptr;
     };
 
-    PciDev() : header_eol_(header_.data + sizeof(config::fields))
+    PciDev() : header_eol_(header_.data.data() + sizeof(config::fields))
     {
       bars_.resize(6);
       bar_eols_.resize(6, nullptr);
       bar_sizes_.resize(6, 0);
 
-      
+
     };
 
     virtual ~PciDev() = default;
@@ -92,7 +93,7 @@ class PciDev {
       align = (1 << (align - 1));
 
       auto* tmp = reinterpret_cast<uint8_t*>(uintptr_t(header_eol_ + align - 1) & ~(align - 1));
-      offset = tmp - header_.data;
+      offset = tmp - header_.data.data();
       if ((tmp + size) > &(header_.data[PCI_CFG_SIZE - 1]))
         return nullptr;
       header_eol_ = tmp + size;
@@ -121,21 +122,18 @@ class PciDev {
 
     void set_bar_base_address(unsigned bar, uint32_t base)
     {
-      assert(bar < 6 and "There are only 6 bars");
-      header_.bits.bar[bar] = base | PCI_BASE_ADDRESS_SPACE_MEMORY;
+      header_.bits.bar.at(bar) = base | PCI_BASE_ADDRESS_SPACE_MEMORY;
     }
 
     void set_bar_mmio_blocks(unsigned bar, const std::shared_ptr<mmio_blocks>& blocks)
     {
-      assert(bar < 6 and "There are only 6 bars");
       bars_.at(bar) = blocks;
       bar_eols_.at(bar) = blocks->bytes_.data();
     }
 
     void set_bar_unused(unsigned bar)
     {
-      assert(bar < 6 and "There are only 6 bars");
-      header_.bits.bar[bar] = 0;
+      header_.bits.bar.at(bar) = 0;
     }
 
     void set_bar_size(unsigned bar, unsigned size)
@@ -189,14 +187,14 @@ class PciDev {
           uint64_t bar_mask = io? PCI_BASE_ADDRESS_IO_MASK : PCI_BASE_ADDRESS_MEM_MASK;
 
           // probably ok in assuming these will be 4B aligned
-          uint32_t original = header_.bits.bar[bar];
+          uint32_t original = header_.bits.bar.at(bar);
           uint32_t value = original & ~bar_mask;
 
           if (data == 0xffffffff)
             value |= bar_size_mask;
           else
             value |= (data & bar_mask);
-          header_.bits.bar[bar] = value;
+          header_.bits.bar.at(bar) = value;
           return;
         }
       if (offset == PCI_ROM_ADDRESS)
@@ -260,3 +258,5 @@ class PciDev {
     std::vector<uint8_t*> bar_eols_;
     std::vector<unsigned> bar_sizes_;
 };
+
+// NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast, cppcoreguidelines-pro-bounds-pointer-arithmetic, performance-no-int-to-ptr)

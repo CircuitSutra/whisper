@@ -360,9 +360,11 @@ Mcm<URV>::getLdStDataVectors(const Hart<URV>& hart, const McmInstr& instr,
   assert(elemSize != 0);
   unsigned elemsPerVec = hart.vecRegSize() / elemSize;
 
-  std::array<bool, 32> referenced{};
-  std::array<bool, 32> active{};
-  std::array<bool, 32> preserve{};
+  // NOLINTBEGIN(cppcoreguidelines-pro-type-member-init)
+  std::array<bool, 32> referenced; referenced.fill(false);
+  std::array<bool, 32> active; active.fill(false);
+  std::array<bool, 32> preserve; preserve.fill(true);
+  // NOLINTEND(cppcoreguidelines-pro-type-member-init)
 
   bool maskAgn = hart.isVectorMaskAgnostic();
   bool tailAgn = hart.isVectorTailAgnostic();
@@ -417,8 +419,8 @@ Mcm<URV>::getLdStIndexVectors(const Hart<URV>& hart, const McmInstr& instr,
   unsigned elemsPerVec = hart.vecRegSize() / ixElemSize;
 
   // NOLINTBEGIN(cppcoreguidelines-pro-type-member-init)
-  std::array<bool, 32> referenced;  for (auto& x : referenced) x = false;
-  std::array<bool, 32> active;      for (auto& x : active)     x = false;
+  std::array<bool, 32> referenced;  referenced.fill(false);
+  std::array<bool, 32> active;      active.fill(false);
   // NOLINTEND(cppcoreguidelines-pro-type-member-init)
 
   for (auto& elem : elems)
@@ -3047,7 +3049,7 @@ Mcm<URV>::vecStoreToReadForward(const McmInstr& store, MemoryOp& readOp, uint64_
       if (lastWopTime >= readOp.time_)
         {
           uint64_t offset = lastWopTime - readOp.time_;
-          uint16_t off16 = static_cast<uint16_t>(offset);  // TODO: Use gsl
+          auto off16 = static_cast<uint16_t>(offset);  // TODO: Use gsl
           assert(off16 == offset);  // Check for overflow
           readOp.fwOffset_.at(rix) = std::max(readOp.fwOffset_.at(rix), off16);
         }
@@ -3546,8 +3548,6 @@ Mcm<URV>::vecOverlapsRefPhysAddr(const McmInstr& instr, uint64_t addr) const
                     [addr] (const auto& vecRef) {
                       return vecRef.overlaps(addr);
                     });
-
-  return false;
 }
 
 

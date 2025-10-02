@@ -306,14 +306,13 @@ namespace WdRiscv
     /// region.
     bool overlapsMemMappedRegs(uint64_t start, uint64_t end) const
     {
-      for (const auto& region : memMappedRanges_)
-        {
-          auto [low, high] = region;
-          if (end >= low && start <= high)
-            return true;
-        }
-
-      return false;
+      return std::any_of(memMappedRanges_.begin(), memMappedRanges_.end(),
+          [start, end] (const auto& region) {
+            auto [low, high] = region;
+            if (end >= low && start <= high)
+              return true;
+            return false;
+          });
     }
 
     const std::vector<PmaTrace>& getPmaTrace() const

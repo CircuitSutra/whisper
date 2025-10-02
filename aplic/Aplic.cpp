@@ -200,11 +200,13 @@ void Aplic::setSourceState(unsigned i, bool state)
 
 bool Aplic::forwardViaMsi(unsigned i)
 {
-    for (const auto& domain : domains_) {
-        if (domain->readyToForwardViaMsi(i)) {
-            domain->forwardViaMsi(i);
-            return true;
-        }
-    }
-    return false;
+  // NOLINTBEGIN(readability-use-anyofallof)
+  for (const auto& domain : domains_) {
+      if (domain->readyToForwardViaMsi(i)) {
+          domain->forwardViaMsi(i);
+          return true;
+      }
+  }
+  // NOLINTEND(readability-use-anyofallof)
+  return false;
 }

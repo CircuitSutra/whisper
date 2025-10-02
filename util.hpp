@@ -87,10 +87,10 @@ namespace util
     };
 
     std::string result;
-    result.reserve((getLen(arg) + ... + getLen(args)) + (separator.size() * sizeof...(Args)));
+    result.reserve((getLen(arg) + ... + getLen(std::forward<Args>(args))) + (separator.size() * sizeof...(Args)));
 
     result += arg;
-    (result.append(separator).append(args), ...);
+    (result.append(separator).append(std::forward<Args>(args)), ...);
 
     return result;
   }

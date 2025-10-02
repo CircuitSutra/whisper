@@ -30,6 +30,8 @@ Checks: >
     -readability-inconsistent-declaration-parameter-name,
     -readability-simplify-boolean-expr,
     -cppcoreguidelines-avoid-do-while,
+    -cppcoreguidelines-pro-type-vararg,
+    -modernize-macro-to-enum
 
 CheckOptions:
   - key:   bugprone-reserved-identifier.AllowedIdentifiers

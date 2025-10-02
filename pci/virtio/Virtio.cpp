@@ -4,13 +4,14 @@
 #include "Virtio.hpp"
 #include "../msix.hpp"
 
+// NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast)
 Virtio::Virtio(unsigned subsys_id, unsigned class_code, unsigned num_queues)
   : features_(uint64_t(1) << VIRTIO_F_VERSION_1), subsys_id_(subsys_id), class_code_(class_code), num_queues_(num_queues)
 {
   initialize_header();
   msix::initialize_header(*this);
   vqs_.resize(num_queues);
-  
+
 }
 
 
@@ -36,7 +37,7 @@ Virtio::setup()
 
   // TODO: support feature selects...  config vector?
   bar->write_dev_ = [&](uint32_t data, uint32_t offset, size_t len) {
-    memcpy(bar->bytes_.data() + offset, &data, len);
+    memcpy(&bar->bytes_.at(offset), &data, len);
 
     uint64_t mask = 0xffffffffULL;
     auto& vq = get_vq(queue_selector_);
@@ -93,6 +94,8 @@ Virtio::setup()
         if (vq.enable)
           notify(data);
         break;
+      default:
+        assert(false);
     }
   };
 
@@ -126,10 +129,12 @@ Virtio::setup()
         return vq.used_addr & mask;
       case VIRTIO_PCI_COMMON_Q_USEDHI:
         return vq.used_addr >> 32;
+      default:
+        assert(false);
     };
 
     uint64_t data = 0;
-    memcpy(&data, bar->bytes_.data() + offset, len);
+    memcpy(&data, &bar->bytes_.at(offset), len);
     return data;
   };
 
@@ -235,9 +240,9 @@ Virtio::get_descriptors(const unsigned num, std::vector<virtqueue::descriptor>& 
       last = !(desc.flags & VIRTQ_DESC_F_NEXT);
       desc_idx = desc.next;
       if (desc.flags & VIRTQ_DESC_F_WRITE)
-        write.push_back(std::move(desc));
+        write.push_back(desc);
       else
-        read.push_back(std::move(desc));
+        read.push_back(desc);
     };
 
   finished = (++vq.last_avail_idx) == avail_idx;
@@ -391,9 +396,9 @@ Virtio::initialize_header()
   header_.bits.device_id = PCI_DEVICE_ID_VIRTIO_BASE + subsys_id_;
   header_.bits.command = PCI_COMMAND_IO | PCI_COMMAND_MEMORY;
   header_.bits.status = PCI_STATUS_CAP_LIST;
-  header_.bits.class_code[0] = class_code_ & 0xff;
-  header_.bits.class_code[1] = (class_code_ >> 8) & 0xff;
-  header_.bits.class_code[2] = (class_code_ >> 16) & 0xff;
+  header_.bits.class_code.at(0) = class_code_ & 0xff;
+  header_.bits.class_code.at(1) = (class_code_ >> 8) & 0xff;
+  header_.bits.class_code.at(2) = (class_code_ >> 16) & 0xff;
   header_.bits.header_type = PCI_HEADER_TYPE_NORMAL;
   header_.bits.subsys_vendor_id = PCI_SUBSYSTEM_VENDOR_ID_REDHAT_QUMRANET;
   header_.bits.subsys_id = PCI_SUBSYS_ID_VIRTIO_BASE + subsys_id_;
@@ -403,3 +408,5 @@ Virtio::initialize_header()
   else
     std::cerr << "Error: Bar 1 size already set" << '\n';
 }
+
+// NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)

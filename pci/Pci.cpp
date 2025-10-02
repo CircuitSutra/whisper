@@ -62,7 +62,7 @@ Pci::mmio(uint32_t addr, T& data, bool w)
       if ((mmio->base_ <= addr) and (addr < (mmio->base_ + mmio->size_)))
         {
           unsigned offset = addr - mmio->base_;
-          uint8_t* p = (mmio->bytes_.data() + offset);
+          uint8_t* p = &mmio->bytes_.at(offset);
           if (w)
             {
               if (mmio->write_dev_)
