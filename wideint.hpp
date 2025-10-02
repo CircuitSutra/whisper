@@ -282,20 +282,16 @@ namespace WdRiscv
 
       Self y = *this;  // Dividend
 
-      auto* remLow = reinterpret_cast<uint8_t*> (&rem);  // Least sig byte of rem
-      auto* resultLow = reinterpret_cast<uint8_t*> (&result);  // Least sig byte of result
-      uint8_t* yHigh = (reinterpret_cast<uint8_t*> (&y)) + sizeof(y) - 1; // Most sig byte of dividend
-
       for (unsigned i = 0; i < n; ++i)
 	{
-	  uint8_t yMsb = *yHigh >> 7; // Most sig bit of dividend
+	  uint8_t yMsb = y.bits_.bytes_.at(sizeof(y) - 1) >> 7; // Most sig bit of dividend
 	  rem <<= 1;
 	  result <<= 1;
 	  y <<= 1;
-	  *remLow |= yMsb;
+          rem.bits_.bytes_.at(0) |= yMsb;  // Update least sig byte of remainder.
 	  if (x <= rem)
 	    {
-	      *resultLow |= 1;
+	      result.bits_.bytes_.at(0) |= 1;  // Update least sig byte of result.
 	      rem -= x;
 	    }
 	}
@@ -449,9 +445,9 @@ namespace WdRiscv
       Quarter q3_;
     };
 
-    /// Wide integer as a union of two half-width or four
-    /// quarter-width values.  For example, Uint128 is a pair of
-    /// uint64_t or a quad of uint32_t values.
+    /// Wide integer as a union of two half-width, or four quarter-width values, or array
+    /// of uint8_t.  For example, Uint128 is a pair of uint64_t or a quad of uint32_t
+    /// values.
     union Bits
     {
       constexpr Bits(Half high = 0, Half low = 0)
@@ -459,6 +455,7 @@ namespace WdRiscv
       { }
       Halfs halfs_;
       Quarters quarters_;
+      std::array<uint8_t, sizeof(Halfs)> bytes_;
     };
 
     Bits bits_;

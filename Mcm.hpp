@@ -757,7 +757,7 @@ namespace WdRiscv
     {
       for (auto opIx : instr.memOps_)
 	{
-	  auto& op = sysMemOps_.at(opIx);
+	  const auto& op = sysMemOps_.at(opIx);
 	  if (op.overlaps(addr))
 	    return true;
 	}
@@ -1032,7 +1032,7 @@ namespace WdRiscv
       // Dependency time of most recent branch in program order or 0 if branch does not
       // depend on a prior memory instruction.
       uint64_t branchTime_ = 0;
-      uint64_t branchProducer_;
+      uint64_t branchProducer_ = 0;
 
       // Dependency time of most recent vsetvl or vsetvli in program order or
       // 0 if vset does not depend on prior memory instruction.

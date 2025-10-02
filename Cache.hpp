@@ -19,7 +19,7 @@ namespace TT_CACHE
       : lineSize_(lineSize)
     {
       assert(lineSize > 0 and (lineSize % 8) == 0);
-      lineShift_ = std::log2(lineSize);
+      lineShift_ = unsigned(std::log2(lineSize));
     }
 
     /// Add a line to the cache. Data is obtained by calling fetchMem

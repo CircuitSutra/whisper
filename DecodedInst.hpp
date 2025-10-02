@@ -486,7 +486,7 @@ namespace WdRiscv
 
     /// Return value associated with ith operand.
     uint64_t ithOperandValue(unsigned i) const
-    { return i < 4? values_[i] : 0; }
+    { return i < 4? values_.at(i) : 0; }
 
     /// Return true if this is a vector instruction with masking enabled,
     bool isMasked() const
