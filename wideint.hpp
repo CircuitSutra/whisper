@@ -27,7 +27,6 @@
 #include <cstdint>
 
 
-// NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast, cppcoreguidelines-pro-bounds-pointer-arithmetic)
 namespace WdRiscv
 {
 
@@ -309,20 +308,16 @@ namespace WdRiscv
 
       Self y = *this;  // Dividend
 
-      auto* remLow = reinterpret_cast<uint8_t*> (&rem);  // Least sig byte of rem
-      auto* resultLow = reinterpret_cast<uint8_t*> (&result);  // Least sig byte of result
-      uint8_t* yHigh = (reinterpret_cast<uint8_t*> (&y)) + sizeof(y) - 1; // Most sig byte of dividend
-
       for (unsigned i = 0; i < n; ++i)
 	{
-	  uint8_t yMsb = *yHigh >> 7; // Most sig bit of dividend
+	  uint8_t yMsb = y.bits_.bytes_.at(sizeof(y)-1) >> 7; // Most sig bit of dividend
 	  rem <<= 1;
 	  result <<= 1;
 	  y <<= 1;
-	  *remLow |= yMsb;
+	  rem.bits_.bytes_.at(0) |= yMsb;   // Update least sig byte of rem
 	  if (x <= rem)
 	    {
-	      *resultLow |= 1;
+	      result.bits_.bytes_.at(0) |= 1;  // Update least sig byte of result.
 	      rem -= x;
 	    }
 	}
@@ -1123,4 +1118,4 @@ namespace WdRiscv
   }
 
 }
-// NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast, cppcoreguidelines-pro-bounds-pointer-arithmetic)
+

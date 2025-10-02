@@ -773,12 +773,12 @@ namespace WdRiscv
       if (maskReg >= regCount_ or byteIx >= bytesPerReg_)
         throw std::runtime_error("invalid vector register index");
 
-      uint8_t* data = data_.data() + static_cast<std::size_t>(maskReg)*bytesPerReg_;
+      size_t offset = size_t(maskReg) * bytesPerReg_;
       uint8_t mask = uint8_t(1) << bitIx;
       if (value)
-        data[byteIx] |= mask;
+        data_.at(offset + byteIx) |= mask;
       else
-        data[byteIx] &= ~mask;
+        data_.at(offset + byteIx) &= ~mask;
 
       if (not lastWrittenReg_.has_value())
         {
@@ -796,9 +796,9 @@ namespace WdRiscv
       if (maskReg >= regCount_ or byteIx >= bytesPerReg_)
         throw std::runtime_error("invalid vector register index");
 
-      const uint8_t* data = data_.data() + static_cast<std::size_t>(maskReg)*bytesPerReg_;
+      size_t offset = size_t(maskReg) * bytesPerReg_;
       uint8_t mask = uint8_t(1) << bitIx;
-      value = data[byteIx] & mask;
+      value = data_.at(offset+byteIx) & mask;
     }
 
     /// Return the pointers to the 1st byte of the memory area
@@ -808,14 +808,14 @@ namespace WdRiscv
     {
       if (vecIx >= regCount_)
         return nullptr;
-      return data_.data() + static_cast<std::size_t>(vecIx)*bytesPerReg_;
+      return &data_.at(size_t(vecIx)*bytesPerReg_);
     }
 
     const uint8_t* getVecData(uint32_t vecIx) const
     {
       if (vecIx >= regCount_)
         return nullptr;
-      return data_.data() + static_cast<std::size_t>(vecIx)*bytesPerReg_;
+      return &data_.at(size_t(vecIx)*bytesPerReg_);
     }
 
     /// It is convenient to construct an empty register file (bytesPerReg = 0)

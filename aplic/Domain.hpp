@@ -604,9 +604,6 @@ public:
     bool peekXeip(unsigned i)           { return xeip_bits_.at(i); }
     void pokeXeip(unsigned i, bool bit) { xeip_bits_.at(i) = bit; }
 
-    Domain(const Domain&) = delete;
-    Domain& operator=(const Domain&) = delete;
-
 private:
     Domain(
         const Aplic *aplic,
