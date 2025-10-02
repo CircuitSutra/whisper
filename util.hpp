@@ -25,6 +25,8 @@
 #include <sys/stat.h>
 #include <memory>
 
+namespace gsl { template <typename T> using owner = T; }
+
 namespace util
 {
   namespace _helpers
@@ -150,7 +152,7 @@ namespace util
 
   using SharedFile = std::shared_ptr<FILE>;
 
-  inline SharedFile make_shared_file(FILE* file) {
+  inline SharedFile make_shared_file(gsl::owner<FILE*> file) {
       return SharedFile(file, FileCloser{});
   }
 }
