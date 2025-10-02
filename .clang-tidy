@@ -27,7 +27,8 @@ Checks: >
     -cppcoreguidelines-avoid-const-or-ref-data-members,
     -cppcoreguidelines-non-private-member-variables-in-classes,
     -readability-avoid-unconditional-preprocessor-if,
-    -readability-inconsistent-declaration-parameter-name
+    -readability-inconsistent-declaration-parameter-name,
+    -readability-simplify-boolean-expr
 
 CheckOptions:
   - key:   bugprone-reserved-identifier.AllowedIdentifiers

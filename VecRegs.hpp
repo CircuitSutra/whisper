@@ -539,14 +539,14 @@ namespace WdRiscv
 
       template <typename ET, typename RT>
       Step(Operation op, ET e1, ET e2, RT res)
-        : op_(op), result_(std::bit_cast<uint_fsize_rt>(res))
+        : op_(op)
       {
         using uint_fsize_et = typename getSameWidthUintType<ET>::type;
         using uint_fsize_rt = typename getSameWidthUintType<RT>::type;
 
         operands_.at(0) = std::bit_cast<uint_fsize_et>(e1);
         operands_.at(1) = std::bit_cast<uint_fsize_et>(e2);
-        
+        result_ = std::bit_cast<uint_fsize_rt>(res);
       }
 
       static constexpr std::string_view opToStr(Operation op)
@@ -560,7 +560,7 @@ namespace WdRiscv
       }
 
       Operation op_;
-      std::array<uint64_t, 2> operands_{};
+      std::array<uint64_t, 2> operands_;
       uint64_t result_;
     };
 

@@ -73,10 +73,10 @@ struct Stats {
     int idle;
 };
 
-static std::map<int, Stats>
+static std::map<unsigned, Stats>
 get_stats()
 {
-    std::map<int, Stats> stats;
+    std::map<unsigned, Stats> stats;
 
     std::ifstream file;
     file.open("/proc/stat");
@@ -114,6 +114,7 @@ get_stats()
                 case 2: core_stats.nice   = std::stoi(stat); break;
                 case 3: core_stats.system = std::stoi(stat); break;
                 case 4: core_stats.idle   = std::stoi(stat); break;
+                default: assert(false);
             }
         }
         stats[core] = core_stats;
@@ -226,6 +227,7 @@ get_cpubind_cmd(unsigned cores, double max_load, std::string& error)
     return command;
 }
 
+// NOLINTBEGIN(*-avoid-c-arrays, cppcoreguidelines-pro-bounds-pointer-arithmetic)
 void
 attempt_numactl(int argc, char * argv[], unsigned cores, double max_load)
 {
@@ -251,3 +253,4 @@ attempt_numactl(int argc, char * argv[], unsigned cores, double max_load)
     std::cout << "\n";
     execvp(command_args[0], command_args.data());
 }
+// NOLINTEND(*-avoid-c-arrays, cppcoreguidelines-pro-bounds-pointer-arithmetic)
