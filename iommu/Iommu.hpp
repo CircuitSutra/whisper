@@ -554,6 +554,10 @@ namespace TT_IOMMU
     bool isAtsPrgrCommand(const AtsCommand& cmd) const
     { return cmd.isPrgr(); }
 
+    /// Return true if the given command is an IODIR command (has the correct opcode).
+    bool isIodirCommand(const AtsCommand& cmd) const
+    { return cmd.isIodir(); }
+
     /// Return true if the given command is an IOFENCE command (has the correct opcode).
     bool isIofenceCommand(const AtsCommand& cmd) const
     { return cmd.isIofence(); }
@@ -576,6 +580,9 @@ namespace TT_IOMMU
     
     /// Execute an ATS.PRGR command for page request group response
     void executeAtsPrgrCommand(const AtsCommandData& cmdData);
+
+    /// Execute an IODIR command
+    void executeIodirCommand(const AtsCommandData& cmdData);
 
     /// Execute an IOFENCE.C command for command queue fence
     void executeIofenceCCommand(const AtsCommandData& cmdData);

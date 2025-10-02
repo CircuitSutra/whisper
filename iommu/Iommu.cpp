@@ -1802,6 +1802,10 @@ Iommu::processCommandQueue()
     {
       executeAtsPrgrCommand(cmdData);
     }
+    else if (isIodirCommand(cmd))
+    {
+      executeIodirCommand(cmdData);
+    }
     else if (isIofenceCCommand(cmd))
     {
       executeIofenceCCommand(cmdData);
@@ -2063,6 +2067,20 @@ Iommu::executeAtsPrgrCommand(const AtsCommandData& cmdData)
 
   // Suppress unused variable warnings
   (void)devId; (void)pid; (void)pv; (void)prgi; (void)resp_code; (void)dsv; (void)dseg;
+}
+
+void
+Iommu::executeIodirCommand(const AtsCommandData& cmdData)
+{
+  // TODO
+  IodirCommand cmd;
+  cmd = *reinterpret_cast<const IodirCommand*>(&cmdData);
+  bool isInvalDdt = cmd.func3 == IodirFunc::INVAL_DDT;
+  bool isInvalPdt = cmd.func3 == IodirFunc::INVAL_PDT;
+  if (isInvalDdt)
+    printf("IODIR.INVAL_DDT: PID=%ld, DV=%ld, DID=%ld \n", cmd.PID, cmd.DV, cmd.DID);
+  if (isInvalPdt)
+    printf("IODIR.INVAL_PDT: PID=%ld, DV=%ld, DID=%ld \n", cmd.PID, cmd.DV, cmd.DID);
 }
 
 void 
