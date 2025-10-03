@@ -32,7 +32,8 @@ Checks: >
     -cppcoreguidelines-avoid-do-while,
     -cppcoreguidelines-pro-type-vararg,
     -modernize-macro-to-enum,
-    -bugprone-assignment-in-if-condition
+    -bugprone-assignment-in-if-condition,
+    -readability-suspicious-call-argument
 
 CheckOptions:
   - key:   bugprone-reserved-identifier.AllowedIdentifiers
