@@ -522,7 +522,7 @@ Hart<URV>::execSm3p0(const DecodedInst* di)
     }
 
   uint32_t r1     = intRegs_.read(di->op1());
-  int32_t  sres32 = static_cast<int32_t>(r1 ^ rol(r1, 9) ^ rol(r1, 17));
+  auto  sres32 = static_cast<int32_t>(r1 ^ rol(r1, 9) ^ rol(r1, 17));
   SRV      res    = sres32;  // sign extend.
 
   intRegs_.write(di->op0(), res);
@@ -540,7 +540,7 @@ Hart<URV>::execSm3p1(const DecodedInst* di)
     }
 
   uint32_t r1     = intRegs_.read(di->op1());
-  int32_t  sres32 = static_cast<int32_t>(r1 ^ rol(r1, 15) ^ rol(r1, 23));
+  auto  sres32 = static_cast<int32_t>(r1 ^ rol(r1, 15) ^ rol(r1, 23));
   SRV      res    = sres32;  // sign extend.
 
   intRegs_.write(di->op0(), res);
