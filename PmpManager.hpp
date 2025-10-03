@@ -561,6 +561,6 @@ namespace WdRiscv
 
     // PMPs used in most recent instruction
     mutable std::vector<PmpTrace> pmpTrace_;
-    AccessReason reason_;
+    AccessReason reason_{};
   };
 }

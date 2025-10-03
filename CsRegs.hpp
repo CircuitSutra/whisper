@@ -661,7 +661,7 @@ namespace WdRiscv
 
     struct Field
     {
-      std::string field;
+      std::string field{};
       unsigned width = 0U;
     };
 
@@ -834,7 +834,7 @@ namespace WdRiscv
 
   private:
 
-    std::string name_;
+    std::string name_{};
     unsigned number_ = 0;
     bool mandatory_ = false;     // True if mandated by architecture.
     bool implemented_ = false;   // True if register is implemented.
@@ -860,16 +860,16 @@ namespace WdRiscv
     URV pokeMask_ = ~URV(0);
     URV readMask_ = ~URV(0);  // Used for sstatus.
 
-    std::vector<std::function<void(Csr<URV>&, URV)>> postPoke_;
-    std::vector<std::function<void(Csr<URV>&, URV)>> postWrite_;
+    std::vector<std::function<void(Csr<URV>&, URV)>> postPoke_{};
+    std::vector<std::function<void(Csr<URV>&, URV)>> postWrite_{};
 
-    std::vector<std::function<void(Csr<URV>&, URV&)>> prePoke_;
-    std::vector<std::function<void(Csr<URV>&, URV&)>> preWrite_;
+    std::vector<std::function<void(Csr<URV>&, URV&)>> prePoke_{};
+    std::vector<std::function<void(Csr<URV>&, URV&)>> preWrite_{};
 
-    std::vector<std::function<void(Csr<URV>&)>> postReset_;
+    std::vector<std::function<void(Csr<URV>&)>> postReset_{};
 
     // Optionally define fields within a CSR with name and widths
-    std::vector<Field> fields_;
+    std::vector<Field> fields_{};
   };
 
 

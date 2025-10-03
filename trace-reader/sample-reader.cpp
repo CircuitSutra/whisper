@@ -6,7 +6,7 @@ main(int argc, char* argv[])
 {
   using namespace WhisperUtil;
 
-  TraceReader* reader;
+  TraceReader* reader = nullptr;
 
   if (argc > 2)
     {
@@ -33,7 +33,6 @@ main(int argc, char* argv[])
 
   //reader->definePageTableMaker(0x100000000, WhisperUtil::PageTableMaker::Sv57, 4*1024*1024);
 
-  uint64_t nn = 0;
   while (reader->nextRecord(record))
     {
       reader->printRecord(std::cout, record);
@@ -42,5 +41,5 @@ main(int argc, char* argv[])
   if (not reader->eof())
     return 1;
 
-  return nn;
+  return 0;
 }

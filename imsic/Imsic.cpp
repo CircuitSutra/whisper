@@ -249,7 +249,7 @@ ImsicMgr::configureSupervisor(uint64_t addr, uint64_t stride, unsigned ids,
 bool
 ImsicMgr::configureGuests(unsigned n, unsigned ids, unsigned thresholdMax)
 {
-  if (sstride_ < static_cast<uint64_t>((n+1) * pageSize_))
+  if (sstride_ < static_cast<uint64_t>(n+1) * pageSize_)
     return false;  // No enough space.
 
   for (const auto& imsic : imsics_)

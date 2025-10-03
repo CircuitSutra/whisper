@@ -18,7 +18,7 @@ namespace WhisperUtil {
     enum Mode { Bare = 0, Sv32 = 1, Sv39 = 8, Sv48 = 9, Sv57 = 10, Sv64 = 11 };
 
     PageTableMaker(uint64_t rootPageAddr, Mode mode = Sv57,
-		   uint64_t arenaSize = 4*1024*1024)
+		   uint64_t arenaSize = uint64_t(4)*1024*1024)
       : rootPageAddr_(rootPageAddr), mode_(mode), arenaSize_(arenaSize)
     {
       if (arenaSize_ < pageSize_)
@@ -57,16 +57,16 @@ namespace WhisperUtil {
       return true;
     }
 
-    bool readPte(uint64_t addr, WdRiscv::Pte32& pte)
+    bool readPte(uint64_t addr, WdRiscv::Pte32& pte) const
     { return readMem(addr, pte.data_); }
 
-    bool readPte(uint64_t addr, WdRiscv::Pte39& pte)
+    bool readPte(uint64_t addr, WdRiscv::Pte39& pte) const
     { return readMem(addr, pte.data_); }
 
-    bool readPte(uint64_t addr, WdRiscv::Pte48& pte)
+    bool readPte(uint64_t addr, WdRiscv::Pte48& pte) const
     { return readMem(addr, pte.data_); }
 
-    bool readPte(uint64_t addr, WdRiscv::Pte57& pte)
+    bool readPte(uint64_t addr, WdRiscv::Pte57& pte) const
     { return readMem(addr, pte.data_); }
 
     bool writePte(uint64_t addr, WdRiscv::Pte32& pte)
@@ -81,22 +81,22 @@ namespace WhisperUtil {
     bool writePte(uint64_t addr, WdRiscv::Pte57& pte)
     { return writeMem(addr, pte.data_); }
 
-    bool readMem(uint64_t addr, uint32_t& word)
+    bool readMem(uint64_t addr, uint32_t& word) const
     {
       uint64_t offset = addr - rootPageAddr_;
       if (addr < rootPageAddr_ or offset + sizeof(word) - 1 >= arenaSize_)
 	return false;
-      uint32_t* ptr = reinterpret_cast<uint32_t*>(arena_ + offset);
+      const uint32_t* ptr = reinterpret_cast<const uint32_t*>(arena_ + offset);
       word = *ptr;
       return true;
     }
 
-    bool readMem(uint64_t addr, uint64_t& doubleWord)
+    bool readMem(uint64_t addr, uint64_t& doubleWord) const
     {
       uint64_t offset = addr - rootPageAddr_;
       if (addr < rootPageAddr_ or offset + sizeof(doubleWord) - 1 >= arenaSize_)
 	return false;
-      uint64_t* ptr = reinterpret_cast<uint64_t*>(arena_ + offset);
+      const uint64_t* ptr = reinterpret_cast<const uint64_t*>(arena_ + offset);
       doubleWord = *ptr;
       return true;
     }

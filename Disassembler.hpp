@@ -101,7 +101,7 @@ namespace WdRiscv
     bool abiNames_ = false;
     std::function<std::string_view(unsigned ix)> csrNameCallback_ = nullptr;
 
-    std::unordered_map<uint32_t, std::string> disasMap_;
+    std::unordered_map<uint32_t, std::string> disasMap_{};
 
     bool rv64_ = false;
   };

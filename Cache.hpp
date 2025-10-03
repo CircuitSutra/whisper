@@ -182,7 +182,7 @@ namespace TT_CACHE
 
     unsigned lineSize_ = 64;
     unsigned lineShift_ = 6;
-    std::unordered_map< uint64_t, std::vector<uint8_t>> data_;
+    std::unordered_map< uint64_t, std::vector<uint8_t>> data_{};
     std::function<bool(uint64_t, uint64_t&)> memRead_;
     std::function<bool(uint64_t, uint64_t)> memWrite_;
   };

@@ -512,7 +512,7 @@ namespace WdRiscv
     std::shared_ptr<TT_CACHE::Cache> dataCache_;
 
     // Name, size, and address in memory of a binary file.
-    typedef std::tuple<std::string, uint64_t, uint64_t> BinaryFile;
+    using BinaryFile = std::tuple<std::string, uint64_t, uint64_t>;
     std::vector<BinaryFile> binaryFiles_;
 
     std::string snapDir_ = "snapshot"; // Directory to save snapshots.

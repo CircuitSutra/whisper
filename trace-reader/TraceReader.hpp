@@ -98,7 +98,7 @@ namespace WhisperUtil  {
 
       // compare modified regs, the order may or may not match
       if (modifiedRegs.size() != rhs.modifiedRegs.size()) return false;
-      for (auto &it: modifiedRegs) {
+      for (const auto &it: modifiedRegs) {
         if (std::find(rhs.modifiedRegs.begin(), rhs.modifiedRegs.end(), it) == rhs.modifiedRegs.end()) {
           return false;
         }
@@ -106,7 +106,7 @@ namespace WhisperUtil  {
 
       // compare source operands, the order may or may not match
       if (sourceOperands.size() != rhs.sourceOperands.size()) return false;
-      for (auto &it : sourceOperands) {
+      for (const auto &it : sourceOperands) {
         if (std::find(rhs.sourceOperands.begin(), rhs.sourceOperands.end(), it) == rhs.sourceOperands.end()) {
           return false;
         }
@@ -114,7 +114,7 @@ namespace WhisperUtil  {
       
       // compare contextCSRs, ignoring the value for now
       if (contextCSRs.size() != rhs.contextCSRs.size()) return false;
-      for (auto &it : contextCSRs) {
+      for (const auto &it : contextCSRs) {
         auto rhsit = std::find_if(rhs.contextCSRs.begin(), rhs.contextCSRs.end(), [&](const std::pair<unsigned, uint64_t> &rhs) {
           return rhs.first == it.first;
         });
@@ -127,7 +127,7 @@ namespace WhisperUtil  {
 
       // compare dpteAddrs between the records
       if (dpteAddrs.size() != rhs.dpteAddrs.size()) return false;
-      for (auto &it : dpteAddrs) {
+      for (const auto &it : dpteAddrs) {
         auto rhsit = std::find(rhs.dpteAddrs.begin(), rhs.dpteAddrs.end(), it);
         if (rhsit == rhs.dpteAddrs.end()) return false;
       }
@@ -156,7 +156,7 @@ namespace WhisperUtil  {
 
       // compare modified regs, the order may or may not match
       if (modifiedRegs.size() != rhs.modifiedRegs.size()) return true;
-      for (auto &it: modifiedRegs) {
+      for (const auto &it: modifiedRegs) {
         if (std::find(rhs.modifiedRegs.begin(), rhs.modifiedRegs.end(), it) == rhs.modifiedRegs.end()) {
           return true;
         }
@@ -164,14 +164,14 @@ namespace WhisperUtil  {
 
       // compare source operands, the order may or may not match
       if (sourceOperands.size() != rhs.sourceOperands.size()) return true;
-      for (auto &it : sourceOperands) {
+      for (const auto &it : sourceOperands) {
         if (std::find(rhs.sourceOperands.begin(), rhs.sourceOperands.end(), it) == rhs.sourceOperands.end()) {
           return true;
         }
       }
 
       if (contextCSRs.size() != rhs.contextCSRs.size()) return true;
-      for (auto &it : contextCSRs) {
+      for (const auto &it : contextCSRs) {
         auto rhsit = std::find_if(rhs.contextCSRs.begin(), rhs.contextCSRs.end(), [&](const std::pair<unsigned, uint64_t> &rhs) {
           return rhs.first == it.first;
         });
@@ -183,7 +183,7 @@ namespace WhisperUtil  {
       if (maskedAddrs != rhs.maskedAddrs) return true;
 
       if (dpteAddrs.size() != rhs.dpteAddrs.size()) return true;
-      for (auto &it : dpteAddrs) {
+      for (const auto &it : dpteAddrs) {
         auto rhsit = std::find(rhs.dpteAddrs.begin(), rhs.dpteAddrs.end(), it);
         if (rhsit == rhs.dpteAddrs.end()) return true;
       }
@@ -487,7 +487,7 @@ namespace WhisperUtil  {
 
   private:
 
-    typedef std::vector<uint8_t> VecReg;
+    using VecReg = std::vector<uint8_t>;
 
     std::vector<uint64_t> intRegs_;
     std::vector<uint64_t> fpRegs_;

@@ -38,7 +38,17 @@ namespace std
 
 inline auto copysign(Float16 a, Float16 b)
 {
-  return __builtin_copysignf16(a, b);
+  union UF
+  {
+    UF(Float16 x) : f(x)
+    { }
+    uint16_t u;
+    Float16 f;
+  };
+
+  UF aa{a}, bb{b};
+  aa.u = (aa.u & 0x7fff) | (bb.u & 0x8000);
+  return aa.f;
 }
 
 inline auto fmax(Float16 a, Float16 b)

@@ -121,8 +121,8 @@ namespace WdRiscv
     uint64_t memValue = 0;     // Value of changed memory if any.
 
     // An exception will result in changing multiple CSRs.
-    std::vector<CsrNumber> csrIx;   // Numbers of changed CSRs if any.
-    std::vector<uint64_t> csrValue; // Values of changed CSRs if any.
+    std::vector<CsrNumber> csrIx{};   // Numbers of changed CSRs if any.
+    std::vector<uint64_t> csrValue{}; // Values of changed CSRs if any.
   };
 
   /// Model a RISCV hart with integer registers of type URV (uint32_t

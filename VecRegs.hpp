@@ -559,9 +559,9 @@ namespace WdRiscv
         return vec.at(op);
       }
 
-      Operation op_;
+      Operation op_{};
       std::array<uint64_t, 2> operands_{};
-      uint64_t result_ = 0;
+      uint64_t result_{0};
     };
 
     /// Incremental floating point flag changes from last vector instruction.
@@ -678,8 +678,8 @@ namespace WdRiscv
       if (byteIx >= bytesPerReg_)
         return false;
 
-      const uint8_t* data = data_.data() + static_cast<std::size_t>(maskReg)*bytesPerReg_;
-      return (data[byteIx] >> bitIx) & 1;
+      size_t offset = size_t(maskReg)*bytesPerReg_;
+      return (data_.at(offset+byteIx) >> bitIx) & 1;
     }
 
     /// Return true if element at index ix of vector destination is active;
