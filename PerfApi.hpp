@@ -620,7 +620,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
       auto& packetMap = hartPacketMaps_.at(hartIx);
       if (not packetMap.empty() and packetMap.rbegin()->first >= tag)
 	assert(0 and "Inserted packet with tag newer than oldest tag.");
-      packetMap[tag] = std::move(ptr);
+      packetMap[tag] = ptr;
     }
 
     std::shared_ptr<Hart64> checkHart(const char* caller, unsigned hartIx);

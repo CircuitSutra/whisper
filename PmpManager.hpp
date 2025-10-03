@@ -20,6 +20,7 @@
 #include <optional>
 #include <iostream>
 #include <bit>
+#include <cassert>
 #include "virtual_memory/trapEnums.hpp"
 
 namespace WdRiscv

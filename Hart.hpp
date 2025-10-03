@@ -848,7 +848,7 @@ namespace WdRiscv
     /// Set the output file in which to dump the state of accessed
     /// memory lines. Return true on success and false if file cannot
     /// be opened.
-    void setInitialStateFile(util::file::SharedFile file)
+    void setInitialStateFile(const util::file::SharedFile& file)
     { initStateFile_ = file; }
 
     /// Disassemble given instruction putting results into the given
