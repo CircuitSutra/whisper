@@ -130,7 +130,7 @@ Hart<URV>::vbrev_v(unsigned vd, unsigned vs1, unsigned group,
 {
   ELEM_TYPE e1 = 0, dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -201,7 +201,7 @@ Hart<URV>::vbrev8_v(unsigned vd, unsigned vs1, unsigned group,
 {
   ELEM_TYPE e1 = 0, dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -272,7 +272,7 @@ Hart<URV>::vrev8_v(unsigned vd, unsigned vs1, unsigned group,
 {
   ELEM_TYPE e1 = 0, dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -343,7 +343,7 @@ Hart<URV>::vclz_v(unsigned vd, unsigned vs1, unsigned group,
 {
   ELEM_TYPE e1 = 0, dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -414,7 +414,7 @@ Hart<URV>::vctz_v(unsigned vd, unsigned vs1, unsigned group,
 {
   ELEM_TYPE e1 = 0, dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -485,7 +485,7 @@ Hart<URV>::vcpop_v(unsigned vd, unsigned vs1, unsigned group,
 {
   ELEM_TYPE e1 = 0, dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -558,7 +558,7 @@ Hart<URV>::vrol_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 
   MyRol myRol;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -633,7 +633,7 @@ Hart<URV>::vrol_vx(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned group,
 
   MyRol myRol;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -708,7 +708,7 @@ Hart<URV>::vror_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 
   MyRor myRor;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -783,7 +783,7 @@ Hart<URV>::vror_vx(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned group,
 
   MyRor myRor;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -863,7 +863,7 @@ Hart<URV>::execVror_vi(const DecodedInst* di)
 
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  vs1 = di->op1();
-  int32_t imm = di->op2As<int32_t>();
+  auto imm = di->op2As<int32_t>();
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
   unsigned elems = vecRegs_.elemMax();
   ElementWidth sew = vecRegs_.elemWidth();
@@ -910,7 +910,7 @@ Hart<URV>::vwsll_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 
   MySll mySll;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group*2);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group*2);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -942,7 +942,7 @@ Hart<URV>::execVwsll_vv(const DecodedInst* di)
     return;
 
   unsigned group = vecRegs_.groupMultiplierX8();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -994,7 +994,7 @@ Hart<URV>::vwsll_vx(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned group,
 
   MySll mySll;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group*2);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group*2);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -1027,7 +1027,7 @@ Hart<URV>::execVwsll_vx(const DecodedInst* di)
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  vs1 = di->op1(),  rs2 = di->op2();
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -1084,7 +1084,7 @@ Hart<URV>::execVwsll_vi(const DecodedInst* di)
   uint32_t imm = di->op2();
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
 
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -2391,19 +2391,19 @@ Hart<URV>::execVsm4k_vi(const DecodedInst* di)
 	  vecRegs_.read(vs1, i, groupx8, e1);
 	  auto [rk0, rk1, rk2, rk3] = toQuarters(e1);
 
-	  uint32_t b = rk1 ^ rk2 ^ rk3 ^ ck[std::size_t{4} * rnd];
+	  uint32_t b = rk1 ^ rk2 ^ rk3 ^ ck.at(std::size_t{4} * rnd);
 	  uint32_t s = sm4_subword(b);
 	  uint32_t rk4 = round_key(rk0, s);
 
-	  b = rk2 ^ rk3 ^ rk4 ^ ck[std::size_t{4} * rnd + 1];
+	  b = rk2 ^ rk3 ^ rk4 ^ ck.at(std::size_t{4} * rnd + 1);
 	  s = sm4_subword(b);
 	  uint32_t rk5 = round_key(rk1, s);
 
-	  b = rk3 ^ rk4 ^ rk5 ^ ck[std::size_t{4} * rnd + 2];
+	  b = rk3 ^ rk4 ^ rk5 ^ ck.at(std::size_t{4} * rnd + 2);
 	  s = sm4_subword(b);
 	  uint32_t rk6 = round_key(rk2, s);
 
-	  b = rk4 ^ rk5 ^ rk6 ^ ck[std::size_t{4} * rnd + 3];
+	  b = rk4 ^ rk5 ^ rk6 ^ ck.at(std::size_t{4} * rnd + 3);
 	  s = sm4_subword(b);
 	  uint32_t rk7 = round_key(rk3, s);
 

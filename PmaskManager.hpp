@@ -14,6 +14,15 @@
 
 #pragma once
 
+#include <cstdint>
+#include <vector>
+#include <string_view>
+#include <array>
+#include <unordered_map>
+#include <cassert>
+
+#include "virtual_memory/trapEnums.hpp"
+
 namespace WdRiscv
 {
 

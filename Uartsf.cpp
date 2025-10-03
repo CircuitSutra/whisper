@@ -96,7 +96,7 @@ Uartsf::monitorInput()
 	      char c = 0;
 	      if (::read(fd, &c, sizeof(c)) != 1)
 		std::cerr << "Error: Uartsf::monitorInput: unexpected fail on read\n";
-	      regs_.at(RX_FIFO) = c;
+	      regs_.at(RX_FIFO) = std::bit_cast<unsigned char>(c);
 	      // setInterruptPending(true);
 	    }
 	}

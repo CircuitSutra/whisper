@@ -15,6 +15,9 @@
 #pragma once
 
 #include <cstdint>
+#include <cassert>
+#include <algorithm>
+#include <vector>
 
 namespace WdRiscv
 {

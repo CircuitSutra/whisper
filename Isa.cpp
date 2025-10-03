@@ -424,6 +424,7 @@ extractVersion(std::string_view isa, size_t& i, std::string_view& version,
 bool
 Isa::configIsa(std::string_view isa)
 {
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
   return applyIsaString(isa);
 }
 
@@ -488,6 +489,7 @@ Isa::applyIsaString(std::string_view isaStr)
 
   // Split string around '_'.
   std::vector<std::string> tokens;
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
   boost::split(tokens, isa, boost::is_any_of("_"));
   if (tokens.empty() or (tokens.size() == 1 and tokens[0].empty()))
     {
