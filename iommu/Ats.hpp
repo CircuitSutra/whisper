@@ -85,14 +85,7 @@ namespace TT_IOMMU
     uint64_t      address   : 52 = 0UL; 
 
     // Constructor to initialize opcode and func3
-    AtsInvalCommand()
-    {
-      
-      
-      
-      
-      
-    }
+    AtsInvalCommand() = default;
   };
 
   // ATS.PRGR command structure
@@ -114,16 +107,7 @@ namespace TT_IOMMU
     uint64_t      destId        : 16{0}; 
 
     // Constructor to initialize opcode and func3
-    AtsPrgrCommand()
-    {
-      
-      
-      
-      
-      
-      
-      
-    }
+    AtsPrgrCommand() = default;
   };
   
   // IOFENCE.C command structure based on specification
@@ -141,18 +125,7 @@ namespace TT_IOMMU
     uint64_t        reserved1   : 2 = 0UL;
 
     // Constructor to initialize opcode and func3
-    IofenceCCommand()
-    {
-      
-      
-      
-      
-      
-      
-      
-      
-      
-    }
+    IofenceCCommand() = default;
   };
 
   // IOTINVAL command structure for page table cache invalidation (both VMA and GVMA)
@@ -171,27 +144,9 @@ namespace TT_IOMMU
     uint64_t        ADDR        : 52{0}; // Address[63:12] for page-aligned addresses (bits 74-125)
     uint64_t        reserved3   : 2{0};  // Reserved bits (bits 126-127)
 
-    // Default constructor
-    IotinvalCommand()
-    {
-      
-       // Default to VMA
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
-    }
-
     // Constructor for VMA command
-    IotinvalCommand(IotinvalFunc func) : IotinvalCommand()
+    IotinvalCommand(IotinvalFunc func = IotinvalFunc::VMA) : func3(func)
     {
-      func3 = func;
       if (func == IotinvalFunc::GVMA) {
         PSCV = 0;  // Must be 0 for GVMA per specification
       }

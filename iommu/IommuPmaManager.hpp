@@ -304,12 +304,14 @@ namespace TT_IOMMU
     /// region.
     bool overlapsMemMappedRegs(uint64_t start, uint64_t end) const
     {
+      // NOLINTBEGIN(readability-use-anyofallof)
       for (const auto& region : memMappedRanges_)
         {
           auto [low, high] = region;
           if (end >= low && start <= high)
             return true;
         }
+      // NOLINTEND(readability-use-anyofallof)
 
       return false;
     }

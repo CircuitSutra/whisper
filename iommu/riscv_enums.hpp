@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 // Temporary until we consolidate basic types in Whisper.
 
 namespace TT_IOMMU
