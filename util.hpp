@@ -141,7 +141,7 @@ namespace util
     {
       FileCloser(FileCloseF f) : f_(f) {};
 
-      void operator()(FILE* file) const {
+      void operator()(gsl::owner<FILE*> file) const {
         if (not file or file == stdout or file == stderr)
           return;
         if (f_ == FileCloseF::FCLOSE)
@@ -156,14 +156,25 @@ namespace util
     using SharedFile = std::shared_ptr<FILE>;
 
     inline SharedFile make_shared_file(gsl::owner<FILE*> file, FileCloseF f = FileCloseF::FCLOSE) {
-        return SharedFile(file, FileCloser{f});
+        return { file, FileCloser{f} };
     }
   }
 
   template <typename T>
     requires std::is_arithmetic_v<T>
-  auto view_bytes_as_span_of(std::span<uint8_t> bytes) -> std::span<const T> {
-    assert(bytes.size() % sizeof(sizeof(T)) == 0);
+  auto view_bytes_as_span_of(std::span<const unsigned char> bytes) -> std::span<const T> {
+    assert((bytes.size() % sizeof(T)) == 0);
+    return std::span<const T>(
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+        reinterpret_cast<const T*>(bytes.data()),
+        bytes.size() / sizeof(T)
+    );
+  }
+
+  template <typename T>
+    requires std::is_arithmetic_v<T>
+  auto view_bytes_as_span_of(std::span<const char> bytes) -> std::span<const T> {
+    assert((bytes.size() % sizeof(T)) == 0);
     return std::span<const T>(
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
         reinterpret_cast<const T*>(bytes.data()),

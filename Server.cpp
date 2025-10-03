@@ -36,14 +36,14 @@ using namespace WdRiscv;
 static bool
 receiveMessage(int soc, WhisperMessage& msg)
 {
-  std::array<char, sizeof(msg)> buffer;
-  char* p = buffer.data();
+  std::array<char, sizeof(msg)> buffer{};
+  unsigned offset = 0;
 
   size_t remain = buffer.size();
 
   while (remain > 0)
     {
-      ssize_t l = recv(soc, p, remain, 0);
+      ssize_t l = recv(soc, &buffer.at(offset), remain, 0);
       if (l < 0)
 	{
 	  if (errno == EINTR)
@@ -57,7 +57,7 @@ receiveMessage(int soc, WhisperMessage& msg)
 	  return true;
 	}
       remain -= l;
-      p += l;
+      offset += l;
     }
 
   msg = WhisperMessage::deserializeFrom(buffer);
@@ -69,16 +69,16 @@ receiveMessage(int soc, WhisperMessage& msg)
 static bool
 sendMessage(int soc, const WhisperMessage& msg)
 {
-  std::array<char, sizeof(msg)> buffer;
+  std::array<char, sizeof(msg)> buffer{};
+  unsigned offset = 0;
 
   msg.serializeTo(buffer);
 
   // Send command.
   ssize_t remain = buffer.size();
-  char* p = buffer.data();
   while (remain > 0)
     {
-      ssize_t l = send(soc, p, remain , MSG_NOSIGNAL);
+      ssize_t l = send(soc, &buffer.at(offset), remain , MSG_NOSIGNAL);
       if (l < 0)
 	{
 	  if (errno == EINTR)
@@ -87,7 +87,7 @@ sendMessage(int soc, const WhisperMessage& msg)
 	  return false;
 	}
       remain -= l;
-      p += l;
+      offset += l;
     }
 
   return true;
@@ -98,9 +98,11 @@ static bool
 receiveMessage(std::span<char> shm, WhisperMessage& msg)
 {
   // reserve first byte for locking
-  std::atomic_char* guard = (std::atomic_char*) shm.data();
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
+  auto* guard = (std::atomic_char*) shm.data();
   while (std::atomic_load(guard) != 's');
   // Byte alignment for WhisperMessage - get next address after guard aligned on 4-byte boundary.
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
   std::span<char> buffer = shm.subspan(sizeof(uint32_t) - (reinterpret_cast<uintptr_t>(shm.data()) % sizeof(uint32_t)));
   msg = WhisperMessage::deserializeFrom(buffer);
   return true;
@@ -111,9 +113,11 @@ static bool
 sendMessage(std::span<char> shm, const WhisperMessage& msg)
 {
   // reserve first byte for locking
-  std::atomic_char* guard = (std::atomic_char*) shm.data();
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
+  auto* guard = (std::atomic_char*) shm.data();
   while (std::atomic_load(guard) != 's'); // redundant
   // Byte alignment for WhisperMessage - get next address after guard aligned on 4-byte boundary.
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
   std::span<char> buffer = shm.subspan(sizeof(uint32_t) - (reinterpret_cast<uintptr_t>(shm.data()) % sizeof(uint32_t)));
   msg.serializeTo(buffer);
   std::atomic_store(guard, 'c');
@@ -144,8 +148,8 @@ Server<URV>::pokeCommand(const WhisperMessage& req, WhisperMessage& reply, Hart<
     {
     case 'r':
       {
-	unsigned reg = static_cast<unsigned>(req.address);
-	URV val = static_cast<URV>(req.value);
+	auto reg = static_cast<unsigned>(req.address);
+	auto val = static_cast<URV>(req.value);
 	if (reg == req.address)
 	  if (hart.pokeIntReg(reg, val))
 	    return true;
@@ -154,7 +158,7 @@ Server<URV>::pokeCommand(const WhisperMessage& req, WhisperMessage& reply, Hart<
 
     case 'f':
       {
-	unsigned reg = static_cast<unsigned>(req.address);
+	auto reg = static_cast<unsigned>(req.address);
 	uint64_t val = req.value;
 	if (reg == req.address)
 	  if (hart.pokeFpReg(reg, val))
@@ -164,7 +168,7 @@ Server<URV>::pokeCommand(const WhisperMessage& req, WhisperMessage& reply, Hart<
 
     case 'c':
       {
-	URV val = static_cast<URV>(req.value);
+	auto val = static_cast<URV>(req.value);
         bool virtMode = WhisperFlags{req.flags}.bits.virt;
 	if (hart.externalPokeCsr(CsrNumber(req.address), val, virtMode))
 	  return true;
@@ -173,13 +177,13 @@ Server<URV>::pokeCommand(const WhisperMessage& req, WhisperMessage& reply, Hart<
 
     case 'v':
       {
-        unsigned reg = static_cast<unsigned>(req.address);
+        auto reg = static_cast<unsigned>(req.address);
         // vector reg poke uses the buffer instead
         if (reg == req.address and req.size <= req.buffer.size())
           {
             std::vector<uint8_t> vecVal;
             for (uint32_t i = 0; i < req.size; ++i)
-              vecVal.push_back(req.buffer[i]);
+              vecVal.push_back(req.buffer.at(i));
             std::reverse(vecVal.begin(), vecVal.end());
             if (hart.pokeVecReg(reg, vecVal))
               return true;
@@ -242,12 +246,13 @@ Server<URV>::pokeCommand(const WhisperMessage& req, WhisperMessage& reply, Hart<
           hart.setDeferredInterrupts(val);
         else if (req.address == WhisperSpecialResource::Seipin)
 	  hart.setSeiPin(val);
-	else
+        else
           ok = false;
         if (ok)
           return true;
         break;
       }
+    default: ;
     }
 
   reply.type = Invalid;
@@ -267,7 +272,7 @@ Server<URV>::peekCommand(const WhisperMessage& req, WhisperMessage& reply, Hart<
     {
     case 'r':
       {
-	unsigned reg = static_cast<unsigned>(req.address);
+	auto reg = static_cast<unsigned>(req.address);
 	if (reg == req.address)
 	  if (hart.peekIntReg(reg, value))
 	    {
@@ -278,7 +283,7 @@ Server<URV>::peekCommand(const WhisperMessage& req, WhisperMessage& reply, Hart<
       break;
     case 'f':
       {
-	unsigned reg = static_cast<unsigned>(req.address);
+	auto reg = static_cast<unsigned>(req.address);
 	uint64_t fpVal = 0;
 	if (reg == req.address)
 	  if (hart.peekFpReg(reg, fpVal))
@@ -311,7 +316,7 @@ Server<URV>::peekCommand(const WhisperMessage& req, WhisperMessage& reply, Hart<
       break;
     case 'v':
       {
-        unsigned reg = static_cast<unsigned>(req.address);
+        auto reg = static_cast<unsigned>(req.address);
         if (reg == req.address)
           {
             std::vector<uint8_t> vecVal;
@@ -319,7 +324,7 @@ Server<URV>::peekCommand(const WhisperMessage& req, WhisperMessage& reply, Hart<
               {
                 std::reverse(vecVal.begin(), vecVal.end());
                 for (unsigned i = 0; i < vecVal.size(); ++i)
-                  reply.buffer[i] = vecVal.at(i);
+                  reply.buffer.at(i) = std::bit_cast<char>(vecVal.at(i));
                 return true;
               }
           }
@@ -353,12 +358,12 @@ Server<URV>::peekCommand(const WhisperMessage& req, WhisperMessage& reply, Hart<
               std::vector<uint8_t> fpFlags; std::vector<uint8_t> vxsat;
               std::vector<VecRegs::Step> steps;
               hart.lastIncVec(fpFlags, vxsat, steps);
-              assert((fpFlags.size() != 0 and vxsat.size() == 0) or
-                     (fpFlags.size() == 0 and vxsat.size() != 0));
+              assert((not fpFlags.empty() and vxsat.empty()) or
+                     (fpFlags.empty() and  not vxsat.empty()));
               for (unsigned i = 0; i < fpFlags.size(); ++i)
-                reply.buffer[i] = fpFlags.at(i);
+                reply.buffer.at(i) = std::bit_cast<char>(fpFlags.at(i));
               for (unsigned i = 0; i < vxsat.size(); ++i)
-                reply.buffer[i] = vxsat.at(i);
+                reply.buffer.at(i) = std::bit_cast<char>(vxsat.at(i));
               return true;
             }
 	  case WhisperSpecialResource::Trap:
@@ -383,8 +388,7 @@ Server<URV>::peekCommand(const WhisperMessage& req, WhisperMessage& reply, Hart<
                   reply.value = pma.attributesToInt();
                   return true;
                 }
-              else
-                break;
+              break;
             }
           case WhisperSpecialResource::LastLdStAddress:
             {
@@ -400,13 +404,14 @@ Server<URV>::peekCommand(const WhisperMessage& req, WhisperMessage& reply, Hart<
       }
     case 'i':
       {
-        uint32_t inst;
+        uint32_t inst = 0;
         if (hart.readInst(req.address, inst))
           {
             reply.value = inst;
             return true;
           }
       }
+    default: ;
     }
 
   reply.type = Invalid;
@@ -646,7 +651,7 @@ Server<URV>::stepCommand(const WhisperMessage& req,
 {
   reply = req;
 
-  unsigned pm = unsigned(hart.privilegeMode());
+  auto pm = unsigned(hart.privilegeMode());
 
   // Execute instruction. Determine if an interrupt was taken or if a
   // trigger got tripped.
@@ -783,31 +788,29 @@ Server<URV>::mcmReadCommand(const WhisperMessage& req, WhisperMessage& reply,
 	  uint64_t size = req.size, time = req.time, tag = req.instrTag, addr = req.address;
 	  if ((size & 0x7) == 0 and (addr & 0x7) == 0)
 	    {
-	      const uint64_t* data = reinterpret_cast<const uint64_t*>(req.buffer.data());
-	      for (unsigned i = 0; i < size and ok; i += 8, ++data)
-		ok = system_.mcmRead(hart, time, tag, addr + i, 8, *data, elem, field);
+              auto data = util::view_bytes_as_span_of<uint64_t>(req.buffer);
+	      for (unsigned i = 0; i < size and ok; ++i, addr += 8)
+		ok = system_.mcmRead(hart, time, tag, addr, 8, data[i], elem, field);
 	    }
 	  else if ((size & 0x3) == 0 and (addr & 0x3) == 0)
 	    {
-	      const uint32_t* data = reinterpret_cast<const uint32_t*>(req.buffer.data());
-	      for (unsigned i = 0; i < size and ok; i += 4, ++data)
-		ok = system_.mcmRead(hart, time, tag, addr + i, 4, *data, elem, field);
+              auto data = util::view_bytes_as_span_of<uint32_t>(req.buffer);
+	      for (unsigned i = 0; i < size and ok; ++i, addr += 4)
+		ok = system_.mcmRead(hart, time, tag, addr, 4, data[i], elem, field);
 	    }
 	  else
 	    {
-	      const uint8_t* data = reinterpret_cast<const uint8_t*>(req.buffer.data());
-	      for (unsigned i = 0; i < size and ok; ++i, ++data)
-		ok = system_.mcmRead(hart, time, tag, addr + i, 1, *data, elem, field);
+	      for (unsigned i = 0; i < size and ok; ++i, ++addr)
+		ok = system_.mcmRead(hart, time, tag, addr + i, 1, req.buffer.at(i), elem, field);
 	    }
 
 	  if (cmdLog)
 	    {
 	      fprintf(cmdLog, "hart=%" PRIu32 " time=%" PRIu64 " mread %" PRIu64 " 0x%" PRIx64 " %" PRIu32 " 0x",
 		      hartId, req.time, req.instrTag, req.address, req.size);
-	      const uint8_t* data = reinterpret_cast<const uint8_t*>(req.buffer.data());
 	      for (unsigned i = req.size; i > 0; --i)
 		{
-		  unsigned val = data[i-1];
+		  unsigned val = std::bit_cast<uint8_t>(req.buffer.at(i-1));
 		  fprintf(cmdLog, "%02x", val);
 		}
 	      fprintf(cmdLog, " %d %d\n", elem, field);
@@ -854,31 +857,29 @@ Server<URV>::mcmInsertCommand(const WhisperMessage& req, WhisperMessage& reply,
 	  uint64_t size = req.size, time = req.time, tag = req.instrTag, addr = req.address;
 	  if ((size & 0x7) == 0 and (addr & 0x7) == 0)
 	    {
-	      const uint64_t* data = reinterpret_cast<const uint64_t*>(req.buffer.data());
-	      for (unsigned i = 0; i < size and ok; i += 8, ++data)
-		ok = system_.mcmMbInsert(hart, time, tag, addr + i, 8, *data, elem, field);
+              auto data = util::view_bytes_as_span_of<uint64_t>(req.buffer);
+	      for (unsigned i = 0; i < size and ok; ++i, addr += 8)
+		ok = system_.mcmMbInsert(hart, time, tag, addr, 8, data[i], elem, field);
 	    }
 	  else if ((size & 0x3) == 0 and (addr & 0x3) == 0)
 	    {
-	      const uint32_t* data = reinterpret_cast<const uint32_t*>(req.buffer.data());
-	      for (unsigned i = 0; i < size and ok; i += 4, ++data)
-		ok = system_.mcmMbInsert(hart, time, tag, addr + i, 4, *data, elem, field);
+              auto data = util::view_bytes_as_span_of<uint64_t>(req.buffer);
+	      for (unsigned i = 0; i < size and ok; ++i, addr += 4)
+		ok = system_.mcmMbInsert(hart, time, tag, addr, 4, data[i], elem, field);
 	    }
 	  else
 	    {
-	      const uint8_t* data = reinterpret_cast<const uint8_t*>(req.buffer.data());
-	      for (unsigned i = 0; i < size and ok; ++i, ++data)
-		ok = system_.mcmMbInsert(hart, time, tag, addr + i, 1, *data, elem, field);
+	      for (unsigned i = 0; i < size and ok; ++i)
+		ok = system_.mcmMbInsert(hart, time, tag, addr + i, 1, req.buffer.at(i), elem, field);
 	    }
 
 	  if (cmdLog)
 	    {
 	      fprintf(cmdLog, "hart=%" PRIu32 " time=%" PRIu64 " mbinsert %" PRIu64 " 0x%" PRIx64 " %" PRIu32 " 0x",
 		      hartId, req.time, req.instrTag, req.address, req.size);
-	      const uint8_t* data = reinterpret_cast<const uint8_t*>(req.buffer.data());
 	      for (unsigned i = req.size; i > 0; --i)
 		{
-		  unsigned val = data[i-1];
+		  unsigned val = std::bit_cast<uint8_t>(req.buffer.at(i-1));
 		  fprintf(cmdLog, "%02x", val);
 		}
 	      fprintf(cmdLog, " %d %d\n", elem, field);
@@ -926,31 +927,29 @@ Server<URV>::mcmBypassCommand(const WhisperMessage& req, WhisperMessage& reply,
           bool cache = WhisperFlags{req.flags}.bits.cache;
 	  if ((size & 0x7) == 0 and (addr & 0x7) == 0)
 	    {
-	      const uint64_t* data = reinterpret_cast<const uint64_t*>(req.buffer.data());
-	      for (unsigned i = 0; i < size and ok; i += 8, ++data)
-		ok = system_.mcmBypass(hart, time, tag, addr + i, 8, *data, elem, field, cache);
+              auto data = util::view_bytes_as_span_of<uint64_t>(req.buffer);
+	      for (unsigned i = 0; i < size and ok; ++i, addr += 8)
+		ok = system_.mcmBypass(hart, time, tag, addr, 8, data[i], elem, field, cache);
 	    }
 	  else if ((size & 0x3) == 0 and (addr & 0x3) == 0)
 	    {
-	      const uint32_t* data = reinterpret_cast<const uint32_t*>(req.buffer.data());
-	      for (unsigned i = 0; i < size and ok; i += 4, ++data)
-		ok = system_.mcmBypass(hart, time, tag, addr + i, 4, *data, elem, field, cache);
+              auto data = util::view_bytes_as_span_of<uint64_t>(req.buffer);
+	      for (unsigned i = 0; i < size and ok; ++i, addr += 4)
+		ok = system_.mcmBypass(hart, time, tag, addr, 4, data[i], elem, field, cache);
 	    }
 	  else
 	    {
-	      const uint8_t* data = reinterpret_cast<const uint8_t*>(req.buffer.data());
-	      for (unsigned i = 0; i < size and ok; ++i, ++data)
-		ok = system_.mcmBypass(hart, time, tag, addr + i, 1, *data, elem, field, cache);
+	      for (unsigned i = 0; i < size and ok; ++i, ++addr)
+		ok = system_.mcmBypass(hart, time, tag, addr, 1, req.buffer.at(i), elem, field, cache);
 	    }
 
 	  if (cmdLog)
 	    {
 	      fprintf(cmdLog, "hart=%" PRIu32 " time=%" PRIu64 " mbbypass %" PRIu64 " 0x%" PRIx64 " %" PRIu32 " 0x",
 		      hartId, req.time, req.instrTag, req.address, req.size);
-	      const uint8_t* data = reinterpret_cast<const uint8_t*>(req.buffer.data());
 	      for (unsigned i = req.size; i > 0; --i)
 		{
-		  unsigned val = data[i-1];
+		  unsigned val = std::bit_cast<uint8_t>(req.buffer.at(i-1));
 		  fprintf(cmdLog, "%02x", val);
 		}
 	      fprintf(cmdLog, " %d %d %d\n", elem, field, WhisperFlags{req.flags}.bits.cache);
@@ -987,7 +986,7 @@ static
 const char*
 specialResourceToStr(uint64_t v)
 {
-  WhisperSpecialResource sr = WhisperSpecialResource(v);
+  auto sr = WhisperSpecialResource(v);
   switch (sr)
     {
     case WhisperSpecialResource::PrivMode:            return "pm";
@@ -1019,7 +1018,7 @@ doPageTableWalk(const Hart<URV>& hart, WhisperMessage& reply)
       hart.getPageTableWalkAddresses(isInstr, index, addrs);
       for (auto& addr : addrs)
         if (addr.type_ == VirtMem::WalkEntry::Type::PA)
-          items.push_back(std::move(addr.addr_));
+          items.push_back(addr.addr_);
     }
   else
     hart.getPageTableWalkEntries(isInstr, index, items);
@@ -1143,7 +1142,7 @@ Server<URV>::interact(const WhisperMessage& msg, WhisperMessage& reply, FILE* tr
                 fprintf(commandLog, "hart=%" PRIu32 " poke v 0x%" PRIxMAX " 0x",
 			hartId, uintmax_t(msg.address));
                 for (uint32_t i = 0; i < msg.size; ++i)
-                  fprintf(commandLog, "%02x", uint8_t(msg.buffer[msg.size - 1 - i]));
+                  fprintf(commandLog, "%02x", uint8_t(msg.buffer.at(msg.size - 1 - i)));
                 fprintf(commandLog, " # ts=%s tag=%s\n", timeStamp.c_str(), msg.tag.data());
               }
             else
@@ -1434,7 +1433,7 @@ Server<URV>::interact(const WhisperMessage& msg, WhisperMessage& reply, FILE* tr
               {
                 fprintf(commandLog, "hart=%" PRIu32 " time=%" PRIu64 " mdwriteback 0x%" PRIx64,
                         hartId, msg.time, msg.address);
-                if (data.size() > 0)
+                if (not data.empty())
                   fprintf(commandLog, " 0x");
                 for (unsigned i = data.size(); i > 0; --i)
                   fprintf(commandLog, "%02x", data.at(i-1));
@@ -1478,8 +1477,8 @@ Server<URV>::interact(const WhisperMessage& msg, WhisperMessage& reply, FILE* tr
 	  URV deferred = hart.deferredInterrupts();
 	  hart.setDeferredInterrupts(0);
 
-          InterruptCause cause = InterruptCause{0};
-          PrivilegeMode nextMode = PrivilegeMode{0};
+          auto cause = InterruptCause{0};
+          auto nextMode = PrivilegeMode{0};
           bool nextVirt = false; bool hvi = false;
           reply.flags = hart.isInterruptPossible(cause, nextMode, nextVirt, hvi);
           if (reply.flags)
