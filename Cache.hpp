@@ -6,6 +6,7 @@
 #include <vector>
 #include <cstdint>
 #include <functional>
+#include <iostream>
 
 namespace TT_CACHE
 {

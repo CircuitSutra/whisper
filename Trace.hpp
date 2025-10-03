@@ -318,7 +318,7 @@ namespace WdRiscv
 
       imsic.fileTraces(mselects, sselects, gselects, minterrupts, sinterrupts, ginterrupts);
 
-      bool ok; URV value; uint32_t value32;
+      bool ok = false; URV value = 0; uint32_t value32 = 0;
       for (auto [select, size] : mselects)
         {
           if (size == 4)
@@ -373,7 +373,7 @@ namespace WdRiscv
 
     unsigned lastStVal(uint64_t& value) const
     {
-      uint64_t addr;
+      uint64_t addr = 0;
       return hart_->lastStore(addr, value); /* this returns the size of the last ld/st */
     }
 
