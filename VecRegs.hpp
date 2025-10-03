@@ -36,28 +36,28 @@ namespace WdRiscv
 
   enum class GroupMultiplier : uint32_t
     {
-     One      = 0,
-     Two      = 1,
-     Four     = 2,
-     Eight    = 3,
-     Reserved = 4,
-     Eighth   = 5,
-     Quarter  = 6,
-     Half     = 7
+      One      = 0,
+      Two      = 1,
+      Four     = 2,
+      Eight    = 3,
+      Reserved = 4,
+      Eighth   = 5,
+      Quarter  = 6,
+      Half     = 7
     };
 
 
   /// Selected element width.
   enum class ElementWidth : uint32_t
     {
-     Byte      = 0,
-     Half      = 1,
-     Word      = 2,
-     Word2     = 3,
-     Word4     = 4,
-     Word8     = 5,
-     Word16    = 6,
-     Word32    = 7
+      Byte      = 0,   // byte
+      Half      = 1,   // half: 2 bytes
+      Word      = 2,   // word: 4 bytes
+      Word2     = 3,   // 2 words: 8 bytes
+      Word4     = 4,   // 4 words: 16 bytes
+      Word8     = 5,   // 8 words: 32 bytes
+      Word16    = 6,   // 16 words: 64 bytes
+      Word32    = 7    // 32 words: 128 bytes
     };
 
 
@@ -162,19 +162,24 @@ namespace WdRiscv
       return regOffset + elemIx*elemSize <= bytesInRegFile_ - elemSize;
     }
 
-    /// Set value to that of the element with given index within the
-    /// vector register of the given number. Throw an exception if the
-    /// combination of element index, vector number and group
-    /// multiplier (pre-scaled by 8) is invalid. We require a
-    /// pre-scaled group multiplier to avoid passing a fraction.
+    /// Set value to that of the element with given index within the vector register group
+    /// starting at given register number. Throw an exception if the combination of
+    /// element index, vector number and group multiplier (pre-scaled by 8) is invalid. We
+    /// require a pre-scaled group multiplier to avoid passing a fraction.
     template<typename T>
     void read(uint32_t regNum, uint64_t elemIx, uint32_t groupX8, T& value) const
     {
       if (not isValidIndex(regNum, elemIx, groupX8, sizeof(T)))
         throw std::runtime_error("invalid vector register index");
-      std::size_t regOffset = static_cast<std::size_t>(regNum)*bytesPerReg_;
-      const T* data = reinterpret_cast<const T*>(data_.data() + regOffset);
-      value = data[elemIx];
+
+      // Offset to 1st byte of elem in data_ vector.
+      std::size_t offset = size_t(regNum)*bytesPerReg_ + elemIx*sizeof(T);
+
+      std::span<const uint8_t> full(data_);
+      auto elemSpan = full.subspan(offset, sizeof(T));
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+      const T* ptr = reinterpret_cast<const T*>(elemSpan.data());
+      value = *ptr;
     }
 
     /// Set the element with given index within the vector register of the given number to
@@ -187,7 +192,6 @@ namespace WdRiscv
     {
       if (not isValidIndex(regNum, elemIx, groupX8, sizeof(T)))
         throw std::runtime_error("invalid vector register index");
-      std::size_t regOffset = static_cast<std::size_t>(regNum)*bytesPerReg_;
 
       if (not lastWrittenReg_.has_value())
         {
@@ -196,8 +200,14 @@ namespace WdRiscv
           saveRegValue(regNum, groupX8);
         }
 
-      T* data = reinterpret_cast<T*>(data_.data() + regOffset);
-      data[elemIx] = value;
+      // Offset to 1st byte of elem in data_ vector.
+      std::size_t offset = size_t(regNum)*bytesPerReg_ + elemIx*sizeof(T);
+
+      std::span<uint8_t> full(data_);
+      auto elemSpan = full.subspan(offset, sizeof(T));
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+      T* ptr = reinterpret_cast<T*>(elemSpan.data());
+      *ptr = value;
     }
 
     /// Similar to th read method except that the value is always uint64_t. Used to read
@@ -234,7 +244,10 @@ namespace WdRiscv
     /// Return the width in bits corresponding to the given symbolic
     /// element width. Return 0 if symbolic value is out of bounds.
     static uint32_t elemWidthInBits(ElementWidth ew)
-    { return ew > ElementWidth::Word32 ? 0 : uint32_t(8) << uint32_t(ew); }
+    {
+      assert(ew <= ElementWidth::Word32);
+      return uint32_t(8) << uint32_t(ew);
+    }
 
     /// Return the currently configured group multiplier as a unsigned
     /// integer scaled by 8. For example if group multiplier is One,

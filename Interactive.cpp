@@ -2260,13 +2260,13 @@ Interactive<URV>::mreadCommand(Hart<URV>& hart, const std::string& line,
   if ((size & 0x7) == 0 and (addr & 0x7) == 0)
     {
       auto vdata = util::view_bytes_as_span_of<uint64_t>(bytes);
-      for (unsigned i = 0; i < size and ok; ++i, addr += 8)
+      for (unsigned i = 0; i < vdata.size() and ok; ++i, addr += 8)
 	ok = system_.mcmRead(hart, this->time_, tag, addr, 8, vdata[i], elem, field);
     }
   else if ((size & 0x3) == 0 and (addr & 0x3) == 0)
     {
       auto vdata = util::view_bytes_as_span_of<uint32_t>(bytes);
-      for (unsigned i = 0; i < size and ok; ++i, addr += 4)
+      for (unsigned i = 0; i < vdata.size() and ok; ++i, addr += 4)
 	ok = system_.mcmRead(hart, this->time_, tag, addr, 4, vdata[i], elem, field);
     }
   else
@@ -2454,13 +2454,13 @@ Interactive<URV>::mbinsertCommand(Hart<URV>& hart, const std::string& line,
   if ((size & 0x7) == 0 and (addr & 0x7) == 0)
     {
       auto vdata = util::view_bytes_as_span_of<uint64_t>(bytes);
-      for (unsigned i = 0; i < size and ok; i += 8, addr += 8)
+      for (unsigned i = 0; i < vdata.size() and ok; ++i, addr += 8)
 	ok = system_.mcmMbInsert(hart, this->time_, tag, addr, 8, vdata[i], elem, field);
     }
   else if ((size & 0x3) == 0 and (addr & 0x3) == 0)
     {
       auto vdata = util::view_bytes_as_span_of<uint32_t>(bytes);
-      for (unsigned i = 0; i < size and ok; i += 4, addr += 4)
+      for (unsigned i = 0; i < vdata.size() and ok; ++i, addr += 4)
 	ok = system_.mcmMbInsert(hart, this->time_, tag, addr, 4, vdata[i], elem, field);
     }
   else
@@ -2554,13 +2554,13 @@ Interactive<URV>::mbbypassCommand(Hart<URV>& hart, const std::string& line,
   if ((size & 0x7) == 0 and (addr & 0x7) == 0)
     {
       auto vdata = util::view_bytes_as_span_of<uint64_t>(bytes);
-      for (unsigned i = 0; i < size and ok; i += 8, addr += 8)
+      for (unsigned i = 0; i < vdata.size() and ok; ++i, addr += 8)
 	ok = system_.mcmBypass(hart, this->time_, tag, addr, 8, vdata[i], elem, field, cache);
     }
   else if ((size & 0x3) == 0 and (addr & 0x3) == 0)
     {
-      auto vdata = util::view_bytes_as_span_of<uint64_t>(bytes);
-      for (unsigned i = 0; i < size and ok; i += 4, addr += 4)
+      auto vdata = util::view_bytes_as_span_of<uint32_t>(bytes);
+      for (unsigned i = 0; i < vdata.size() and ok; ++i, addr += 4)
 	ok = system_.mcmBypass(hart, this->time_, tag, addr, 4, vdata[i], elem, field, cache);
     }
   else
