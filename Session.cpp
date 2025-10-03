@@ -38,7 +38,6 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <unistd.h>
 #include <dlfcn.h>
 #include <csignal>
 
@@ -358,6 +357,8 @@ Session<URV>::openUserFiles(const Args& args)
                     {
                       std::string cmd = "/usr/bin/gzip -c > ";
                       cmd += name;
+                      // For some reason, clang-tidy can't recognize ownership here.
+                      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
                       traceFile = util::make_shared_file(popen(cmd.c_str(), "w"));
                     }
                   else
@@ -993,7 +994,7 @@ Session<URV>::runServer(const std::string& serverFile)
   int soc = socket(AF_INET, SOCK_STREAM, 0);
   if (soc < 0)
     {
-      std::array<char, 512> buffer;
+      std::array<char, 512> buffer{};
       char* p = buffer.data();
 #ifdef __APPLE__
       strerror_r(errno, buffer.data(), buffer.size());
@@ -1007,7 +1008,7 @@ Session<URV>::runServer(const std::string& serverFile)
   int one = 1;
   setsockopt(soc, SOL_TCP, TCP_NODELAY, &one, sizeof(one));
 
-  sockaddr_in serverAddr;
+  sockaddr_in serverAddr{};
   memset(&serverAddr, 0, sizeof(serverAddr));
   serverAddr.sin_family = AF_INET;
   serverAddr.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -1025,7 +1026,7 @@ Session<URV>::runServer(const std::string& serverFile)
       return false;
     }
 
-  sockaddr_in socAddr;
+  sockaddr_in socAddr{};
   socklen_t socAddrSize = sizeof(socAddr);
   socAddr.sin_family = AF_INET;
   socAddr.sin_port = 0;
@@ -1045,7 +1046,7 @@ Session<URV>::runServer(const std::string& serverFile)
     out << hostName.data() << ' ' << ntohs(socAddr.sin_port) << '\n';
   }
 
-  sockaddr_in clientAddr;
+  sockaddr_in clientAddr{};
   socklen_t clientAddrSize = sizeof(clientAddr);
   int newSoc = accept(soc, (sockaddr*) & clientAddr, &clientAddrSize);
   if (newSoc < 0)
@@ -1193,6 +1194,7 @@ loadTracerLibrary(const std::string& tracerLib)
   std::string entry("tracerExtension");
   entry += sizeof(URV) == 4 ? "32" : "64";
 
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
   __tracerExtension = reinterpret_cast<void (*)(void*)>(dlsym(soPtr, entry.c_str()));
   if (not __tracerExtension)
     {
@@ -1203,6 +1205,7 @@ loadTracerLibrary(const std::string& tracerLib)
   entry = "tracerExtensionInit";
   entry += sizeof(URV) == 4 ? "32" : "64";
 
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
   __tracerExtensionInit = reinterpret_cast<void (*)()>(dlsym(soPtr, entry.c_str()));
   if (__tracerExtensionInit)
     __tracerExtensionInit();

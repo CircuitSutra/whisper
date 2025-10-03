@@ -755,13 +755,11 @@ namespace WdRiscv
     /// instruction overlap the given address.
     bool vecOverlapsRtlPhysAddr(const McmInstr& instr, uint64_t addr) const
     {
-      for (auto opIx : instr.memOps_)
-	{
-	  const auto& op = sysMemOps_.at(opIx);
-	  if (op.overlaps(addr))
-	    return true;
-	}
-      return false;
+      return std::any_of(instr.memOps_.begin(), instr.memOps_.end(),
+                         [this, &instr, addr] (auto opIx) {
+                            const auto& op = sysMemOps_.at(opIx);
+                            return op.overlaps(addr);
+                         });
     }
 
     /// Return true if given instruction data addresses overlap the given address. Return

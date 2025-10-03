@@ -546,6 +546,8 @@ namespace WdRiscv
 
         operands_.at(0) = std::bit_cast<uint_fsize_et>(e1);
         operands_.at(1) = std::bit_cast<uint_fsize_et>(e2);
+
+        // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer)
         result_ = std::bit_cast<uint_fsize_rt>(res);
       }
 
