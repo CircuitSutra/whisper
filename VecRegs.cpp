@@ -149,7 +149,7 @@ VecRegs::config(unsigned bytesPerReg, unsigned minBytesPerElem,
   // than the min-element-width.
   for (unsigned i = 0; i <= unsigned(ElementWidth::Word32); ++i)
     {
-      ElementWidth ew = ElementWidth(i);
+      auto ew = ElementWidth(i);
       unsigned bytes = VecRegs::elemWidthInBytes(ew);
       auto& groupFlags = legalConfigs_.at(size_t(ew));
       if (bytes > maxBytesPerElem_ or bytes < minBytesPerElem_ )
@@ -190,7 +190,7 @@ VecRegs::config(unsigned bytesPerReg, unsigned minBytesPerElem,
   data_.resize(bytesInRegFile_);
   std::fill(data_.begin(), data_.end(), 0);
 
-  lastWrittenRegData_.reserve(regCount_ * bytesPerReg_);
+  lastWrittenRegData_.reserve(size_t(regCount_) * bytesPerReg_);
 }
 
 
@@ -221,7 +221,7 @@ VecRegs::findReg(std::string_view name, unsigned& ix)
       base = 16;
     }
 
-  unsigned n;
+  unsigned n = 0;
   if (auto result = std::from_chars(numStr.cbegin(), numStr.cend(), n, base);
       result.ec != std::errc{} or result.ptr != numStr.cend())
     return false;

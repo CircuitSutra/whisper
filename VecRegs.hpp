@@ -676,8 +676,8 @@ namespace WdRiscv
       unsigned byteCount = effGroup * bytesPerReg_;
       lastWrittenRegData_.resize(byteCount);
       std::size_t regOffset = static_cast<std::size_t>(reg)*bytesPerReg_;
-      assert(regOffset + byteCount <= data_.size());
-      memcpy(lastWrittenRegData_.data(), data_.data() + regOffset, byteCount);
+      for (unsigned i = 0; i < byteCount; ++i)
+        lastWrittenRegData_.at(i) = data_.at(regOffset + i);
     }
 
     /// Return true if element of given index is active with respect
