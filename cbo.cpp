@@ -152,7 +152,7 @@ Hart<URV>::execCbo_clean(const DecodedInst* di)
   uint64_t virtAddr = intRegs_.read(di->op0());
   if (alignCboAddr_)
     virtAddr = cacheLineAlign(virtAddr);
-  uint64_t gPhysAddr = virtAddr;
+  uint64_t gpa = virtAddr;      // Guest physical address
   uint64_t physAddr = virtAddr;
   uint64_t pmva = applyPointerMask(virtAddr, false /*isLoad*/);
 
@@ -168,10 +168,10 @@ Hart<URV>::execCbo_clean(const DecodedInst* di)
 #endif
 
   bool isZero = false;
-  auto cause = determineCboException(pmva, gPhysAddr, physAddr, isZero);
+  auto cause = determineCboException(pmva, gpa, physAddr, isZero);
   if (cause != ExceptionCause::NONE)
     {
-      initiateStoreException(di, cause, pmva, gPhysAddr);
+      initiateStoreException(di, cause, pmva, gpa);
       return;
     }
 
@@ -219,7 +219,7 @@ Hart<URV>::execCbo_flush(const DecodedInst* di)
   uint64_t virtAddr = intRegs_.read(di->op0());
   if (alignCboAddr_)
     virtAddr = cacheLineAlign(virtAddr);
-  uint64_t gPhysAddr = virtAddr;
+  uint64_t gpa = virtAddr;   // Guest physical address
   uint64_t physAddr = virtAddr;
   uint64_t pmva = applyPointerMask(virtAddr, false /*isLoad*/);
 
@@ -235,10 +235,10 @@ Hart<URV>::execCbo_flush(const DecodedInst* di)
 #endif
 
   bool isZero = false;
-  auto cause = determineCboException(pmva, gPhysAddr, physAddr, isZero);
+  auto cause = determineCboException(pmva, gpa, physAddr, isZero);
   if (cause != ExceptionCause::NONE)
     {
-      initiateStoreException(di, cause, pmva, gPhysAddr);
+      initiateStoreException(di, cause, pmva, gpa);
       return;
     }
 
@@ -285,7 +285,7 @@ Hart<URV>::execCbo_inval(const DecodedInst* di)
   uint64_t virtAddr = intRegs_.read(di->op0());
   if (alignCboAddr_)
     virtAddr = cacheLineAlign(virtAddr);
-  uint64_t gPhysAddr = virtAddr;
+  uint64_t gpa = virtAddr;    // Guest physical addres
   uint64_t physAddr = virtAddr;
   uint64_t pmva = applyPointerMask(virtAddr, false /*isLoad*/);
 
@@ -299,10 +299,10 @@ Hart<URV>::execCbo_inval(const DecodedInst* di)
     return;
 #endif
 
-  auto cause = determineCboException(pmva, gPhysAddr, physAddr, isZero);
+  auto cause = determineCboException(pmva, gpa, physAddr, isZero);
   if (cause != ExceptionCause::NONE)
     {
-      initiateStoreException(di, cause, pmva, gPhysAddr);
+      initiateStoreException(di, cause, pmva, gpa);
       return;
     }
 
@@ -354,7 +354,7 @@ Hart<URV>::execCbo_zero(const DecodedInst* di)
   uint64_t virtAddr = intRegs_.read(di->op0());
   if (alignCboAddr_)
     virtAddr = cacheLineAlign(virtAddr);  // To report aligned address in xTVAL.
-  uint64_t gPhysAddr = virtAddr;
+  uint64_t gpa = virtAddr;     // Guest physical address
   uint64_t physAddr = virtAddr;
   uint64_t pmva = applyPointerMask(virtAddr, false /*isLoad*/);
 
@@ -369,10 +369,10 @@ Hart<URV>::execCbo_zero(const DecodedInst* di)
 #endif
 
   bool isZero = true;
-  auto cause = determineCboException(pmva, gPhysAddr, physAddr, isZero);
+  auto cause = determineCboException(pmva, gpa, physAddr, isZero);
   if (cause != ExceptionCause::NONE)
     {
-      initiateStoreException(di, cause, pmva, gPhysAddr);
+      initiateStoreException(di, cause, pmva, gpa);
       return;
     }
 

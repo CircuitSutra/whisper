@@ -2603,14 +2603,14 @@ Hart<URV>::execFcvtmod_w_d(const DecodedInst* di)
               else
                 result64 >>= -shift;
 
-	      int32_t result32 = result64;
+	      int32_t result32 = int32_t(result64);
               if (sign)
                 result32 = -result32;
 	      result = result32;  // Sign extend.
             }
 
-          uint32_t minInt32 = std::bit_cast<uint32_t>(std::numeric_limits<int32_t>::min());
-          uint32_t maxInt32 = std::bit_cast<uint32_t>(std::numeric_limits<int32_t>::max());
+          auto minInt32 = std::bit_cast<uint32_t>(std::numeric_limits<int32_t>::min());
+          auto maxInt32 = std::bit_cast<uint32_t>(std::numeric_limits<int32_t>::max());
 
           bool expOverflow = exp > (1 + std::numeric_limits<int32_t>::digits);
 
@@ -2913,7 +2913,7 @@ Hart<URV>::execFmaxm_h(const DecodedInst* di)
     }
   Float16 in1 = fpRegs_.readHalf(di->op1());
   Float16 in2 = fpRegs_.readHalf(di->op2());
-  Float16 res;
+  Float16 res{};
 
   bool isNan1 = std::isnan(in1), isNan2 = std::isnan(in2);
   if (isNan1 or isNan2)
@@ -3005,7 +3005,7 @@ Hart<URV>::execFminm_h(const DecodedInst* di)
 
   Float16 in1 = fpRegs_.readHalf(di->op1());
   Float16 in2 = fpRegs_.readHalf(di->op2());
-  Float16 res;
+  Float16 res{};
 
   bool isNan1 = std::isnan(in1), isNan2 = std::isnan(in2);
   if (isNan1 or isNan2)

@@ -1586,7 +1586,7 @@ Syscall<URV>::emulate(unsigned hartIx, unsigned syscallIx, URV a0, URV a1, URV a
 	int rc = uname(&uts);
         if (rc >= 0)
           {
-            strcpy((char*) uts.release, "5.16.0");
+            strncpy((char*) uts.release, "5.16.0", sizeof(uts.release));
             size_t len = writeHartMemory(hart, uts, rvBuff);
             return len == sizeof(uts)? rc : SRV(-EINVAL);
           }

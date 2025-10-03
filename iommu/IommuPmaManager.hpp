@@ -462,6 +462,6 @@ namespace TT_IOMMU
 
     bool trace_ = false;  // Collect stats if true.
     mutable std::vector<PmaTrace> pmaTrace_;
-    AccessReason reason_;
+    AccessReason reason_{};
   };
 }

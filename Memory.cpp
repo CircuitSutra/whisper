@@ -56,14 +56,16 @@ Memory::Memory(uint64_t size, uint64_t pageSize)
 
 #ifndef MEM_CALLBACKS
 
+  errno = 0;
   void* mem = mmap(nullptr, size_, PROT_READ | PROT_WRITE,
 		   MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
-  if (mem == (void*) -1)
+  if (errno != 0)
     {
       std::cerr << "Error: Failed to map " << size_ << " bytes using mmap.\n";
       throw std::runtime_error("Out of memory");
     }
 
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
   data_ = reinterpret_cast<uint8_t*>(mem);
 
 #endif
@@ -119,7 +121,7 @@ Memory::loadHexFile(const std::string& fileName)
 	      continue;
 	    }
 	  char* end = nullptr;
-	  addr = std::strtoull(line.c_str() + 1, &end, 16);
+	  addr = std::strtoull(&line.at(1), &end, 16);
 	  if (end and *end and not isspace(*end))
 	    {
 	      std::cerr << "Error: File " << fileName << ", Line " << lineNum << ": "
@@ -212,7 +214,7 @@ Memory::loadBinaryFile(const std::string& fileName, uint64_t addr)
   // unmapped and out of bounds addresses
   size_t unmappedCount = 0, oob = 0, num = 0;
 
-  char b;
+  char b = 0;
   while (input.get(b))
     {
       if (addr < size_)
@@ -269,7 +271,7 @@ Memory::loadFile(const std::string& filename)
   auto data = std::make_unique<uint8_t[]>(length);
   f.read((char *)&data[0], length);
 
-  return std::make_pair(std::move(data), std::move(length));
+  return std::make_pair(std::move(data), length);
 }
 
 #define BLOCK_SIZE (4*1024*1024)
@@ -451,7 +453,7 @@ Memory::collectElfRiscvTags(const std::string& fileName,
       // 1st char is format verion. Currently supported version is 'A'.
       std::string dataString(secData, size);
       std::istringstream iss(dataString);
-      char version;
+      char version = 0;
       iss.read(&version, 1);
       if (not iss or version != 'A')
         {
@@ -551,7 +553,7 @@ Memory::collectElfSymbols(ELFIO::elfio& reader)
       const ELFIO::symbol_section_accessor symAccesor(reader, sec);
       ELFIO::Elf64_Addr address = 0;
       ELFIO::Elf_Xword size = 0;
-      unsigned char bind, type, other;
+      unsigned char bind = 0, type = 0, other = 0;
       ELFIO::Elf_Half index = 0;
 
       // Finding symbol by name does not work. Walk all the symbols.
@@ -810,7 +812,7 @@ Memory::isSymbolInElfFile(const std::string& path, const std::string& target)
       const ELFIO::symbol_section_accessor symAccesor(reader, sec);
       ELFIO::Elf64_Addr address = 0;
       ELFIO::Elf_Xword size = 0;
-      unsigned char bind, type, other;
+      unsigned char bind = 0, type = 0, other = 0;
       ELFIO::Elf_Half index = 0;
 
       // Finding symbol by name does not work. Walk all the symbols.
@@ -1428,7 +1430,7 @@ Memory::saveAddressTrace(std::string_view tag, const LineMap& lineMap,
 
   for (auto vaddr : addrVec)
     {
-      auto& entry = lineMap.at(vaddr);
+      const auto& entry = lineMap.at(vaddr);
       if (skipClean and entry.clean)
         continue;
 
