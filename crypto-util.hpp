@@ -55,7 +55,7 @@ constexpr
 uint_t
 rol(uint_t in, unsigned amount)
 {
-  return ((in << amount) | (in >> (std::numeric_limits<uint_t>::digits - amount)));
+  return std::rotl(in, amount);
 }
 
 
@@ -64,7 +64,7 @@ constexpr
 uint_t
 ror(uint_t in, unsigned amount)
 {
-  return ((in >> amount) | (in << (std::numeric_limits<uint_t>::digits - amount)));
+  return std::rotr(in, amount);
 }
 
 
@@ -139,7 +139,7 @@ inline constexpr
 uint32_t
 aes_decode_rcon(uint8_t r)
 {
-  return table[r & 0xf];
+  return table.at(r & 0xf);
 }
 
 constexpr auto sm4_sbox_table = std::to_array<uint8_t>(
@@ -171,7 +171,7 @@ inline constexpr
 uint8_t
 sm4_sbox(uint8_t x)
 {
-  return sm4_sbox_table[x];
+  return sm4_sbox_table.at(x);
 }
 
 
@@ -214,7 +214,7 @@ inline constexpr
 uint8_t
 aes_sbox_fwd(uint8_t x)
 {
-  return aes_sbox_fwd_table[x];
+  return aes_sbox_fwd_table.at(x);
 }
 
 constexpr auto aes_sbox_inv_table = std::to_array<uint8_t>(
@@ -246,7 +246,7 @@ inline constexpr
 uint8_t
 aes_sbox_inv(uint8_t x)
 {
-  return aes_sbox_inv_table[x];
+  return aes_sbox_inv_table.at(x);
 }
 
 
@@ -276,7 +276,7 @@ constexpr
 uint32_t
 aes_get_column(WdRiscv::Uint128 state, uint8_t c)
 {
-  uint32_t res = static_cast<uint32_t>(state >> (32*c & 0x7f));
+  auto res = static_cast<uint32_t>(state >> (32*c & 0x7f));
   return res;
 }
 
@@ -307,7 +307,7 @@ constexpr
 uint8_t
 getbyte(uint64_t x, unsigned i)
 {
-  return std::bit_cast<std::array<uint8_t, 8>>(x)[i];
+  return std::bit_cast<std::array<uint8_t, 8>>(x).at(i);
 }
 
 
@@ -467,7 +467,7 @@ constexpr T brev8(const T& x)
   T res{0};
   for (unsigned byteIx = 0; byteIx < sizeof(x); ++byteIx)
     {
-      uint8_t byte = static_cast<uint8_t>(x >> 8*byteIx);
+      auto byte = static_cast<uint8_t>(x >> 8*byteIx);
       byte = bitReverse(byte);
       res |= T{byte} << 8*byteIx;
     }
