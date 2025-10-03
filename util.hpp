@@ -129,30 +129,31 @@ namespace util
   };
 
   // For closing owned files.
+  enum FileCloseF {
+    FCLOSE,
+    PCLOSE,
+    NONE
+  };
+
   struct FileCloser
   {
+    FileCloser(FileCloseF f) : f_(f) {};
+
     void operator()(FILE* file) const {
       if (not file or file == stdout)
         return;
-
-      int fd = fileno(file);
-      if (fd == -1)
-        assert(false);
-
-      struct stat st{};
-      if (fstat(fd, &st) == -1)
-        assert(false);
-
-      if (S_ISFIFO(st.st_mode))
+      if (f_ == FileCloseF::FCLOSE)
+        fclose(file);
+      if (f_ == FileCloseF::PCLOSE)
         pclose(file);
-      else
-        std::fclose(file);
     }
+
+    FileCloseF f_ = FileCloseF::NONE;
   };
 
   using SharedFile = std::shared_ptr<FILE>;
 
-  inline SharedFile make_shared_file(gsl::owner<FILE*> file) {
-      return SharedFile(file, FileCloser{});
+  inline SharedFile make_shared_file(gsl::owner<FILE*> file, FileCloseF f) {
+      return SharedFile(file, FileCloser{f});
   }
 }

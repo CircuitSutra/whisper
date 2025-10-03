@@ -246,7 +246,7 @@ System<URV>::~System()
       uint64_t size = std::get<2>(bf);
       std::cerr << "Info: Updating " << path << " from addr: 0x" << std::hex << addr
 		<< std::dec << " size: " << size << '\n';
-      util::SharedFile file = util::make_shared_file(fopen(path.c_str(), "w"));
+      util::SharedFile file = util::make_shared_file(fopen(path.c_str(), "w"), util::FileCloseF::FCLOSE);
       if (not file)
 	{
 	  std::cerr << "Error: Failed to open " << path << " for update\n";

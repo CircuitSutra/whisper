@@ -359,10 +359,10 @@ Session<URV>::openUserFiles(const Args& args)
                       cmd += name;
                       // For some reason, clang-tidy can't recognize ownership here.
                       // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-                      traceFile = util::make_shared_file(popen(cmd.c_str(), "w"));
+                      traceFile = util::make_shared_file(popen(cmd.c_str(), "w"), util::FileCloseF::PCLOSE);
                     }
                   else
-                    traceFile = util::make_shared_file(fopen(name.c_str(), "w"));
+                    traceFile = util::make_shared_file(fopen(name.c_str(), "w"), util::FileCloseF::FCLOSE);
                 }
               else
                 traceFile = traceFiles_.at(0);   // point the same File pointer to each hart
@@ -376,14 +376,14 @@ Session<URV>::openUserFiles(const Args& args)
             }
 
           if (args.trace and not traceFile)
-            traceFile = util::make_shared_file(stdout);
+            traceFile = util::make_shared_file(stdout, util::FileCloseF::NONE);
           ++ix;
         }
     }
 
   if (not args.commandLogFile.empty())
     {
-      commandLog_ = util::make_shared_file(fopen(args.commandLogFile.c_str(), "w"));
+      commandLog_ = util::make_shared_file(fopen(args.commandLogFile.c_str(), "w"), util::FileCloseF::FCLOSE);
       if (not commandLog_)
 	{
 	  std::cerr << "Error: Failed to open command log file '"
@@ -393,10 +393,10 @@ Session<URV>::openUserFiles(const Args& args)
       setlinebuf(commandLog_.get());  // Make line-buffered.
     }
 
-  consoleOut_ = util::make_shared_file(stdout);
+  consoleOut_ = util::make_shared_file(stdout, util::FileCloseF::NONE);
   if (not args.consoleOutFile.empty())
     {
-      consoleOut_ = util::make_shared_file(fopen(args.consoleOutFile.c_str(), "w"));
+      consoleOut_ = util::make_shared_file(fopen(args.consoleOutFile.c_str(), "w"), util::FileCloseF::FCLOSE);
       if (not consoleOut_)
 	{
 	  std::cerr << "Error: Failed to open console output file '"
@@ -407,7 +407,7 @@ Session<URV>::openUserFiles(const Args& args)
 
   if (not args.bblockFile.empty())
     {
-      bblockFile_ = util::make_shared_file(fopen(args.bblockFile.c_str(), "w"));
+      bblockFile_ = util::make_shared_file(fopen(args.bblockFile.c_str(), "w"), util::FileCloseF::FCLOSE);
       if (not bblockFile_)
 	{
 	  std::cerr << "Error: Failed to open basic block file '"
@@ -418,7 +418,7 @@ Session<URV>::openUserFiles(const Args& args)
 
   if (not args.initStateFile.empty())
     {
-      initStateFile_ = util::make_shared_file(fopen(args.initStateFile.c_str(), "w"));
+      initStateFile_ = util::make_shared_file(fopen(args.initStateFile.c_str(), "w"), util::FileCloseF::FCLOSE);
       if (not initStateFile_)
 	{
 	  std::cerr << "Error: Failed to open init state file '"
@@ -1014,6 +1014,7 @@ Session<URV>::runServer(const std::string& serverFile)
   serverAddr.sin_addr.s_addr = htonl(INADDR_ANY);
   serverAddr.sin_port = htons(0);
 
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
   if (bind(soc, (sockaddr*) &serverAddr, sizeof(serverAddr)) < 0)
     {
       perror("Socket bind failed");
@@ -1030,6 +1031,7 @@ Session<URV>::runServer(const std::string& serverFile)
   socklen_t socAddrSize = sizeof(socAddr);
   socAddr.sin_family = AF_INET;
   socAddr.sin_port = 0;
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
   if (getsockname(soc, (sockaddr*) &socAddr,  &socAddrSize) == -1)
     {
       perror("Failed to obtain socket information");
@@ -1048,6 +1050,7 @@ Session<URV>::runServer(const std::string& serverFile)
 
   sockaddr_in clientAddr{};
   socklen_t clientAddrSize = sizeof(clientAddr);
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
   int newSoc = accept(soc, (sockaddr*) & clientAddr, &clientAddrSize);
   if (newSoc < 0)
     {
@@ -1384,7 +1387,7 @@ static
 bool
 reportInstructionFrequency(Hart<URV>& hart, const std::string& outPath)
 {
-  util::SharedFile outFile = util::make_shared_file(fopen(outPath.c_str(), "w"));
+  util::SharedFile outFile = util::make_shared_file(fopen(outPath.c_str(), "w"), util::FileCloseF::FCLOSE);
   if (not outFile)
     {
       std::cerr << "Error: Failed to open instruction frequency file '" << outPath
