@@ -76,8 +76,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
       : tag_(tag), iva_(iva), ipa_(ipa), ipa2_(ipa2)
     { }
 
-    ~InstrPac()
-    { }
+    ~InstrPac() = default;
 
     /// This supports PerfApi::shouldFlush. It is not meant to be called directly.
     bool shouldFlush() const
@@ -121,7 +120,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     /// was skipped because it was masked-off or it was a tail element.  The return
     /// vector will be empty if the instruction is not a vector load/store or if no
     /// memory was accessed by the instruction.
-    typedef std::tuple<uint64_t, uint64_t, bool> VaPaSkip;
+    using VaPaSkip = std::tuple<uint64_t, uint64_t, bool>;
     const std::vector<VaPaSkip>& vecDataAddrs() const
     { return vecAddrs_; }
 
@@ -174,10 +173,10 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
 	  auto mode = di_.ithOperandMode(i);
 	  if (mode == OM::Read or mode == OM::ReadWrite)
 	    {
-	      auto& producer = opProducers_.at(i);
+	      const auto& producer = opProducers_.at(i);
 	      if (producer.scalar and producer.scalar->tag_ == other.tag_)
 		return true;
-              for (auto& entry : producer.vec)
+              for (const auto& entry : producer.vec)
                 if (entry and entry->tag_ == other.tag_)
                   return true;
 	    }
@@ -274,10 +273,10 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     bool isFence() const
     { return di_.isFence(); }
 
-    bool isDeviceLdSt()
+    bool isDeviceLdSt() const
     { return deviceAccess_; }
 
-    bool isVset()
+    bool isVset() const
     { return di_.isVsetvli() || di_.isVsetivli() || di_.isVsetvl(); }
 
     /// Return true if this is a privileged instruction (ebreak/ecall/mret)
@@ -286,14 +285,10 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
       if (di_.instEntry())
         {
           auto instId = di_.instEntry()->instId();
-          if (instId == WdRiscv::InstId::ebreak)
-            return true;
-          else if (instId == WdRiscv::InstId::ecall)
-            return true;
-          else if (instId == WdRiscv::InstId::mret)
-            return true;
-          else if (instId == WdRiscv::InstId::sret)
-            return true;
+          return (instId == WdRiscv::InstId::ebreak or
+                  instId == WdRiscv::InstId::ecall or
+                  instId == WdRiscv::InstId::mret or
+                  instId == WdRiscv::InstId::sret);
         }
       return false;
     }
@@ -405,7 +400,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     std::array<OpProducer, 8> opProducers_;
 
     // Global register index of a destination register and its corresponding value.
-    typedef std::pair<unsigned, OpVal> DestValue;
+    using DestValue = std::pair<unsigned, OpVal>;
 
     // One expicit destination register and up to 4 implicit ones (FCSR, VL, VTYPE, VSTART)
     std::array<DestValue, 5> destValues_;
@@ -492,7 +487,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     /// hart. Return a null pointer if the given tag has not yet been fetched.
     std::shared_ptr<InstrPac> getInstructionPacket(unsigned hartIx, uint64_t tag)
     {
-      auto& packetMap = hartPacketMaps_.at(hartIx);
+      const auto& packetMap = hartPacketMaps_.at(hartIx);
       auto iter = packetMap.find(tag);
       if (iter != packetMap.end())
 	return iter->second;
@@ -502,7 +497,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     /// Return number of instruction packets in the given hart.
     size_t getInstructionPacketCount(unsigned hartIx) const
     {
-      auto& packetMap = hartPacketMaps_.at(hartIx);
+      const auto& packetMap = hartPacketMaps_.at(hartIx);
       return packetMap.size();
     }
 
@@ -603,11 +598,11 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     void getVecOpsLmul(Hart64& hart, InstrPac& packet);
 
     /// Return the page number corresponding to the given address
-    uint64_t pageNum(uint64_t addr) const
+    static uint64_t pageNum(uint64_t addr)
     { return addr >> 12; }
 
     /// Return the address of the page with the given page number.
-    uint64_t pageAddress(uint64_t pageNum) const
+    static uint64_t pageAddress(uint64_t pageNum)
     { return pageNum << 12; }
 
     /// Return the difference between the next page boundary and the current
@@ -624,7 +619,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
       auto& packetMap = hartPacketMaps_.at(hartIx);
       if (not packetMap.empty() and packetMap.rbegin()->first >= tag)
 	assert(0 and "Inserted packet with tag newer than oldest tag.");
-      packetMap[tag] = ptr;
+      packetMap[tag] = std::move(ptr);
     }
 
     std::shared_ptr<Hart64> checkHart(const char* caller, unsigned hartIx);
@@ -635,7 +630,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
 
     /// Return the global register index for the local (within regiser file) inxex of the
     /// given type (INT, FP, CSR, ...)  and the given relative register number.
-    unsigned globalRegIx(WdRiscv::OperandType type, unsigned regNum)
+    unsigned globalRegIx(WdRiscv::OperandType type, unsigned regNum) const
     {
       using OT = WdRiscv::OperandType;
       switch(type)
@@ -664,7 +659,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     void getDestValue(const InstrPac& producer, unsigned gri, OpVal& val) const
     {
       assert(producer.executed());
-      for (auto& p : producer.destValues_)
+      for (const auto& p : producer.destValues_)
 	if (p.first == gri)
           {
             val = p.second;
@@ -682,10 +677,10 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
 
       // Producer should have exactly one vector destination which may be a non-trivial
       // group (LMUL > 1).
-      for (auto& pdv : producer.destValues_)
+      for (const auto& pdv : producer.destValues_)
         {
-          auto& vec = pdv.second.vec;  // Produced vector data.
-          if (vec.size())  // If vector destination
+          const auto& vec = pdv.second.vec;  // Produced vector data.
+          if (not vec.empty())  // If vector destination
             {
               unsigned group = vec.size() / vecRegSize;
               if (group == 0)
@@ -699,7 +694,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
               return true;
             }
         }
-      
+
       return false;
     }
 
@@ -745,11 +740,11 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
   private:
 
     /// Map an instruction tag to corresponding packet.
-    typedef std::map<uint64_t, std::shared_ptr<InstrPac>> PacketMap;
+    using PacketMap = std::map<uint64_t, std::shared_ptr<InstrPac>>;
 
     /// Map a global register index to the in-flight instruction producing that
     /// register. This is register renaming.
-    typedef std::vector<std::shared_ptr<InstrPac>> RegProducers;
+    using RegProducers = std::vector<std::shared_ptr<InstrPac>>;
 
     System64& system_;
     std::shared_ptr<InstrPac> prevFetch_;

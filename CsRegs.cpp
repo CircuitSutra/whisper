@@ -61,7 +61,7 @@ CsRegs<URV>::defineCsr(std::string name, CsrNumber csrn, bool mandatory,
 		       bool implemented, URV resetValue, URV writeMask,
 		       URV pokeMask, bool quiet)
 {
-  size_t ix = size_t(csrn);
+  auto ix = size_t(csrn);
 
   if (ix >= regs_.size())
     return nullptr;
@@ -82,7 +82,7 @@ CsRegs<URV>::defineCsr(std::string name, CsrNumber csrn, bool mandatory,
       return nullptr;
     }
 
-  PrivilegeMode priv = PrivilegeMode((ix & 0x300) >> 8);
+  auto priv = PrivilegeMode((ix & 0x300) >> 8);
   if (priv == PrivilegeMode::Reserved) {
     priv = PrivilegeMode::Supervisor;
   }
@@ -106,7 +106,7 @@ CsRegs<URV>::findCsr(std::string_view name)
   if (iter == nameToNumber_.end())
     return nullptr;
 
-  size_t num = size_t(iter->second);
+  auto num = size_t(iter->second);
   if (num >= regs_.size())
     return nullptr;
 
@@ -118,7 +118,7 @@ template <typename URV>
 Csr<URV>*
 CsRegs<URV>::findCsr(CsrNumber number)
 {
-  size_t ix = size_t(number);
+  auto ix = size_t(number);
   if (ix >= regs_.size())
     return nullptr;
   return &regs_.at(ix);
@@ -129,7 +129,7 @@ template <typename URV>
 const Csr<URV>*
 CsRegs<URV>::findCsr(CsrNumber number) const
 {
-  size_t ix = size_t(number);
+  auto ix = size_t(number);
   if (ix >= regs_.size())
     return nullptr;
   return &regs_.at(ix);
@@ -604,17 +604,17 @@ CsRegs<URV>::read(CsrNumber num, PrivilegeMode mode, URV& value) const
         value = FcsrFields{value}.bits_.FRM;
       return true;
     }
-  else if (num == CN::MIREG)
+  if (num == CN::MIREG)
     return readMireg(num, value, virtMode_);
-  else if (num == CN::SIREG)
+  if (num == CN::SIREG)
     return readSireg(num, value, virtMode_);
-  else if (num == CN::VSIREG)
+  if (num == CN::VSIREG)
     return readVsireg(num, value, virtMode_);
-  else if (num == CN::SIP)
+  if (num == CN::SIP)
     return readSip(value);
-  else if (num == CN::SIE)
+  if (num == CN::SIE)
     return readSie(value);
-  else if (num == CN::VSIP)
+  if (num == CN::VSIP)
     return readVsip(value);
 
   if (num == CN::MTOPEI)
@@ -625,7 +625,7 @@ CsRegs<URV>::read(CsrNumber num, PrivilegeMode mode, URV& value) const
       value |= value << 16;  // Bits 26:16 same as bits 10;0 as required by spec.
       return true;
     }
-  else if (num == CN::STOPEI)
+  if (num == CN::STOPEI)
     {
       if (not imsic_)
 	return false;
@@ -633,7 +633,7 @@ CsRegs<URV>::read(CsrNumber num, PrivilegeMode mode, URV& value) const
       value |= value << 16;  // Bits 26:16 same as bits 10;0 as required by spec.
       return true;
     }
-  else if (num == CN::VSTOPEI)
+  if (num == CN::VSTOPEI)
     {
       if (not imsic_)
 	return false;
@@ -650,12 +650,12 @@ CsRegs<URV>::read(CsrNumber num, PrivilegeMode mode, URV& value) const
 
   if (num == CN::MTOPI or num == CN::STOPI or num == CN::VSTOPI)
     {
-      [[maybe_unused]] bool hvi;
+      [[maybe_unused]] bool hvi = false;
       return readTopi(num, value, virtMode_, hvi);
     }
-  else if (num == CN::MVIP)
+  if (num == CN::MVIP)
     return readMvip(value);
-  else if (num == CN::HIP)
+  if (num == CN::HIP)
     return readHip(value);
 
   value = csr->read();
@@ -883,8 +883,8 @@ CsRegs<URV>::enableHypervisorMode(bool flag)
 
   // Enable/disable MPV and GVA bits
   {
-    uint64_t hyperBits;
-    Csr<URV>* mstatus;
+    uint64_t hyperBits = 0;
+    Csr<URV>* mstatus = nullptr;
     if (not rv32_)
       {
 	hyperBits = uint64_t(0x3) << 38;
@@ -1430,8 +1430,8 @@ URV
 CsRegs<URV>::legalizeMstatus(URV value) const
 {
   MstatusFields<URV> fields(value);
-  PrivilegeMode mpp = PrivilegeMode(fields.bits_.MPP);
-  PrivilegeMode spp = PrivilegeMode(fields.bits_.SPP);
+  auto mpp = PrivilegeMode(fields.bits_.MPP);
+  auto spp = PrivilegeMode(fields.bits_.SPP);
 
   if (fields.bits_.FS == unsigned(FpStatus::Dirty) or fields.bits_.XS == unsigned(FpStatus::Dirty) or
       fields.bits_.VS == unsigned(VecStatus::Dirty))
@@ -2104,15 +2104,15 @@ CsRegs<URV>::write(CsrNumber csrn, PrivilegeMode mode, URV value)
 
   if (num == CN::MIREG)
     return writeMireg(num, value);
-  else if (num == CN::SIREG)
+  if (num == CN::SIREG)
     return writeSireg(num, value);
-  else if (num == CN::VSIREG)
+  if (num == CN::VSIREG)
     return writeVsireg(num, value);
-  else if (num == CN::MTOPEI)
+  if (num == CN::MTOPEI)
     return writeMtopei();
-  else if (num == CN::STOPEI)
+  if (num == CN::STOPEI)
     return writeStopei();
-  else if (num == CN::VSTOPEI)
+  if (num == CN::VSTOPEI)
     return writeVstopei();
 
   URV prev = 0;
@@ -2287,7 +2287,7 @@ CsRegs<URV>::configCsr(std::string_view name, bool implemented, URV resetValue,
   if (iter == nameToNumber_.end())
     return false;
 
-  size_t num = size_t(iter->second);
+  auto num = size_t(iter->second);
   if (num >= regs_.size())
     return false;
 
@@ -2305,11 +2305,11 @@ CsRegs<URV>::configCsrByUser(std::string_view name, bool implemented, URV resetV
   if (iter == nameToNumber_.end())
     return false;
 
-  size_t num = size_t(iter->second);
+  auto num = size_t(iter->second);
   if (num >= regs_.size())
     return false;
 
-  CsrNumber csrn = CsrNumber(num);
+  auto csrn = CsrNumber(num);
 
   bool ok = configCsr(csrn, implemented, resetValue, mask, pokeMask, shared);
 
@@ -2319,8 +2319,7 @@ CsRegs<URV>::configCsrByUser(std::string_view name, bool implemented, URV resetV
       std::cerr << "Error: cannot set debug-mode CSR " << name << " as not debug-mode\n";
       return false;
     }
-  else
-    csr->setIsDebug(isDebug);
+  csr->setIsDebug(isDebug);
 
   if (isHExt)
     {
@@ -2690,7 +2689,7 @@ CsRegs<URV>::recordWrite(CsrNumber num)
   if (not recordWrite_)
     return;
   auto& lwr = lastWrittenRegs_;
-  unsigned ix = unsigned(num);
+  auto ix = unsigned(num);
 
   // When CSR with corresponds virtual CSR is written (e.g. stval and
   // vstval), mark the virtual CSR so that it gets reported as modified.
@@ -2902,7 +2901,7 @@ CsRegs<URV>::tieSharedCsrsTo(CsRegs<URV>& target)
   assert(regs_.size() == target.regs_.size());
   for (size_t i = 0; i < regs_.size(); ++i)
     {
-      CsrNumber csrn = CsrNumber(i);
+      auto csrn = CsrNumber(i);
       auto csr = getImplementedCsr(csrn);
       auto targetCsr = target.getImplementedCsr(csrn);
       if (csr)
@@ -3214,6 +3213,7 @@ CsRegs<URV>::defineHypervisorRegs()
   csr = defineCsr("henvcfgh",    Csrn::HENVCFGH,    !mand, !imp, 0, wam, wam);
   csr->setHypervisor(true); csr->markAsHighHalf(true);
 
+  // NOLINTNEXTLINE(clang-analyzer-core.UndefinedBinaryOperatorResult)
   mask = ~(URV(0x3) << (rv32_? 29 : 58));
   pokeMask = mask;
   csr = defineCsr("hgatp",       Csrn::HGATP,       !mand, !imp, 0, mask, pokeMask);
@@ -3651,7 +3651,7 @@ CsRegs<URV>::peek(CsrNumber num, URV& value, bool virtMode) const
       value |= value << 16;  // Bits 26:16 same as bits 10;0 as required by spec.
       return true;
     }
-  else if (num == CN::STOPEI)
+  if (num == CN::STOPEI)
     {
       if (not imsic_)
 	return false;
@@ -3659,7 +3659,7 @@ CsRegs<URV>::peek(CsrNumber num, URV& value, bool virtMode) const
       value |= value << 16;  // Bits 26:16 same as bits 10;0 as required by spec.
       return true;
     }
-  else if (num == CN::VSTOPEI)
+  if (num == CN::VSTOPEI)
     {
       if (not imsic_)
 	return false;
@@ -3677,24 +3677,24 @@ CsRegs<URV>::peek(CsrNumber num, URV& value, bool virtMode) const
   if (num == CsrNumber::MTOPI or num == CsrNumber::STOPI or
       num == CsrNumber::VSTOPI)
     {
-      [[maybe_unused]] bool hvi;
+      [[maybe_unused]] bool hvi = false;
       return readTopi(num, value, virtMode, hvi);
     }
-  else if (num == CN::MIREG)
+  if (num == CN::MIREG)
     return readMireg(num, value, virtMode);
-  else if (num == CN::SIREG)
+  if (num == CN::SIREG)
     return readSireg(num, value, virtMode);
-  else if (num == CN::VSIREG)
+  if (num == CN::VSIREG)
     return readVsireg(num, value, virtMode);
-  else if (num == CN::SIP)
+  if (num == CN::SIP)
     return readSip(value);
-  else if (num == CN::SIE)
+  if (num == CN::SIE)
     return readSie(value);
-  else if (num == CN::VSIP)
+  if (num == CN::VSIP)
     return readVsip(value);
-  else if (num == CN::MVIP)
+  if (num == CN::MVIP)
     return readMvip(value);
-  else if (num == CN::HIP)
+  if (num == CN::HIP)
     return readHip(value);
 
   value = csr->read();
@@ -3733,9 +3733,9 @@ CsRegs<URV>::poke(CsrNumber num, URV value, bool virtMode)
 
   if (num == CN::SIP)
     return writeSip(value, false);
-  else if (num == CN::SIE)
+  if (num == CN::SIE)
     return writeSie(value, false);
-  else if (aiaEnabled_ and num == CN::MIP)
+  if (aiaEnabled_ and num == CN::MIP)
     {
       if (updateVirtInterrupt(value, true))
         {
@@ -3797,9 +3797,8 @@ CsRegs<URV>::poke(CsrNumber num, URV value, bool virtMode)
       updateCounterControl(num);
       if (cofEnabled_ and superEnabled_)
         {
-          if (rv32_ and num >= CN::MHPMEVENTH3 and num <= CN::MHPMEVENTH31)
-            updateScountovfValue(num);
-          else if (not rv32_)
+          if ((rv32_ and num >= CN::MHPMEVENTH3 and num <= CN::MHPMEVENTH31) or
+              (not rv32_))
             updateScountovfValue(num);
         }
     }
@@ -3980,7 +3979,7 @@ CsRegs<URV>::highestIidPrio(uint64_t bits, PrivilegeMode mode, bool virtMode) co
   if (not bits)
     return 0;
 
-  const std::vector<InterruptCause>* iidPrioTable;
+  const std::vector<InterruptCause>* iidPrioTable = nullptr;
 
   if (mode == PrivilegeMode::Machine)
     iidPrioTable = &mInterrupts_;
@@ -4005,7 +4004,7 @@ bool
 CsRegs<URV>::higherIidPrio(uint32_t prio1, uint32_t prio2, PrivilegeMode mode, bool virtMode) const
 {
 
-  const std::vector<InterruptCause>* iidPrioTable;
+  const std::vector<InterruptCause>* iidPrioTable = nullptr;
 
   if (mode == PrivilegeMode::Machine)
     iidPrioTable = &mInterrupts_;
@@ -4176,13 +4175,8 @@ CsRegs<URV>::readTopi(CsrNumber number, URV& value, bool virtMode, bool& hvi) co
               else
                 value2 = (iid2 << 16) | prio2;
 
-              if ((prio2 < prio) or (not value))
-                {
-                  hvi = true;
-                  prio = prio2;
-                  value = value2;
-                }
-              else if ((prio2 == prio) and not hvf.bits_.DPR)
+              if (((prio2 < prio) or (not value)) or
+                  ((prio2 == prio) and not hvf.bits_.DPR))
                 {
                   hvi = true;
                   prio = prio2;
@@ -4446,7 +4440,7 @@ CsRegs<URV>::updateCounterPrivilege()
 
       unsigned num = i + unsigned(CsrNumber::CYCLE);
 
-      CsrNumber csrn = CsrNumber(num);
+      auto csrn = CsrNumber(num);
       auto csr = getImplementedCsr(csrn);
       if (csr)
         {
@@ -4606,15 +4600,15 @@ CsRegs<URV>::updateCounterControl(CsrNumber csrn)
       MhpmeventFields fields(value);
       event = fields.bits_.EVENT;
       if (fields.bits_.MINH)
-	mask &= ~ mPerfRegs_.privModeToMask(PrivilegeMode::Machine, false);
+	mask &= ~ PerfRegs::privModeToMask(PrivilegeMode::Machine, false);
       if (fields.bits_.SINH)
-	mask &= ~ mPerfRegs_.privModeToMask(PrivilegeMode::Supervisor, false);
+	mask &= ~ PerfRegs::privModeToMask(PrivilegeMode::Supervisor, false);
       if (fields.bits_.UINH)
-	mask &= ~ mPerfRegs_.privModeToMask(PrivilegeMode::User, false);
+	mask &= ~ PerfRegs::privModeToMask(PrivilegeMode::User, false);
       if (fields.bits_.VSINH)
-	mask &= ~ mPerfRegs_.privModeToMask(PrivilegeMode::Supervisor, true);
+	mask &= ~ PerfRegs::privModeToMask(PrivilegeMode::Supervisor, true);
       if (fields.bits_.VUINH)
-	mask &= ~ mPerfRegs_.privModeToMask(PrivilegeMode::User, true);
+	mask &= ~ PerfRegs::privModeToMask(PrivilegeMode::User, true);
     }
 
   assignEventToCounter(event, counterIx, mask);
@@ -4770,7 +4764,7 @@ CsRegs<URV>::addMachineFields()
     }
   for (unsigned i = 0; i < 64; ++i)
     {
-      CsrNumber csrNum = advance(CsrNumber::PMPADDR0, i);
+      auto csrNum = advance(CsrNumber::PMPADDR0, i);
       if (rv32_)
         setCsrFields(csrNum, {{"addr", 32}});
       else
@@ -4779,8 +4773,7 @@ CsRegs<URV>::addMachineFields()
 
   for (unsigned i = 0; i < 16; ++i)
     {
-      CsrNumber csrNum;
-      csrNum = advance(CsrNumber::PMACFG0, i);
+      auto csrNum = advance(CsrNumber::PMACFG0, i);
       setCsrFields(csrNum,
       {{"permission",         3},     {"memtype",   2}, {"amotype", 2},
        {"cache_or_combining", 1},     {"coherency", 1}, {"res1",    3},
@@ -5601,7 +5594,7 @@ template <typename URV>
 bool
 CsRegs<URV>::isCustomCsr(CsrNumber num) const
 {
-  unsigned n = unsigned(num);      // CSR number is 12-bit.
+  auto n = unsigned(num);      // CSR number is 12-bit.
   assert((n >> 14) == 0);
 
   unsigned top2 = (n >> 10) & 3;   // Bits 11:10

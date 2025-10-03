@@ -156,7 +156,7 @@ class PciDev {
       if (not bar_size(bar))
         return false;
 
-      io = (header_.bits.bar[bar] & PCI_BASE_ADDRESS_SPACE) ==
+      io = (header_.bits.bar.at(bar) & PCI_BASE_ADDRESS_SPACE) ==
               PCI_BASE_ADDRESS_SPACE_IO;
       return true;
     }
@@ -200,7 +200,7 @@ class PciDev {
       if (offset == PCI_ROM_ADDRESS)
         return;
 
-      void* p = &header_.data[offset];
+      void* p = &header_.data.at(offset);
       memcpy(p, &data, sizeof(data));
     }
 
@@ -212,7 +212,7 @@ class PciDev {
       if (((offset & 3) + sizeof(U)) > 4)
         return;
 
-      const void* p = &header_.data[offset];
+      const void* p = &header_.data.at(offset);
       memcpy(&data, p, sizeof(data));
     }
 

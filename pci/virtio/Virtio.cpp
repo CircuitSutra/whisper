@@ -176,6 +176,7 @@ Virtio::signal_used(unsigned num, const std::vector<virtqueue::used_ring::elem>&
   if (msix != VIRTIO_MSI_NO_VECTOR and not (avail_flags & VIRTQ_AVAIL_F_NO_INTERRUPT))
     {
       constexpr unsigned pba_width = 8*sizeof(msix::pba_table_entry);
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
       auto& pba = pba_table_[msix/pba_width];
       auto offset = msix%pba_width;
       pba.pending |= uint64_t(1) << offset;
@@ -192,6 +193,7 @@ Virtio::signal_config()
   if (config_msix_vector_ != VIRTIO_MSI_NO_VECTOR)
     {
       constexpr unsigned pba_width = 8*sizeof(msix::pba_table_entry);
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
       auto& pba = pba_table_[msix/pba_width];
       auto offset = msix%pba_width;
       pba.pending |= uint64_t(1) << offset;

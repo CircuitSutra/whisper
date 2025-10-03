@@ -4,6 +4,7 @@
 #include <string>
 #include <span>
 #include <optional>
+#include <ranges>
 #include <boost/program_options.hpp>
 #include <boost/algorithm/string.hpp>
 
@@ -33,10 +34,10 @@ namespace WdRiscv
     /// false on failure.
     bool parseCmdLineArgs(std::vector<std::string>& args)
     {
-      std::vector<char*> argv;
-      for (auto& arg : args)
-	argv.push_back(arg.data());
-      return parseCmdLineArgs(std::span(argv.data(), argv.size()));
+      auto data = [](std::string& arg) { return arg.data(); };
+      auto transform = args | std::views::transform(data);
+      std::vector<char*> argv(transform.begin(), transform.end());
+      return parseCmdLineArgs(std::span(argv));
     }
 
     /// Helper to parseCmdLineArgs.

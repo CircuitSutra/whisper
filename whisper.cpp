@@ -41,7 +41,7 @@ main(int argc, char* argv[])
     { tcsetattr(STDIN_FILENO, 0, &term); }  // Restore terminal state.
 
   private:
-    struct termios term;
+    struct termios term{};
   };
 
   bool ok = true;
