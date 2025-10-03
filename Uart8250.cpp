@@ -94,7 +94,7 @@ size_t FDChannel::read(std::span<uint8_t> arr, size_t n) {
 }
 
 void FDChannel::write(uint8_t byte) {
-  int written = 0;
+  long written = 0;
   do {
     written = ::write(out_fd_, &byte, 1);
   } while (written != 1 && written != -1);
@@ -189,7 +189,7 @@ Uart8250::Uart8250(uint64_t addr, uint64_t size,
   : IoDevice("uart8250", addr, size, std::move(aplic), iid), channel_(std::move(channel)), regShift_(regShift)
 {
   if (enableInput)
-    this->enable();
+    Uart8250::enable();
 }
 
 void Uart8250::disable()
@@ -203,7 +203,7 @@ void Uart8250::disable()
 Uart8250::~Uart8250()
 {
   if (not terminate_)
-    disable();
+    Uart8250::disable();
 }
 
 void Uart8250::enable() {
