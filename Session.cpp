@@ -358,11 +358,10 @@ Session<URV>::openUserFiles(const Args& args)
                       std::string cmd = "/usr/bin/gzip -c > ";
                       cmd += name;
                       // For some reason, clang-tidy can't recognize ownership here.
-                      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
                       traceFile = util::make_shared_file(popen(cmd.c_str(), "w"), util::FileCloseF::PCLOSE);
                     }
                   else
-                    traceFile = util::make_shared_file(fopen(name.c_str(), "w"), util::FileCloseF::FCLOSE);
+                    traceFile = util::make_shared_file(fopen(name.c_str(), "w"));
                 }
               else
                 traceFile = traceFiles_.at(0);   // point the same File pointer to each hart
@@ -376,14 +375,14 @@ Session<URV>::openUserFiles(const Args& args)
             }
 
           if (args.trace and not traceFile)
-            traceFile = util::make_shared_file(stdout, util::FileCloseF::NONE);
+            traceFile = util::make_shared_file(stdout);
           ++ix;
         }
     }
 
   if (not args.commandLogFile.empty())
     {
-      commandLog_ = util::make_shared_file(fopen(args.commandLogFile.c_str(), "w"), util::FileCloseF::FCLOSE);
+      commandLog_ = util::make_shared_file(fopen(args.commandLogFile.c_str(), "w"));
       if (not commandLog_)
 	{
 	  std::cerr << "Error: Failed to open command log file '"
@@ -393,10 +392,10 @@ Session<URV>::openUserFiles(const Args& args)
       setlinebuf(commandLog_.get());  // Make line-buffered.
     }
 
-  consoleOut_ = util::make_shared_file(stdout, util::FileCloseF::NONE);
+  consoleOut_ = util::make_shared_file(stdout);
   if (not args.consoleOutFile.empty())
     {
-      consoleOut_ = util::make_shared_file(fopen(args.consoleOutFile.c_str(), "w"), util::FileCloseF::FCLOSE);
+      consoleOut_ = util::make_shared_file(fopen(args.consoleOutFile.c_str(), "w"));
       if (not consoleOut_)
 	{
 	  std::cerr << "Error: Failed to open console output file '"
@@ -407,7 +406,7 @@ Session<URV>::openUserFiles(const Args& args)
 
   if (not args.bblockFile.empty())
     {
-      bblockFile_ = util::make_shared_file(fopen(args.bblockFile.c_str(), "w"), util::FileCloseF::FCLOSE);
+      bblockFile_ = util::make_shared_file(fopen(args.bblockFile.c_str(), "w"));
       if (not bblockFile_)
 	{
 	  std::cerr << "Error: Failed to open basic block file '"
@@ -418,7 +417,7 @@ Session<URV>::openUserFiles(const Args& args)
 
   if (not args.initStateFile.empty())
     {
-      initStateFile_ = util::make_shared_file(fopen(args.initStateFile.c_str(), "w"), util::FileCloseF::FCLOSE);
+      initStateFile_ = util::make_shared_file(fopen(args.initStateFile.c_str(), "w"));
       if (not initStateFile_)
 	{
 	  std::cerr << "Error: Failed to open init state file '"
@@ -1387,7 +1386,7 @@ static
 bool
 reportInstructionFrequency(Hart<URV>& hart, const std::string& outPath)
 {
-  util::SharedFile outFile = util::make_shared_file(fopen(outPath.c_str(), "w"), util::FileCloseF::FCLOSE);
+  util::SharedFile outFile = util::make_shared_file(fopen(outPath.c_str(), "w"));
   if (not outFile)
     {
       std::cerr << "Error: Failed to open instruction frequency file '" << outPath

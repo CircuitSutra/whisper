@@ -43,5 +43,9 @@ CheckOptions:
     value: true
   - key:   clang-analyzer-optin.cplusplus.VirtualCall
     value: false
+  - key:   cppcoreguidelines-owning-memory.LegacyResourceProducers
+    value: '::malloc;::aligned_alloc;::realloc;::calloc;::fopen;::freopen;::tmpfile;::popen'
+  - key:   cppcoreguidelines-owning-memory.LegacyResourceConsumers
+    value: '::free;::realloc;::freopen;::fclose;::pclose'
 
 HeaderFilterRegex: ''

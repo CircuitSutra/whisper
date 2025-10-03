@@ -140,7 +140,7 @@ namespace util
     FileCloser(FileCloseF f) : f_(f) {};
 
     void operator()(FILE* file) const {
-      if (not file or file == stdout)
+      if (not file or file == stdout or file == stderr)
         return;
       if (f_ == FileCloseF::FCLOSE)
         fclose(file);
@@ -153,7 +153,7 @@ namespace util
 
   using SharedFile = std::shared_ptr<FILE>;
 
-  inline SharedFile make_shared_file(gsl::owner<FILE*> file, FileCloseF f) {
+  inline SharedFile make_shared_file(gsl::owner<FILE*> file, FileCloseF f = FileCloseF::FCLOSE) {
       return SharedFile(file, FileCloser{f});
   }
 }

@@ -360,6 +360,7 @@ Decoder::decodeVec(uint32_t inst, uint32_t& op0, uint32_t& op1, uint32_t& op2,
         case 0x30: return instTable_.getEntry(InstId::vwredsumu_vs);
         case 0x31: return instTable_.getEntry(InstId::vwredsum_vs);
 	case 0x35: return instTable_.getEntry(InstId::vwsll_vv);
+        default: ;
         }
       return instTable_.getEntry(InstId::illegal);  
     }
@@ -412,6 +413,7 @@ Decoder::decodeVec(uint32_t inst, uint32_t& op0, uint32_t& op1, uint32_t& op2,
             case 0x16: return instTable_.getEntry(InstId::vfncvt_rtz_xu_f_w);
             case 0x17: return instTable_.getEntry(InstId::vfncvt_rtz_x_f_w);
             case 0x1d: return instTable_.getEntry(InstId::vfncvtbf16_f_f_w);
+            default: ;
           }
           break;
 	case 0x13:
@@ -472,6 +474,7 @@ Decoder::decodeVec(uint32_t inst, uint32_t& op0, uint32_t& op1, uint32_t& op2,
 	case 0x3f:
           std::swap(op1, op2);  // per spec
 	  return instTable_.getEntry(InstId::vfwnmsac_vv);
+        default: ;
 	}
       return instTable_.getEntry(InstId::illegal);
     }
@@ -573,6 +576,7 @@ Decoder::decodeVec(uint32_t inst, uint32_t& op0, uint32_t& op1, uint32_t& op2,
         case 0x3f:
           std::swap(op1, op2);  // Spec is baffling.
           return instTable_.getEntry(InstId::vwmaccsu_vv);
+        default: ;
         }
       return instTable_.getEntry(InstId::illegal);  
     }
@@ -632,6 +636,7 @@ Decoder::decodeVec(uint32_t inst, uint32_t& op0, uint32_t& op1, uint32_t& op2,
         case 0x2e: op2 = uimm; return instTable_.getEntry(InstId::vnclipu_wi);
         case 0x2f: op2 = uimm; return instTable_.getEntry(InstId::vnclip_wi);
 	case 0x35: op2 = uimm; return instTable_.getEntry(InstId::vwsll_vi);
+        default: ;
         }
       return instTable_.getEntry(InstId::illegal);  
     }
@@ -695,6 +700,7 @@ Decoder::decodeVec(uint32_t inst, uint32_t& op0, uint32_t& op1, uint32_t& op2,
         case 0x2e: return instTable_.getEntry(InstId::vnclipu_wx);
         case 0x2f: return instTable_.getEntry(InstId::vnclip_wx);
 	case 0x35: return instTable_.getEntry(InstId::vwsll_vx);
+        default: ;
         }
       return instTable_.getEntry(InstId::illegal);  
     }
@@ -762,6 +768,7 @@ Decoder::decodeVec(uint32_t inst, uint32_t& op0, uint32_t& op1, uint32_t& op2,
         case 0x3f:
           std::swap(op1, op2);  // Spec is baffling.
           return instTable_.getEntry(InstId::vwmaccsu_vx);
+        default: ;
         }
       return instTable_.getEntry(InstId::illegal);  
     }
@@ -850,6 +857,7 @@ Decoder::decodeVec(uint32_t inst, uint32_t& op0, uint32_t& op1, uint32_t& op2,
 	case 0x3f:
           std::swap(op1, op2);  // per spec
 	  return instTable_.getEntry(InstId::vfwnmsac_vf);
+        default: ;
 	}
       return instTable_.getEntry(InstId::illegal);
     }
@@ -996,7 +1004,7 @@ Decoder::decodeVecLoad(uint32_t f3, uint32_t imm12, uint32_t& fieldCount) const
     {      // indexed unordered
       if (nf == 0)
 	{
-	  if (mew == 0)
+          if (mew == 0)
 	    {
 	      if (f3 == 0) return instTable_.getEntry(InstId::vluxei8_v);
 	      if (f3 == 5) return instTable_.getEntry(InstId::vluxei16_v);
@@ -1014,7 +1022,7 @@ Decoder::decodeVecLoad(uint32_t f3, uint32_t imm12, uint32_t& fieldCount) const
       else
 	{
 	  fieldCount = 1 + nf;  // number of fields in sgement
-	  if (mew == 0)
+          if (mew == 0)
 	    {
 	      if (f3 == 0) return instTable_.getEntry(InstId::vluxsegei8_v);
 	      if (f3 == 5) return instTable_.getEntry(InstId::vluxsegei16_v);
@@ -1074,7 +1082,7 @@ Decoder::decodeVecLoad(uint32_t f3, uint32_t imm12, uint32_t& fieldCount) const
     {      // Indexed
       if (nf == 0)
 	{
-	  if (mew == 0)
+          if (mew == 0)
 	    {
 	      if (f3 == 0) return instTable_.getEntry(InstId::vloxei8_v);
 	      if (f3 == 5) return instTable_.getEntry(InstId::vloxei16_v);
@@ -1092,7 +1100,7 @@ Decoder::decodeVecLoad(uint32_t f3, uint32_t imm12, uint32_t& fieldCount) const
       else
 	{
 	  fieldCount = 1 + nf;
-	  if (mew == 0)
+          if (mew == 0)
 	    {
 	      if (f3 == 0) return instTable_.getEntry(InstId::vloxsegei8_v);
 	      if (f3 == 5) return instTable_.getEntry(InstId::vloxsegei16_v);
@@ -1185,7 +1193,7 @@ Decoder::decodeVecStore(uint32_t f3, uint32_t imm12, uint32_t& fieldCount) const
     {      // indexed unordered
       if (nf == 0)
 	{
-	  if (mew == 0)
+          if (mew == 0)
 	    {
 	      if (f3 == 0) return instTable_.getEntry(InstId::vsuxei8_v);
 	      if (f3 == 5) return instTable_.getEntry(InstId::vsuxei16_v);
@@ -1203,7 +1211,7 @@ Decoder::decodeVecStore(uint32_t f3, uint32_t imm12, uint32_t& fieldCount) const
       else
 	{
 	  fieldCount = 1 + nf; // Number of fields in sgemtent
-	  if (mew == 0)
+          if (mew == 0)
 	    {
 	      if (f3 == 0) return instTable_.getEntry(InstId::vsuxsegei8_v);
 	      if (f3 == 5) return instTable_.getEntry(InstId::vsuxsegei16_v);
@@ -1263,7 +1271,7 @@ Decoder::decodeVecStore(uint32_t f3, uint32_t imm12, uint32_t& fieldCount) const
     {      // Indexed
       if (nf == 0)
 	{
-	  if (mew == 0)
+          if (mew == 0)
 	    {
 	      if (f3 == 0) return instTable_.getEntry(InstId::vsoxei8_v);
 	      if (f3 == 5) return instTable_.getEntry(InstId::vsoxei16_v);
@@ -1281,7 +1289,7 @@ Decoder::decodeVecStore(uint32_t f3, uint32_t imm12, uint32_t& fieldCount) const
       else
 	{
 	  fieldCount = 1 + nf;  // number of fields in segment
-	  if (mew == 0)
+          if (mew == 0)
 	    {
 	      if (f3 == 0) return instTable_.getEntry(InstId::vsoxsegei8_v);
 	      if (f3 == 5) return instTable_.getEntry(InstId::vsoxsegei16_v);
@@ -2179,6 +2187,7 @@ Decoder::expandCompressedInst(uint16_t inst) const
 }
 
 
+// NOLINTBEGIN(readability-function-size)
 const InstEntry&
 Decoder::decode(uint32_t inst, uint32_t& op0, uint32_t& op1, uint32_t& op2,
 		uint32_t& op3) const
@@ -2471,7 +2480,7 @@ Decoder::decode(uint32_t inst, uint32_t& op0, uint32_t& op1, uint32_t& op2,
                     op2 = amt;
                     return instTable_.getEntry(InstId::bclri);
                   }
-                else if (top5 == 0x0c)
+                if (top5 == 0x0c)
                   {
                     if (amt == 0)    return instTable_.getEntry(InstId::clz);
                     if (amt == 1)    return instTable_.getEntry(InstId::ctz);
@@ -2648,7 +2657,7 @@ Decoder::decode(uint32_t inst, uint32_t& op0, uint32_t& op1, uint32_t& op2,
                 if (top5 == 0x18) return instTable_.getEntry(InstId::amominu_d);
                 if (top5 == 0x1c) return instTable_.getEntry(InstId::amomaxu_d);
               }
-	    else if (f3 == 4)
+            else if (f3 == 4)
 	      {
 		if (top5 == 5)    return instTable_.getEntry(InstId::amocas_q);
 	      }
@@ -3094,3 +3103,4 @@ Decoder::decode(uint32_t inst, uint32_t& op0, uint32_t& op1, uint32_t& op2,
   else
     return instTable_.getEntry(InstId::illegal);
 }
+// NOLINTEND(readability-function-size)
