@@ -22,7 +22,7 @@
 #include <type_traits>
 #include <cassert>
 #include <utility>
-#include <sys/stat.h>
+#include <span>
 #include <memory>
 
 namespace gsl { template <typename T> using owner = T; }
@@ -128,32 +128,46 @@ namespace util
     }
   };
 
-  // For closing owned files.
-  enum FileCloseF {
-    FCLOSE,
-    PCLOSE,
-    NONE
-  };
+  namespace file {
 
-  struct FileCloser
-  {
-    FileCloser(FileCloseF f) : f_(f) {};
+    // For closing owned files.
+    enum FileCloseF {
+      FCLOSE,
+      PCLOSE,
+      NONE
+    };
 
-    void operator()(FILE* file) const {
-      if (not file or file == stdout or file == stderr)
-        return;
-      if (f_ == FileCloseF::FCLOSE)
-        fclose(file);
-      if (f_ == FileCloseF::PCLOSE)
-        pclose(file);
+    struct FileCloser
+    {
+      FileCloser(FileCloseF f) : f_(f) {};
+
+      void operator()(FILE* file) const {
+        if (not file or file == stdout or file == stderr)
+          return;
+        if (f_ == FileCloseF::FCLOSE)
+          fclose(file);
+        if (f_ == FileCloseF::PCLOSE)
+          pclose(file);
+      }
+
+      FileCloseF f_ = FileCloseF::NONE;
+    };
+
+    using SharedFile = std::shared_ptr<FILE>;
+
+    inline SharedFile make_shared_file(gsl::owner<FILE*> file, FileCloseF f = FileCloseF::FCLOSE) {
+        return SharedFile(file, FileCloser{f});
     }
+  }
 
-    FileCloseF f_ = FileCloseF::NONE;
-  };
-
-  using SharedFile = std::shared_ptr<FILE>;
-
-  inline SharedFile make_shared_file(gsl::owner<FILE*> file, FileCloseF f = FileCloseF::FCLOSE) {
-      return SharedFile(file, FileCloser{f});
+  template <typename T>
+    requires std::is_arithmetic_v<T>
+  auto view_bytes_as_span_of(std::span<uint8_t> bytes) -> std::span<const T> {
+    assert(bytes.size() % sizeof(sizeof(T)) == 0);
+    return std::span<const T>(
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+        reinterpret_cast<const T*>(bytes.data()),
+        bytes.size() / sizeof(T)
+    );
   }
 }

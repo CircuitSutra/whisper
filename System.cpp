@@ -246,7 +246,7 @@ System<URV>::~System()
       uint64_t size = std::get<2>(bf);
       std::cerr << "Info: Updating " << path << " from addr: 0x" << std::hex << addr
 		<< std::dec << " size: " << size << '\n';
-      util::SharedFile file = util::make_shared_file(fopen(path.c_str(), "w"));
+      util::file::SharedFile file = util::file::make_shared_file(fopen(path.c_str(), "w"));
       if (not file)
 	{
 	  std::cerr << "Error: Failed to open " << path << " for update\n";
@@ -1596,7 +1596,7 @@ extern void forceUserStop(int);
 
 template <typename URV>
 bool
-System<URV>::batchRun(std::vector<util::SharedFile>& traceFiles, bool waitAll, uint64_t stepWinLo, uint64_t stepWinHi, bool earlyRoiTerminate)
+System<URV>::batchRun(std::vector<util::file::SharedFile>& traceFiles, bool waitAll, uint64_t stepWinLo, uint64_t stepWinHi, bool earlyRoiTerminate)
 {
   auto forceSnapshot = [this]() -> void {
       uint64_t tag = ++snapIx_;
@@ -1762,7 +1762,7 @@ System<URV>::batchRun(std::vector<util::SharedFile>& traceFiles, bool waitAll, u
 /// 0. Return true on success and false on failure.
 template <typename URV>
 bool
-System<URV>::snapshotRun(std::vector<util::SharedFile>& traceFiles, const std::vector<uint64_t>& periods, bool aperiodic)
+System<URV>::snapshotRun(std::vector<util::file::SharedFile>& traceFiles, const std::vector<uint64_t>& periods, bool aperiodic)
 {
   if (hartCount() == 0)
     return true;

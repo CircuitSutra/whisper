@@ -115,11 +115,11 @@ namespace WdRiscv
 
   private:
 
-    std::vector<util::SharedFile> traceFiles_;
-    util::SharedFile commandLog_;
-    util::SharedFile consoleOut_;
-    util::SharedFile bblockFile_;
-    util::SharedFile initStateFile_;
+    std::vector<util::file::SharedFile> traceFiles_;
+    util::file::SharedFile commandLog_;
+    util::file::SharedFile consoleOut_;
+    util::file::SharedFile bblockFile_;
+    util::file::SharedFile initStateFile_;
 
     bool doGzip_ = false;
 

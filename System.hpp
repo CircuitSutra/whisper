@@ -457,13 +457,13 @@ namespace WdRiscv
     /// 0, each hart runs in its own simulator thread independent of
     /// the other harts. If earlyTerminate is true, returns on first
     /// roiEntry exception.
-    bool batchRun(std::vector<util::SharedFile>& traceFiles, bool waitAll, uint64_t stepWinLo, uint64_t stepWinHi, bool earlyRoiTerminate = false);
+    bool batchRun(std::vector<util::file::SharedFile>& traceFiles, bool waitAll, uint64_t stepWinLo, uint64_t stepWinHi, bool earlyRoiTerminate = false);
 
     /// Run producing a snapshot after each snapPeriod instructions. Each
     /// snapshot goes into its own directory names <dir><n> where <dir> is
     /// the string in snapDir and <n> is a sequential integer starting at
     /// 0. Return true on success and false on failure.
-    bool snapshotRun(std::vector<util::SharedFile>& traceFiles, const std::vector<uint64_t>& periods, bool aperiodic);
+    bool snapshotRun(std::vector<util::file::SharedFile>& traceFiles, const std::vector<uint64_t>& periods, bool aperiodic);
 
     /// Set snapshot directory path.
     void setSnapshotDir(const std::string& snapDir)

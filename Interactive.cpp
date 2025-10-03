@@ -760,7 +760,7 @@ Interactive<URV>::peekCommand(Hart<URV>& hart, const std::string& line,
           std::string name = (not fpFlags.empty())? "fflags" : "vxsat";
           auto& buf = (not fpFlags.empty())? fpFlags : vxsat;
 
-          std::string sep = "";
+          std::string sep; // = ""
           out << name << ": [";
           for (uint8_t element : buf)
             {
@@ -2259,21 +2259,20 @@ Interactive<URV>::mreadCommand(Hart<URV>& hart, const std::string& line,
   // For speed, use double-word mread when possible, else word, else byte.
   if ((size & 0x7) == 0 and (addr & 0x7) == 0)
     {
-      const uint64_t* vdata = reinterpret_cast<const uint64_t*> (bytes.data());
-      for (unsigned i = 0; i < size and ok; i += 8, ++vdata, addr += 8)
-	ok = system_.mcmRead(hart, this->time_, tag, addr, 8, *vdata, elem, field);
+      auto vdata = util::view_bytes_as_span_of<uint64_t>(bytes);
+      for (unsigned i = 0; i < size and ok; ++i, addr += 8)
+	ok = system_.mcmRead(hart, this->time_, tag, addr, 8, vdata[i], elem, field);
     }
   else if ((size & 0x3) == 0 and (addr & 0x3) == 0)
     {
-      const uint32_t* vdata = reinterpret_cast<const uint32_t*> (bytes.data());
-      for (unsigned i = 0; i < size and ok; i += 4, ++vdata, addr += 4)
-	ok = system_.mcmRead(hart, this->time_, tag, addr, 4, *vdata, elem, field);
+      auto vdata = util::view_bytes_as_span_of<uint32_t>(bytes);
+      for (unsigned i = 0; i < size and ok; ++i, addr += 4)
+	ok = system_.mcmRead(hart, this->time_, tag, addr, 4, vdata[i], elem, field);
     }
   else
     {
-      const uint8_t* vdata = bytes.data();
-      for (unsigned i = 0; i < size and ok; ++i, ++vdata, ++addr)
-	ok = system_.mcmRead(hart, this->time_, tag, addr, 1, *vdata, elem, field);
+      for (unsigned i = 0; i < size and ok; ++i, ++addr)
+	ok = system_.mcmRead(hart, this->time_, tag, addr, 1, bytes.at(i), elem, field);
     }
 
   return ok;
@@ -2454,21 +2453,20 @@ Interactive<URV>::mbinsertCommand(Hart<URV>& hart, const std::string& line,
   // For speed, use double-word insert when possible, else word, else byte.
   if ((size & 0x7) == 0 and (addr & 0x7) == 0)
     {
-      const uint64_t* vdata = reinterpret_cast<const uint64_t*> (bytes.data());
-      for (unsigned i = 0; i < size and ok; i += 8, ++vdata, addr += 8)
-	ok = system_.mcmMbInsert(hart, this->time_, tag, addr, 8, *vdata, elem, field);
+      auto vdata = util::view_bytes_as_span_of<uint64_t>(bytes);
+      for (unsigned i = 0; i < size and ok; i += 8, addr += 8)
+	ok = system_.mcmMbInsert(hart, this->time_, tag, addr, 8, vdata[i], elem, field);
     }
   else if ((size & 0x3) == 0 and (addr & 0x3) == 0)
     {
-      const uint32_t* vdata = reinterpret_cast<const uint32_t*> (bytes.data());
-      for (unsigned i = 0; i < size and ok; i += 4, ++vdata, addr += 4)
-	ok = system_.mcmMbInsert(hart, this->time_, tag, addr, 4, *vdata, elem, field);
+      auto vdata = util::view_bytes_as_span_of<uint32_t>(bytes);
+      for (unsigned i = 0; i < size and ok; i += 4, addr += 4)
+	ok = system_.mcmMbInsert(hart, this->time_, tag, addr, 4, vdata[i], elem, field);
     }
   else
     {
-      const uint8_t* vdata = bytes.data();
-      for (unsigned i = 0; i < size and ok; ++i, ++vdata, ++addr)
-	ok = system_.mcmMbInsert(hart, this->time_, tag, addr, 1, *vdata, elem, field);
+      for (unsigned i = 0; i < size and ok; ++i, ++addr)
+	ok = system_.mcmMbInsert(hart, this->time_, tag, addr, 1, bytes.at(i), elem, field);
     }
 
   return ok;
@@ -2555,21 +2553,20 @@ Interactive<URV>::mbbypassCommand(Hart<URV>& hart, const std::string& line,
   // For speed, use double-word bypass when possible, else word, else byte.
   if ((size & 0x7) == 0 and (addr & 0x7) == 0)
     {
-      const uint64_t* vdata = reinterpret_cast<const uint64_t*> (bytes.data());
-      for (unsigned i = 0; i < size and ok; i += 8, ++vdata, addr += 8)
-	ok = system_.mcmBypass(hart, this->time_, tag, addr, 8, *vdata, elem, field, cache);
+      auto vdata = util::view_bytes_as_span_of<uint64_t>(bytes);
+      for (unsigned i = 0; i < size and ok; i += 8, addr += 8)
+	ok = system_.mcmBypass(hart, this->time_, tag, addr, 8, vdata[i], elem, field, cache);
     }
   else if ((size & 0x3) == 0 and (addr & 0x3) == 0)
     {
-      const uint32_t* vdata = reinterpret_cast<const uint32_t*> (bytes.data());
-      for (unsigned i = 0; i < size and ok; i += 4, ++vdata, addr += 4)
-	ok = system_.mcmBypass(hart, this->time_, tag, addr, 4, *vdata, elem, field, cache);
+      auto vdata = util::view_bytes_as_span_of<uint64_t>(bytes);
+      for (unsigned i = 0; i < size and ok; i += 4, addr += 4)
+	ok = system_.mcmBypass(hart, this->time_, tag, addr, 4, vdata[i], elem, field, cache);
     }
   else
     {
-      const uint8_t* vdata = bytes.data();
-      for (unsigned i = 0; i < size and ok; ++i, ++vdata, ++addr)
-	ok = system_.mcmBypass(hart, this->time_, tag, addr, 1, *vdata, elem, field, cache);
+      for (unsigned i = 0; i < size and ok; ++i, ++addr)
+	ok = system_.mcmBypass(hart, this->time_, tag, addr, 1, bytes.at(i), elem, field, cache);
     }
 
   return ok;
@@ -2818,7 +2815,7 @@ Interactive<URV>::checkInterruptCommand(Hart<URV>& hart, [[maybe_unused]] const 
   URV deferred = hart.deferredInterrupts();
   hart.setDeferredInterrupts(0);
 
-  InterruptCause cause;
+  InterruptCause cause{};
   PrivilegeMode nextMode = PrivilegeMode::Machine;
   bool nextVirt = false;
   bool hvi = false;
@@ -2870,7 +2867,7 @@ Interactive<URV>::pmpCommand(Hart<URV>& hart, const std::string& line,
     hart.printPmps(out_);
   else if (tokens.size() == 2)
     {
-      uint64_t address;
+      uint64_t address = 0;
       if (not parseCmdLineNumber("pmp-address", tokens.at(1), address))
         return false;
 
@@ -2897,7 +2894,7 @@ Interactive<URV>::pmaCommand(Hart<URV>& hart, const std::string& line,
     hart.printPmas(out_);
   else if (tokens.size() == 2)
     {
-      uint64_t address;
+      uint64_t address = 0;
       if (not parseCmdLineNumber("pma-address", tokens.at(1), address))
         return false;
 
@@ -2950,7 +2947,7 @@ Interactive<URV>::perfModelFetchCommand(const std::string& line,
 {
   if (tokens.size() == 3)
     {
-      uint64_t tag, vpc;
+      uint64_t tag = 0, vpc = 0;
       if (not parseCmdLineNumber("perf-model-fetch-tag", tokens.at(1), tag))
         return false;
       if (not parseCmdLineNumber("perf-model-fetch-vpc", tokens.at(2), vpc))
@@ -2958,12 +2955,10 @@ Interactive<URV>::perfModelFetchCommand(const std::string& line,
 
       return system_.perfApiFetch(hartId_, time_, tag, vpc);
     }
-  else
-    {
-      cerr << "Error: Invalid perf_model_fetch command: " << line << '\n';
-      cerr << "Error: Expecting: perf_model_fetch <tag> <vpc>\n";
-      return false;
-    }
+
+  cerr << "Error: Invalid perf_model_fetch command: " << line << '\n';
+  cerr << "Error: Expecting: perf_model_fetch <tag> <vpc>\n";
+  return false;
 }
 
 
@@ -2974,17 +2969,15 @@ Interactive<URV>::perfModelDecodeCommand(const std::string& line,
 {
   if (tokens.size() == 2)
     {
-      uint64_t tag;
+      uint64_t tag = 0;
       if (not parseCmdLineNumber("perf-model-decode-tag", tokens.at(1), tag))
         return false;
       return system_.perfApiDecode(hartId_, time_, tag);
     }
-  else
-    {
-      cerr << "Error: Invalid perf_model_decode command: " << line << '\n';
-      cerr << "Error: Expecting: perf_model_decode <tag>\n";
-      return false;
-    }
+
+  cerr << "Error: Invalid perf_model_decode command: " << line << '\n';
+  cerr << "Error: Expecting: perf_model_decode <tag>\n";
+  return false;
 }
 
 
@@ -2995,18 +2988,16 @@ Interactive<URV>::perfModelExecuteCommand(const std::string& line,
 {
   if (tokens.size() == 2)
     {
-      uint64_t tag;
+      uint64_t tag = 0;
       if (not parseCmdLineNumber("perf-model-execute-tag", tokens.at(1), tag))
         return false;
 
       return system_.perfApiExecute(hartId_, time_, tag);
     }
-  else
-    {
-      cerr << "Error: Invalid perf_model_execute command: " << line << '\n';
-      cerr << "Error: Expecting: perf_model_execute <tag>\n";
-      return false;
-    }
+
+  cerr << "Error: Invalid perf_model_execute command: " << line << '\n';
+  cerr << "Error: Expecting: perf_model_execute <tag>\n";
+  return false;
 }
 
 
@@ -3017,18 +3008,16 @@ Interactive<URV>::perfModelRetireCommand(const std::string& line,
 {
   if (tokens.size() == 2)
     {
-      uint64_t tag;
+      uint64_t tag = 0;
       if (not parseCmdLineNumber("perf-model-retire-tag", tokens.at(1), tag))
         return false;
 
       return system_.perfApiRetire(hartId_, time_, tag);
     }
-  else
-    {
-      cerr << "Error: Invalid perf_model_retire command: " << line << '\n';
-      cerr << "Error: Expecting: perf_model_retire <tag>\n";
-      return false;
-    }
+
+  cerr << "Error: Invalid perf_model_retire command: " << line << '\n';
+  cerr << "Error: Expecting: perf_model_retire <tag>\n";
+  return false;
 }
 
 
@@ -3039,18 +3028,16 @@ Interactive<URV>::perfModelDrainStoreCommand(const std::string& line,
 {
   if (tokens.size() == 2)
     {
-      uint64_t tag;
+      uint64_t tag = 0;
       if (not parseCmdLineNumber("perf-model-drain-store-tag", tokens.at(1), tag))
         return false;
 
       return system_.perfApiDrainStore(hartId_, time_, tag);
     }
-  else
-    {
-      cerr << "Error: Invalid perf_model_drain_store command: " << line << '\n';
-      cerr << "Error: Expecting: perf_model_drain_store <tag>\n";
-      return false;
-    }
+
+  cerr << "Error: Invalid perf_model_drain_store command: " << line << '\n';
+  cerr << "Error: Expecting: perf_model_drain_store <tag>\n";
+  return false;
 }
 
 
@@ -3075,12 +3062,10 @@ Interactive<URV>::perfModelPredictBranch(const std::string& line,
 
       return system_.perfApiPredictBranch(hartId_, time_, tag, flag, addr);
     }
-  else
-    {
-      cerr << "Error: Invalid perf_model_predict_branch command: " << line << '\n';
-      cerr << "Error: Expecting: perf_model_predict_branch <tag> <flag> <addr>\n";
-      return false;
-    }
+
+  cerr << "Error: Invalid perf_model_predict_branch command: " << line << '\n';
+  cerr << "Error: Expecting: perf_model_predict_branch <tag> <flag> <addr>\n";
+  return false;
 }
 
 
@@ -3091,18 +3076,16 @@ Interactive<URV>::perfModelFlushCommand(const std::string& line,
 {
   if (tokens.size() == 2)
     {
-      uint64_t tag;
+      uint64_t tag = 0;
       if (not parseCmdLineNumber("perf-model-flush-tag", tokens.at(1), tag))
         return false;
 
       return system_.perfApiFlush(hartId_, time_, tag);
     }
-  else
-    {
-      cerr << "Error: Invalid perf_model_flush command: " << line << '\n';
-      cerr << "Error: Expecting: perf_model_flush <tag>\n";
-      return false;
-    }
+
+  cerr << "Error: Invalid perf_model_flush command: " << line << '\n';
+  cerr << "Error: Expecting: perf_model_flush <tag>\n";
+  return false;
 }
 
 
@@ -3113,7 +3096,7 @@ Interactive<URV>::perfModelShouldFlushCommand(const std::string& line,
 {
   if (tokens.size() == 2)
     {
-      uint64_t tag;
+      uint64_t tag = 0;
       if (not parseCmdLineNumber("perf-model-should-flush-tag", tokens.at(1), tag))
         return false;
 
@@ -3126,12 +3109,10 @@ Interactive<URV>::perfModelShouldFlushCommand(const std::string& line,
       out_ << '\n';
       return ok;
     }
-  else
-    {
-      cerr << "Error: Invalid perf_model_flush command: " << line << '\n';
-      cerr << "Error: Expecting: perf_model_flush <tag>\n";
-      return false;
-    }
+
+  cerr << "Error: Invalid perf_model_flush command: " << line << '\n';
+  cerr << "Error: Expecting: perf_model_flush <tag>\n";
+  return false;
 }
 
 
