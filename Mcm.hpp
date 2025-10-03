@@ -756,7 +756,7 @@ namespace WdRiscv
     bool vecOverlapsRtlPhysAddr(const McmInstr& instr, uint64_t addr) const
     {
       return std::any_of(instr.memOps_.begin(), instr.memOps_.end(),
-                         [this, &instr, addr] (auto opIx) {
+                         [this, addr] (auto opIx) {
                             const auto& op = sysMemOps_.at(opIx);
                             return op.overlaps(addr);
                          });
