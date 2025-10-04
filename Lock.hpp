@@ -23,7 +23,7 @@ public:
     void lock() {
         while (true) {
             int expected = 0;
-            if (lock_.compare_exchange_strong(expected, 1,
+            if (std::atomic_ref(lock_).compare_exchange_strong(expected, 1,
                         std::memory_order_acquire, std::memory_order_relaxed)) {
                 return;
             }
@@ -31,9 +31,9 @@ public:
     }
 
     void unlock() {
-        lock_.store(0, std::memory_order_release);
+      std::atomic_ref(lock_).store(0, std::memory_order_release);
     }
 
 private:
-    std::atomic<int> lock_;
+    int lock_;
 };
