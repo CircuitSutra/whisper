@@ -2975,12 +2975,11 @@ CsRegs<URV>::tiePerfCounters(std::vector<uint64_t>& counters)
 	    break;
 	  unsigned csrIx = ix +  unsigned(CsrNumber::MHPMCOUNTER3);
 	  Csr<URV>& csr = regs_.at(csrIx);
-	  URV* loc = reinterpret_cast<URV*>(&counters.at(ix));
-	  csr.tie(loc);
+	  csr.tie((URV*) &counters.at(ix));
 
           // Tie user-mode perf register to corresponding machine mode reg.
           csrIx = ix +  unsigned(CsrNumber::HPMCOUNTER3);
-          regs_.at(csrIx).tie(loc);
+          regs_.at(csrIx).tie((URV*) &counters.at(ix));
 	}
     }
 }

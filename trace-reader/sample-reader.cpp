@@ -1,6 +1,7 @@
 #include "TraceReader.hpp"
 
 
+// NOLINTBEGIN(cppcoreguidelines-owning-memory, cppcoreguidelines-pro-bounds-pointer-arithmetic)
 int
 main(int argc, char* argv[])
 {
@@ -37,6 +38,6 @@ main(int argc, char* argv[])
 
   if (not reader.eof())
     return 1;
-
   return 0;
 }
+// NOLINTEND(cppcoreguidelines-owning-memory, cppcoreguidelines-pro-bounds-pointer-arithmetic)

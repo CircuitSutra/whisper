@@ -34,7 +34,7 @@ static
 uint8_t
 getDebugChar(int fd)
 {
-  uint8_t res;
+  uint8_t res = 0;
   if (read(fd, &res, sizeof(res)) == sizeof(res))
     return res;
   return uint8_t(-1); // TODO throw exception?
@@ -146,14 +146,14 @@ receivePacketFromGdb(int fd, std::string& packet)
 
   // Packet starts with a '$'
   ssize_t ix = 0;
-  while (ix < count and buffer[ix] != '$')
+  while (ix < count and buffer.at(ix) != '$')
     ++ix;
 
   ++ix; // Skip '$'
 
-  while (ix < count and buffer[ix] != '#')
+  while (ix < count and buffer.at(ix) != '#')
     {
-      char cc = buffer[ix++];
+      char cc = buffer.at(ix++);
       sum += cc;
       packet.push_back(cc);
     }
@@ -162,8 +162,8 @@ receivePacketFromGdb(int fd, std::string& packet)
 
   if (ix + 1 < count)
     {
-      ch = buffer[ix++];
-      uint8_t pacSum = static_cast<uint8_t>(hexCharToInt(ch) << 4); // Packet checksum
+      ch = buffer.at(ix++);
+      auto pacSum = static_cast<uint8_t>(hexCharToInt(ch) << 4); // Packet checksum
       ch = buffer[ix++];
       pacSum = static_cast<uint8_t>(pacSum + hexCharToInt(ch));
 
@@ -197,7 +197,7 @@ sendPacketToGdb(const std::string& data, int fd)
   std::string packet;
   packet.reserve(8 + data.size());
 
-  unsigned char lowerDigit, highDigit;
+  unsigned char lowerDigit = 0, highDigit = 0;
   byteToHexChars(checksum, highDigit, lowerDigit);
 
   packet.push_back('$');

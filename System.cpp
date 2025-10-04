@@ -51,12 +51,17 @@ System<URV>::System(unsigned coreCount, unsigned hartsPerCore,
                     unsigned hartIdOffset, size_t memSize,
                     size_t pageSize)
   : hartCount_(coreCount * hartsPerCore), hartsPerCore_(hartsPerCore),
-    imsicMgr_(pageSize), time_(0)
+    imsicMgr_(pageSize), time_(0),
+    syscall_(std::make_unique<Syscall<URV>>(sysHarts_, memSize)),
+    sparseMem_(nullptr)
 {
   cores_.resize(coreCount);
 
   memory_ = std::make_unique<Memory>(memSize, pageSize);
+<<<<<<< HEAD
   syscall_ = std::make_unique<Syscall<URV>>(sysHarts_, memSize);
+=======
+>>>>>>> 745f84be0734a3b32a7591846ed9767b32fc4166
 
   Memory& mem = *memory_;
   mem.setHartCount(hartCount_);
@@ -558,7 +563,7 @@ template <typename URV>
 bool
 System<URV>::saveSnapshot(const std::string& dir)
 {
-  for (auto dev : ioDevs_)
+  for (auto& dev : ioDevs_)
     dev->disable();
 
   Filesystem::path dirPath = dir;
@@ -570,7 +575,11 @@ System<URV>::saveSnapshot(const std::string& dir)
       }
 
   uint64_t minSp = ~uint64_t(0);
+<<<<<<< HEAD
   for (auto& hartPtr : sysHarts_)
+=======
+  for (const auto& hartPtr : sysHarts_)
+>>>>>>> 745f84be0734a3b32a7591846ed9767b32fc4166
     {
       std::string name = "registers";
       if (hartCount_ > 1)
@@ -678,7 +687,7 @@ System<URV>::saveSnapshot(const std::string& dir)
     return false;
 
   std::set<std::string_view> ioDevTypes;
-  for (auto dev : ioDevs_)
+  for (const auto& dev : ioDevs_)
     {
       if (ioDevTypes.contains(dev->type()))
         {
@@ -691,7 +700,7 @@ System<URV>::saveSnapshot(const std::string& dir)
         return false;
     }
 
-  for (auto dev : ioDevs_)
+  for (auto& dev : ioDevs_)
     dev->enable();
   return true;
 }
@@ -1101,6 +1110,7 @@ System<URV>::addPciDevices(const std::vector<std::string>& devs)
   for (const auto& devStr : devs)
     {
       std::vector<std::string> tokens;
+      // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
       boost::split(tokens, devStr, boost::is_any_of(":"), boost::token_compress_on);
 
       if (tokens.size() < 3)
@@ -1447,7 +1457,11 @@ System<URV>::perfApiFetch(unsigned hart, uint64_t time, uint64_t tag, uint64_t v
   if (not perfApi_)
     return false;
 
+<<<<<<< HEAD
   bool trap{}; ExceptionCause cause{}; uint64_t trapPc{};
+=======
+  bool trap = false; ExceptionCause cause{}; uint64_t trapPc = 0;
+>>>>>>> 745f84be0734a3b32a7591846ed9767b32fc4166
   return perfApi_->fetch(hart, time, tag, vpc, trap, cause, trapPc);
 }
 
@@ -1554,7 +1568,11 @@ System<URV>::produceTestSignatureFile(std::string_view outPath) const
   data.reserve((endSignature.addr_ - beginSignature.addr_) / 4);
   for (std::size_t addr = beginSignature.addr_; addr < endSignature.addr_; addr += 4)
     {
+<<<<<<< HEAD
       uint32_t value{};
+=======
+      uint32_t value = 0;
+>>>>>>> 745f84be0734a3b32a7591846ed9767b32fc4166
       if (not memory_->peek(addr, value, true))
         {
           std::cerr << "Error: Unable to read data at address 0x" << std::hex << addr << ".\n";
@@ -1710,13 +1728,21 @@ System<URV>::batchRun(std::vector<util::file::SharedFile>& traceFiles, bool wait
           unsigned finished = 0;
           std::vector<bool> stopped(sysHarts_.size(), false);
 
+<<<<<<< HEAD
           for (auto& hptr : sysHarts_)
+=======
+          for (const auto& hptr : sysHarts_)
+>>>>>>> 745f84be0734a3b32a7591846ed9767b32fc4166
             finished += hptr->hasTargetProgramFinished();
 
           while ((waitAll and finished != hartCount()) or
                  (not waitAll and finished == 0))
             {
+<<<<<<< HEAD
               for (auto& hptr : sysHarts_)
+=======
+              for (const auto& hptr : sysHarts_)
+>>>>>>> 745f84be0734a3b32a7591846ed9767b32fc4166
                 {
                   unsigned ix = hptr->sysHartIndex();
                   if (stopped.at(ix))
@@ -1726,7 +1752,11 @@ System<URV>::batchRun(std::vector<util::file::SharedFile>& traceFiles, bool wait
                   unsigned steps = (rand() % stepWindow) + stepWinLo;
                   try
                     {
+<<<<<<< HEAD
                       bool stop{};
+=======
+                      bool stop = false;
+>>>>>>> 745f84be0734a3b32a7591846ed9767b32fc4166
                       result = hptr->runSteps(steps, stop, traceFiles.at(ix).get()) and result;
                       stopped.at(ix) = stop;
                       if (stop)
@@ -1886,7 +1916,11 @@ System<URV>::snapshotRun(std::vector<util::file::SharedFile>& traceFiles, const 
   // being generated since the data will be for the last snapshot and
   // not for the whole run. Same is done for instruction and data line
   // tracing.
+<<<<<<< HEAD
   for (auto& hartPtr : sysHarts_)
+=======
+  for (const auto& hartPtr : sysHarts_)
+>>>>>>> 745f84be0734a3b32a7591846ed9767b32fc4166
     {
       hartPtr->traceBranches(std::string(), 0);
       std::string emptyPath;
@@ -2046,7 +2080,7 @@ System<URV>::loadSnapshot(const std::string& snapDir, bool restoreTrace)
     return false;
 
   std::set<std::string_view> ioDevTypes;
-  for (auto dev : ioDevs_)
+  for (auto& dev : ioDevs_)
     {
       if (ioDevTypes.contains(dev->type()))
         {

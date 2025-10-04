@@ -438,6 +438,7 @@ bool
 Memory::collectElfRiscvTags(const std::string& fileName,
                             std::vector<std::string>& tags)
 {
+  // NOLINTNEXTLINE(clang-analyzer-optin.cplusplus.VirtualCall)
   ELFIO::elfio reader;
 
   if (not reader.load(fileName))

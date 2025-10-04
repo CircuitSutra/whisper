@@ -227,7 +227,7 @@ Hart<URV>::loadReserve(const DecodedInst* di, uint32_t rd, uint32_t rs1)
     return false;
 
   // Unsigned version of LOAD_TYPE
-  using ULT = typename std::make_unsigned<LOAD_TYPE>::type;
+  using ULT = std::make_unsigned_t<LOAD_TYPE>;
 
   uint64_t addr1 = virtAddr, addr2 = virtAddr;
   uint64_t gaddr1 = virtAddr;
