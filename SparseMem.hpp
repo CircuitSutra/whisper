@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <cassert>
 #include <memory>
 #include <vector>
 #include <span>

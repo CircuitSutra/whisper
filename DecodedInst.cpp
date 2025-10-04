@@ -34,7 +34,7 @@ DecodedInst::setIthOperandValue(unsigned i, uint64_t value)
     case OperandType::CsReg:
     case OperandType::VecReg:
       if (i < sizeof(values_))
-	values_[i] = value;
+	values_.at(i) = value;
       break;
 
     case OperandType::Imm:

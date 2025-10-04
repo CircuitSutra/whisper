@@ -9,6 +9,7 @@ Checks: >
     cppcoreguidelines-*,
     -clang-diagnostic-*,
     -readability-identifier-length,
+    -readability-identifier-naming,
     -readability-braces-around-statements,
     -cppcoreguidelines-pro-type-union-access,
     -readability-implicit-bool-conversion,
@@ -34,7 +35,8 @@ Checks: >
     -modernize-macro-to-enum,
     -bugprone-assignment-in-if-condition,
     -readability-suspicious-call-argument,
-    -readability-container-data-pointer
+    -readability-container-data-pointer,
+    -misc-confusable-identifiers
 
 CheckOptions:
   - key:   bugprone-reserved-identifier.AllowedIdentifiers

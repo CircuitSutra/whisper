@@ -18,7 +18,7 @@
 
 class SpinLock {
 public:
-    SpinLock() : lock_(0) {}
+    SpinLock() = default;
 
     void lock() {
         while (true) {
@@ -35,5 +35,5 @@ public:
     }
 
 private:
-    int lock_;
+    int lock_ = 0;
 };

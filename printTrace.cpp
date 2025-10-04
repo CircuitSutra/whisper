@@ -49,7 +49,7 @@ template <typename URV>
 void
 formatVecInstTrace(FILE* out, uint64_t tag, const Hart<URV>& hart,
 		   std::string_view opcode, unsigned vecReg,
-		   const uint8_t* data, unsigned byteCount,
+		   std::span<const uint8_t> data, unsigned byteCount,
 		   std::string_view assembly);
 
 
@@ -57,7 +57,7 @@ template <>
 void
 formatVecInstTrace<uint32_t>(FILE* out, uint64_t tag, const Hart<uint32_t>& hart,
 			     std::string_view opcode, unsigned vecReg,
-			     const uint8_t* data, unsigned byteCount,
+			     std::span<const uint8_t> data, unsigned byteCount,
 			     std::string_view assembly)
 {
   std::string_view pmStr = privilegeModeToStr(hart);
@@ -76,7 +76,7 @@ template <>
 void
 formatVecInstTrace<uint64_t>(FILE* out, uint64_t tag, const Hart<uint64_t>& hart,
 			     std::string_view opcode, unsigned vecReg,
-			     const uint8_t* data, unsigned byteCount,
+			     std::span<const uint8_t> data, unsigned byteCount,
 			     std::string_view assembly)
 {
   std::string_view pmStr = privilegeModeToStr(hart);
@@ -231,9 +231,9 @@ printPageTableWalk(FILE* out, const Hart<URV>& hart, const char* tag,
   fputs(tag, out);
   fputs(":", out);
   bool head = true;
-  VirtMem::WalkEntry::Type headType = entries.size() > 0? entries.at(0).type_ :
+  VirtMem::WalkEntry::Type headType = not entries.empty()? entries.at(0).type_ :
                                                           VirtMem::WalkEntry::Type::GVA;
-  for (auto& entry : entries)
+  for (const auto& entry : entries)
     {
       fputs("  +\n", out);
       uint64_t addr = entry.addr_;
@@ -259,7 +259,7 @@ printPageTableWalk(FILE* out, const Hart<URV>& hart, const char* tag,
 
           Pma pma = hart.getPma(effAddr);
           pma = hart.overridePmaWithPbmt(pma, entry.pbmt_);
-          fprintf(out, ", ma=%s", pma.attributesToString(pma.attributesToInt()).c_str());
+          fprintf(out, ", ma=%s", Pma::attributesToString(pma.attributesToInt()).c_str());
         }
       head = false;
     }
@@ -363,8 +363,8 @@ Hart<URV>::printDecodedInstTrace(const DecodedInst& di, uint64_t tag, std::strin
 	}
     }
 
-  std::array<char, 128> instBuff;
-  int                   instLen;
+  std::array<char, 128> instBuff{};
+  int                   instLen = 0;
   if (di.instSize() == 4)
     instLen = snprintf(instBuff.data(), instBuff.size(), "%08x", di.inst());
   else
@@ -483,7 +483,7 @@ Hart<URV>::printDecodedInstTrace(const DecodedInst& di, uint64_t tag, std::strin
 
   if (tracePtw_)
     {
-      if (virtMem_.getFetchWalks().size() != 0 or virtMem_.getDataWalks().size() != 0)
+      if (not virtMem_.getFetchWalks().empty() or not virtMem_.getDataWalks().empty())
         {
           fprintf(out, "  +\nsatp mode: %4s", VirtMem::to_string(lastPageMode_).data());
           fprintf(out, "  +\nvsatp mode: %4s", VirtMem::to_string(lastVsPageMode_).data());
@@ -662,7 +662,7 @@ Hart<URV>::printInstCsvTrace(const DecodedInst& di, FILE* out)
         {
           if (regCount) buffer.printChar(';');
           buffer.printChar('v').print(std::to_string(vecReg)).printChar('=');
-          const uint8_t* data = vecRegs_.getVecData(vecReg);
+          auto data = vecRegs_.getVecData(vecReg);
           unsigned byteCount = vecRegs_.bytesPerRegister();
           for (unsigned i = 0; i < byteCount; ++i)
             {
@@ -845,15 +845,15 @@ Hart<URV>::printInstCsvTrace(const DecodedInst& di, FILE* out)
             getPageTableWalkAddresses(isFetch, walk, addrs);
             getPageTableWalkEntries(isFetch, walk, entries);
             unsigned entryIx = 0;
-            for (uint64_t i = 0; i < addrs.size(); ++i)
+            for (const auto& addr : addrs)
               {
-                buffer.print(sep).print(addrs.at(i).addr_);
-                if (addrs.at(i).type_ == VirtMem::WalkEntry::Type::PA)
+                buffer.print(sep).print(addr.addr_);
+                if (addr.type_ == VirtMem::WalkEntry::Type::PA)
                   {
                     buffer.printChar('=').print(entries.at(entryIx++));
 
-                    Pma pma = getPma(addrs.at(i).addr_);
-                    pma = overridePmaWithPbmt(pma, addrs.at(i).pbmt_);
+                    Pma pma = getPma(addr.addr_);
+                    pma = overridePmaWithPbmt(pma, addr.pbmt_);
                     buffer.print(";ma=").print(pma.attributesToInt());
                   }
                 sep = ";";
@@ -883,7 +883,7 @@ Hart<URV>::reportInstsPerSec(uint64_t instCount, uint64_t retInstCount, double e
 
   std::cout.flush();
 
-  std::array<char, 20> secBuf;
+  std::array<char, 20> secBuf{};
   int                  secLen = snprintf(secBuf.data(), secBuf.size(), "%.2fs", elapsed);
   std::string_view     secStr = std::string_view(secBuf.begin(), secLen);
 
@@ -977,8 +977,8 @@ Hart<URV>::printInstructions(FILE* file) const
 {
   for (unsigned i = 0; i <= unsigned(InstId::maxId); ++i)
     {
-      InstId id = InstId(i);
-      auto& entry = decoder_.getInstructionEntry(id);
+      auto id = InstId(i);
+      const auto& entry = decoder_.getInstructionEntry(id);
       auto extension = entry.extension();
       if (isa_.isEnabled(extension))
         {

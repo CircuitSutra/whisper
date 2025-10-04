@@ -819,18 +819,18 @@ namespace WdRiscv
     /// Return the pointers to the 1st byte of the memory area
     /// associated with the given vector. Return nullptr if
     /// vector index is out of bounds.
-    uint8_t* getVecData(uint32_t vecIx)
+    std::span<uint8_t> getVecData(uint32_t vecIx)
     {
       if (vecIx >= regCount_)
-        return nullptr;
-      return &data_.at(size_t(vecIx)*bytesPerReg_);
+        return {};
+      return {&data_.at(size_t(vecIx)*bytesPerReg_), bytesPerReg_};
     }
 
-    const uint8_t* getVecData(uint32_t vecIx) const
+    std::span<const uint8_t> getVecData(uint32_t vecIx) const
     {
       if (vecIx >= regCount_)
-        return nullptr;
-      return &data_.at(size_t(vecIx)*bytesPerReg_);
+        return {};
+      return {&data_.at(size_t(vecIx)*bytesPerReg_), bytesPerReg_};
     }
 
     /// It is convenient to construct an empty register file (bytesPerReg = 0)

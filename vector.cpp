@@ -9264,18 +9264,11 @@ Hart<URV>::vmvr_v(const DecodedInst* di, unsigned nr)
 
   if (vd != vs1 and start < elems)
     {
-      uint8_t* dest = vecRegs_.getVecData(vd);
-      uint8_t* source = vecRegs_.getVecData(vs1);
-      assert(dest);
-      assert(source);
-
-      // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-      dest += static_cast<size_t>(start*bytesPerElem);
-      source += static_cast<size_t>(start*bytesPerElem);
-      // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+      auto dest = vecRegs_.getVecData(vd);
+      auto source = vecRegs_.getVecData(vs1);
       bytes -= start*bytesPerElem;
 
-      memcpy(dest, source, bytes);
+      memcpy(&dest[start*bytesPerElem], &source[start*bytesPerElem], bytes);
       vecRegs_.setOpEmul(nr, nr);  // Track operand group for logging
     }
 

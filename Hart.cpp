@@ -4023,7 +4023,7 @@ Hart<URV>::peekVecReg(unsigned ix, std::vector<uint8_t>& value) const
   if (ix >= vecRegs_.size())
     return false;
 
-  const uint8_t* data = vecRegs_.getVecData(ix);
+  auto data = vecRegs_.getVecData(ix);
   unsigned byteCount = vecRegs_.bytesPerRegister();
   value.resize(byteCount);
 
@@ -4041,8 +4041,8 @@ Hart<URV>::pokeVecReg(unsigned ix, const std::vector<uint8_t>& val)
   if (not isRvv() or ix >= vecRegs_.size() or val.empty())
     return false;
 
-  uint8_t* regData = vecRegs_.getVecData(ix);
-  if (not regData)
+  auto regData = vecRegs_.getVecData(ix);
+  if (regData.empty())
     return false;
 
   // Bytes in val are in reverse order (most signficant first).
@@ -4070,7 +4070,7 @@ Hart<URV>::peekVecRegLsb(unsigned ix, std::vector<uint8_t>& value) const
   if (ix >= vecRegs_.size())
     return false;
 
-  const uint8_t* data = vecRegs_.getVecData(ix);
+  auto data = vecRegs_.getVecData(ix);
   unsigned byteCount = vecRegs_.bytesPerRegister();
   value.resize(byteCount);
 
@@ -4088,8 +4088,8 @@ Hart<URV>::pokeVecRegLsb(unsigned ix, const std::vector<uint8_t>& val)
   if (not isRvv() or ix >= vecRegs_.size() or val.empty())
     return false;
 
-  uint8_t* regData = vecRegs_.getVecData(ix);
-  if (not regData)
+  auto regData = vecRegs_.getVecData(ix);
+  if (regData.empty())
     return false;
 
   uint32_t count = vecRegs_.bytesPerRegister();
@@ -4110,8 +4110,8 @@ Hart<URV>::pokeVecRegLsb(unsigned ix, const std::span<const uint8_t>& val)
   if (not isRvv() or ix > vecRegs_.size() or val.empty())
     return false;
 
-  uint8_t* regData = vecRegs_.getVecData(ix);
-  if (not regData)
+  auto regData = vecRegs_.getVecData(ix);
+  if (regData.empty())
     return false;
 
   uint32_t count = vecRegs_.bytesPerRegister();
@@ -5240,7 +5240,7 @@ public:
   {
     clearUserStop();
 
-    struct sigaction newKbdAction;
+    struct sigaction newKbdAction{};
     memset(&newKbdAction, 0, sizeof(newKbdAction));
     newKbdAction.sa_handler = forceUserStop;
     sigaction(SIGINT, &newKbdAction, &prevKbdAction_);
