@@ -7,8 +7,6 @@ main(int argc, char* argv[])
 {
   using namespace WhisperUtil;
 
-  TraceReader* reader = nullptr;
-
   if (argc < 2)
     return 0;
 

@@ -2086,7 +2086,7 @@ Iommu::executeIodirCommand(const AtsCommand& atsCmd)
   if (isInvalPdt)
     printf("IODIR.INVAL_PDT: PID=%d, DV=%d, DID=%d \n", cmd.PID, cmd.DV, cmd.DID);
 
-  printf("%ld\n", addr_); // Silence clang tidy. Temporary until this method is fully implemented.
+  addr_ = addr_ + 0; // Silence clang tidy. Temporary until this method is fully implemented.
 }
 
 void 
@@ -2228,8 +2228,7 @@ Iommu::executeIotinvalCommand(const AtsCommand& atsCmd)
   
   printf("%s: Command completed (stub implementation)\n", cmdName);
 
-  uint64_t temp = addr_;
-  (void) temp;  // Silence clang tidy. Temporary until this method is fully implemented.
+  addr_ = addr_ + 0;
 }
 
 void

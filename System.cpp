@@ -177,13 +177,11 @@ System<URV>::defineUart(const std::string& type, uint64_t addr, uint64_t size,
 
         return channel;
       }
-      else
-      {
-        std::cerr << "Error: System::defineUart: Invalid channel type: " << channel_type << "\n"
-          << "Valid channels: stdio, pty, unix:<server socket path>, or a"
-          << "semicolon separated list of those.\n";
-        return nullptr;
-      }
+
+      std::cerr << "Error: System::defineUart: Invalid channel type: " << channel_type << "\n"
+      << "Valid channels: stdio, pty, unix:<server socket path>, or a"
+      << "semicolon separated list of those.\n";
+      return nullptr;
     };
     return createChannelImpl(channel_type, createChannelImpl);
   };
