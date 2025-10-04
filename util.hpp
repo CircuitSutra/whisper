@@ -162,7 +162,7 @@ namespace util
 
   template <typename T>
     requires std::is_arithmetic_v<T>
-  auto view_bytes_as_span_of(std::span<const unsigned char> bytes) -> std::span<const T> {
+  constexpr auto view_bytes_as_span_of(std::span<const unsigned char> bytes) -> std::span<const T> {
     assert((bytes.size() % sizeof(T)) == 0);
     return std::span<const T>(
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
@@ -173,12 +173,24 @@ namespace util
 
   template <typename T>
     requires std::is_arithmetic_v<T>
-  auto view_bytes_as_span_of(std::span<const char> bytes) -> std::span<const T> {
+  constexpr auto view_bytes_as_span_of(std::span<const char> bytes) -> std::span<const T> {
     assert((bytes.size() % sizeof(T)) == 0);
     return std::span<const T>(
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
         reinterpret_cast<const T*>(bytes.data()),
         bytes.size() / sizeof(T)
+    );
+  }
+
+  template <typename T, typename F>
+    requires std::is_arithmetic_v<F> && std::is_arithmetic_v<T>
+  constexpr auto view_arith_as_arr_of(F& f) -> std::span<T, sizeof(F) / sizeof(T)> {
+    static_assert(sizeof(F) > sizeof(T));
+    static_assert(sizeof(F) % sizeof(T) == 0);
+    return std::span<T, sizeof(F) / sizeof(T)>(
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+        reinterpret_cast<T*>(&f),
+        sizeof(F) / sizeof(T)
     );
   }
 }

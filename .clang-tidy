@@ -33,7 +33,8 @@ Checks: >
     -cppcoreguidelines-pro-type-vararg,
     -modernize-macro-to-enum,
     -bugprone-assignment-in-if-condition,
-    -readability-suspicious-call-argument
+    -readability-suspicious-call-argument,
+    -readability-container-data-pointer
 
 CheckOptions:
   - key:   bugprone-reserved-identifier.AllowedIdentifiers
@@ -42,6 +43,8 @@ CheckOptions:
     value: 'int8_t'
   - key:   cppcoreguidelines-pro-type-member-init.UseAssignment
     value: true
+  - key:   clang-analyzer-optin.performance.Padding:AllowedPad
+    value: 200
   - key:   cppcoreguidelines-owning-memory.LegacyResourceProducers
     value: '::malloc;::aligned_alloc;::realloc;::calloc;::fopen;::freopen;::tmpfile;::popen'
   - key:   cppcoreguidelines-owning-memory.LegacyResourceConsumers

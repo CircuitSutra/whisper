@@ -143,7 +143,7 @@ namespace WdRiscv
     /// within a system of cores -- see sysHartIndex method) and
     /// associate it with the given memory. The MHARTID is configured as
     /// a read-only CSR with a reset value of hartId.
-    Hart(unsigned hartIx, URV hartId, unsigned numHarts, Memory& memory, Syscall<URV>& syscall, std::atomic<uint64_t>& time);
+    Hart(unsigned hartIx, URV hartId, unsigned numHarts, Memory& memory, Syscall<URV>& syscall, uint64_t& time);
 
     /// Destructor.
     ~Hart();
@@ -2707,7 +2707,7 @@ namespace WdRiscv
         {
           timeSample_++;
           if (timeSample_ >= (URV(1) << timeDownSample_) * numHarts_) {
-            time_.fetch_add(1, std::memory_order_relaxed);
+            std::atomic_ref(time_).fetch_add(1, std::memory_order_relaxed);
             timeSample_ = 0;
           }
         }
@@ -2725,7 +2725,7 @@ namespace WdRiscv
             return;
           }
           timeSample_ = (URV(1) << timeDownSample_) * numHarts_ - 1;
-          time_.fetch_sub(1, std::memory_order_relaxed);
+          std::atomic_ref(time_).fetch_sub(1, std::memory_order_relaxed);
         }
     }
 
@@ -5857,7 +5857,7 @@ namespace WdRiscv
     unsigned cacheLineShift_ = 6;
 
     bool autoIncrementTimer_ = true;
-    std::atomic<uint64_t>& time_;  // All harts increment this value.
+    uint64_t time_;  // All harts increment this value.
     uint64_t timeDownSample_ = 0;
     uint64_t timeSample_ = 0;
 
@@ -5980,8 +5980,8 @@ namespace WdRiscv
 
     // Decoded instruction cache.
     std::vector<DecodedInst> decodeCache_;
-    uint32_t decodeCacheSize_ = 0;
-    uint32_t decodeCacheMask_ = 0;  // Derived from decodeCacheSize_
+    uint32_t decodeCacheSize_;
+    uint32_t decodeCacheMask_;  // Derived from decodeCacheSize_
 
     // Following is for test-bench support. It allow us to cancel div/rem
     bool hasLastDiv_ = false;

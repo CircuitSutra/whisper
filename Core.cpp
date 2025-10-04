@@ -21,7 +21,7 @@ using namespace WdRiscv;
 
 
 template <typename URV>
-Core<URV>::Core(URV hartIdBase, unsigned coreIx, unsigned hartsPerCore, Memory& memory, Syscall<URV>& syscall, std::atomic<uint64_t>& time)
+Core<URV>::Core(URV hartIdBase, unsigned coreIx, unsigned hartsPerCore, Memory& memory, Syscall<URV>& syscall, uint64_t& time)
 {
   harts_.resize(hartsPerCore);
 

@@ -23,6 +23,7 @@
 #include "FpRegs.hpp"
 #include "VecRegs.hpp"
 #include "float-util.hpp"
+#include "util.hpp"
 
 using namespace WdRiscv;
 
@@ -2941,20 +2942,21 @@ CsRegs<URV>::tiePerfCounters(std::vector<uint64_t>& counters)
 
 	  unsigned highIx = ix +  unsigned(CsrNumber::MHPMCOUNTER3H);
 	  Csr<URV>& csrHigh = regs_.at(highIx);
-	  URV* low = reinterpret_cast<URV*>(&counters.at(ix));
-          URV* high = low + 1;
-	  csrHigh.tie(high);
+	  // URV* low = reinterpret_cast<URV*>(&counters.at(ix));
+          // URV* high = low + 1;
+          auto arr = util::view_arith_as_arr_of<uint32_t>(counters.at(ix));
+	  csrHigh.tie((URV*) &arr[1]);
 
 	  unsigned lowIx = ix +  unsigned(CsrNumber::MHPMCOUNTER3);
 	  Csr<URV>& csrLow = regs_.at(lowIx);
-	  csrLow.tie(low);
+	  csrLow.tie((URV*) &arr[0]);
 
           // Tie the user-mode performance counter to their
           // machine-mode counterparts.
           highIx = ix +  unsigned(CsrNumber::HPMCOUNTER3H);
-          regs_.at(highIx).tie(high);
+          regs_.at(highIx).tie((URV*) &arr[1]);
           lowIx = ix +  unsigned(CsrNumber::HPMCOUNTER3);
-          regs_.at(lowIx).tie(low);
+          regs_.at(lowIx).tie((URV*) &arr[0]);
 	}
     }
   else
