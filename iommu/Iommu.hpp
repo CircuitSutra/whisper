@@ -562,6 +562,10 @@ namespace TT_IOMMU
     static bool isAtsPrgrCommand(const AtsCommand& cmd) 
     { return cmd.isPrgr(); }
 
+    /// Return true if the given command is an IODIR command (has the correct opcode).
+    bool isIodirCommand(const AtsCommand& cmd) const
+    { return cmd.isIodir(); }
+
     /// Return true if the given command is an IOFENCE command (has the correct opcode).
     static bool isIofenceCommand(const AtsCommand& cmd) 
     { return cmd.isIofence(); }
@@ -580,16 +584,19 @@ namespace TT_IOMMU
     { return cmd.isIotinvalGvma(); }
 
     /// Execute an ATS.INVAL command for address translation cache invalidation
-    void executeAtsInvalCommand(const AtsCommandData& cmdData);
+    void executeAtsInvalCommand(const AtsCommand& cmd);
     
     /// Execute an ATS.PRGR command for page request group response
-    void executeAtsPrgrCommand(const AtsCommandData& cmdData);
+    void executeAtsPrgrCommand(const AtsCommand& cmd);
+
+    /// Execute an IODIR command
+    void executeIodirCommand(const AtsCommand& cmdData);
 
     /// Execute an IOFENCE.C command for command queue fence
-    void executeIofenceCCommand(const AtsCommandData& cmdData);
+    void executeIofenceCCommand(const AtsCommand& cmdData);
 
     /// Execute an IOTINVAL command for page table cache invalidation (VMA or GVMA)
-    void executeIotinvalCommand(const AtsCommandData& cmdData);
+    void executeIotinvalCommand(const AtsCommand& cmdData);
 
 
     /// Process pending page requests in the page request queue

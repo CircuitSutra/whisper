@@ -21,6 +21,7 @@ namespace TT_IOMMU
   // Forward declarations
   struct AtsInvalCommand;
   struct AtsPrgrCommand;
+  struct IodirCommand;
   struct IofenceCCommand;
   struct IotinvalCommand;
 
@@ -30,6 +31,13 @@ namespace TT_IOMMU
     INVAL = 0,  // Send ATS "Invalidation Request" messages
     PRGR  = 1   // Send ATS "Page Request Group Response" messages
     // 2-7 reserved for future standard use
+  };
+
+  // IODIR command functions
+  enum class IodirFunc : uint32_t
+  {
+    INVAL_DDT = 0,
+    INVAL_PDT = 1,
   };
 
   // IOFENCE command functions
@@ -53,7 +61,7 @@ namespace TT_IOMMU
     // 0 reserved
     IOTINVAL = 1, // IOMMU Translation Table Cache invalidation commands
     IOFENCE = 2,  // IOMMU fence commands
-    // 3 reserved  
+    IODIR = 3,    // IOMMU directory cache invalidation commands
     ATS = 4       // IOMMU PCIe ATS commands
   };
 
@@ -110,6 +118,28 @@ namespace TT_IOMMU
     AtsPrgrCommand() = default;
   };
   
+  // IODIR command structure
+  struct IodirCommand
+  {
+    CommandOpcode   opcode      : 7;
+    IodirFunc       func3       : 3;
+    uint64_t        reserved0   : 2;  //
+    uint64_t        PID         : 20; //
+    uint64_t        reserved1   : 1;  //
+    uint64_t        DV          : 1;  //
+    uint64_t        reserved2   : 6;  //
+    uint64_t        DID         : 24; //
+
+    IodirCommand()
+    {
+      opcode = CommandOpcode::IODIR;
+      func3 = IodirFunc::INVAL_DDT;
+      PID = 0;
+      DV = 0;
+      DID = 0;
+    }
+  };
+
   // IOFENCE.C command structure based on specification
   struct IofenceCCommand
   {
@@ -166,6 +196,11 @@ namespace TT_IOMMU
       : prgr(prgr)
     {}
 
+    /// Construct from an IodirCommand
+    Command(IodirCommand iodir)
+      : iodir(iodir)
+    {}
+
     /// Construct from an IofenceCCommand
     Command(IofenceCCommand iofence)
       : iofence(iofence)
@@ -190,6 +225,10 @@ namespace TT_IOMMU
     bool isAts() const
     { return (CommandOpcode)inval.opcode == CommandOpcode::ATS; }
 
+    /// True if the opcode corresponds to IODIR.
+    bool isIodir() const
+    { return (CommandOpcode)iodir.opcode == CommandOpcode::IODIR; }
+
     /// True if the opcode corresponds to IOFENCE.
     bool isIofence() const
     { return (CommandOpcode)iofence.opcode == CommandOpcode::IOFENCE; }
@@ -205,6 +244,14 @@ namespace TT_IOMMU
     /// True if ATS page request group command.
     bool isPrgr() const
     { return isAts() and prgr.func3 == AtsFunc::PRGR; }
+
+    /// True if IODIR.INVAL_DDT
+    bool isIodirInvalDdt() const
+    { return isIodir() and iodir.func3 == IodirFunc::INVAL_DDT; }
+
+    /// True if IODIR.INVAL_PDT
+    bool isIodirInvalPdt() const
+    { return isIodir() and iodir.func3 == IodirFunc::INVAL_PDT; }
 
     /// True if IOFENCE.C command.
     bool isIofenceC() const
@@ -228,6 +275,7 @@ namespace TT_IOMMU
 
     AtsInvalCommand   inval;
     AtsPrgrCommand    prgr;
+    IodirCommand      iodir;
     IofenceCCommand   iofence;
     IotinvalCommand   iotinval;
     AtsCommandData    data;

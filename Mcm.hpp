@@ -228,7 +228,7 @@ namespace WdRiscv
     /// forward). For vector load elemIx is the element index and field is the segment
     /// field number (0 if non segment).
     bool readOp(Hart<URV>& hart, uint64_t time, uint64_t instrTag, uint64_t physAddr,
-		unsigned size, uint64_t rtlData, unsigned elemIx, unsigned field);
+		unsigned size, uint64_t rtlData, unsigned elemIx, unsigned field, bool cache);
 
     /// This is a write operation bypassing the merge buffer. The cache parameter indicates
     /// whether the write operation should go to cache or memory.
@@ -498,7 +498,7 @@ namespace WdRiscv
     /// Helper to public readOp which splits line crossing ops into two calling this
     /// method for each.
     bool readOp_(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa, unsigned size,
-                 uint64_t rtlData, unsigned elemIx, unsigned field);
+                 uint64_t rtlData, unsigned elemIx, unsigned field, bool cache);
 
     using MemoryOpVec = std::vector<MemoryOp>;
 
@@ -518,7 +518,7 @@ namespace WdRiscv
                            unsigned size, uint64_t rtlData, uint64_t refData) const;
 
     /// Read up to a double word (size <= 8) from the reference model memory.
-    bool referenceModelRead(Hart<URV>& hart, uint64_t pa, unsigned size, uint64_t& val);
+    bool referenceModelRead(Hart<URV>& hart, uint64_t pa, unsigned size, uint64_t& val, bool cache);
 
     /// Return true if the physical adresses of the given read operation, op, overlaps the
     /// the range of addresses associated with a memory access for the given vector

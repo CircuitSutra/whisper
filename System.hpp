@@ -365,7 +365,7 @@ namespace WdRiscv
     /// For vector load elemIx is the element index and fieldIx is the field number
     /// for segmented loads (zero if non-segment).
     bool mcmRead(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t addr,
-		 unsigned size, uint64_t data, unsigned elemIx, unsigned fieldIx);
+		 unsigned size, uint64_t data, unsigned elemIx, unsigned fieldIx, bool cache);
 
     /// Initiate a merge buffer write.  All associated store write
     /// transactions are marked completed. Write instructions where

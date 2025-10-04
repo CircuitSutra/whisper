@@ -194,6 +194,8 @@ Server<URV>::pokeCommand(const WhisperMessage& req, WhisperMessage& reply, Hart<
     case 'm':
       {
         bool usePma = false; // Ignore phsical memory attributes.
+
+        // We only expect direct cache poking to be used for A/D bit updates and I/O coherence.
         bool cache = WhisperFlags{req.flags}.bits.cache;
         bool skipMem = WhisperFlags{req.flags}.bits.skipMem;
 
@@ -768,11 +770,11 @@ Server<URV>::mcmReadCommand(const WhisperMessage& req, WhisperMessage& reply,
   if (req.size <= 8)
     {
       ok = system_.mcmRead(hart, req.time, req.instrTag, req.address, req.size,
-			   req.value, elem, field);
+			   req.value, elem, field, WhisperFlags{req.flags}.bits.cache);
       if (cmdLog)
-          fprintf(cmdLog, "hart=%" PRIu32 " time=%" PRIu64 " mread %" PRIu64 " 0x%" PRIx64 " %" PRIu32 " 0x%" PRIx64 " %d %d\n",
+          fprintf(cmdLog, "hart=%" PRIu32 " time=%" PRIu64 " mread %" PRIu64 " 0x%" PRIx64 " %" PRIu32 " 0x%" PRIx64 " %d %d %d\n",
                   hartId, req.time, req.instrTag, req.address, req.size, req.value,
-		  elem, field);
+		  elem, field, WhisperFlags{req.flags}.bits.cache);
     }
   else
     {
@@ -786,6 +788,7 @@ Server<URV>::mcmReadCommand(const WhisperMessage& req, WhisperMessage& reply,
 	{
 	  // For speed, use double-word insert when possible, else word, else byte.
 	  uint64_t size = req.size, time = req.time, tag = req.instrTag, addr = req.address;
+          bool cache = WhisperFlags{req.flags}.bits.cache;
 	  if ((size & 0x7) == 0 and (addr & 0x7) == 0)
 	    {
               auto data = util::view_bytes_as_span_of<uint64_t>(req.buffer);
@@ -882,7 +885,7 @@ Server<URV>::mcmInsertCommand(const WhisperMessage& req, WhisperMessage& reply,
 		  unsigned val = std::bit_cast<uint8_t>(req.buffer.at(i-1));
 		  fprintf(cmdLog, "%02x", val);
 		}
-	      fprintf(cmdLog, " %d %d\n", elem, field);
+	      fprintf(cmdLog, " %d %d %d\n", elem, field, WhisperFlags{req.flags}.bits.cache);
 	    }
 	}
     }

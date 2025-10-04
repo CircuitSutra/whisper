@@ -1044,56 +1044,40 @@ Hart<URV>::updateBigEndian()
 
 template <typename URV>
 bool
-Hart<URV>::peekMemory(uint64_t address, uint8_t& val, bool usePma) const
+Hart<URV>::peekMemory(uint64_t address, uint8_t& val, bool usePma, bool skipData) const
 {
-  if (mcm_ and dataCache_)
-    {
-      bool cacheable = usePma? isPmaCacheable(address) : true;
-      if (cacheable)
-        return peekMcmCache<McmMem::Data>(address, val);
-    }
+  if (mcm_ and dataCache_ and not skipData)
+    return peekMcmCache<McmMem::Data>(address, val);
   return memory_.peek(address, val, usePma);
 }
 
 
 template <typename URV>
 bool
-Hart<URV>::peekMemory(uint64_t address, uint16_t& val, bool usePma) const
+Hart<URV>::peekMemory(uint64_t address, uint16_t& val, bool usePma, bool skipData) const
 {
-  if (mcm_ and dataCache_)
-    {
-      bool cacheable = usePma? isPmaCacheable(address) : true;
-      if (cacheable)
-        return peekMcmCache<McmMem::Data>(address, val);
-    }
+  if (mcm_ and dataCache_ and not skipData)
+    return peekMcmCache<McmMem::Data>(address, val);
   return memory_.peek(address, val, usePma);
 }
 
 
 template <typename URV>
 bool
-Hart<URV>::peekMemory(uint64_t address, uint32_t& val, bool usePma) const
+Hart<URV>::peekMemory(uint64_t address, uint32_t& val, bool usePma, bool skipData) const
 {
-  if (mcm_ and dataCache_)
-    {
-      bool cacheable = usePma? isPmaCacheable(address) : true;
-      if (cacheable)
-        return peekMcmCache<McmMem::Data>(address, val);
-    }
+  if (mcm_ and dataCache_ and not skipData)
+    return peekMcmCache<McmMem::Data>(address, val);
   return memory_.peek(address, val, usePma);
 }
 
 
 template <typename URV>
 bool
-Hart<URV>::peekMemory(uint64_t address, uint64_t& val, bool usePma) const
+Hart<URV>::peekMemory(uint64_t address, uint64_t& val, bool usePma, bool skipData) const
 {
-  if (mcm_ and dataCache_)
-    {
-      bool cacheable = usePma? isPmaCacheable(address) : true;
-      if (cacheable)
-        return peekMcmCache<McmMem::Data>(address, val);
-    }
+  if (mcm_ and dataCache_ and not skipData)
+    return peekMcmCache<McmMem::Data>(address, val);
 
   if (memory_.peek(address, val, usePma))
     return true;
@@ -1118,13 +1102,11 @@ Hart<URV>::pokeMemory(uint64_t addr, uint8_t val, bool usePma, bool skipFetch, b
   memory_.invalidateOtherHartLr(hartIx_, addr, sizeof(val));
   invalidateDecodeCache(addr, sizeof(val));
 
-  bool cacheable = usePma? isPmaCacheable(addr) : true;
-
-  if (mcm_ and not skipFetch and fetchCache_ and cacheable)
+  if (mcm_ and not skipFetch and fetchCache_)
     pokeMcmCache<McmMem::Fetch>(addr, val);
 
   bool ok = false;
-  if (mcm_ and not skipData and dataCache_ and cacheable)
+  if (mcm_ and not skipData and dataCache_)
     ok = pokeMcmCache<McmMem::Data>(addr, val);
 
   if (not skipMem and not ok)
@@ -1148,16 +1130,14 @@ Hart<URV>::pokeMemory(uint64_t addr, uint16_t val, bool usePma, bool skipFetch, 
       return true;
     }
 
-  bool cacheable = usePma? isPmaCacheable(addr) : true;
-
-  if (mcm_ and not skipFetch and fetchCache_ and cacheable)
+  if (mcm_ and not skipFetch and fetchCache_)
     {
       pokeMcmCache<McmMem::Fetch>(addr, uint8_t(val));
       pokeMcmCache<McmMem::Fetch>(addr + 1, uint8_t(val >> 8));
     }
 
   std::array<bool, sizeof(val)> b{false};
-  if (mcm_ and not skipData and dataCache_ and cacheable)
+  if (mcm_ and not skipData and dataCache_)
     {
       for (unsigned i = 0; i < sizeof(val); ++i)
         b.at(i) = pokeMcmCache<McmMem::Data>(addr + i, uint8_t(val >> (i*8)));
@@ -1199,14 +1179,12 @@ Hart<URV>::pokeMemory(uint64_t addr, uint32_t val, bool usePma, bool skipFetch, 
       return true;
     }
 
-  bool cacheable = usePma? isPmaCacheable(addr) : true;
-
-  if (mcm_ and not skipFetch and fetchCache_ and cacheable)
+  if (mcm_ and not skipFetch and fetchCache_)
     for (unsigned i = 0; i < sizeof(val); ++i)
       pokeMcmCache<McmMem::Fetch>(addr + i, uint8_t(val >> (i*8)));
 
   std::array<bool, sizeof(val)> b{false};
-  if (mcm_ and not skipData and dataCache_ and cacheable)
+  if (mcm_ and not skipData and dataCache_)
     {
       for (unsigned i = 0; i < sizeof(val); ++i)
         b.at(i) = pokeMcmCache<McmMem::Data>(addr + i, uint8_t(val >> (i*8)));
@@ -1245,14 +1223,12 @@ Hart<URV>::pokeMemory(uint64_t addr, uint64_t val, bool usePma, bool skipFetch, 
       return true;
     }
 
-  bool cacheable = usePma? isPmaCacheable(addr) : true;
-
-  if (mcm_ and not skipFetch and fetchCache_ and cacheable)
+  if (mcm_ and not skipFetch and fetchCache_)
     for (unsigned i = 0; i < sizeof(val); ++i)
       pokeMcmCache<McmMem::Fetch>(addr + i, uint8_t(val >> (i*8)));
 
   std::array<bool, sizeof(val)> b{false};
-  if (mcm_ and not skipData and dataCache_ and cacheable)
+  if (mcm_ and not skipData and dataCache_)
     {
       for (unsigned i = 0; i < sizeof(val); ++i)
         b.at(i) = pokeMcmCache<McmMem::Data>(addr + i, uint8_t(val >> (i*8)));

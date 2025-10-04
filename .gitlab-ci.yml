@@ -2,7 +2,7 @@
 
 
 image:
-  name: $CI_REGISTRY/$CI_PROJECT_NAMESPACE/risc-p-cores/risc-p-cores/dev:57d6ff91cbea7745d26747983c26a41b2aecc62e2fc74d73cadcb4d13eec8276
+  name: $CI_REGISTRY/$CI_PROJECT_NAMESPACE/risc-p-cores/risc-p-cores/dev:189fcc9e1cc7c41211ae67afb79fefd6083b3e15986d82ceaf175c108014be13
   entrypoint: [""]
 
 
@@ -31,11 +31,48 @@ variables:
     ANCESTRY: $ANCESTRY
     ANCESTOR_COMMITS: $CI_COMMIT_TITLE # this is the previous HEAD, not the current branch? # why doesn't this need quotes
 
+.pre-release-template: &pre-release-template
+  stage: pre-release
+  when: manual
+  only:
+    - master
+  allow_failure: false
+  variables:
+    GIT_DEPTH: 0
+  script:
+    # Fetch all branches
+    - git fetch origin $TARGET_BRANCH
+
+    # Generate list of commits in the push
+    - COMMITS=$(git rev-list --reverse $CI_COMMIT_BEFORE_SHA..$CI_COMMIT_SHA)
+    - echo "Commits to cherry-pick:"
+    - echo "$COMMITS"
+
+    - git checkout origin/"$TARGET_BRANCH"
+
+    # Cherry-pick commits
+    - |
+      set +e
+      for COMMIT in $COMMITS; do
+        echo "Cherry-picking commit $COMMIT ..."
+        git cherry-pick -x "$COMMIT"
+        if [ $? -ne 0 ]; then
+          echo "❌ Cherry-pick failed for commit $COMMIT. Aborting."
+          git cherry-pick --abort
+          exit 1
+        fi
+      done
+      set -e
+
+    # Push branch to origin
+    - git push origin "$TARGET_BRANCH"
+
 stages:
   - build
   - test
   - upload
   - notify
+  - pre-release
 
 build-job:
   stage: build
@@ -111,6 +148,30 @@ kvm-boot-job:
     - grep -q "Halt and catch fire!" output.log
   timeout: 2 hours
 
+snapshot-job:
+  stage: test
+  dependencies:
+    - "build-job"
+  script:
+    - curl --location --output rvsw-tools.zip "https://yyz-gitlab.local.tenstorrent.com/api/v4/projects/665/jobs/artifacts/main/download?job=package_tools"
+    - unzip rvsw-tools.zip && tar -xvf rvsw-tools.tar.xz
+    - curl --location --output build_snapshots.zip ""https://yyz-gitlab.local.tenstorrent.com/api/v4/projects/906/jobs/artifacts/main/download?job=build_snapshots""
+    - unzip build_snapshots.zip
+    - rvsw-tools/wb --no-cpubind -n=3 --whisper ./build-Linux/whisper --sbi rvsw-snapshots/fw_jump.elf --kernel rvsw-snapshots/Image --initrd rvsw-snapshots/sysbench.cpio --platform ascalon-rtl --append 'init=mini-init trigger="Threads started!" command="sysbench memory --threads=3 --memory-block-size=1M --memory-scope=global --memory-oper=read --memory-access-mode=seq --memory-total-size=16M run"' -- --hintops --snapshotdir sysbench_memory_3c_3t_1M_global_read_seq_16M_snapshot
+    - rvsw-tools/wb --sbi /dev/null --kernel /dev/null --smp 3 --platform ascalon-rtl --json > whisper.json
+    - build-Linux/whisper --tohost 0x70000008 --fromhost 0x70000000 --configfile whisper.json --harts 3 --quitany --loadfrom sysbench_memory_3c_3t_1M_global_read_seq_16M_snapshot0 | tee output.log
+    - grep -q "Throughput:" output.log
+    - grep -q "Command(s) completed, halting." output.log
+    - grep -q "System halted" output.log
+    - rvsw-tools/wb --no-cpubind -n=1 --whisper ./build-Linux/whisper --sbi rvsw-snapshots/fw_jump.elf --kernel rvsw-snapshots/Image --initrd rvsw-snapshots/rvv-bench/rvv-bench.cpio --platform ascalon-rtl --append 'init=mini-init command="bin/linux/instructions/scalar/scalar" trigger_immediate=true' -- --hintops --snapshotdir rvvbench_bin-linux-instructions-scalar-scalar_snapshot
+    - rvsw-tools/wb --sbi /dev/null --kernel /dev/null --platform ascalon-rtl --json > whisper.json
+    - build-Linux/whisper --tohost 0x70000008 --fromhost 0x70000000 --configfile whisper.json --harts 1 --loadfrom rvvbench_bin-linux-instructions-scalar-scalar_snapshot0 | tee output.log
+    - grep -q 'add t0, t1, t2' output.log
+    - grep -q 'fmadd.d ft0, ft1, ft2, ft3' output.log
+    - grep -q 'bseti t0, t1, 13' output.log
+    - grep -q 'Command(s) completed, halting.' output.log
+    - grep -q 'System halted' output.log
+
 notify-riescue:
   <<: *notify-template
   trigger:
@@ -124,6 +185,11 @@ upload-release:
     - bash upload/upload.sh
   only:
     - tags
+
+pre-release-ascalon:
+  <<: *pre-release-template
+  variables:
+    TARGET_BRANCH: "pre-release-ascalon"
 
 .post-commit-test: # Maybe re-enable this at some point in the future
   stage: test

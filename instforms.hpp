@@ -365,6 +365,18 @@ namespace WdRiscv
     /// Encode "csrrw rd, csr, rs" into this object.
     bool encodeCsrrci(uint32_t rd, uint32_t imm, uint32_t csr);
 
+    /// Encode "vle8.v vd, (rs1)" into this object.
+    bool encodeVle8_v(unsigned vd, unsigned rs1, bool masked);
+
+    /// Encode "vle16.v vd, (rs1)" into this object.
+    bool encodeVle16_v(unsigned vd, unsigned rs1, bool masked);
+
+    /// Encode "vle32.v vd, (rs1)" into this object.
+    bool encodeVle32_v(unsigned vd, unsigned rs1, bool masked);
+
+    /// Encode "vle64.v vd, (rs1)" into this object.
+    bool encodeVle64_v(unsigned vd, unsigned rs1, bool masked);
+
     uint32_t code;
 
     struct
@@ -1148,6 +1160,30 @@ namespace WdRiscv
   /// Return true on success and false if any of the arguments
   /// are out of bounds.
   bool encodeFld(uint32_t rd, uint32_t rs1, uint32_t offset, uint32_t& inst);
+
+  /// Encode "vle8.v vd, (rs1)": encodeVle8_v(vd, rs1, false, inst).
+  /// Encode "vle8.v vd, (rs1), v0.t": encodeVle8_v(vd, rs1, true, inst).
+  /// Return true on success and false if any of the arguments
+  /// are out of bounds.
+  bool encodeVle8_v(uint32_t vd, uint32_t rs1, bool masked, uint32_t& inst);
+
+  /// Encode "vle16.v vd, (rs1)": encodeVle16_v(vd, rs1, false, inst).
+  /// Encode "vle16.v vd, (rs1), v0.t": encodeVle16_v(vd, rs1, true, inst).
+  /// Return true on success and false if any of the arguments
+  /// are out of bounds.
+  bool encodeVle16_v(uint32_t vd, uint32_t rs1, bool masked, uint32_t& inst);
+
+  /// Encode "vle32.v vd, (rs1)": encodeVle32_v(vd, rs1, false, inst).
+  /// Encode "vle32.v vd, (rs1), v0.t": encodeVle32_v(vd, rs1, true, inst).
+  /// Return true on success and false if any of the arguments
+  /// are out of bounds.
+  bool encodeVle32_v(uint32_t vd, uint32_t rs1, bool masked, uint32_t& inst);
+
+  /// Encode "vle64.v vd, (rs1)": encodeVle64_v(vd, rs1, false, inst).
+  /// Encode "vle64.v vd, (rs1), v0.t": encodeVle64_v(vd, rs1, true, inst).
+  /// Return true on success and false if any of the arguments
+  /// are out of bounds.
+  bool encodeVle64_v(uint32_t vd, uint32_t rs1, bool masked, uint32_t& inst);
 
   /// Encode "fsw rs2, offset(rs1)": encodeFsw(rs1, rs2, offset, inst).
   /// The third argument (offset) is treaded as signed.

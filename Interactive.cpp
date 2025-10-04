@@ -2217,12 +2217,17 @@ Interactive<URV>::mreadCommand(Hart<URV>& hart, const std::string& line,
     if (not parseCmdLineNumber("element-field", tokens.at(6), field))
       return false;
 
+  bool cache = true; // For backwards compatibility.
+  if (tokens.size() > 7)
+    if (not parseCmdLineNumber("cache", tokens.at(7), cache))
+      return false;
+
   if (size <= 8)
     {
       uint64_t data = 0;
       if (not parseCmdLineNumber("data", tokens.at(4), data))
 	return false;
-      return system_.mcmRead(hart, this->time_, tag, addr, size, data, elem, field);
+      return system_.mcmRead(hart, this->time_, tag, addr, size, data, elem, field, cache);
     }
 
   // mread for a vector load, expected size is half a cache line size (32)
