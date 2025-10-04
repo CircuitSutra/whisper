@@ -738,7 +738,7 @@ namespace WdRiscv
                           const std::string& path, bool skipClean = false,
                           bool writeValues = false) const;
 
-    bool loadAddressTrace(LineMap& lineMap, uint64_t& refCount, const std::string& path);
+    static bool loadAddressTrace(LineMap& lineMap, uint64_t& refCount, const std::string& path);
 
     /// Add line of given address to the data line address trace.
     void traceDataLine(uint64_t vaddr, uint64_t paddr, bool write = false)
@@ -813,6 +813,6 @@ namespace WdRiscv
     std::function<bool(uint64_t, const std::span<uint8_t>)> initPageCallback_ = nullptr;
 
     /// Load a file into the given vector. Throw an exception if file cannot be opened.
-    void loadFile(const std::string& filename, std::vector<uint8_t>& data);
+    static void loadFile(const std::string& filename, std::vector<uint8_t>& data);
   };
 }

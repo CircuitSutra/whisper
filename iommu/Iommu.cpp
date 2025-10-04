@@ -121,8 +121,8 @@ Iommu::write(uint64_t addr, unsigned size, uint64_t data)
           const unsigned pmpcfgSize = 8;
           if (size != pmpcfgSize or (addr & (pmpcfgSize - 1)) != 0)
             return false;
-          unsigned ix = (addr - pmpcfgAddr_) / pmpcfgSize;
           assert(0  && "legalize pmpcfg value");
+          unsigned ix = (addr - pmpcfgAddr_) / pmpcfgSize;
           pmpcfg_.at(ix) = data;
           updateMemoryProtection();
           return true;
@@ -148,8 +148,8 @@ Iommu::write(uint64_t addr, unsigned size, uint64_t data)
       const unsigned pmacfgSize = 8;
       if (size != pmacfgSize or (addr & (pmacfgSize - 1)) != 0)
         return false;
-      unsigned ix = (addr - pmacfgAddr_) / pmacfgSize;
       assert(0 && "legalize pmacfg value");
+      unsigned ix = (addr - pmacfgAddr_) / pmacfgSize;
       pmacfg_.at(ix) = data;
       updateMemoryAttributes(ix);
       return true;
@@ -296,14 +296,15 @@ Iommu::loadDeviceContext(unsigned devId, DeviceContext& dc, unsigned& cause)
       //    accessing ddte violates a PMA or PMP check, then stop and report "DDT entry
       //    load access fault" (cause = 257).
       uint64_t ddteVal = 0;
-      uint64_t ddteAddr = addr + idFields.ithDdi(ii, extended)*8;
+      uint64_t ddteAddr = addr + idFields.ithDdi(ii, extended)*size_t(8);
       if (not memReadDouble(ddteAddr, bigEnd, ddteVal))
 	{
 	  cause = 257;
 	  return false;
 	}
 
-      deviceDirWalk_.push_back(std::pair<uint64_t, uint64_t>(ddteAddr, ddteVal));
+      auto walkEntry = std::pair<uint64_t, uint64_t>(ddteAddr, ddteVal);
+      deviceDirWalk_.push_back(walkEntry);
 
       // PMA and PMP should be covered by the memory read callback.
 
@@ -341,11 +342,11 @@ Iommu::loadDeviceContext(unsigned devId, DeviceContext& dc, unsigned& cause)
   //    accessing DC violates a PMA or PMP check, then stop and report "DDT entry load
   //    access fault" (cause = 257). If DC access detects a data corruption
   //    (a.k.a. poisoned data), then stop and report "DDT data corruption" (cause = 268).
-  unsigned dcSize = extended? 64 : 32;
+  uint64_t dcSize = extended? 64 : 32;
   uint64_t dcAddr = addr + idFields.ithDdi(0, extended) * dcSize;
   unsigned dwordCount = dcSize / 8;  // Double word count.
   std::vector<uint64_t> dcd(dwordCount);  // Device context data.
-  for (unsigned i = 0; i < dwordCount; ++i)
+  for (size_t i = 0; i < dwordCount; ++i)
     if (not memReadDouble(dcAddr + i*8, bigEnd, dcd.at(i)))
       {
 	cause = 257;
@@ -427,14 +428,15 @@ Iommu::loadProcessContext(const DeviceContext& dc, uint32_t pid,
       //    accessing pdte violates a PMA or PMP check, then stop and report "PDT entry
       //    load access fault" (cause = 265).
       uint64_t pdte = 0;
-      uint64_t pdteAddr = aa + procid.ithPdi(ii) * 8;
+      uint64_t pdteAddr = aa + procid.ithPdi(ii) * uint64_t(8);
       if (not memReadDouble(pdteAddr, bigEnd, pdte))
 	{
 	  cause = 265;
 	  return false;
 	}
 
-      processDirWalk_.push_back(std::pair<uint64_t, uint64_t>(pdteAddr, pdte));
+      auto walkEntry = std::pair<uint64_t, uint64_t>(pdteAddr, pdte);
+      processDirWalk_.emplace_back(walkEntry);
 
       // 5. If pdte access detects a data corruption (a.k.a. poisoned data), then stop and
       //    report "PDT data corruption" (cause = 269).
@@ -464,7 +466,7 @@ Iommu::loadProcessContext(const DeviceContext& dc, uint32_t pid,
   //    violates a PMA or PMP check, then stop and report "PDT entry load access fault"
   //    (cause = 265). If PC access detects a data corruption (a.k.a. poisoned data), then
   //    stop and report "PDT data corruption" (cause = 269).
-  uint64_t pca = aa + procid.ithPdi(0)*16;
+  uint64_t pca = aa + procid.ithPdi(0) * uint64_t(16);
   if (not readProcessContext(dc, pca, pc))
     {
       cause = 265;
@@ -1152,7 +1154,7 @@ Iommu::msiTranslate(const DeviceContext& dc, const IommuRequest& req,
   //      x = abcdefgh
   //      y = 10100110
   //    then the value of extract(x, y) has bits 0000acfg.
-  uint64_t ii = dc.extractMsiBits(aa >> 12, dc.msiMask());
+  uint64_t ii = DeviceContext::extractMsiBits(aa >> 12, dc.msiMask());
 
   // 6. Let m be (DC.msiptp.PPN x pageSize).
   uint64_t mm = dc.msiPpn() * pageSize_;
@@ -1272,8 +1274,8 @@ Iommu::stage1Translate(uint64_t satpVal, uint64_t hgatpVal, PrivilegeMode pm, un
                        uint64_t va, uint64_t& gpa, unsigned& cause)
 {
   Iosatp satp{satpVal};
-  unsigned privMode = unsigned(pm);
-  unsigned transMode = unsigned(satp.bits_.mode_);   // Sv39, Sv48, ...
+  auto privMode = unsigned(pm);
+  auto transMode = unsigned(satp.bits_.mode_);   // Sv39, Sv48, ...
   uint64_t ppn = satp.bits_.ppn_;
   stage1Config_(transMode, procId, ppn, sum);
 
@@ -1293,8 +1295,8 @@ Iommu::stage2Translate(uint64_t hgatpVal, PrivilegeMode pm, bool r, bool w, bool
 {
   Iohgatp hgatp{hgatpVal};
 
-  unsigned privMode = unsigned(pm);
-  unsigned transMode = unsigned(hgatp.bits_.mode_);  // Sv39x4, Sv48x4, ...
+  auto privMode = unsigned(pm);
+  auto transMode = unsigned(hgatp.bits_.mode_);  // Sv39x4, Sv48x4, ...
   unsigned gcsid = hgatp.bits_.gcsid_;
   uint64_t ppn = hgatp.bits_.ppn_;
 
@@ -1590,6 +1592,7 @@ Iommu::writeFaultRecord(const FaultRecord& record)
   uint64_t slotAddr = qaddr + qtail * sizeof(record);
   assert((sizeof(record) % 8) == 0);
   unsigned dwords = sizeof(record) / 8;   // Double-word count
+
   const uint64_t* ptr = reinterpret_cast<const uint64_t*>(&record);
 
   bool bigEnd = faultQueueBigEnd();
@@ -1661,15 +1664,16 @@ Iommu::writeCsr(CsrNumber csrn, uint64_t data)
         value |= (1 << 16); // Set fqon bit
         value &= ~(1 << 17); // Clear busy bit
         csr.write(value);
-        return;
       } else {
         // Queue validation failed, just clear busy bit
         value &= ~(1 << 17); // Clear busy bit
         csr.write(value);
-        return;
       }
     }
-  } else if (csrn == CsrNumber::Cqcsr) {
+    return;
+  }
+
+  if (csrn == CsrNumber::Cqcsr) {
     uint32_t value = data & 0xFFFFFFFF;
     uint32_t oldValue = csr.read() & 0xFFFFFFFF;
         
@@ -1690,15 +1694,16 @@ Iommu::writeCsr(CsrNumber csrn, uint64_t data)
         value |= (1 << 16); // Set cqon bit
         value &= ~(1 << 17); // Clear busy bit
         csr.write(value);
-        return;
       } else {
         // Queue validation failed, just clear busy bit
         value &= ~(1 << 17); // Clear busy bit
         csr.write(value);
-        return;
       }
     }
-  } else if (csrn == CsrNumber::Pqcsr) {
+    return;
+  }
+
+  if (csrn == CsrNumber::Pqcsr) {
     uint32_t value = data & 0xFFFFFFFF;
     uint32_t oldValue = csr.read() & 0xFFFFFFFF;
         
@@ -1719,14 +1724,13 @@ Iommu::writeCsr(CsrNumber csrn, uint64_t data)
         value |= (1 << 16); // Set pqon bit
         value &= ~(1 << 17); // Clear busy bit
         csr.write(value);
-        return;
       } else {
         // Queue validation failed, just clear busy bit
         value &= ~(1 << 17); // Clear busy bit
         csr.write(value);
-        return;
       }
     }
+    return;
   }
       
   // Normal write for other registers

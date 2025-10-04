@@ -271,7 +271,7 @@ Memory::loadFile(const std::string& filename, std::vector<uint8_t>& data)
   data.clear();
   data.resize(length);
 
-  f.read((char*)data.data(), length);
+  f.read(reinterpret_cast<char*>(data.data()), length);
 }
 
 #define BLOCK_SIZE (4*1024*1024)
@@ -468,6 +468,7 @@ Memory::collectElfRiscvTags(const std::string& fileName,
 
       // Next is a 4-byte section length.
       uint32_t secLen = 0;
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
       iss.read((char*) &secLen, sizeof(secLen));
 
       // Next is a null terminated string containing vendor name.
@@ -486,6 +487,7 @@ Memory::collectElfRiscvTags(const std::string& fileName,
       // Next is a 4-byte attributes size including tag and size.
       // https://embarc.org/man-pages/as/RISC_002dV_002dATTRIBUTE.html#RISC_002dV_002dATTRIBUTE
       uint32_t attribsSize = 0;
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
       iss.read((char*) &attribsSize, sizeof(attribsSize));
       if (not iss)
         {
@@ -903,6 +905,7 @@ Memory::saveSnapshot_gzip(const std::string& filename,
 	}
       uint8_t* buffer = reinterpret_cast<uint8_t*>(temp.data());
 #else
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
       uint8_t* buffer = data_ + blk.first;
 #endif
       std::cerr << "*";
@@ -916,6 +919,8 @@ Memory::saveSnapshot_gzip(const std::string& filename,
           if (not success)
             break;
           remainingSize -= currentChunk;
+
+          // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
           buffer += currentChunk;
         }
       if (not success)
@@ -1547,9 +1552,14 @@ Memory::initializeByte(uint64_t addr, uint8_t value)
   // We initialize both the memory-mapped-register and the external
   // memory to match/simplify the test-bench.
   if (writeCallback_)
-    writeCallback_(addr, 1, value);
+    {
+      writeCallback_(addr, 1, value);
+    }
   else
-    data_[addr] = value;
+    {
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+      data_[addr] = value;
+    }
   return true;
 }
 
@@ -1569,6 +1579,7 @@ Memory::initializePage(uint64_t addr, const std::span<uint8_t> buffer)
 
 #ifndef MEM_CALLBACKS
 
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
   memcpy(data_ + addr, buffer.data(), pageSize_);
   return true;
 

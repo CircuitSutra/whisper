@@ -63,8 +63,8 @@ namespace TT_IOMMU
   /// Ats command as 2 double words.
   struct AtsCommandData
   {
-    uint64_t dw0;
-    uint64_t dw1;
+    uint64_t dw0 = 0;
+    uint64_t dw1 = 0;
   };
   
   // ATS.INVAL command structure
