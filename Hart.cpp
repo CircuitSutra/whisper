@@ -2719,7 +2719,7 @@ Hart<URV>::processClintWrite(uint64_t addr, unsigned stSize, URV& storeVal)
 		  peekMemory(fromHost_, v, true);
 		  if (v == 0)
 		    {
-		      int c = char(readCharNonBlocking(inFd));
+		      int c = readCharNonBlocking(inFd);
 		      if (c > 0)
 			{
 			  memory_.poke(fromHost_, (uint64_t(1) << 56) | (char) c, true);
@@ -2767,7 +2767,7 @@ Hart<URV>::execSw(const DecodedInst* di)
   uint32_t rs1 = di->op1();
   URV base = intRegs_.read(rs1);
   URV addr = base + di->op2As<SRV>();
-  uint32_t value = uint32_t(intRegs_.read(di->op0()));
+  auto value = uint32_t(intRegs_.read(di->op0()));
 
   store<uint32_t>(di, addr, value);
 }
@@ -3927,7 +3927,7 @@ Hart<URV>::postCsrUpdate(CsrNumber csr, URV val, URV lastVal)
           peekMemory(fromHost_, v, true);
           if (v == 0)
             {
-              int c = char(readCharNonBlocking(inFd));
+              int c = readCharNonBlocking(inFd);
               if (c > 0)
 		{
 		  memory_.poke(fromHost_, (uint64_t(1) << 56) | (char) c, true);
@@ -11784,12 +11784,10 @@ Hart<URV>::imsicAccessible(const DecodedInst* di, CsrNumber csr, PrivilegeMode m
                   // Sec 2.3 of interrupt spec: attempts from M-mode or HS-mode to access
                   // vsireg raise an illegal instruction exception, and attempts from VS-mode
                   // to access sireg (really vsireg) raise a virtual instruction exception.
-                  if (isMhs and csr == CN::VSIREG)
-                    illegalInst(di);
-                  else if (isVs and csr == CN::SIREG)
+                  if (isVs and csr == CN::SIREG)
                     virtualInst(di);
                   else
-                    illegalInst(di);
+                    illegalInst(di);  // Everything else including VSIREG in M/HS mode
                   return false;
                 }
             }
