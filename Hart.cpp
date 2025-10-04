@@ -5922,7 +5922,7 @@ template <typename URV>
 bool
 Hart<URV>::saveCacheTrace(const std::string& path)
 {
-  FILE* file = fopen(path.c_str(), "w");
+  util::file::SharedFile file = util::file::make_shared_file(fopen(path.c_str(), "w"));
   if (not file)
     {
       std::cerr << "Error: Failed to open cache-trace output file '" << path << "' for writing\n";
@@ -5933,10 +5933,9 @@ Hart<URV>::saveCacheTrace(const std::string& path)
     {
       auto& rec = *iter;
       if (rec.type_ != 0)
-	fprintf(file, "%c 0x%jx 0x%jx 0x%jx\n", rec.type_, uintmax_t(rec.vlineNum_),
+	fprintf(file.get(), "%c 0x%jx 0x%jx 0x%jx\n", rec.type_, uintmax_t(rec.vlineNum_),
 		uintmax_t(rec.plineNum_), uintmax_t(rec.count_));
     }
-  fclose(file);
   return true;
 }
 
@@ -5945,6 +5944,7 @@ template <typename URV>
 bool
 Hart<URV>::loadCacheTrace(const std::string& path)
 {
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
   if (not cacheBuffer_.max_size())
     return true;
 
@@ -6811,9 +6811,6 @@ Hart<URV>::execute(const DecodedInst* di)
       return;
 
     case InstId::fence:
-      execFence(di);
-      return;
-
     case InstId::pause:
       execFence(di);
       return;
@@ -11129,7 +11126,7 @@ namespace WdRiscv
     uint64_t value = csRegs_.peekMstatus();
 
     MstatusFields<uint64_t> fields(value);
-    PrivilegeMode savedMode = PrivilegeMode(fields.bits_.MPP);
+    auto savedMode = PrivilegeMode(fields.bits_.MPP);
     bool savedVirt = fields.bits_.MPV;
 
     // 1.1 Restore MIE.
@@ -12073,7 +12070,7 @@ Hart<URV>::execCsrrs(const DecodedInst* di)
       return;
     }
 
-  CsrNumber csr = CsrNumber(di->op2());
+  auto csr = CsrNumber(di->op2());
 
   if (preCsrInst_)
     preCsrInst_(hartIx_, csr);
@@ -13061,7 +13058,7 @@ Hart<URV>::execSrlw(const DecodedInst* di)
       return;
     }
 
-  uint32_t word = uint32_t(intRegs_.read(di->op1()));
+  auto word = uint32_t(intRegs_.read(di->op1()));
   auto shift = uint32_t(intRegs_.read(di->op2()) & 0x1f);
   word >>= shift;
   SRV value = int32_t(word);  // sign extend to 64-bits
@@ -13079,7 +13076,7 @@ Hart<URV>::execSraw(const DecodedInst* di)
       return;
     }
 
-  int32_t word = int32_t(intRegs_.read(di->op1()));
+  auto word = int32_t(intRegs_.read(di->op1()));
   auto shift = int32_t(intRegs_.read(di->op2()) & 0x1f);
   word >>= shift;
   SRV value = word;  // sign extend to 64-bits
