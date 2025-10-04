@@ -86,7 +86,7 @@ namespace WhisperUtil {
       uint64_t offset = addr - rootPageAddr_;
       if (addr < rootPageAddr_ or offset + sizeof(word) - 1 >= arenaSize_)
 	return false;
-      const uint32_t* ptr = reinterpret_cast<const uint32_t*>(arena_ + offset);
+      const auto* ptr = reinterpret_cast<const uint32_t*>(arena_ + offset);
       word = *ptr;
       return true;
     }
@@ -96,7 +96,7 @@ namespace WhisperUtil {
       uint64_t offset = addr - rootPageAddr_;
       if (addr < rootPageAddr_ or offset + sizeof(doubleWord) - 1 >= arenaSize_)
 	return false;
-      const uint64_t* ptr = reinterpret_cast<const uint64_t*>(arena_ + offset);
+      const auto* ptr = reinterpret_cast<const uint64_t*>(arena_ + offset);
       doubleWord = *ptr;
       return true;
     }
@@ -106,7 +106,7 @@ namespace WhisperUtil {
       uint64_t offset = addr - rootPageAddr_;
       if (addr < rootPageAddr_ or offset + sizeof(word) - 1 >= arenaSize_)
 	return false;
-      uint32_t* ptr = reinterpret_cast<uint32_t*>(arena_ + offset);
+      auto* ptr = reinterpret_cast<uint32_t*>(arena_ + offset);
       *ptr = word;
       return true;
     }
@@ -116,7 +116,7 @@ namespace WhisperUtil {
       uint64_t offset = addr - rootPageAddr_;
       if (addr < rootPageAddr_ or offset + sizeof(doubleWord) - 1 >= arenaSize_)
 	return false;
-      uint64_t* ptr = reinterpret_cast<uint64_t*>(arena_ + offset);
+      auto* ptr = reinterpret_cast<uint64_t*>(arena_ + offset);
       *ptr = doubleWord;
       return true;
     }
