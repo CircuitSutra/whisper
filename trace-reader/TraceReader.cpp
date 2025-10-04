@@ -87,8 +87,10 @@ TraceReader::TraceReader(const std::string& inputPath)
 
 
 TraceReader::TraceReader(const std::string& inputPath, const std::string& initPath)
-  : TraceReader(inputPath) {
-  readInitialState(initPath);
+  : TraceReader(inputPath)
+{
+  if (not initPath.empty())
+    readInitialState(initPath);
 }
 
 

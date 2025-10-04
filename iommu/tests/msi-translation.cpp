@@ -608,7 +608,7 @@ static void testDirectPteModification(Iommu& iommu, MemoryModel& mem, DeviceCont
     
     uint64_t pa = 0;
     unsigned cause = 0;
-    bool result = 0;
+    bool result = false;
     
     // Test 1: MSI PTE Load Access Fault
     // --------------------------------

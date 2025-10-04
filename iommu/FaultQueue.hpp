@@ -15,6 +15,7 @@
 #pragma once
 
 #include <cstdint>
+#include <array>
 
 namespace TT_IOMMU
 {
@@ -50,4 +51,13 @@ namespace TT_IOMMU
     uint64_t iotval2       = 0;
   };
 
+  /// Interpret FaultRecord as a an array of double words.
+  union FaultRecDwords
+  {
+    FaultRecDwords() : dwords{}
+    { }
+
+    FaultRecord rec;
+    std::array<uint64_t, sizeof(FaultRecord)/8> dwords;
+  };
 }

@@ -964,19 +964,23 @@ void debugFaultRecordStructure() {
     std::cout << "Struct FaultRecord size: " << sizeof(FaultRecord) << " bytes\n";
     
     // Print memory representation
-    const uint64_t* data = reinterpret_cast<const uint64_t*>(&record);
-    for (size_t i = 0; i < sizeof(FaultRecord)/sizeof(uint64_t); i++) {
-        std::cout << "Doubleword " << i << ": 0x" << std::hex << data[i] << std::dec << "\n";
-    }
+
+    // Interpret FaultRecord as a an array of double words.
+    FaultRecDwords recDwords{};
+    recDwords.rec = record;
+    const auto& dwords = recDwords.dwords;
+
+    for (size_t i = 0; i < dwords.size(); i++)
+        std::cout << "Doubleword " << i << ": 0x" << std::hex << dwords.at(i) << std::dec << "\n";
     
     // Analyze first doubleword
-    uint64_t d0 = data[0];
+    uint64_t d0 = dwords.at(0);
     std::cout << "D0 breakdown:\n";
     std::cout << "  Cause: 0x" << std::hex << (d0 & 0xFFF) << std::dec << "\n";
     std::cout << "  TTYP: " << ((d0 >> 34) & 0x3F) << "\n";
     
     // Analyze second doubleword
-    uint64_t d1 = data[1];
+    uint64_t d1 = dwords.at(1);
     std::cout << "D1 breakdown:\n";
     std::cout << "  DID: 0x" << std::hex << (d1 & 0xFFFFFF) << std::dec << "\n";
     std::cout << "  PV bit position check:" << "\n";
@@ -1081,8 +1085,10 @@ void testFaultQueueWithProcessId() {
     sampleRecord.pv = 1;
     sampleRecord.pid = 0x98765;
     sampleRecord.priv = 1;
-    const uint64_t* sampleData = reinterpret_cast<const uint64_t*>(&sampleRecord);
-    uint64_t expectedPid = (sampleData[0] >> 13) & 0xFFFFF;
+
+    FaultRecDwords frd;   // To reinterpret fault record as an array of double words.
+    frd.rec = sampleRecord;
+    uint64_t expectedPid = (frd.dwords.at(0) >> 13) & 0xFFFFF;
     
     std::cout << "Expected encoded PID value: 0x" << std::hex << expectedPid << std::dec << "\n";
     
@@ -1160,8 +1166,10 @@ void testProcessIdFaultRecord() {
     sampleRecord.pv = 1;
     sampleRecord.pid = 0x98765;
     sampleRecord.priv = 1;
-    const uint64_t* sampleData = reinterpret_cast<const uint64_t*>(&sampleRecord);
-    uint64_t expectedPid = (sampleData[0] >> 13) & 0xFFFFF;
+
+    FaultRecDwords frd{};   // To reinterpret fault record as an array of double words.
+    frd.rec = sampleRecord;
+    uint64_t expectedPid = (frd.dwords.at(0) >> 13) & 0xFFFFF;
     
     std::cout << "Expected encoded PID value: 0x" << std::hex << expectedPid << std::dec << "\n";
     

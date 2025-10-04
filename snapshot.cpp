@@ -180,7 +180,8 @@ loadVecRegNumAndValue(std::istream& stream, unsigned& num,
 
   for (size_t i = 0; i < vvs.size(); ++i)
     {
-      unsigned hd = vvs[i], nibble = 0;
+      unsigned hd = unsigned(vvs[i]);  // hex digit
+      unsigned nibble = 0;
       if      (hd >= '0' and hd <= '9') nibble = hd - '0';
       else if (hd >= 'a' and hd <= 'f') nibble = 10 + hd - 'a';
       else if (hd >= 'A' and hd <= 'F') nibble = 10 + hd - 'A';

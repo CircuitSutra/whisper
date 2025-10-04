@@ -135,7 +135,7 @@ void testIofenceWithMemoryWrite()
     assert(newHead == 1);
     
     // Verify memory was written correctly
-    uint64_t readData;
+    uint64_t readData = 0;
     bool readSuccess = helper.getMemory().read(targetAddr, 4, readData);
     assert(readSuccess);
     assert((uint32_t)readData == targetData);

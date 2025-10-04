@@ -69,10 +69,10 @@ public:
     bdc.fsc_ = iosatp.value_;
 
     // Write device context to memory
-    const uint64_t* dcData = reinterpret_cast<const uint64_t*>(&bdc);
-    for (size_t i = 0; i < sizeof(BaseDeviceContext) / 8; i++) {
-      mem_.write(actualDcAddr + i * 8, 8, dcData[i]);
-    }
+    mem_.write(actualDcAddr,      8, bdc.tc_);
+    mem_.write(actualDcAddr + 8,  8, bdc.iohgatp_);
+    mem_.write(actualDcAddr + 16, 8, bdc.ta_);
+    mem_.write(actualDcAddr + 24, 8, bdc.fsc_);
 
     // Set up DDT entries for 2-level mode
     uint64_t ddi1 = (devId >> 7) & 0x1FF;
@@ -169,7 +169,7 @@ void testBasicAtsTranslation()
   AtsTestHelper helper;
   helper.setupDeviceContext(0x123, true, false); // ATS enabled, T2GPA disabled
   
-  auto req = helper.createAtsRequest(0x123, 0x5000);
+  auto req = AtsTestHelper::createAtsRequest(0x123, 0x5000);
   Iommu::AtsResponse response;
   unsigned cause = 0;
   
@@ -190,7 +190,7 @@ void testT2gpaTranslation()
   AtsTestHelper helper;
   helper.setupDeviceContext(0x124, true, true); // ATS enabled, T2GPA enabled
   
-  auto req = helper.createAtsRequest(0x124, 0x5000);
+  auto req = AtsTestHelper::createAtsRequest(0x124, 0x5000);
   Iommu::AtsResponse response;
   unsigned cause = 0;
   
@@ -214,7 +214,7 @@ void testAtsErrorHandling()
   
   // Test 1: ATS disabled for device
   helper.setupDeviceContext(0x125, false, false); // ATS disabled
-  auto req = helper.createAtsRequest(0x125, 0x5000);
+  auto req = AtsTestHelper::createAtsRequest(0x125, 0x5000);
   Iommu::AtsResponse response;
   unsigned cause = 0;
   
@@ -224,7 +224,7 @@ void testAtsErrorHandling()
   std::cout << "✓ ATS disabled error handling works (UR response)" << '\n';
   
   // Test 2: Invalid transaction type
-  req = helper.createAtsRequest(0x123, 0x5000, Ttype::TransRead); // Not ATS type
+  req = AtsTestHelper::createAtsRequest(0x123, 0x5000, Ttype::TransRead); // Not ATS type
   success = helper.getIommu().atsTranslate(req, response, cause);
   assert(!success && !response.success && !response.isCompleterAbort);
   assert(cause == 260); // Transaction type disallowed
@@ -325,7 +325,7 @@ void testAtsPermissionHandling()
   helper.setupDeviceContext(0x130, true, false); // ATS enabled, T2GPA disabled
   
   // Test read permission
-  auto readReq = helper.createAtsRequest(0x130, 0x6000, Ttype::PcieAts);
+  auto readReq = AtsTestHelper::createAtsRequest(0x130, 0x6000, Ttype::PcieAts);
   readReq.type = Ttype::PcieAts; // Ensure it's ATS type
   Iommu::AtsResponse response;
   unsigned cause = 0;
@@ -339,7 +339,7 @@ void testAtsPermissionHandling()
   std::cout << "✓ Read permission handling works correctly" << '\n';
   
   // Test write permission (simulated by setting request as write)
-  auto writeReq = helper.createAtsRequest(0x130, 0x7000, Ttype::PcieAts);
+  auto writeReq = AtsTestHelper::createAtsRequest(0x130, 0x7000, Ttype::PcieAts);
   // Note: In real implementation, we'd need to modify the request to indicate write
   success = helper.getIommu().atsTranslate(writeReq, response, cause);
   assert(success && response.success);
@@ -375,10 +375,10 @@ void testAtsWithProcessContext()
   bdc.fsc_ = pdtAddr; // PDT pointer
 
   // Write device context to memory
-  const uint64_t* dcData = reinterpret_cast<const uint64_t*>(&bdc);
-  for (size_t i = 0; i < sizeof(BaseDeviceContext) / 8; i++) {
-    helper.getMemory().write(actualDcAddr + i * 8, 8, dcData[i]);
-  }
+  helper.getMemory().write(actualDcAddr,      8, bdc.tc_);
+  helper.getMemory().write(actualDcAddr + 8,  8, bdc.iohgatp_);
+  helper.getMemory().write(actualDcAddr + 16, 8, bdc.ta_);
+  helper.getMemory().write(actualDcAddr + 24, 8, bdc.fsc_);
 
   // Set up DDT entries
   uint64_t ddi1 = (devId >> 7) & 0x1FF;
@@ -406,7 +406,7 @@ void testAtsWithProcessContext()
   helper.getMemory().write(pdtAddr + 8, 8, pc.fsc());
 
   // Test ATS translation with process context
-  auto req = helper.createAtsRequest(devId, 0x8000);
+  auto req = AtsTestHelper::createAtsRequest(devId, 0x8000);
   req.hasProcId = true;
   req.procId = 0; // Use process 0
   
@@ -430,7 +430,7 @@ void testAtsFaultScenarios()
   helper.getIommu().writeCsr(CsrNumber::Ddtp, 0); // Set to Off mode
   
   helper.setupDeviceContext(0x150, true, false);
-  auto req = helper.createAtsRequest(0x150, 0x9000);
+  auto req = AtsTestHelper::createAtsRequest(0x150, 0x9000);
   Iommu::AtsResponse response;
   unsigned cause = 0;
   
@@ -446,7 +446,7 @@ void testAtsFaultScenarios()
   helper.getIommu().writeCsr(CsrNumber::Ddtp, ddtp.value_);
   
   // Test 2: Invalid device ID (no DDT entry)
-  auto invalidReq = helper.createAtsRequest(0x999, 0xA000); // Device not set up
+  auto invalidReq = AtsTestHelper::createAtsRequest(0x999, 0xA000); // Device not set up
   success = helper.getIommu().atsTranslate(invalidReq, response, cause);
   assert(!success && !response.success);
   // Should get DDT-related error
@@ -566,7 +566,7 @@ void testAtsResponseFields()
   AtsTestHelper helper;
   helper.setupDeviceContext(0x170, true, false);
   
-  auto req = helper.createAtsRequest(0x170, 0xC000);
+  auto req = AtsTestHelper::createAtsRequest(0x170, 0xC000);
   Iommu::AtsResponse response;
   unsigned cause = 0;
   
@@ -580,7 +580,7 @@ void testAtsResponseFields()
   
   // Test with T2GPA mode
   helper.setupDeviceContext(0x171, true, true); // T2GPA enabled
-  auto t2gpaReq = helper.createAtsRequest(0x171, 0xD000);
+  auto t2gpaReq = AtsTestHelper::createAtsRequest(0x171, 0xD000);
   
   success = helper.getIommu().atsTranslate(t2gpaReq, response, cause);
   assert(success && response.success);

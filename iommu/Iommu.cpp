@@ -1591,23 +1591,17 @@ Iommu::writeFaultRecord(const FaultRecord& record)
 
   uint64_t slotAddr = qaddr + qtail * sizeof(record);
   assert((sizeof(record) % 8) == 0);
-  unsigned dwords = sizeof(record) / 8;   // Double-word count
 
-  union RecWords
-  {
-    RecWords() : dwords{}
-    { }
-
-    FaultRecord rec;
-    std::array<uint64_t, sizeof(FaultRecord)/8> dwords;
-  } recBits;
-
-  recBits.rec = record;
+  // Interpret FaultRecord as a an array of double words.
+  FaultRecDwords recDwords;
+  recDwords.rec = record;
+  const auto& dwords = recDwords.dwords;
 
   bool bigEnd = faultQueueBigEnd();
 
-  for (unsigned i = 0; i < dwords; ++i, slotAddr += 8)
-    memWriteDouble(slotAddr, bigEnd, recBits.dwords.at(i));
+  // Write fault record to memory.
+  for (unsigned i = 0; i < dwords.size(); ++i, slotAddr += 8)
+    memWriteDouble(slotAddr, bigEnd, dwords.at(i));
 
   // Move tail.
   ++qtail;
@@ -2091,6 +2085,8 @@ Iommu::executeIodirCommand(const AtsCommand& atsCmd)
     printf("IODIR.INVAL_DDT: PID=%d, DV=%d, DID=%d \n", cmd.PID, cmd.DV, cmd.DID);
   if (isInvalPdt)
     printf("IODIR.INVAL_PDT: PID=%d, DV=%d, DID=%d \n", cmd.PID, cmd.DV, cmd.DID);
+
+  printf("%ld\n", addr_); // Silence clang tidy. Temporary until this method is fully implemented.
 }
 
 void 
@@ -2231,6 +2227,9 @@ Iommu::executeIotinvalCommand(const AtsCommand& atsCmd)
   // 3. Ensure ordering with respect to previous memory operations per specification
   
   printf("%s: Command completed (stub implementation)\n", cmdName);
+
+  uint64_t temp = addr_;
+  (void) temp;  // Silence clang tidy. Temporary until this method is fully implemented.
 }
 
 void

@@ -57,7 +57,6 @@ System<URV>::System(unsigned coreCount, unsigned hartsPerCore,
 
   memory_ = std::make_unique<Memory>(memSize, pageSize);
   syscall_ = std::make_unique<Syscall<URV>>(sysHarts_, memSize);
-  sparseMem_ = nullptr;
 
   Memory& mem = *memory_;
   mem.setHartCount(hartCount_);
@@ -121,11 +120,11 @@ System<URV>::defineUart(const std::string& type, uint64_t addr, uint64_t size,
 
         return std::make_unique<ForkChannel>(std::move(readWriteChannel), std::move(writeOnlyChannel));
       }
-      else if (channel_type == "stdio")
+      if (channel_type == "stdio")
         return std::make_unique<FDChannel>(fileno(stdin), fileno(stdout));
-      else if (channel_type == "pty")
+      if (channel_type == "pty")
         return std::make_unique<PTYChannel>();
-      else if (channel_type.find(unixPrefix, 0) == 0)
+      if (channel_type.find(unixPrefix, 0) == 0)
       {
         std::string filename(channel_type.substr(unixPrefix.length()));
         if (filename.empty()) {
@@ -139,7 +138,7 @@ System<URV>::defineUart(const std::string& type, uint64_t addr, uint64_t size,
           return nullptr;
         }
 
-        struct sockaddr_un addr;
+        struct sockaddr_un addr{};
         memset(&addr, 0, sizeof(addr));
         addr.sun_family = AF_UNIX;
         strncpy(addr.sun_path, filename.c_str(), sizeof(addr.sun_path) - 1);
@@ -439,8 +438,8 @@ System<URV>::loadBinaryFiles(const std::vector<std::string>& fileSpecs,
     {
 
       std::string filename;
-      uint64_t offset;
-      bool update;
+      uint64_t offset = 0;
+      bool update = false;
 
       if (!binaryFileParams(spec, defOffset, filename, offset, update))
         {
@@ -571,7 +570,7 @@ System<URV>::saveSnapshot(const std::string& dir)
       }
 
   uint64_t minSp = ~uint64_t(0);
-  for (auto hartPtr : sysHarts_)
+  for (auto& hartPtr : sysHarts_)
     {
       std::string name = "registers";
       if (hartCount_ > 1)
@@ -640,7 +639,7 @@ System<URV>::saveSnapshot(const std::string& dir)
         std::cerr << "Failed to open snapshot file for saving mtimecmp\n";
         return false;
       }
-    for (auto hartPtr : sysHarts_)
+    for (auto& hartPtr : sysHarts_)
       {
         uint64_t timecmp = hartPtr->getAclintAlarm();
         ofs << std::hex << "0x" << timecmp << std::dec << "\n";
@@ -681,7 +680,7 @@ System<URV>::saveSnapshot(const std::string& dir)
   std::set<std::string_view> ioDevTypes;
   for (auto dev : ioDevs_)
     {
-      if (ioDevTypes.count(dev->type()))
+      if (ioDevTypes.contains(dev->type()))
         {
           std::cerr << "Error: currently cannot save snapshots for multiple devices of the same type, " <<  dev->type() << '\n';
           return false;
@@ -716,7 +715,7 @@ loadUsedMemBlocks(const std::string& filename,
   while (std::getline(ifs, line))
     {
       std::istringstream iss(line);
-      uint64_t addr, length;
+      uint64_t addr = 0, length = 0;
       iss >> addr;
       iss >> length;
       blocks.emplace_back(addr, length);
@@ -953,6 +952,7 @@ System<URV>::configIommu(uint64_t base_addr, uint64_t size, uint64_t capabilitie
         case 2: result = this->memory_->read(addr, data16); data = data16; break;
         case 4: result = this->memory_->read(addr, data32); data = data32; break;
         case 8: result = this->memory_->read(addr, data); break;
+        default: break;
       }
     return result;
   };
@@ -967,6 +967,7 @@ System<URV>::configIommu(uint64_t base_addr, uint64_t size, uint64_t capabilitie
         case 2: return this->memory_->write(0, addr, data16);
         case 4: return this->memory_->write(0, addr, data32);
         case 8: return this->memory_->write(0, addr, data);
+        default: break;
       }
       return false;
   };
@@ -1029,7 +1030,7 @@ System<URV>::configPci(uint64_t configBase, uint64_t mmioBase, uint64_t mmioSize
 {
   if (mmioBase - configBase < (1ULL << 28))
     {
-      std::cerr << "Error: PCI config space typically needs 28bits to fully cover entire region" << std::endl;
+      std::cerr << "Error: PCI config space typically needs 28bits to fully cover entire region" << '\n';
       return false;
     }
 
@@ -1093,7 +1094,7 @@ System<URV>::addPciDevices(const std::vector<std::string>& devs)
 {
   if (not pci_)
     {
-      std::cerr << "Error: Please specify a PCI region in the json" << std::endl;
+      std::cerr << "Error: Please specify a PCI region in the json" << '\n';
       return false;
     }
 
@@ -1104,7 +1105,7 @@ System<URV>::addPciDevices(const std::vector<std::string>& devs)
 
       if (tokens.size() < 3)
         {
-          std::cerr << "Error: PCI device string should have at least 3 fields" << std::endl;
+          std::cerr << "Error: PCI device string should have at least 3 fields" << '\n';
           return false;
         }
 
@@ -1116,7 +1117,7 @@ System<URV>::addPciDevices(const std::vector<std::string>& devs)
         {
           if (not (tokens.size() == 4))
             {
-              std::cerr << "Error: virtio-blk requires backing input file" << std::endl;
+              std::cerr << "Error: virtio-blk requires backing input file" << '\n';
               return false;
             }
 
@@ -1182,8 +1183,7 @@ System<URV>::enableMcm(unsigned mbLineSize, bool mbLineCheckAll, bool mcmCache,
       auto fetchMemRead = [this](uint64_t addr, uint64_t& value) {
         if (dataCache_)
           return dataCache_->read(addr, value)? true : this->memory_->peek(addr, value, false);
-        else
-          return this->memory_->peek(addr, value, false);
+        return this->memory_->peek(addr, value, false);
       };
       fetchCache->addMemReadCallback(fetchMemRead);
       hart->setMcm(mcm_, fetchCache, dataCache_);
@@ -1237,8 +1237,7 @@ System<URV>::enableMcm(unsigned mbLineSize, bool mbLineCheckAll, bool mcmCache, 
     auto fetchMemRead = [this](uint64_t addr, uint64_t& value) {
       if (dataCache_)
         return dataCache_->read(addr, value)? true : this->memory_->peek(addr, value, false);
-      else
-        return this->memory_->peek(addr, value, false);
+      return this->memory_->peek(addr, value, false);
     };
     fetchCache->addMemReadCallback(fetchMemRead);
     hart->setMcm(mcm_, fetchCache, dataCache_);
@@ -1254,7 +1253,7 @@ System<URV>::endMcm()
 {
   if (mcm_)
     {
-      auto& path = memory_->dataLineTracePath();
+      const auto& path = memory_->dataLineTracePath();
       if (not path.empty())
         {
           bool skipClean = true;
@@ -1448,7 +1447,7 @@ System<URV>::perfApiFetch(unsigned hart, uint64_t time, uint64_t tag, uint64_t v
   if (not perfApi_)
     return false;
 
-  bool trap; ExceptionCause cause; uint64_t trapPc;
+  bool trap{}; ExceptionCause cause{}; uint64_t trapPc{};
   return perfApi_->fetch(hart, time, tag, vpc, trap, cause, trapPc);
 }
 
@@ -1555,7 +1554,7 @@ System<URV>::produceTestSignatureFile(std::string_view outPath) const
   data.reserve((endSignature.addr_ - beginSignature.addr_) / 4);
   for (std::size_t addr = beginSignature.addr_; addr < endSignature.addr_; addr += 4)
     {
-      uint32_t value;
+      uint32_t value{};
       if (not memory_->peek(addr, value, true))
         {
           std::cerr << "Error: Unable to read data at address 0x" << std::hex << addr << ".\n";
@@ -1711,13 +1710,13 @@ System<URV>::batchRun(std::vector<util::file::SharedFile>& traceFiles, bool wait
           unsigned finished = 0;
           std::vector<bool> stopped(sysHarts_.size(), false);
 
-          for (auto hptr : sysHarts_)
+          for (auto& hptr : sysHarts_)
             finished += hptr->hasTargetProgramFinished();
 
           while ((waitAll and finished != hartCount()) or
                  (not waitAll and finished == 0))
             {
-              for (auto hptr : sysHarts_)
+              for (auto& hptr : sysHarts_)
                 {
                   unsigned ix = hptr->sysHartIndex();
                   if (stopped.at(ix))
@@ -1727,7 +1726,7 @@ System<URV>::batchRun(std::vector<util::file::SharedFile>& traceFiles, bool wait
                   unsigned steps = (rand() % stepWindow) + stepWinLo;
                   try
                     {
-                      bool stop;
+                      bool stop{};
                       result = hptr->runSteps(steps, stop, traceFiles.at(ix).get()) and result;
                       stopped.at(ix) = stop;
                       if (stop)
@@ -1791,7 +1790,7 @@ System<URV>::snapshotRun(std::vector<util::file::SharedFile>& traceFiles, const 
           snapIx_ = -1;
           snapDir_ = origSnapDir + "-roi" + std::to_string(roiIx) + "-";
 
-          for (auto hartPtr : sysHarts_)
+          for (auto& hartPtr : sysHarts_)
             hartPtr->setInstructionCountLimit(globalLimit);
 
           batchRun(traceFiles, true /*waitAll*/, 0 /*stepWindowLo*/, 0 /*stepWindowHi*/, true /*earlyRoiTerminate*/);
@@ -1846,7 +1845,7 @@ System<URV>::snapshotRun(std::vector<util::file::SharedFile>& traceFiles, const 
               return false;
             }
 
-          for (auto hartPtr : sysHarts_)
+          for (auto& hartPtr : sysHarts_)
             hartPtr->setInstructionCountLimit(nextLimit);
 
           batchRun(traceFiles, true /*waitAll*/, 0 /*stepWinLo*/, 0 /*stepWinHi*/);
@@ -1874,7 +1873,7 @@ System<URV>::snapshotRun(std::vector<util::file::SharedFile>& traceFiles, const 
       // Finish the run if not using ROI.
       if (not hasRoi)
         {
-          for (auto hartPtr : sysHarts_)
+          for (auto& hartPtr : sysHarts_)
             hartPtr->setInstructionCountLimit(userLimit);
 
           batchRun(traceFiles, true /*waitAll*/, 0 /*stepWinLo*/, 0 /*stepWinHi*/);
@@ -1887,7 +1886,7 @@ System<URV>::snapshotRun(std::vector<util::file::SharedFile>& traceFiles, const 
   // being generated since the data will be for the last snapshot and
   // not for the whole run. Same is done for instruction and data line
   // tracing.
-  for (auto hartPtr : sysHarts_)
+  for (auto& hartPtr : sysHarts_)
     {
       hartPtr->traceBranches(std::string(), 0);
       std::string emptyPath;
@@ -1920,7 +1919,7 @@ System<URV>::loadSnapshot(const std::string& snapDir, bool restoreTrace)
   Filesystem::path dirPath = snapDir;
 
   // Restore the register values.
-  for (auto hartPtr : sysHarts_)
+  for (auto& hartPtr : sysHarts_)
     {
       unsigned ix = hartPtr->sysHartIndex();
 
@@ -2001,7 +2000,7 @@ System<URV>::loadSnapshot(const std::string& snapDir, bool restoreTrace)
     }
   else
     {
-      std::cerr << "Error: Invalid decompression type: " << snapDecompressionType_ << std::endl;
+      std::cerr << "Error: Invalid decompression type: " << snapDecompressionType_ << '\n';
       return false;
     }
 
@@ -2011,7 +2010,7 @@ System<URV>::loadSnapshot(const std::string& snapDir, bool restoreTrace)
     std::ifstream ifs(mtimecmpPath);
     if (not ifs.good())
       {
-        for (auto hartPtr : sysHarts_)
+        for (auto& hartPtr : sysHarts_)
           {
             uint64_t mtimeCmpBase = 0;
             if (hartPtr->hasAclintTimeCompare(mtimeCmpBase))
@@ -2049,7 +2048,7 @@ System<URV>::loadSnapshot(const std::string& snapDir, bool restoreTrace)
   std::set<std::string_view> ioDevTypes;
   for (auto dev : ioDevs_)
     {
-      if (ioDevTypes.count(dev->type()))
+      if (ioDevTypes.contains(dev->type()))
         {
           std::cerr << "Error: currently cannot load snapshots for multiple devices of the same type, " <<  dev->type() << '\n';
           return false;
@@ -2099,7 +2098,9 @@ System<URV>::saveAplicSnapshot(const Filesystem::path& snapDir) const
 
 template <typename URV>
 bool
-System<URV>::saveAplicDomainSnapshot(const Filesystem::path& snapDir, std::shared_ptr<TT_APLIC::Domain> domain, unsigned nsources) const
+System<URV>::saveAplicDomainSnapshot(const Filesystem::path& snapDir,
+                                     const std::shared_ptr<TT_APLIC::Domain>& domain,
+                                     unsigned nsources) const
 {
   auto filepath = snapDir / domain->name();
   std::ofstream ofs(filepath);
@@ -2191,7 +2192,7 @@ System<URV>::saveAplicDomainSnapshot(const Filesystem::path& snapDir, std::share
         ofs << "topi " << std::dec << hartIndex << std::hex << " 0x" << topi << "\n";
     }
 
-  for (auto child : *domain)
+  for (auto& child : *domain)
     {
       if (not saveAplicDomainSnapshot(snapDir, child, nsources))
         return false;
@@ -2232,8 +2233,8 @@ System<URV>::loadAplicSnapshot(const Filesystem::path& snapDir)
       if (data.empty())
         continue;
       std::istringstream iss(data);
-      int state;
-      unsigned source_id;
+      int state = 0;
+      unsigned source_id = 0;
       if (not (iss >> source_id >> state))
         {
           std::cerr << "Error: failed to parse APLIC snapshot file " << filepath << " line " << lineno << ": \n" << line << '\n';
@@ -2313,7 +2314,9 @@ parseAplicRegisterName(const std::string& name, AplicRegister& reg, bool& hasSou
 
 template <typename URV>
 bool
-System<URV>::loadAplicDomainSnapshot(const Filesystem::path& snapDir, std::shared_ptr<TT_APLIC::Domain> domain, unsigned nsources)
+System<URV>::loadAplicDomainSnapshot(const Filesystem::path& snapDir,
+                                     std::shared_ptr<TT_APLIC::Domain> domain,
+                                     unsigned nsources)
 {
   auto filepath = snapDir / domain->name();
   std::ifstream ifs(filepath);
@@ -2332,22 +2335,22 @@ System<URV>::loadAplicDomainSnapshot(const Filesystem::path& snapDir, std::share
       std::istringstream iss(data);
       iss >> std::hex;
       std::string name;
-      uint32_t value;
+      uint32_t value = 0;
       if (not (iss >> name))
         {
           std::cerr << "Error: failed to parse domain snapshot file " << filepath << " line " << lineno << ": \n" << line << '\n';
           return false;
         }
-      AplicRegister reg;
-      bool hasSourceId;
-      bool hasHartIndex;
+      AplicRegister reg{};
+      bool hasSourceId = false;
+      bool hasHartIndex = false;
       if (not parseAplicRegisterName(name, reg, hasSourceId, hasHartIndex))
         {
           std::cerr << "Error: failed to parse domain snapshot file " << filepath << " line " << lineno << ": '"
                     << name << "' is not a valid APLIC register name\n";
           return false;
         }
-      unsigned sourceId;
+      unsigned sourceId = 0;
       if (hasSourceId)
         {
           iss >> std::dec;
@@ -2363,7 +2366,7 @@ System<URV>::loadAplicDomainSnapshot(const Filesystem::path& snapDir, std::share
               return false;
             }
         }
-      unsigned hartIndex;
+      unsigned hartIndex = 0;
       if (hasHartIndex)
         {
           iss >> std::dec;
@@ -2409,7 +2412,7 @@ System<URV>::loadAplicDomainSnapshot(const Filesystem::path& snapDir, std::share
         }
     }
 
-  for (auto child : *domain)
+  for (auto& child : *domain)
     {
       if (not loadAplicDomainSnapshot(snapDir, child, nsources))
         return false;

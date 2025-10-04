@@ -478,9 +478,13 @@ namespace WdRiscv
   private:
 
     bool saveAplicSnapshot(const Filesystem::path& snapDir) const;
-    bool saveAplicDomainSnapshot(const Filesystem::path& snapDir, std::shared_ptr<TT_APLIC::Domain> domain, unsigned nsources) const;
+    bool saveAplicDomainSnapshot(const Filesystem::path& snapDir,
+                                 const std::shared_ptr<TT_APLIC::Domain>& domain,
+                                 unsigned nsources) const;
     bool loadAplicSnapshot(const Filesystem::path& snapDir);
-    bool loadAplicDomainSnapshot(const Filesystem::path& snapDir, std::shared_ptr<TT_APLIC::Domain> domain, unsigned nsources);
+    bool loadAplicDomainSnapshot(const Filesystem::path& snapDir,
+                                 std::shared_ptr<TT_APLIC::Domain> domain,
+                                 unsigned nsources);
 
     unsigned hartCount_;
     unsigned hartsPerCore_;
@@ -492,7 +496,7 @@ namespace WdRiscv
     std::unordered_map<URV, unsigned> hartIdToIndex_;
     std::shared_ptr<Memory> memory_;
     std::shared_ptr<Syscall<URV>> syscall_;
-    std::unique_ptr<SparseMem> sparseMem_;
+    std::unique_ptr<SparseMem> sparseMem_ = nullptr;
     std::shared_ptr<Mcm<URV>> mcm_;
     std::shared_ptr<TT_PERF::PerfApi> perfApi_;
     unsigned mbSize_ = 64;  // Merge buffer size.
