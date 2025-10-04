@@ -812,6 +812,7 @@ namespace WdRiscv
     /// Callback to initialize a page of memory.
     std::function<bool(uint64_t, const std::span<uint8_t>)> initPageCallback_ = nullptr;
 
-    std::pair<std::unique_ptr<uint8_t[]>, size_t> loadFile(const std::string& filename);
+    /// Load a file into the given vector. Throw an exception if file cannot be opened.
+    void loadFile(const std::string& filename, std::vector<uint8_t>& data);
   };
 }

@@ -2603,7 +2603,7 @@ Hart<URV>::execFcvtmod_w_d(const DecodedInst* di)
               else
                 result64 >>= -shift;
 
-	      int32_t result32 = int32_t(result64);
+	      auto result32 = int32_t(result64);
               if (sign)
                 result32 = -result32;
 	      result = result32;  // Sign extend.

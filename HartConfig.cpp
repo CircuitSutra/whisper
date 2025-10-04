@@ -1795,7 +1795,8 @@ parseTriggerAllAddr(const nlohmann::json& arr, const std::string_view tag,
           continue;
         }
 
-      vec.emplace_back(std::pair<unsigned, bool>{matchType, flag});
+      std::pair<unsigned, bool> elem{matchType, flag};
+      vec.emplace_back(elem);
     }
 
   return errors == 0;
