@@ -297,7 +297,7 @@ namespace TT_IOMMU
 
     /// Return true if this IOMMU uses wired interrupts. Return false it it uses message
     /// signaled interrupts (MSI). This is for interrupting the core in case of a fault.
-    bool wiredInterrupts();
+    bool wiredInterrupts() const;
 
     /// Read the given CSR. If the CSR is of size 4, the top 32 bits of the result
     /// will be zero.

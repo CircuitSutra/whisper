@@ -1618,7 +1618,7 @@ Iommu::writeFaultRecord(const FaultRecord& record)
 
 
 bool
-Iommu::wiredInterrupts()
+Iommu::wiredInterrupts() const
 {
   Capabilities caps{readCsr(CsrNumber::Capabilities)};
 
@@ -1843,7 +1843,7 @@ void
 Iommu::executeAtsInvalCommand(const AtsCommand& atsCmd)
 {
   // Parse ATS.INVAL command
-  auto& cmd = atsCmd.inval;  // Reinterpret generic command as an AtsInvalCommand.
+  const auto& cmd = atsCmd.inval;  // Reinterpret generic command as an AtsInvalCommand.
   
   // Check if ATS capability is enabled
   Capabilities caps{readCsr(CsrNumber::Capabilities)};
@@ -1927,7 +1927,7 @@ Iommu::executeAtsInvalCommand(const AtsCommand& atsCmd)
     ProcessAndAddress  // PV=1 && address != 0: Process-specific address
   };
   
-  InvalidationScope scope;
+  InvalidationScope scope{};
   if (global)
   {
     scope = InvalidationScope::GlobalDevice;
@@ -2257,35 +2257,30 @@ Iommu::processPageRequestQueue()
       
     // Read page request from queue (32 bytes per entry)
     uint64_t reqAddr = qaddr + qhead * 32;
-    uint64_t reqData[4];
-    
-    // Variables for parsed request data
-    uint32_t devId = 0;
-    uint32_t pid = 0;
-    bool pidValid = false;
-    uint64_t address = 0;
-    uint32_t prgi = 0;
+    std::array<uint64_t, 4> reqData{};
     
     bool bigEnd = false; // Page request queue endianness
-    for (int i = 0; i < 4; i++)
-    {
-      if (!memReadDouble(reqAddr + i*8, bigEnd, reqData[i]))
+
+    bool readOk = true;
+    for (size_t i = 0; i < reqData.size() and readOk; i++)
+      readOk = memReadDouble(reqAddr + i*8, bigEnd, reqData.at(i));
+
+    if (not readOk)
       {
         // Memory read failed, advance head and continue
         qhead = (qhead + 1) % qcap;
         writeCsr(CN::Pqh, qhead);
-        goto next_request;
+        continue;
       }
-    }
     
     // Parse page request (format defined in RISC-V IOMMU spec)
     // This is a simplified parsing - real implementation would need
     // to handle the full page request format
-    devId = reqData[0] & 0xFFFFFF;
-    pid = (reqData[0] >> 32) & 0xFFFFF;
-    pidValid = (reqData[0] >> 52) & 1;
-    address = reqData[1] & ~0xFFFULL; // Page aligned
-    prgi = reqData[2] & 0xFFFF;
+    uint32_t devId = reqData.at(0) & 0xFFFFFF;
+    uint32_t pid = (reqData.at(0) >> 32) & 0xFFFFF;
+    bool pidValid = (reqData.at(0) >> 52) & 1;
+    uint64_t address = reqData.at(1) & ~0xFFFULL; // Page aligned
+    uint32_t prgi = reqData.at(2) & 0xFFFF;
     
     // Send page request to device (this would be implementation specific)
     sendPageRequest(devId, pid, address, prgi);
@@ -2299,7 +2294,6 @@ Iommu::processPageRequestQueue()
     request.prgi = prgi;
     pendingPageRequests_.push_back(request);
     
-    next_request:
     // Advance head pointer
     qhead = (qhead + 1) % qcap;
     writeCsr(CN::Pqh, qhead);
