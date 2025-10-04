@@ -1004,6 +1004,9 @@ namespace WdRiscv
   template <typename T>
   concept hasDoubleWide = requires { typename makeDoubleWide<T>::type; };
 
+  template <typename T>
+  using makeDoubleWide_t = typename makeDoubleWide<T>::type;
+
 
   /// Return the integral type that is half as wide as the given
   /// type. For example:
@@ -1078,7 +1081,7 @@ namespace WdRiscv
   /// in order of significance (i.e. LS first, MS last)
   template <hasDoubleWide Half>
   constexpr auto fromHalves(Half h0, Half h1)
-    -> typename makeDoubleWide<Half>::type
+    -> makeDoubleWide_t<Half>
   {
     using RetType = decltype(fromHalves(h0, h1));
 
@@ -1096,9 +1099,9 @@ namespace WdRiscv
   /// Converts the given four quarter values into a single value.  Quarters are provided
   /// in order of significance (i.e. LS first, MS last)
   template <typename Quarter>
-  requires hasDoubleWide<Quarter> and hasDoubleWide<typename makeDoubleWide<Quarter>::type>
+  requires hasDoubleWide<Quarter> and hasDoubleWide<makeDoubleWide_t<Quarter>>
   constexpr auto fromQuarters(Quarter q0, Quarter q1, Quarter q2, Quarter q3)
-    -> typename makeDoubleWide<typename makeDoubleWide<Quarter>::type>::type
+    -> makeDoubleWide_t<makeDoubleWide_t<Quarter>>
   {
     using RetType = decltype(fromQuarters(q0, q1, q2, q3));
 
