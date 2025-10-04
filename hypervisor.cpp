@@ -330,7 +330,7 @@ Hart<URV>::hyperStore(const DecodedInst* di)
                                          PrivilegeMode::User, true);
   uint32_t rs1 = di->op1();
   URV virtAddr = intRegs_.read(rs1);
-  STORE_TYPE value = STORE_TYPE(intRegs_.read(di->op0()));
+  auto value = STORE_TYPE(intRegs_.read(di->op0()));
   auto savedPrivMode = privMode_;
   auto savedVirtMode = virtMode_;
   store<STORE_TYPE>(di, virtAddr, value);

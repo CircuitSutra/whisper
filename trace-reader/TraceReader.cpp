@@ -1,6 +1,6 @@
 #include <TraceReader.hpp>
 #include <sstream>
-#include <inttypes.h>
+#include <cinttypes>
 #include <cassert>
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/hex.hpp>
@@ -23,14 +23,14 @@ using namespace WhisperUtil;
 
 // Log file characters corresponding to the operand types (these
 // correspond to the entries in OperandType).
-static std::vector<char> operandTypeChar = { 'x', 'f', 'c', 'v', 'i' };
+static const std::vector<char> operandTypeChar = { 'x', 'f', 'c', 'v', 'i' };
 
 // Log file characters corresponding to privilege mode (thses correspond
 // to the entries in PrivMode).
-static std::vector<char> privChar = { 'm', 's', 'u' };
+static const std::vector<char> privChar = { 'm', 's', 'u' };
 
 // Map a header string to a HeaderTag.
-static std::unordered_map<std::string, HeaderTag> headerMap = {
+static const std::unordered_map<std::string, HeaderTag> headerMap = {
   {"pc",              HeaderTag::Pc },
   {"inst",            HeaderTag::Inst },
   {"modified regs",   HeaderTag::DestRegs },
@@ -50,7 +50,7 @@ static const unsigned cacheLineSize = 64;
 
 TraceReader::TraceReader(const std::string& inputPath)
   : intRegs_(32), fpRegs_(32), csRegs_(4096), vecRegs_(32),
-    fileStream_(inputPath.c_str()), input_(nullptr)
+    fileStream_(inputPath.c_str())
 {
   for (auto& vecReg : vecRegs_)
     vecReg.push_back(0);
@@ -269,12 +269,12 @@ TraceReader::printRecord(std::ostream& os, const TraceRecord& rec) const
       os << std::hex;
       if (mreg.type == OperandType::Vec)
         {
-	  auto& vv = mreg.vecValue;
+	  const auto& vv = mreg.vecValue;
           for (auto it = vv.rbegin(); it != vv.rend(); ++it)
             os << "0x" << std::setw(2) << std::setfill('0') << (unsigned) *it;
 
           os << " prev=";
-	  auto& pv = mreg.vecPrevValue;
+	  const auto& pv = mreg.vecPrevValue;
           for (auto it = pv.rbegin(); it != pv.rend(); ++it)
             os << "0x" << std::setw(2) << std::setfill('0') << (unsigned) *it;
         }
@@ -369,7 +369,7 @@ uint64_t
 hexStrToNum(const char* x)
 {
   uint64_t res = 0, nibble = 0;
-  char c;
+  char c = 0;
   while ((c = *x++))
     {
       if (c >= '0' and c <= '9')
@@ -391,7 +391,7 @@ uint64_t
 hexStrToNum(const char* x, const char*& rest)
 {
   uint64_t res = 0, nibble = 0;
-  char c;
+  char c = 0;
   while ((c = *x))
     {
       if (c >= '0' and c <= '9')
@@ -766,37 +766,33 @@ determineDataSize(TraceRecord& record, const std::vector<uint64_t>& csRegs)
   else
     {
       if (record.instSize == 4)
-	{
-	  unsigned sizeCode = (record.inst >> 12) & 3;
-	  if      (sizeCode == 0) record.dataSize = 1;
-	  else if (sizeCode == 1) record.dataSize = 2;
-	  else if (sizeCode == 2) record.dataSize = 4;
-	  else if (sizeCode == 3) record.dataSize = 8;
-	}
+        {
+          unsigned sizeCode = (record.inst >> 12) & 3;
+          if      (sizeCode == 0) record.dataSize = 1;
+          else if (sizeCode == 1) record.dataSize = 2;
+          else if (sizeCode == 2) record.dataSize = 4;
+          else if (sizeCode == 3) record.dataSize = 8;
+        }
       else if (record.instSize == 2)
-	{
-	  unsigned f3 = (record.inst >> 13) & 7;
-	  unsigned quad = record.inst & 3; // Opcode quadrant
-	  if (quad == 0 or quad == 2)
-	    {
-	      if (f3 == 1 or f3 == 3 or f3 == 5 or f3 == 7)
-		record.dataSize = 8;
-	      else if (f3 == 2 or f3 == 6)
-		record.dataSize = 4;
+        {
+          unsigned f3 = (record.inst >> 13) & 7;
+          unsigned quad = record.inst & 3; // Opcode quadrant
+          if (quad == 0 or quad == 2)
+            {
+              if (f3 == 1 or f3 == 3 or f3 == 5 or f3 == 7)
+                record.dataSize = 8;
+              else if (f3 == 2 or f3 == 6)
+                record.dataSize = 4;
               else if (f3 == 4)
                 {
                   unsigned f6 = (record.inst >> 10) & 0x3f;
-                  if (f6 == 0x20)
+                  if (f6 == 0x20 or f6 == 0x22)
                     record.dataSize = 1;
-                  else if (f6 == 0x21)
-                    record.dataSize = 2;
-                  else if (f6 == 0x22)
-                    record.dataSize = 1;
-                  else if (f6 == 0x23)
+                  else if (f6 == 0x21 or f6 == 0x23)
                     record.dataSize = 2;
                 }
-	    }
-	}
+            }
+        }
     }
 }
 
@@ -840,7 +836,7 @@ TraceReader::parseLine(std::string& line, uint64_t lineNum, TraceRecord& record)
       if (*sourceOps)
 	{
 	  mySplit(subfields_, sourceOps, ';');
-	  for (auto source : subfields_)
+	  for (auto* source : subfields_)
 	    {
 	      if (strncmp(source, "rm=", 3) == 0)
 		{
@@ -1044,7 +1040,7 @@ TraceReader::extractHeaderIndices(const std::string& line, uint64_t lineNum)
 	  std::cerr << "Error: Line " << lineNum << ": Unknown tag: " << tag << '\n';
 	  continue;
 	}
-      size_t ix = size_t(iter->second);
+      auto ix = size_t(iter->second);
       indices_.at(ix) = i;
     }
   colCount_ = cols.size();

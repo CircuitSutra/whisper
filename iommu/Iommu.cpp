@@ -978,7 +978,7 @@ Iommu::translate_(const IommuRequest& req, uint64_t& pa, unsigned& cause, bool& 
       return true;
     }
 
-  unsigned pscid = dc.pscid();
+  unsigned pscid = 0;   // dc.pscid();
   bool sum = false;  // Supervisor has access to user pages.
 
   // 9. If request is a Translated request and DC.tc.T2GPA is 1 then the IOVA is a GPA. Go
@@ -2286,7 +2286,7 @@ Iommu::processPageRequestQueue()
     sendPageRequest(devId, pid, address, prgi);
     
     // Track the pending request
-    PageRequest request;
+    PageRequest request{};
     request.devId = devId;
     request.pid = pid;
     request.pidValid = pidValid;
@@ -2376,7 +2376,7 @@ Iommu::sendPageRequest(uint32_t devId, uint32_t pid, uint64_t address, uint32_t 
   (void)devId; (void)pid; (void)pidValid; (void)address; (void)prgi;
 
   // Add request to outstanding page request tracking structure
-  PageRequest request;
+  PageRequest request{};
   request.devId = devId;
   request.pid = pid;
   request.address = address;
@@ -2519,10 +2519,7 @@ Iommu::atsTranslate(const IommuRequest& req, AtsResponse& response, unsigned& ca
         response.global = false;
         return true;
       }
-      else
-      {
-        translatedAddr = pa;
-      }
+      translatedAddr = pa;
     }
     else
     {
@@ -2551,7 +2548,6 @@ Iommu::atsTranslate(const IommuRequest& req, AtsResponse& response, unsigned& ca
           response.readPerm = false;
           response.writePerm = false;
           response.execPerm = false;
-          return true;
         }
         else if (cause == 1 or cause == 5 or cause == 7 or  // Access faults
                  cause == 261 or cause == 263 or            // MSI PTE faults
@@ -2567,8 +2563,8 @@ Iommu::atsTranslate(const IommuRequest& req, AtsResponse& response, unsigned& ca
           // Permanent errors return UR
           response.success = false;
           response.isCompleterAbort = false;
-          return false;
         }
+        return false;
       }
     }
     else
@@ -2587,7 +2583,6 @@ Iommu::atsTranslate(const IommuRequest& req, AtsResponse& response, unsigned& ca
           response.readPerm = false;
           response.writePerm = false;
           response.execPerm = false;
-          return true;
         }
         else if (cause == 1 or cause == 5 or cause == 7 or  // Access faults
                  cause == 261 or cause == 263 or            // MSI PTE faults
@@ -2596,15 +2591,14 @@ Iommu::atsTranslate(const IommuRequest& req, AtsResponse& response, unsigned& ca
           // Configuration errors return CA
           response.success = false;
           response.isCompleterAbort = true;
-          return false;
         }
         else
         {
           // Permanent errors return UR
           response.success = false;
           response.isCompleterAbort = false;
-          return false;
         }
+        return false;
       }
     }
   }
@@ -2627,13 +2621,9 @@ Iommu::atsTranslate(const IommuRequest& req, AtsResponse& response, unsigned& ca
   
   // Set CXL.io bit based on device type and memory type
   response.cxlIo = false;   // Default, would need device-specific logic
-  if (isMsiAddr)
+  if (isMsiAddr or dc.t2gpa())
   {
-    response.cxlIo = true;  // MSI addresses set CXL.io = 1
-  }
-  else if (dc.t2gpa())
-  {
-    response.cxlIo = true;  // T2GPA mode sets CXL.io = 1
+    response.cxlIo = true;  // MSI addresses or T@GPA mode, set CXL.io = 1
   }
 
   return true;
@@ -2845,7 +2835,7 @@ Iommu::updateMemoryAttributes(unsigned pmacfgIx)
   Pma pma;
   bool valid = false;
 
-  pmaMgr_.unpackPmacfg(val, valid, low, high, pma);
+  PmaManager::unpackPmacfg(val, valid, low, high, pma);
   if (valid)
     {
       if (not pmaMgr_.defineRegion(pmacfgIx, low, high, pma))

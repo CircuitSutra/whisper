@@ -21,7 +21,7 @@ using namespace TT_IOMMU;
 
 void testIotinvalVmaCommand()
 {
-  std::cout << "Testing IOTINVAL.VMA command structure..." << std::endl;
+  std::cout << "Testing IOTINVAL.VMA command structure..." << '\n';
   
   // Test creating IOTINVAL.VMA command with different combinations
   
@@ -60,12 +60,12 @@ void testIotinvalVmaCommand()
   assert(cmd3.isIotinvalVma() == true);
   
   
-  std::cout << "  ✓ IOTINVAL.VMA command structure test PASSED!" << std::endl << std::endl;
+  std::cout << "  ✓ IOTINVAL.VMA command structure test PASSED!" << '\n' << '\n';
 }
 
 void testIotinvalGvmaCommand()
 {
-  std::cout << "Testing IOTINVAL.GVMA command structure..." << std::endl;
+  std::cout << "Testing IOTINVAL.GVMA command structure..." << '\n';
   
   // Test creating IOTINVAL.GVMA command
   
@@ -92,12 +92,12 @@ void testIotinvalGvmaCommand()
   assert(cmd2.isIotinvalGvma() == true);
   
   
-  std::cout << "  ✓ IOTINVAL.GVMA command structure test PASSED!" << std::endl << std::endl;
+  std::cout << "  ✓ IOTINVAL.GVMA command structure test PASSED!" << '\n' << '\n';
 }
 
 void testCommandOpcodes()
 {
-  std::cout << "Testing IOTINVAL command opcode assignments..." << std::endl;
+  std::cout << "Testing IOTINVAL command opcode assignments..." << '\n';
   
   // Verify opcode values match specification
   assert(static_cast<uint32_t>(CommandOpcode::IOTINVAL) == 1);
@@ -109,20 +109,20 @@ void testCommandOpcodes()
   assert(static_cast<uint32_t>(IotinvalFunc::GVMA) == 1);
   
   
-  std::cout << "  ✓ Command opcode assignments are correct!" << std::endl << std::endl;
+  std::cout << "  ✓ Command opcode assignments are correct!" << '\n' << '\n';
 }
 
 
 int main()
 {
-  std::cout << "RISC-V IOMMU IOTINVAL Command Test" << std::endl;
-  std::cout << "===================================" << std::endl << std::endl;
+  std::cout << "RISC-V IOMMU IOTINVAL Command Test" << '\n';
+  std::cout << "===================================" << '\n' << '\n';
   
   testCommandOpcodes();
   testIotinvalVmaCommand();
   testIotinvalGvmaCommand();
   
-  std::cout << "All IOTINVAL command structure tests PASSED!" << std::endl;
+  std::cout << "All IOTINVAL command structure tests PASSED!" << '\n';
   
   return 0;
 }

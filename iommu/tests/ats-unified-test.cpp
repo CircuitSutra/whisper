@@ -29,7 +29,7 @@ using namespace TT_IOMMU;
 class AtsTestHelper
 {
 public:
-  AtsTestHelper() : mem_(256 * 1024 * 1024) // 256MB memory
+  AtsTestHelper() : mem_(size_t(256) * 1024 * 1024) // 256MB memory
   {
     setupIommu();
   }
@@ -42,7 +42,7 @@ public:
   {
     // Calculate device context address
     uint64_t deviceContextAddr = 0x2000;
-    uint64_t actualDcAddr = deviceContextAddr + (devId & 0x7F) * 32;
+    uint64_t actualDcAddr = deviceContextAddr + (devId & 0x7F) * 32UL;
 
     // Create device context
     TransControl tc(0);
@@ -82,7 +82,7 @@ public:
   }
 
   // Create an ATS request
-  IommuRequest createAtsRequest(uint32_t devId, uint64_t iova, Ttype type = Ttype::PcieAts)
+  static IommuRequest createAtsRequest(uint32_t devId, uint64_t iova, Ttype type = Ttype::PcieAts)
   {
     IommuRequest req;
     req.devId = devId;
@@ -164,7 +164,7 @@ private:
 // Test Cases
 void testBasicAtsTranslation()
 {
-  std::cout << "=== Test 1: Basic ATS Translation ===" << std::endl;
+  std::cout << "=== Test 1: Basic ATS Translation ===" << '\n';
   
   AtsTestHelper helper;
   helper.setupDeviceContext(0x123, true, false); // ATS enabled, T2GPA disabled
@@ -178,14 +178,14 @@ void testBasicAtsTranslation()
   assert(success && response.success);
   assert(response.translatedAddr == 0x35000); // 0x5000 + 0x10000 + 0x20000
   
-  std::cout << "✓ Basic ATS translation successful" << std::endl;
-  std::cout << "  Input IOVA: 0x" << std::hex << req.iova << std::endl;
-  std::cout << "  Output SPA: 0x" << response.translatedAddr << std::dec << std::endl;
+  std::cout << "✓ Basic ATS translation successful" << '\n';
+  std::cout << "  Input IOVA: 0x" << std::hex << req.iova << '\n';
+  std::cout << "  Output SPA: 0x" << response.translatedAddr << std::dec << '\n';
 }
 
 void testT2gpaTranslation()
 {
-  std::cout << "\n=== Test 2: T2GPA Translation ===" << std::endl;
+  std::cout << "\n=== Test 2: T2GPA Translation ===" << '\n';
   
   AtsTestHelper helper;
   helper.setupDeviceContext(0x124, true, true); // ATS enabled, T2GPA enabled
@@ -200,15 +200,15 @@ void testT2gpaTranslation()
   assert(response.translatedAddr == 0x15000); // 0x5000 + 0x10000 (only first-stage)
   assert(response.cxlIo == true); // T2GPA mode sets CXL.io = 1
   
-  std::cout << "✓ T2GPA translation successful" << std::endl;
-  std::cout << "  Input IOVA: 0x" << std::hex << req.iova << std::endl;
-  std::cout << "  Output GPA: 0x" << response.translatedAddr << std::endl;
-  std::cout << "  CXL.io bit: " << response.cxlIo << std::dec << std::endl;
+  std::cout << "✓ T2GPA translation successful" << '\n';
+  std::cout << "  Input IOVA: 0x" << std::hex << req.iova << '\n';
+  std::cout << "  Output GPA: 0x" << response.translatedAddr << '\n';
+  std::cout << "  CXL.io bit: " << response.cxlIo << std::dec << '\n';
 }
 
 void testAtsErrorHandling()
 {
-  std::cout << "\n=== Test 3: ATS Error Handling ===" << std::endl;
+  std::cout << "\n=== Test 3: ATS Error Handling ===" << '\n';
   
   AtsTestHelper helper;
   
@@ -221,19 +221,19 @@ void testAtsErrorHandling()
   bool success = helper.getIommu().atsTranslate(req, response, cause);
   assert(!success && !response.success && !response.isCompleterAbort);
   assert(cause == 260); // Transaction type disallowed
-  std::cout << "✓ ATS disabled error handling works (UR response)" << std::endl;
+  std::cout << "✓ ATS disabled error handling works (UR response)" << '\n';
   
   // Test 2: Invalid transaction type
   req = helper.createAtsRequest(0x123, 0x5000, Ttype::TransRead); // Not ATS type
   success = helper.getIommu().atsTranslate(req, response, cause);
   assert(!success && !response.success && !response.isCompleterAbort);
   assert(cause == 260); // Transaction type disallowed
-  std::cout << "✓ Invalid transaction type error handling works (UR response)" << std::endl;
+  std::cout << "✓ Invalid transaction type error handling works (UR response)" << '\n';
 }
 
 void testAtsCommands()
 {
-  std::cout << "\n=== Test 4: ATS Commands ===" << std::endl;
+  std::cout << "\n=== Test 4: ATS Commands ===" << '\n';
   
   AtsTestHelper helper;
   helper.setupCommandQueue();
@@ -262,7 +262,7 @@ void testAtsCommands()
   // Verify command was processed
   uint64_t newHead = helper.getIommu().readCsr(CsrNumber::Cqh);
   assert(newHead == 1);
-  std::cout << "✓ ATS.INVAL command processed successfully" << std::endl;
+  std::cout << "✓ ATS.INVAL command processed successfully" << '\n';
   
   // Test ATS.PRGR command
   AtsPrgrCommand prgrCmd;
@@ -287,12 +287,12 @@ void testAtsCommands()
   // Verify command was processed
   newHead = helper.getIommu().readCsr(CsrNumber::Cqh);
   assert(newHead == 2);
-  std::cout << "✓ ATS.PRGR command processed successfully" << std::endl;
+  std::cout << "✓ ATS.PRGR command processed successfully" << '\n';
 }
 
 void testCommandDetection()
 {
-  std::cout << "\n=== Test 5: Command Detection ===" << std::endl;
+  std::cout << "\n=== Test 5: Command Detection ===" << '\n';
   
   AtsTestHelper helper;
   
@@ -314,12 +314,12 @@ void testCommandDetection()
   assert(!helper.getIommu().isAtsInvalCommand(prgrCmd));
   assert(helper.getIommu().isAtsPrgrCommand(prgrCmd));
   
-  std::cout << "✓ Command detection functions work correctly" << std::endl;
+  std::cout << "✓ Command detection functions work correctly" << '\n';
 }
 
 void testAtsPermissionHandling()
 {
-  std::cout << "\n=== Test 7: ATS Permission Handling ===" << std::endl;
+  std::cout << "\n=== Test 7: ATS Permission Handling ===" << '\n';
   
   AtsTestHelper helper;
   helper.setupDeviceContext(0x130, true, false); // ATS enabled, T2GPA disabled
@@ -336,7 +336,7 @@ void testAtsPermissionHandling()
   assert(response.writePerm == false); // No write requested
   assert(response.execPerm == false);  // No exec requested
   
-  std::cout << "✓ Read permission handling works correctly" << std::endl;
+  std::cout << "✓ Read permission handling works correctly" << '\n';
   
   // Test write permission (simulated by setting request as write)
   auto writeReq = helper.createAtsRequest(0x130, 0x7000, Ttype::PcieAts);
@@ -344,19 +344,19 @@ void testAtsPermissionHandling()
   success = helper.getIommu().atsTranslate(writeReq, response, cause);
   assert(success && response.success);
   
-  std::cout << "✓ Write permission handling works correctly" << std::endl;
+  std::cout << "✓ Write permission handling works correctly" << '\n';
 }
 
 void testAtsWithProcessContext()
 {
-  std::cout << "\n=== Test 8: ATS with Process Context ===" << std::endl;
+  std::cout << "\n=== Test 8: ATS with Process Context ===" << '\n';
   
   AtsTestHelper helper;
   
   // Setup device context with PDTV=1 (process directory table mode)
   uint32_t devId = 0x140;
   uint64_t deviceContextAddr = 0x2000;
-  uint64_t actualDcAddr = deviceContextAddr + (devId & 0x7F) * 32;
+  uint64_t actualDcAddr = deviceContextAddr + (devId & 0x7F) * 32UL;
 
   TransControl tc(0);
   tc.bits_.v_ = 1;
@@ -402,10 +402,8 @@ void testAtsWithProcessContext()
   ProcessContext pc(ta.value_, fsc.value_);
   
   // Write process context to PDT (for process ID 0)
-  uint64_t pcData[2] = { pc.ta(), pc.fsc() };
-  for (size_t i = 0; i < 2; i++) {
-    helper.getMemory().write(pdtAddr + i * 8, 8, pcData[i]);
-  }
+  helper.getMemory().write(pdtAddr, 8, pc.ta());
+  helper.getMemory().write(pdtAddr + 8, 8, pc.fsc());
 
   // Test ATS translation with process context
   auto req = helper.createAtsRequest(devId, 0x8000);
@@ -418,13 +416,13 @@ void testAtsWithProcessContext()
   bool success = helper.getIommu().atsTranslate(req, response, cause);
   assert(success && response.success);
   
-  std::cout << "✓ ATS with process context works correctly" << std::endl;
-  std::cout << "  Translated address: 0x" << std::hex << response.translatedAddr << std::dec << std::endl;
+  std::cout << "✓ ATS with process context works correctly" << '\n';
+  std::cout << "  Translated address: 0x" << std::hex << response.translatedAddr << std::dec << '\n';
 }
 
 void testAtsFaultScenarios()
 {
-  std::cout << "\n=== Test 9: ATS Fault Scenarios ===" << std::endl;
+  std::cout << "\n=== Test 9: ATS Fault Scenarios ===" << '\n';
   
   AtsTestHelper helper;
   
@@ -439,7 +437,7 @@ void testAtsFaultScenarios()
   bool success = helper.getIommu().atsTranslate(req, response, cause);
   assert(!success && !response.success && !response.isCompleterAbort);
   assert(cause == 256); // All inbound transactions disallowed
-  std::cout << "✓ IOMMU Off mode correctly returns UR" << std::endl;
+  std::cout << "✓ IOMMU Off mode correctly returns UR" << '\n';
   
   // Restore IOMMU to working mode
   Ddtp ddtp(0);
@@ -452,7 +450,7 @@ void testAtsFaultScenarios()
   success = helper.getIommu().atsTranslate(invalidReq, response, cause);
   assert(!success && !response.success);
   // Should get DDT-related error
-  std::cout << "✓ Invalid device ID correctly handled" << std::endl;
+  std::cout << "✓ Invalid device ID correctly handled" << '\n';
   
   // Test 3: ATS capability disabled in IOMMU
   // Create IOMMU without ATS capability
@@ -469,12 +467,12 @@ void testAtsFaultScenarios()
   success = noAtsIommu->atsTranslate(req, response, cause);
   assert(!success && !response.success && !response.isCompleterAbort);
   assert(cause == 256); // All inbound transactions disallowed
-  std::cout << "✓ ATS capability disabled correctly returns UR" << std::endl;
+  std::cout << "✓ ATS capability disabled correctly returns UR" << '\n';
 }
 
 void testAtsCommandVariations()
 {
-  std::cout << "\n=== Test 10: ATS Command Variations ===" << std::endl;
+  std::cout << "\n=== Test 10: ATS Command Variations ===" << '\n';
   
   AtsTestHelper helper;
   helper.setupCommandQueue();
@@ -495,8 +493,9 @@ void testAtsCommandVariations()
   invalCmd1.address = 0x2000000;
   
   // Write command to queue
-  helper.getMemory().write(cqbAddr, 8, reinterpret_cast<uint64_t*>(&invalCmd1)[0]);
-  helper.getMemory().write(cqbAddr + 8, 8, reinterpret_cast<uint64_t*>(&invalCmd1)[1]);
+  AtsCommand cmd{invalCmd1};  // Reinterpret as a generic command.
+  helper.getMemory().write(cqbAddr, 8, cmd.data.dw0);
+  helper.getMemory().write(cqbAddr + 8, 8, cmd.data.dw1);
   
   // Update tail to trigger processing
   helper.getIommu().writeCsr(CsrNumber::Cqt, 1);
@@ -504,7 +503,7 @@ void testAtsCommandVariations()
   // Verify command was processed
   uint64_t newHead = helper.getIommu().readCsr(CsrNumber::Cqh);
   assert(newHead == 1);
-  std::cout << "✓ ATS.INVAL with global flag processed successfully" << std::endl;
+  std::cout << "✓ ATS.INVAL with global flag processed successfully" << '\n';
   
   // Test ATS.PRGR with different response codes
   AtsPrgrCommand prgrCmd1;
@@ -519,16 +518,17 @@ void testAtsCommandVariations()
   prgrCmd1.responsecode = 1; // Response Failure
   
   // Write command to queue (second slot)
-  helper.getMemory().write(cqbAddr + 16, 8, reinterpret_cast<uint64_t*>(&prgrCmd1)[0]);
-  helper.getMemory().write(cqbAddr + 24, 8, reinterpret_cast<uint64_t*>(&prgrCmd1)[1]);
-  
+  cmd = AtsCommand{prgrCmd1};  // Reinterpret as a generic command.
+  helper.getMemory().write(cqbAddr + 16, 8, cmd.data.dw0);
+  helper.getMemory().write(cqbAddr + 24, 8, cmd.data.dw1);
+
   // Update tail to trigger processing
   helper.getIommu().writeCsr(CsrNumber::Cqt, 2);
   
   // Verify command was processed
   newHead = helper.getIommu().readCsr(CsrNumber::Cqh);
   assert(newHead == 2);
-  std::cout << "✓ ATS.PRGR with Response Failure code processed successfully" << std::endl;
+  std::cout << "✓ ATS.PRGR with Response Failure code processed successfully" << '\n';
   
   // Test multiple commands in sequence
   for (int i = 0; i < 3; i++) {
@@ -544,9 +544,10 @@ void testAtsCommandVariations()
     seqCmd.s = 0;
     seqCmd.address = 0x3000000 + (i * 0x1000);
     
-    uint64_t cmdOffset = (2 + i) * 16; // Each command is 16 bytes
-    helper.getMemory().write(cqbAddr + cmdOffset, 8, reinterpret_cast<uint64_t*>(&seqCmd)[0]);
-    helper.getMemory().write(cqbAddr + cmdOffset + 8, 8, reinterpret_cast<uint64_t*>(&seqCmd)[1]);
+    uint64_t cmdOffset = (2 + i) * 16UL; // Each command is 16 bytes
+    cmd = AtsCommand{seqCmd};
+    helper.getMemory().write(cqbAddr + cmdOffset, 8, cmd.data.dw0);
+    helper.getMemory().write(cqbAddr + cmdOffset + 8, 8, cmd.data.dw1);
   }
   
   // Update tail to process all commands
@@ -555,12 +556,12 @@ void testAtsCommandVariations()
   // Verify all commands were processed
   newHead = helper.getIommu().readCsr(CsrNumber::Cqh);
   assert(newHead == 5);
-  std::cout << "✓ Sequential ATS commands processed successfully" << std::endl;
+  std::cout << "✓ Sequential ATS commands processed successfully" << '\n';
 }
 
 void testAtsResponseFields()
 {
-  std::cout << "\n=== Test 12: ATS Response Field Validation ===" << std::endl;
+  std::cout << "\n=== Test 12: ATS Response Field Validation ===" << '\n';
   
   AtsTestHelper helper;
   helper.setupDeviceContext(0x170, true, false);
@@ -585,16 +586,16 @@ void testAtsResponseFields()
   assert(success && response.success);
   assert(response.cxlIo == true); // T2GPA mode sets CXL.io = 1
   
-  std::cout << "✓ ATS response fields validated correctly" << std::endl;
-  std::cout << "  NoSnoop: " << response.noSnoop << std::endl;
-  std::cout << "  AMA: " << response.ama << std::endl;
-  std::cout << "  CXL.io (T2GPA): " << response.cxlIo << std::endl;
+  std::cout << "✓ ATS response fields validated correctly" << '\n';
+  std::cout << "  NoSnoop: " << response.noSnoop << '\n';
+  std::cout << "  AMA: " << response.ama << '\n';
+  std::cout << "  CXL.io (T2GPA): " << response.cxlIo << '\n';
 }
 
 int main()
 {
-  std::cout << "Running ATS Tests..." << std::endl;
-  std::cout << "=============================" << std::endl;
+  std::cout << "Running ATS Tests..." << '\n';
+  std::cout << "=============================" << '\n';
   
   try {
     testBasicAtsTranslation();
@@ -608,15 +609,15 @@ int main()
     testAtsCommandVariations();
     testAtsResponseFields();
     
-    std::cout << "\n=============================" << std::endl;
-    std::cout << "All ATS tests passed successfully!" << std::endl;
-    std::cout << "=============================" << std::endl;
+    std::cout << "\n=============================" << '\n';
+    std::cout << "All ATS tests passed successfully!" << '\n';
+    std::cout << "=============================" << '\n';
     
   } catch (const std::exception& e) {
-    std::cerr << "Test failed with exception: " << e.what() << std::endl;
+    std::cerr << "Test failed with exception: " << e.what() << '\n';
     return 1;
   } catch (...) {
-    std::cerr << "Test failed with unknown exception" << std::endl;
+    std::cerr << "Test failed with unknown exception" << '\n';
     return 1;
   }
   

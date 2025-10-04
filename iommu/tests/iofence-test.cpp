@@ -69,7 +69,7 @@ public:
 
 void testBasicIofence()
 {
-    std::cout << "\n=== Test 1: Basic IOFENCE.C (No Pending ATS) ===" << std::endl;
+    std::cout << "\n=== Test 1: Basic IOFENCE.C (No Pending ATS) ===" << '\n';
     
     IofenceTestHelper helper;
     helper.setupCommandQueue();
@@ -97,12 +97,12 @@ void testBasicIofence()
     // Verify command was processed (head advanced)
     uint64_t newHead = helper.getIommu().readCsr(CsrNumber::Cqh);
     assert(newHead == 1);
-    std::cout << "✓ Basic IOFENCE.C processed successfully (no pending ATS)" << std::endl;
+    std::cout << "✓ Basic IOFENCE.C processed successfully (no pending ATS)" << '\n';
 }
 
 void testIofenceWithMemoryWrite()
 {
-    std::cout << "\n=== Test 2: IOFENCE.C with Memory Write (AV=1) ===" << std::endl;
+    std::cout << "\n=== Test 2: IOFENCE.C with Memory Write (AV=1) ===" << '\n';
     
     IofenceTestHelper helper;
     helper.setupCommandQueue();
@@ -141,12 +141,12 @@ void testIofenceWithMemoryWrite()
     assert((uint32_t)readData == targetData);
     
     std::cout << "✓ IOFENCE.C with memory write successful (wrote 0x" 
-              << std::hex << targetData << " to 0x" << targetAddr << ")" << std::endl;
+              << std::hex << targetData << " to 0x" << targetAddr << ")" << '\n';
 }
 
 void testIofenceCommandDetection()
 {
-    std::cout << "\n=== Test 3: IOFENCE Command Detection ===" << std::endl;
+    std::cout << "\n=== Test 3: IOFENCE Command Detection ===" << '\n';
     
     IofenceTestHelper helper;
     
@@ -161,22 +161,22 @@ void testIofenceCommandDetection()
     assert(helper.getIommu().isIofenceCCommand(cmd));
     assert(!helper.getIommu().isAtsCommand(cmd));
     
-    std::cout << "✓ IOFENCE command detection works correctly" << std::endl;
+    std::cout << "✓ IOFENCE command detection works correctly" << '\n';
 }
 
 int main()
 {
-    std::cout << "Running IOFENCE Tests..." << std::endl;
-    std::cout << "=============================" << std::endl;
+    std::cout << "Running IOFENCE Tests..." << '\n';
+    std::cout << "=============================" << '\n';
     
     try {
         testBasicIofence();
         testIofenceWithMemoryWrite();
         testIofenceCommandDetection();
         
-        std::cout << "\nAll IOFENCE tests passed!" << std::endl;
+        std::cout << "\nAll IOFENCE tests passed!" << '\n';
     } catch (const std::exception& e) {
-        std::cout << "\nTest failed: " << e.what() << std::endl;
+        std::cout << "\nTest failed: " << e.what() << '\n';
         return 1;
     }
     

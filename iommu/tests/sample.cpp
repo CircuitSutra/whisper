@@ -41,8 +41,9 @@ int main() {
     // Define the IOMMU memory-mapped region
     uint64_t iommuAddr = 0x10000000;
     uint64_t iommuSize = 0x800;
+    uint64_t memSize = 4UL*1024*1024;
 
-    TT_IOMMU::Iommu iommu(iommuAddr, iommuSize);
+    TT_IOMMU::Iommu iommu(iommuAddr, iommuSize, memSize);
 
     // uint64_t ones = ~uint64_t(0);
     uint64_t allBitsSet = (1ULL << 25) | (1ULL << 30) | (1ULL << 31) | (1ULL << 41) | (1ULL << 28) | (1ULL << 29);
@@ -78,7 +79,7 @@ int main() {
         iommu.read(addr, 8, value);
         std::cout << "0x" << std::hex << value << (i < 31 ? " " : "");
     }
-    std::cout << std::dec << std::endl;
+    std::cout << std::dec << '\n';
 
     // Test iohpmevt1-31
     std::cout << "iohpmevt1-31 read: ";
@@ -89,7 +90,7 @@ int main() {
         iommu.read(addr, 8, value);
         std::cout << "0x" << std::hex << value << (i < 31 ? " " : "");
     }
-    std::cout << std::dec << std::endl;
+    std::cout << std::dec << '\n';
 
     // Test msi_cfg_tbl0-31
     std::cout << "msi_cfg_tbl0-31 read: ";
@@ -100,7 +101,7 @@ int main() {
         iommu.read(addr, 8, value);
         std::cout << "0x" << std::hex << value << (i < 31 ? " " : "");
     }
-    std::cout << std::dec << std::endl;
+    std::cout << std::dec << '\n';
 
     // Disable all capabilities
     iommu.configureCapabilities(0);
@@ -132,7 +133,7 @@ int main() {
       assert(value == 0);
       std::cout << "0x" << std::hex << value << " ";
     }
-    std::cout << std::dec << std::endl;
+    std::cout << std::dec << '\n';
 
     // Test disabled iohpmevt1-31
     std::cout << "Disabled iohpmevt1-31 read: ";
@@ -144,7 +145,7 @@ int main() {
         assert(value == 0);
         std::cout << "0x" << std::hex << value << " ";
     }
-    std::cout << std::dec << std::endl;
+    std::cout << std::dec << '\n';
 
     // Test msi_cfg_tbl0-31
     std::cout << "Disabled msi_cfg_tbl0-31 read: ";
@@ -156,7 +157,7 @@ int main() {
         iommu.read(addr, 8, value);
         std::cout << "0x" << std::hex << value << (i < 31 ? " " : "");
     }
-    std::cout << std::dec << std::endl;
+    std::cout << std::dec << '\n';
 
     return 0;
 }

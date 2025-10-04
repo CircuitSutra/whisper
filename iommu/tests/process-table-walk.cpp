@@ -61,7 +61,7 @@ configureDdtp(Iommu& iommu, uint64_t rootPpn, Ddtp::Mode mode)
   iommu.writeCsr(CsrNumber::Ddtp, ddtp.value_);
   
   uint64_t readBack = iommu.readCsr(CsrNumber::Ddtp);
-  assert(readBack = ddtp.value_);
+  assert(readBack == ddtp.value_);
 }
 
 
@@ -116,7 +116,7 @@ setupDeviceTable(Iommu& iommu, uint64_t addr, unsigned devId, Ddtp::Mode mode,
     {
       // Create level3/2 table (1 page) at addr.
       unsigned ddi = Devid{devId}.ithDdi(levels-1, extended); // ddi2 or ddi1
-      unsigned entrySize = sizeof(Ddte);
+      uint64_t entrySize = sizeof(Ddte);
       uint64_t entryAddr = addr + ddi * entrySize;
       assert(entryAddr + entrySize <= addr + pageSize);
 
@@ -137,7 +137,7 @@ setupDeviceTable(Iommu& iommu, uint64_t addr, unsigned devId, Ddtp::Mode mode,
     {
       // For 1 level, we use ddi[0] as index into the root page.
       unsigned ddi0 = Devid{devId}.ithDdi(0, extended);
-      unsigned leafSize = iommu.devDirTableLeafSize(extended);
+      uint64_t leafSize = Iommu::devDirTableLeafSize(extended);
       leafAddr = addr + ddi0 * leafSize;
       assert(leafAddr + leafSize <= addr + pageSize);
 
@@ -175,7 +175,7 @@ setupProcessTable(Iommu& iommu, const DeviceContext& dc, unsigned processId,
     {
       // Create level3/2 table (1 page) at addr.
       unsigned pdi = procid.ithPdi(levels-1);  // pdi[2] or pdi[1] for level3 or level2
-      unsigned entrySize = sizeof(Pdte);
+      uint64_t entrySize = sizeof(Pdte);
       uint64_t entryAddr = addr + pdi * entrySize;
       assert(entryAddr + entrySize <= addr + pageSize);
 
@@ -210,7 +210,7 @@ setupProcessTable(Iommu& iommu, const DeviceContext& dc, unsigned processId,
 bool
 procTableWalk(uint64_t capabilities, Ddtp::Mode ddtpMode, PdtpMode pdtpMode, bool be)
 {
-  MemoryModel mem(4 * 1024 * 1024);
+  MemoryModel mem(size_t(4) * 1024 * 1024);
 
   Iommu iommu(0x1000, 0x800, mem.size());
   iommu.configureCapabilities(capabilities);
@@ -218,7 +218,7 @@ procTableWalk(uint64_t capabilities, Ddtp::Mode ddtpMode, PdtpMode pdtpMode, boo
   installMemCbs(iommu, mem);
 
   constexpr uint32_t devId = 0x2A;
-  uint64_t rootAddr = 0x100 * iommu.pageSize();  // Root addr for device table.
+  uint64_t rootAddr = 0x100LL * iommu.pageSize();  // Root addr for device table.
   uint64_t dcAddr = 0;  // Address of leaf entry corresponding to devId.
 
   DeviceContext leaf;   // Invalid leaf
@@ -244,7 +244,7 @@ procTableWalk(uint64_t capabilities, Ddtp::Mode ddtpMode, PdtpMode pdtpMode, boo
   uint32_t procId = 97;
   ProcessContext leafPc;  // Dummy
   uint64_t leafPcAddr = 0;
-  addr = setupProcessTable(iommu, dc, procId, leafPc, leafPcAddr);
+  setupProcessTable(iommu, dc, procId, leafPc, leafPcAddr);
 
   // Write a specific process table leaf to memory.
   unsigned cause = 0;

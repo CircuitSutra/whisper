@@ -106,7 +106,8 @@ static uint64_t setupDeviceTable(Iommu& iommu, uint32_t devId,
     uint64_t currentPpn = rootPpn;
     
     // Setup non-leaf levels
-    for (int level = levels - 1; level > 0; level--) {
+    assert(levels > 0);
+    for (unsigned level = levels - 1; level > 0; level--) {
         unsigned ddi = dId.ithDdi(level, extended);
         
         // Create a non-leaf entry
@@ -116,7 +117,7 @@ static uint64_t setupDeviceTable(Iommu& iommu, uint32_t devId,
         ddte.bits_.ppn_ = nextPpn;
         
         // Write the entry using IOMMU
-        uint64_t entryAddr = currentPpn * pageSize + ddi * 8;
+        uint64_t entryAddr = currentPpn * pageSize + ddi * uint64_t(8);
         iommu.writeDevDirTableEntry(entryAddr, ddte.value_);
         
         // Move to next level
@@ -124,8 +125,8 @@ static uint64_t setupDeviceTable(Iommu& iommu, uint32_t devId,
     }
     
     // Return the address of the leaf entry
-    unsigned ddi0 = dId.ithDdi(0, extended);
-    unsigned leafSize = iommu.devDirTableLeafSize(extended);
+    uint64_t ddi0 = dId.ithDdi(0, extended);
+    unsigned leafSize = Iommu::devDirTableLeafSize(extended);
     return currentPpn * pageSize + ddi0 * leafSize;
 }
 
@@ -223,15 +224,14 @@ static bool testDeviceContextConfig(
     bool ok = iommu.loadDeviceContext(devId, loadedDc, cause);
     
     std::cout << "[TEST:" << testName << "] Result: ok=" << ok << " cause=" << cause 
-              << " (expected ok=" << expectedOk << " cause=" << expectedCause << ")" << std::endl;
+              << " (expected ok=" << expectedOk << " cause=" << expectedCause << ")" << '\n';
     
     if (ok == expectedOk && cause == expectedCause) {
         std::cout << "  ✓ " << testName << " passed\n";
         return true;
-    } else {
-        std::cout << "  ✗ " << testName << " failed\n";
-        return false;
     }
+    std::cout << "  ✗ " << testName << " failed\n";
+    return false;
 }
 
 // -----------------------------------------------------------------------------
@@ -240,7 +240,7 @@ static bool testDeviceContextConfig(
 static void testDdtWalkSingleLevel() {
     using namespace TestValues;
     
-    MemoryModel mem(4 * 1024 * 1024);
+    MemoryModel mem(size_t(4) * 1024 * 1024);
     Iommu iommu(0x1000, 0x800, mem.size());
     configureCapabilities(iommu);
     installMemCbs(iommu, mem);
@@ -876,7 +876,7 @@ static void testDdtWalkSingleLevel() {
 static void testDdtWalkTwoLevel() {
     using namespace TestValues;
     
-    MemoryModel mem(4 * 1024 * 1024);
+    MemoryModel mem(size_t(4) * 1024 * 1024);
     Iommu iommu(0x1000, 0x800, mem.size());
     configureCapabilities(iommu);
     installMemCbs(iommu, mem);
@@ -1362,7 +1362,7 @@ static void testDdtWalkTwoLevel() {
 // -----------------------------------------------------------------------------
 static void testDdtWalkThreeLevel() {
     using namespace TestValues;
-    MemoryModel mem(4*1024*1024);
+    MemoryModel mem(size_t(4) * 1024 * 1024);
     Iommu iommu(0x1000,0x800, mem.size());
     configureCapabilities(iommu);
     installMemCbs(iommu, mem);

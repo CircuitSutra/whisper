@@ -59,7 +59,7 @@ Hart<URV>::saveSnapshotRegs(const std::string & filename)
   if (csr)
     ofs << "c 0x" << unsigned(CN::MISA) << " 0x" << csr->read() << "\n";
 
-  for (unsigned i = unsigned(CN::PMACFG15); i >= unsigned(CN::PMACFG0); i--)
+  for (auto i = unsigned(CN::PMACFG15); i >= unsigned(CN::PMACFG0); i--)
     {
       auto csr = csRegs_.findCsr(CN(i));
       if (not csr or not csr->isImplemented())
@@ -69,7 +69,7 @@ Hart<URV>::saveSnapshotRegs(const std::string & filename)
       ofs << "c 0x" << i << " 0x" << csr->read() << "\n";
     }
 
-  for (unsigned i = unsigned(CN::MIN_CSR_); i <= unsigned(CN::MAX_CSR_); i++)
+  for (auto i = unsigned(CN::MIN_CSR_); i <= unsigned(CN::MAX_CSR_); i++)
     {
       if ( (i == unsigned(CN::MISA)) or
 	   (i >= unsigned(CN::PMACFG0) and i <= unsigned(CN::PMACFG15)))
@@ -235,19 +235,22 @@ Hart<URV>::loadSnapshotRegs(const std::string & filename)
         {
           if (not loadSnapshotValue(iss, val))
             errors++;
-	  else
+          else
 	    pokePc(val);
         }
       else if (type == "pm")  // Prrivilege mode
 	{
-	  if (not loadSnapshotValue(iss, val))
-	    errors++;
-	  else if (val == 0)
-	    privMode = PrivilegeMode::User;
-	  else if (val == 1)
-	    privMode = PrivilegeMode::Supervisor;
-	  else if (val == 3)
-	    privMode = PrivilegeMode::Machine;
+	  if (loadSnapshotValue(iss, val))
+            {
+              if (val == 0)
+                privMode = PrivilegeMode::User;
+              else if (val == 1)
+                privMode = PrivilegeMode::Supervisor;
+              else if (val == 3)
+                privMode = PrivilegeMode::Machine;
+              else
+                errors++;
+            }
 	  else
 	    errors++;
 	}
@@ -261,9 +264,9 @@ Hart<URV>::loadSnapshotRegs(const std::string & filename)
       else if (type == "po")  // Program order
         {
           if (loadSnapshotValue(iss, val))
-	    setInstructionCount(val);
-	  else
-	    errors++;
+            setInstructionCount(val);
+          else
+            errors++;
         }
       else if (type == "pr")  // Program retired
         {
@@ -275,16 +278,16 @@ Hart<URV>::loadSnapshotRegs(const std::string & filename)
       else if (type == "pb")  // Program break
         {
           if (loadSnapshotValue(iss, val))
-	    setTargetProgramBreak(val);
-	  else
-	    errors++;
+            setTargetProgramBreak(val);
+          else
+            errors++;
         }
       else if (type == "elp") // ELP
         {
           if (loadSnapshotValue(iss, val))
-	    setElp(val);
-	  else
-	    errors++;
+            setElp(val);
+          else
+            errors++;
         }
       else if (type == "c")   // CSR
         {
