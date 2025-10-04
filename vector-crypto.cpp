@@ -903,7 +903,7 @@ void
 Hart<URV>::vwsll_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
-  using DWT = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide type
+  using DWT = makeDoubleWide_t<ELEM_TYPE>; // Double wide type
 
   ELEM_TYPE e1 = 0, e2 = 0;
   DWT dest = 0;
@@ -987,7 +987,7 @@ void
 Hart<URV>::vwsll_vx(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned group,
                     unsigned start, unsigned elems, bool masked)
 {
-  using DWT = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide type
+  using DWT = makeDoubleWide_t<ELEM_TYPE>; // Double wide type
 
   ELEM_TYPE e1 = 0;
   DWT dest = 0;

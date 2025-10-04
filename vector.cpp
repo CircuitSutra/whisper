@@ -48,7 +48,7 @@ namespace WdRiscv
   template <typename T>
   void mulh(const T& a, const T& b, T& result)
   {
-    using T2 = typename makeDoubleWide<T>::type; // Double wide type
+    using T2 = makeDoubleWide_t<T>; // Double wide type
 
     unsigned tbits = integerWidth<T> (); // Number of bits in T
 
@@ -65,7 +65,7 @@ namespace WdRiscv
   template <typename TS, typename TU>
   void mulhsu(const TS& a, const TU& b, TS& result)
   {
-    using TS2 = typename makeDoubleWide<TS>::type; // Double wide signed type
+    using TS2 = makeDoubleWide_t<TS>; // Double wide signed type
 
     unsigned bits = integerWidth<TS> (); // Number of bits in TS and TU
 
@@ -104,7 +104,7 @@ using namespace WdRiscv;
 template <typename ELEM_TYPE>
 class WidenedFpScalar
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type;
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>;
 
   public:
     constexpr WidenedFpScalar(ELEM_TYPE value): v_{value}, vDw_{fpConvertTo<ELEM_TYPE2X, true>(value)} {};
@@ -1591,7 +1591,7 @@ void
 Hart<URV>::vwadd_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
                     unsigned start, unsigned elems, bool masked)
 {
-  using DWT = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide type
+  using DWT = makeDoubleWide_t<ELEM_TYPE>; // Double wide type
 
   ELEM_TYPE e1 = 0, e2 = 0;
   DWT dest = 0;
@@ -1694,7 +1694,7 @@ void
 Hart<URV>::vwadd_vx(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned group,
                     unsigned start, unsigned elems, bool masked)
 {
-  using DWT = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide type
+  using DWT = makeDoubleWide_t<ELEM_TYPE>; // Double wide type
 
   ELEM_TYPE e1 = 0;
   DWT dest = 0;
@@ -1799,7 +1799,7 @@ void
 Hart<URV>::vwsub_vx(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
-  using DWT = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide type
+  using DWT = makeDoubleWide_t<ELEM_TYPE>; // Double wide type
 
   ELEM_TYPE e1 = 0;
   DWT dest = 0;
@@ -1904,7 +1904,7 @@ void
 Hart<URV>::vwsub_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
                     unsigned start, unsigned elems, bool masked)
 {
-  using DWT = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide type
+  using DWT = makeDoubleWide_t<ELEM_TYPE>; // Double wide type
 
   ELEM_TYPE e1 = 0, e2 = 0;
   DWT dest = 0;
@@ -2006,7 +2006,7 @@ void
 Hart<URV>::vwadd_wv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
                     unsigned start, unsigned elems, bool masked)
 {
-  using DWT = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide type
+  using DWT = makeDoubleWide_t<ELEM_TYPE>; // Double wide type
   unsigned wideGroup = group*2;
 
   ELEM_TYPE e2 = 0;
@@ -2292,7 +2292,7 @@ void
 Hart<URV>::vwsub_wv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
                     unsigned start, unsigned elems, bool masked)
 {
-  using DWT = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide type
+  using DWT = makeDoubleWide_t<ELEM_TYPE>; // Double wide type
   unsigned wideGroup = group*2;
 
   ELEM_TYPE e2 = 0;
@@ -3411,7 +3411,7 @@ void
 Hart<URV>::vnsr_wv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 		  unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE2X e1 = 0;
   ELEM_TYPE e2 = 0, dest = 0;
@@ -3479,7 +3479,7 @@ void
 Hart<URV>::vnsr_wx(unsigned vd, unsigned vs1, URV e2, unsigned group,
                    unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE2X e1 = 0;
   ELEM_TYPE dest = 0;
@@ -4263,7 +4263,7 @@ Hart<URV>::vwredsum_vs(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
   if (elems == 0)
     return;
 
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type;
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>;
 
   ELEM_TYPE2X result = 0;
   unsigned scalarElemIx = 0, scalarElemGroupX8 = 8;
@@ -5611,7 +5611,7 @@ void
 Hart<URV>::vmulhsu_vx(unsigned vd, unsigned vs1, unsigned rs2, unsigned group,
                       unsigned start, unsigned elems, bool masked)
 {
-  using U_ELEM_TYPE = typename std::make_unsigned<ELEM_TYPE>::type;
+  using U_ELEM_TYPE = std::make_unsigned_t<ELEM_TYPE>;
 
   ELEM_TYPE e1 = 0, dest = 0;
   U_ELEM_TYPE e2 = intRegs_.read(rs2);
@@ -6071,8 +6071,7 @@ void
 Hart<URV>::vnmsac_vx(unsigned vd, unsigned rs1, unsigned vs2, unsigned group,
 		     unsigned start, unsigned elems, bool masked)
 {
-  ELEM_TYPE e2 = 0, dest = 0;
-  ELEM_TYPE e1 = SRV(intRegs_.read(rs1));
+  ELEM_TYPE e1 = SRV(intRegs_.read(rs1)), e2 = 0, dest = 0;
 
   unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
@@ -6128,7 +6127,7 @@ void
 Hart<URV>::vwmulu_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
                      unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE_X2 = typename makeDoubleWide<ELEM_TYPE>::type;
+  using ELEM_TYPE_X2 = makeDoubleWide_t<ELEM_TYPE>;
 
   ELEM_TYPE e1 = 0, e2 = 0;
   ELEM_TYPE_X2 dest = 0;
@@ -6196,7 +6195,7 @@ void
 Hart<URV>::vwmulu_vx(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned group,
                      unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE_X2 = typename makeDoubleWide<ELEM_TYPE>::type;
+  using ELEM_TYPE_X2 = makeDoubleWide_t<ELEM_TYPE>;
 
   ELEM_TYPE e1 = 0;
   ELEM_TYPE_X2 dest = 0;
@@ -6264,7 +6263,7 @@ void
 Hart<URV>::vwmul_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
                      unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE_X2 = typename makeDoubleWide<ELEM_TYPE>::type;
+  using ELEM_TYPE_X2 = makeDoubleWide_t<ELEM_TYPE>;
 
   ELEM_TYPE e1 = 0, e2 = 0;
   ELEM_TYPE_X2 dest = 0;
@@ -6332,7 +6331,7 @@ void
 Hart<URV>::vwmul_vx(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned group,
                      unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE_X2 = typename makeDoubleWide<ELEM_TYPE>::type;
+  using ELEM_TYPE_X2 = makeDoubleWide_t<ELEM_TYPE>;
 
   ELEM_TYPE e1 = 0;
   ELEM_TYPE_X2 dest = 0;
@@ -6402,7 +6401,7 @@ void
 Hart<URV>::vwmulsu_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
                      unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE_X2 = typename makeDoubleWide<ELEM_TYPE>::type;
+  using ELEM_TYPE_X2 = makeDoubleWide_t<ELEM_TYPE>;
   using ELEM_TYPE_U  = std::make_unsigned_t<ELEM_TYPE>;
 
   ELEM_TYPE e1 = 0;
@@ -6472,7 +6471,7 @@ void
 Hart<URV>::vwmulsu_vx(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned group,
                      unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE_X2 = typename makeDoubleWide<ELEM_TYPE>::type;
+  using ELEM_TYPE_X2 = makeDoubleWide_t<ELEM_TYPE>;
   using ELEM_TYPE_U  = std::make_unsigned_t<ELEM_TYPE>;
 
   ELEM_TYPE e1 = 0;
@@ -6543,7 +6542,7 @@ void
 Hart<URV>::vwmacc_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
                      unsigned start, unsigned elems, bool masked)
 {
-  using DWT = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide type
+  using DWT = makeDoubleWide_t<ELEM_TYPE>; // Double wide type
   unsigned wideGroup = group*2;
 
   ELEM_TYPE e1 = 0, e2 = 0;
@@ -6612,7 +6611,7 @@ void
 Hart<URV>::vwmaccu_vx(unsigned vd, ELEM_TYPE e1, unsigned vs2, unsigned group,
                       unsigned start, unsigned elems, bool masked)
 {
-  using DWT  = typename makeDoubleWide<ELEM_TYPE>::type;  // Double wide type
+  using DWT  = makeDoubleWide_t<ELEM_TYPE>;  // Double wide type
   using SDWT = std::make_signed_t<DWT>;      // Signed double wide type
   unsigned wideGroup = group*2;
 
@@ -6723,7 +6722,7 @@ void
 Hart<URV>::vwmacc_vx(unsigned vd, ELEM_TYPE e1, unsigned vs2, unsigned group,
                      unsigned start, unsigned elems, bool masked)
 {
-  using DWT = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide type
+  using DWT = makeDoubleWide_t<ELEM_TYPE>; // Double wide type
   unsigned wideGroup = group*2;
 
   ELEM_TYPE e2 = 0;
@@ -6793,7 +6792,7 @@ void
 Hart<URV>::vwmaccsu_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
                        unsigned start, unsigned elems, bool masked)
 {
-  using DWT  = typename makeDoubleWide<ELEM_TYPE>::type;      // Double wide type
+  using DWT  = makeDoubleWide_t<ELEM_TYPE>;      // Double wide type
   using DWTU = std::make_unsigned_t<DWT>;        // Double wide type unsigned
   using SWTU = std::make_unsigned_t<ELEM_TYPE>;  // Single wide type unsigned
 
@@ -6866,7 +6865,7 @@ void
 Hart<URV>::vwmaccsu_vx(unsigned vd, ELEM_TYPE e1, unsigned vs2, unsigned group,
                        unsigned start, unsigned elems, bool masked)
 {
-  using DWT  = typename makeDoubleWide<ELEM_TYPE>::type;      // Double wide type
+  using DWT  = makeDoubleWide_t<ELEM_TYPE>;      // Double wide type
   using DWTU = std::make_unsigned_t<DWT>;        // Double wide type unsigned
   using SWTU = std::make_unsigned_t<ELEM_TYPE>;  // Single wide type unsigned
 
@@ -6940,9 +6939,9 @@ void
 Hart<URV>::vwmaccus_vx(unsigned vd, ELEM_TYPE e1, unsigned vs2, unsigned group,
                        unsigned start, unsigned elems, bool masked)
 {
-  using DWT  = typename makeDoubleWide<ELEM_TYPE>::type;      // Double wide type
-  using DWTU = typename std::make_unsigned<DWT>::type;        // Double wide type unsigned
-  using SWTU = typename std::make_unsigned<ELEM_TYPE>::type;  // Single wide type unsigned
+  using DWT  = makeDoubleWide_t<ELEM_TYPE>;      // Double wide type
+  using DWTU = std::make_unsigned_t<DWT>;        // Double wide type unsigned
+  using SWTU = std::make_unsigned_t<ELEM_TYPE>;  // Single wide type unsigned
 
   unsigned wideGroup = group*2;
 
@@ -7451,8 +7450,8 @@ Hart<URV>::vrem_vx(unsigned vd, unsigned vs1, unsigned rs2, unsigned group,
   unsigned elemBits = integerWidth<ELEM_TYPE> ();
 
   ELEM_TYPE e1 = 0, e2 = SRV(intRegs_.read(rs2)), dest = 0;
-  ELEM_TYPE minInt = ELEM_TYPE(1) << (elemBits - 1);
-  ELEM_TYPE negOne = ELEM_TYPE(-1);
+  auto minInt = ELEM_TYPE(1) << (elemBits - 1);
+  auto negOne = ELEM_TYPE(-1);
 
   unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
@@ -9218,7 +9217,7 @@ Hart<URV>::execVmv_v_i(const DecodedInst* di)
   if (not checkVecOpsVsEmul(di, vd, group))
     return;
 
-  int32_t e1 = di->op1As<int32_t>();
+  auto e1 = di->op1As<int32_t>();
 
   using EW = ElementWidth;
   switch (sew)
@@ -9974,7 +9973,7 @@ Hart<URV>::vaadd_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   ELEM_TYPE e1 = 0, e2 = 0;
 
-  using ELEM_TYPE2 = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2 = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   URV rmVal = peekCsr(CsrNumber::VXRM);
   auto rm = VecRoundingMode(rmVal);
@@ -10068,7 +10067,7 @@ Hart<URV>::vaadd_vx(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned group,
 {
   ELEM_TYPE e1 = 0;
 
-  using ELEM_TYPE2 = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2 = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   URV rmVal = peekCsr(CsrNumber::VXRM);
   auto rm = VecRoundingMode(rmVal);
@@ -10165,7 +10164,7 @@ Hart<URV>::vasub_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   ELEM_TYPE e1 = 0, e2 = 0;
 
-  using ELEM_TYPE2 = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2 = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   URV rmVal = peekCsr(CsrNumber::VXRM);
   auto rm = VecRoundingMode(rmVal);
@@ -10259,7 +10258,7 @@ Hart<URV>::vasub_vx(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned group,
 {
   ELEM_TYPE e1 = 0;
 
-  using ELEM_TYPE2 = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2 = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   URV rmVal = peekCsr(CsrNumber::VXRM);
   auto rm = VecRoundingMode(rmVal);
@@ -10356,7 +10355,7 @@ Hart<URV>::vsmul_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   ELEM_TYPE e1 = 0, e2 = 0;
 
-  using ELEM_TYPE2 = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2 = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   URV rmVal = peekCsr(CsrNumber::VXRM);
   auto rm = VecRoundingMode(rmVal);
@@ -10435,7 +10434,7 @@ Hart<URV>::vsmul_vx(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned group,
 {
   ELEM_TYPE e1 = 0;
 
-  using ELEM_TYPE2 = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2 = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   URV rmVal = peekCsr(CsrNumber::VXRM);
   auto rm = VecRoundingMode(rmVal);
@@ -10762,8 +10761,8 @@ void
 Hart<URV>::vnclip_wv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
                      unsigned start, unsigned elems, bool masked)
 {
-  using U_ELEM_TYPE = typename std::make_unsigned<ELEM_TYPE>::type;
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using U_ELEM_TYPE = std::make_unsigned_t<ELEM_TYPE>;
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE2X e1 = 0;
   ELEM_TYPE e2 = 0;
@@ -10854,8 +10853,8 @@ void
 Hart<URV>::vnclip_wx(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned group,
                      unsigned start, unsigned elems, bool masked)
 {
-  using U_ELEM_TYPE = typename std::make_unsigned<ELEM_TYPE>::type;
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using U_ELEM_TYPE = std::make_unsigned_t<ELEM_TYPE>;
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE2X e1 = 0;
 
@@ -13575,7 +13574,7 @@ Hart<URV>::vectorLoadSegIndexed(const DecodedInst* di, ElementWidth offsetEew,
           if (ix < vecRegs_.elemCount())
             {
               uint64_t offset = vecRegs_.readIndexReg(vi, ix, offsetEew, offsetGroupX8);
-              faddr = addr + offset + field*elemSize;
+              faddr = addr + offset + static_cast<uint64_t>(field)*elemSize;
             }
 
           ldStInfo.addElem(VecLdStElem{faddr, faddr, faddr, elem, ix, skip, field});
@@ -14344,7 +14343,7 @@ doFrsqrt7(T val, bool& divByZero, bool& invalid)
   static constexpr int bias            = std::numeric_limits<T>::max_exponent - 1;
   static constexpr int bitsOfPrecision = std::numeric_limits<T>::digits - 1;
 
-  using uint_fsize_t = typename getSameWidthUintType<T>::type;
+  using uint_fsize_t = getSameWidthUintType_t<T>;
 
   divByZero = false;
   invalid = false;
@@ -14409,7 +14408,7 @@ doFrec7(T val, RoundingMode mode, FpFlags& flags)
   static constexpr int bias            = std::numeric_limits<T>::max_exponent - 1;
   static constexpr int bitsOfPrecision = std::numeric_limits<T>::digits - 1;
 
-  using uint_fsize_t = typename getSameWidthUintType<T>::type;
+  using uint_fsize_t = getSameWidthUintType_t<T>;
 
   flags = FpFlags::None;
   bool signBit = std::signbit(val);
@@ -14684,7 +14683,7 @@ Hart<URV>::vfrsub_vf(unsigned vd, unsigned vs1, unsigned fs2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
   ELEM_TYPE e1{}, dest{};
-  ELEM_TYPE e2 = fpRegs_.read<ELEM_TYPE>(fs2);
+  auto e2 = fpRegs_.read<ELEM_TYPE>(fs2);
 
   unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
@@ -14743,7 +14742,7 @@ void
 Hart<URV>::vfwadd_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 		     unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE e1 = ELEM_TYPE(), e2 = ELEM_TYPE();
   ELEM_TYPE2X e1dw{}, e2dw{}, dest{};
@@ -14818,7 +14817,7 @@ void
 Hart<URV>::vfwadd_vf(unsigned vd, unsigned vs1, unsigned fs2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE e1{};
   auto e2 = fpRegs_.read<ELEM_TYPE>(fs2);
@@ -14890,7 +14889,7 @@ void
 Hart<URV>::vfwsub_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE e1 = ELEM_TYPE(), e2 = ELEM_TYPE();
   ELEM_TYPE2X e1dw{}, e2dw{}, dest{};
@@ -14965,7 +14964,7 @@ void
 Hart<URV>::vfwsub_vf(unsigned vd, unsigned vs1, unsigned fs2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE e1{};
   auto e2 = fpRegs_.read<ELEM_TYPE>(fs2);
@@ -15037,7 +15036,7 @@ void
 Hart<URV>::vfwadd_wv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 		     unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE e2 = ELEM_TYPE();
   ELEM_TYPE2X e1dw{}, e2dw{}, dest{};
@@ -15111,7 +15110,7 @@ void
 Hart<URV>::vfwadd_wf(unsigned vd, unsigned vs1, unsigned fs2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   auto e2 = fpRegs_.read<ELEM_TYPE>(fs2);
   ELEM_TYPE2X e1dw{}, dest{};
@@ -15182,7 +15181,7 @@ void
 Hart<URV>::vfwsub_wv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE  e2 = ELEM_TYPE();
   ELEM_TYPE2X e1dw{}, e2dw{}, dest{};
@@ -15254,7 +15253,7 @@ void
 Hart<URV>::vfwsub_wf(unsigned vd, unsigned vs1, unsigned fs2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   auto e2 = fpRegs_.read<ELEM_TYPE>(fs2);
   ELEM_TYPE2X e1dw{}, dest{};
@@ -15581,7 +15580,7 @@ void
 Hart<URV>::vfwmul_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 		     unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
   ELEM_TYPE e1 = ELEM_TYPE(), e2 = ELEM_TYPE();
   ELEM_TYPE2X e1dw{}, e2dw{}, dest{};
 
@@ -15653,7 +15652,7 @@ void
 Hart<URV>::vfwmul_vf(unsigned vd, unsigned vs1, unsigned fs2, unsigned group,
 		     unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE e1{};
   auto e2 = fpRegs_.read<ELEM_TYPE>(fs2);
@@ -16705,7 +16704,7 @@ void
 Hart<URV>::vfwmacc_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 		      unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE e1 = ELEM_TYPE(), e2 = ELEM_TYPE();
   ELEM_TYPE2X e1dw{}, e2dw{}, dest{};
@@ -16778,7 +16777,7 @@ void
 Hart<URV>::vfwmacc_vf(unsigned vd, unsigned f1, unsigned vs2, unsigned group,
 		      unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE e2{};
   auto e1 = fpRegs_.read<ELEM_TYPE>(f1);
@@ -16852,7 +16851,7 @@ void
 Hart<URV>::vfwnmacc_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 		       unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE e1 = ELEM_TYPE(), e2 = ELEM_TYPE();
   ELEM_TYPE2X e1dw{}, e2dw{}, dest{};
@@ -16925,7 +16924,7 @@ void
 Hart<URV>::vfwnmacc_vf(unsigned vd, unsigned fs1, unsigned vs2, unsigned group,
 		       unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE e2{};
   auto e1 = fpRegs_.read<ELEM_TYPE>(fs1);
@@ -16998,7 +16997,7 @@ void
 Hart<URV>::vfwmsac_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 		      unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE e1 = ELEM_TYPE(), e2 = ELEM_TYPE();
   ELEM_TYPE2X e1dw{}, e2dw{}, dest{};
@@ -17071,7 +17070,7 @@ void
 Hart<URV>::vfwmsac_vf(unsigned vd, unsigned fs1, unsigned vs2, unsigned group,
 		      unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE e2{};
   auto e1 = fpRegs_.read<ELEM_TYPE>(fs1);
@@ -17144,7 +17143,7 @@ void
 Hart<URV>::vfwnmsac_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 		       unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE e1 = ELEM_TYPE(), e2 = ELEM_TYPE();
   ELEM_TYPE2X e1dw{}, e2dw{}, dest{};
@@ -17218,7 +17217,7 @@ void
 Hart<URV>::vfwnmsac_vf(unsigned vd, unsigned fs1, unsigned vs2, unsigned group,
 		       unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE e2{};
   auto e1 = fpRegs_.read<ELEM_TYPE>(fs1);
@@ -18078,7 +18077,7 @@ Hart<URV>::vfclass_v(unsigned vd, unsigned vs1, unsigned group,
 
   for (unsigned ix = start; ix < elems; ++ix)
     {
-      using INT_TYPE = typename getSameWidthIntType<ELEM_TYPE>::type;
+      using INT_TYPE = getSameWidthIntType_t<ELEM_TYPE>;
       INT_TYPE dest{};
       if (vecRegs_.isDestActive(vd, ix, destGroup, masked, dest))
 	{
@@ -18134,7 +18133,7 @@ Hart<URV>::vfcvt_xu_f_v(unsigned vd, unsigned vs1, unsigned group,
 
   for (unsigned ix = start; ix < elems; ++ix)
     {
-      using UINT_TYPE = typename getSameWidthUintType<ELEM_TYPE>::type;
+      using UINT_TYPE = getSameWidthUintType_t<ELEM_TYPE>;
       UINT_TYPE dest{};
 
       if (vecRegs_.isDestActive(vd, ix, destGroup, masked, dest))
@@ -18196,7 +18195,7 @@ Hart<URV>::vfcvt_x_f_v(unsigned vd, unsigned vs1, unsigned group,
 
   for (unsigned ix = start; ix < elems; ++ix)
     {
-      using INT_TYPE = typename getSameWidthIntType<ELEM_TYPE>::type;
+      using INT_TYPE = getSameWidthIntType_t<ELEM_TYPE>;
       INT_TYPE dest{};
 
       if (vecRegs_.isDestActive(vd, ix, destGroup, masked, dest))
@@ -18310,7 +18309,7 @@ void
 Hart<URV>::vfcvt_f_xu_v(unsigned vd, unsigned vs1, unsigned group,
 			unsigned start, unsigned elems, bool masked)
 {
-  using UINT_TYPE = typename getSameWidthUintType<ELEM_TYPE>::type;
+  using UINT_TYPE = getSameWidthUintType_t<ELEM_TYPE>;
 
   UINT_TYPE e1{0};
   ELEM_TYPE dest{};
@@ -18373,7 +18372,7 @@ void
 Hart<URV>::vfcvt_f_x_v(unsigned vd, unsigned vs1, unsigned group,
 		       unsigned start, unsigned elems, bool masked)
 {
-  using INT_TYPE = typename getSameWidthIntType<ELEM_TYPE>::type;
+  using INT_TYPE = getSameWidthIntType_t<ELEM_TYPE>;
 
   INT_TYPE e1{0};
   ELEM_TYPE dest{};
@@ -18445,8 +18444,8 @@ Hart<URV>::vfwcvt_xu_f_v(unsigned vd, unsigned vs1, unsigned group,
 
   for (unsigned ix = start; ix < elems; ++ix)
     {
-      using UINT_TYPE   = typename getSameWidthUintType<ELEM_TYPE>::type;
-      using UINT_TYPE2X = typename makeDoubleWide<UINT_TYPE>::type;
+      using UINT_TYPE   = getSameWidthUintType_t<ELEM_TYPE>;
+      using UINT_TYPE2X = makeDoubleWide_t<UINT_TYPE>;
       UINT_TYPE2X dest{};
 
       if (vecRegs_.isDestActive(vd, ix, destGroup, masked, dest))
@@ -18517,8 +18516,8 @@ Hart<URV>::vfwcvt_x_f_v(unsigned vd, unsigned vs1, unsigned group,
 
   for (unsigned ix = start; ix < elems; ++ix)
     {
-      using INT_TYPE   = typename getSameWidthIntType<ELEM_TYPE>::type;
-      using INT_TYPE2X = typename makeDoubleWide<INT_TYPE>::type;
+      using INT_TYPE   = getSameWidthIntType_t<ELEM_TYPE>;
+      using INT_TYPE2X = makeDoubleWide_t<INT_TYPE>;
       INT_TYPE2X dest{};
 
       if (vecRegs_.isDestActive(vd, ix, destGroup, masked, dest))
@@ -18655,8 +18654,8 @@ void
 Hart<URV>::vfwcvt_f_xu_v(unsigned vd, unsigned vs1, unsigned group,
 			 unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type;
-  using FP_TYPE2X   = typename getSameWidthFloatType<ELEM_TYPE2X>::type;
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>;
+  using FP_TYPE2X   = getSameWidthFloatType_t<ELEM_TYPE2X>;
 
   ELEM_TYPE e1{};
   FP_TYPE2X dest{};
@@ -18740,8 +18739,8 @@ void
 Hart<URV>::vfwcvt_f_x_v(unsigned vd, unsigned vs1, unsigned group,
 		       unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type;
-  using FP_TYPE2X   = typename getSameWidthFloatType<ELEM_TYPE2X>::type;
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>;
+  using FP_TYPE2X   = getSameWidthFloatType_t<ELEM_TYPE2X>;
 
   ELEM_TYPE e1{};
   FP_TYPE2X dest{};
@@ -18825,7 +18824,7 @@ void
 Hart<URV>::vfwcvt_f_f_v(unsigned vd, unsigned vs1, unsigned group,
 			unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type;
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>;
 
   ELEM_TYPE e1{};
   ELEM_TYPE2X dest{};
@@ -18900,8 +18899,8 @@ void
 Hart<URV>::vfncvt_xu_f_w(unsigned vd, unsigned vs1, unsigned group,
 			 unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X  = typename makeDoubleWide<ELEM_TYPE>::type;
-  using FLOAT_TYPE2X = typename getSameWidthFloatType<ELEM_TYPE2X>::type;
+  using ELEM_TYPE2X  = makeDoubleWide_t<ELEM_TYPE>;
+  using FLOAT_TYPE2X = getSameWidthFloatType_t<ELEM_TYPE2X>;
 
   FLOAT_TYPE2X e1{};
   unsigned group2x = group*2;
@@ -18982,8 +18981,8 @@ void
 Hart<URV>::vfncvt_x_f_w(unsigned vd, unsigned vs1, unsigned group,
 			unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X  = typename makeDoubleWide<ELEM_TYPE>::type;
-  using FLOAT_TYPE2X = typename getSameWidthFloatType<ELEM_TYPE2X>::type;
+  using ELEM_TYPE2X  = makeDoubleWide_t<ELEM_TYPE>;
+  using FLOAT_TYPE2X = getSameWidthFloatType_t<ELEM_TYPE2X>;
 
   FLOAT_TYPE2X e1{};
   unsigned group2x = group*2;
@@ -19176,8 +19175,8 @@ void
 Hart<URV>::vfncvt_f_xu_w(unsigned vd, unsigned vs1, unsigned group,
 			 unsigned start, unsigned elems, bool masked)
 {
-  using FLOAT_TYPE  = typename getSameWidthFloatType<ELEM_TYPE>::type;
-  using UINT_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type;
+  using FLOAT_TYPE  = getSameWidthFloatType_t<ELEM_TYPE>;
+  using UINT_TYPE2X = makeDoubleWide_t<ELEM_TYPE>;
 
   UINT_TYPE2X e1{0};
   FLOAT_TYPE dest{};
@@ -19249,8 +19248,8 @@ void
 Hart<URV>::vfncvt_f_x_w(unsigned vd, unsigned vs1, unsigned group,
 			unsigned start, unsigned elems, bool masked)
 {
-  using FLOAT_TYPE = typename getSameWidthFloatType<ELEM_TYPE>::type;
-  using INT_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type;
+  using FLOAT_TYPE = getSameWidthFloatType_t<ELEM_TYPE>;
+  using INT_TYPE2X = makeDoubleWide_t<ELEM_TYPE>;
 
   INT_TYPE2X e1{0};
   FLOAT_TYPE dest{};
@@ -19322,7 +19321,7 @@ void
 Hart<URV>::vfncvt_f_f_w(unsigned vd, unsigned vs1, unsigned group,
 			unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type;
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>;
 
   ELEM_TYPE2X e1{};
   ELEM_TYPE dest{};
@@ -19903,7 +19902,7 @@ Hart<URV>::vfwredusum_vs(unsigned vd, unsigned vs1, unsigned vs2, unsigned group
   if (elems == 0)
     return;
 
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type;
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>;
 
   ELEM_TYPE2X result{};
   unsigned scalarElemIx = 0, scalarElemGroupX8 = 8;
@@ -20053,7 +20052,7 @@ Hart<URV>::vfwredosum_vs(unsigned vd, unsigned vs1, unsigned vs2, unsigned group
   if (elems == 0)
     return;
 
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type;
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>;
 
   ELEM_TYPE2X result{};
   unsigned scalarElemIx = 0, scalarElemGroupX8 = 8;
@@ -20079,7 +20078,7 @@ Hart<URV>::vfwredosum_vs(unsigned vd, unsigned vs1, unsigned vs2, unsigned group
     }
 
   vecRegs_.write(vd, scalarElemIx, scalarElemGroupX8, result);
-  ElementWidth dsew;
+  ElementWidth dsew{};
   if (not VecRegs::doubleSew(vecRegs_.elemWidth(), dsew))
     assert(0 && "Error: Assertion failed");
 
@@ -20330,7 +20329,7 @@ Hart<URV>::vfmin_vf(unsigned vd, unsigned vs1, unsigned fs2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
   ELEM_TYPE e1{}, dest{};
-  ELEM_TYPE e2 = fpRegs_.read<ELEM_TYPE>(fs2);
+  auto e2 = fpRegs_.read<ELEM_TYPE>(fs2);
 
   unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
