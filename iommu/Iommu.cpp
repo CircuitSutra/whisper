@@ -1593,12 +1593,21 @@ Iommu::writeFaultRecord(const FaultRecord& record)
   assert((sizeof(record) % 8) == 0);
   unsigned dwords = sizeof(record) / 8;   // Double-word count
 
-  const uint64_t* ptr = reinterpret_cast<const uint64_t*>(&record);
+  union RecWords
+  {
+    RecWords() : dwords{}
+    { }
+
+    FaultRecord rec;
+    std::array<uint64_t, sizeof(FaultRecord)/8> dwords;
+  } recBits;
+
+  recBits.rec = record;
 
   bool bigEnd = faultQueueBigEnd();
 
-  for (unsigned i = 0; i < dwords; ++i, slotAddr += 8, ++ptr)
-    memWriteDouble(slotAddr, bigEnd, *ptr);
+  for (unsigned i = 0; i < dwords; ++i, slotAddr += 8)
+    memWriteDouble(slotAddr, bigEnd, recBits.dwords.at(i));
 
   // Move tail.
   ++qtail;
@@ -2079,9 +2088,9 @@ Iommu::executeIodirCommand(const AtsCommand& atsCmd)
   bool isInvalDdt = cmd.func3 == IodirFunc::INVAL_DDT;
   bool isInvalPdt = cmd.func3 == IodirFunc::INVAL_PDT;
   if (isInvalDdt)
-    printf("IODIR.INVAL_DDT: PID=%ld, DV=%ld, DID=%ld \n", cmd.PID, cmd.DV, cmd.DID);
+    printf("IODIR.INVAL_DDT: PID=%d, DV=%d, DID=%d \n", cmd.PID, cmd.DV, cmd.DID);
   if (isInvalPdt)
-    printf("IODIR.INVAL_PDT: PID=%ld, DV=%ld, DID=%ld \n", cmd.PID, cmd.DV, cmd.DID);
+    printf("IODIR.INVAL_PDT: PID=%d, DV=%d, DID=%d \n", cmd.PID, cmd.DV, cmd.DID);
 }
 
 void 

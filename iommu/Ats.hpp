@@ -121,23 +121,16 @@ namespace TT_IOMMU
   // IODIR command structure
   struct IodirCommand
   {
-    CommandOpcode   opcode      : 7;
-    IodirFunc       func3       : 3;
-    uint64_t        reserved0   : 2;  //
-    uint64_t        PID         : 20; //
-    uint64_t        reserved1   : 1;  //
-    uint64_t        DV          : 1;  //
-    uint64_t        reserved2   : 6;  //
-    uint64_t        DID         : 24; //
+    CommandOpcode   opcode      : 7  = CommandOpcode::IODIR;
+    IodirFunc       func3       : 3  = IodirFunc::INVAL_DDT;
+    uint64_t        reserved0   : 2  = 0;  //
+    uint64_t        PID         : 20 = 0;  //
+    uint64_t        reserved1   : 1  = 0;  //
+    uint64_t        DV          : 1  = 0;  //
+    uint64_t        reserved2   : 6  = 0;  //
+    uint64_t        DID         : 24 = 0;  //
 
-    IodirCommand()
-    {
-      opcode = CommandOpcode::IODIR;
-      func3 = IodirFunc::INVAL_DDT;
-      PID = 0;
-      DV = 0;
-      DID = 0;
-    }
+    IodirCommand() = default;
   };
 
   // IOFENCE.C command structure based on specification

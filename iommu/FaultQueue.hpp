@@ -43,7 +43,7 @@ namespace TT_IOMMU
     uint32_t pv       : 1  = 0;
     uint32_t priv     : 1  = 0;
     uint32_t ttyp     : 6  = 0;
-    uint32_t did      : 32 = 0;
+    uint32_t did      : 24 = 0;
     uint32_t custom        = 0;
     uint32_t reserved      = 0;
     uint64_t iotval        = 0;

@@ -563,7 +563,7 @@ namespace TT_IOMMU
     { return cmd.isPrgr(); }
 
     /// Return true if the given command is an IODIR command (has the correct opcode).
-    bool isIodirCommand(const AtsCommand& cmd) const
+    static bool isIodirCommand(const AtsCommand& cmd)
     { return cmd.isIodir(); }
 
     /// Return true if the given command is an IOFENCE command (has the correct opcode).

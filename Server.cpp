@@ -793,18 +793,18 @@ Server<URV>::mcmReadCommand(const WhisperMessage& req, WhisperMessage& reply,
 	    {
               auto data = util::view_bytes_as_span_of<uint64_t>(req.buffer);
 	      for (unsigned i = 0; i < data.size() and ok; ++i, addr += 8)
-		ok = system_.mcmRead(hart, time, tag, addr, 8, data[i], elem, field);
+		ok = system_.mcmRead(hart, time, tag, addr, 8, data[i], elem, field, cache);
 	    }
 	  else if ((size & 0x3) == 0 and (addr & 0x3) == 0)
 	    {
               auto data = util::view_bytes_as_span_of<uint32_t>(req.buffer);
 	      for (unsigned i = 0; i < data.size() and ok; ++i, addr += 4)
-		ok = system_.mcmRead(hart, time, tag, addr, 4, data[i], elem, field);
+		ok = system_.mcmRead(hart, time, tag, addr, 4, data[i], elem, field, cache);
 	    }
 	  else
 	    {
 	      for (unsigned i = 0; i < size and ok; ++i, ++addr)
-		ok = system_.mcmRead(hart, time, tag, addr + i, 1, req.buffer.at(i), elem, field);
+		ok = system_.mcmRead(hart, time, tag, addr + i, 1, req.buffer.at(i), elem, field, cache);
 	    }
 
 	  if (cmdLog)

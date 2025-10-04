@@ -2182,7 +2182,7 @@ bool
 Interactive<URV>::mreadCommand(Hart<URV>& hart, const std::string& line,
 			       const std::vector<std::string>& tokens)
 {
-  // Format: mread <instr-tag> <physical-address> <size> <rtl-data> [<elem> [<field>]]
+  // Format: mread <instr-tag> <physical-address> <size> <rtl-data> [<elem>] [<field>] [<cache>]
   if (tokens.size() < 5)
     {
       cerr << "Error: Invalid mread command: " << line << '\n';
@@ -2266,18 +2266,18 @@ Interactive<URV>::mreadCommand(Hart<URV>& hart, const std::string& line,
     {
       auto vdata = util::view_bytes_as_span_of<uint64_t>(bytes);
       for (unsigned i = 0; i < vdata.size() and ok; ++i, addr += 8)
-	ok = system_.mcmRead(hart, this->time_, tag, addr, 8, vdata[i], elem, field);
+	ok = system_.mcmRead(hart, this->time_, tag, addr, 8, vdata[i], elem, field, cache);
     }
   else if ((size & 0x3) == 0 and (addr & 0x3) == 0)
     {
       auto vdata = util::view_bytes_as_span_of<uint32_t>(bytes);
       for (unsigned i = 0; i < vdata.size() and ok; ++i, addr += 4)
-	ok = system_.mcmRead(hart, this->time_, tag, addr, 4, vdata[i], elem, field);
+	ok = system_.mcmRead(hart, this->time_, tag, addr, 4, vdata[i], elem, field, cache);
     }
   else
     {
       for (unsigned i = 0; i < size and ok; ++i, ++addr)
-	ok = system_.mcmRead(hart, this->time_, tag, addr, 1, bytes.at(i), elem, field);
+	ok = system_.mcmRead(hart, this->time_, tag, addr, 1, bytes.at(i), elem, field, cache);
     }
 
   return ok;

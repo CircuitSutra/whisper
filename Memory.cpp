@@ -271,6 +271,7 @@ Memory::loadFile(const std::string& filename, std::vector<uint8_t>& data)
   data.clear();
   data.resize(length);
 
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
   f.read(reinterpret_cast<char*>(data.data()), length);
 }
 
