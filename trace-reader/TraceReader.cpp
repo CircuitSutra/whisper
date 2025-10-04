@@ -2,6 +2,7 @@
 #include <sstream>
 #include <cinttypes>
 #include <cassert>
+#include <ranges>
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/hex.hpp>
 #include <boost/io/ios_state.hpp>
@@ -272,13 +273,13 @@ TraceReader::printRecord(std::ostream& os, const TraceRecord& rec) const
       if (mreg.type == OperandType::Vec)
         {
 	  const auto& vv = mreg.vecValue;
-          for (auto it = vv.rbegin(); it != vv.rend(); ++it)
-            os << "0x" << std::setw(2) << std::setfill('0') << (unsigned) *it;
+          for (unsigned byte : std::ranges::reverse_view(vv))
+            os << "0x" << std::setw(2) << std::setfill('0') << byte;
 
           os << " prev=";
 	  const auto& pv = mreg.vecPrevValue;
-          for (auto it = pv.rbegin(); it != pv.rend(); ++it)
-            os << "0x" << std::setw(2) << std::setfill('0') << (unsigned) *it;
+          for (unsigned byte : std::ranges::reverse_view(pv))
+            os << "0x" << std::setw(2) << std::setfill('0') << byte;
         }
       else
         os << "0x" << mreg.value << " prev=0x" << mreg.prevValue;
