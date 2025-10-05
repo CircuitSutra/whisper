@@ -18,15 +18,7 @@ namespace WhisperUtil {
     enum Mode { Bare = 0, Sv32 = 1, Sv39 = 8, Sv48 = 9, Sv57 = 10, Sv64 = 11 };
 
     PageTableMaker(uint64_t rootPageAddr, Mode mode = Sv57,
-		   uint64_t arenaSize = uint64_t(4)*1024*1024)
-      : rootPageAddr_(rootPageAddr), mode_(mode), arenaSize_(arenaSize)
-    {
-      if (arenaSize_ < pageSize_)
-	arenaSize_ = pageSize_;
-      arena_ = new uint8_t[arenaSize];
-      memset(arena_, 0, pageSize_);
-      arenaTail_ = arena_ + pageSize_;
-    }
+		   uint64_t arenaSize = uint64_t(4)*1024*1024);
 
     ~PageTableMaker()
     {
@@ -44,18 +36,7 @@ namespace WhisperUtil {
     bool genericMakeWalk(uint64_t virtAddr, uint64_t physAddr,
 			 std::vector<uint64_t>& walk);
 
-    bool allocatePage(uint64_t& pageAddr)
-    {
-      if ((pageAddr % pageSize_) != 0)
-	return false;
-      uint64_t offset = arenaTail_ - arena_;
-      if (offset + pageSize_ > arenaSize_)
-	return false;
-      memset(arenaTail_, 0, pageSize_);
-      pageAddr = rootPageAddr_ + offset;
-      arenaTail_ += pageSize_;
-      return true;
-    }
+    bool allocatePage(uint64_t& pageAddr);
 
     bool readPte(uint64_t addr, WdRiscv::Pte32& pte) const
     { return readMem(addr, pte.data_); }

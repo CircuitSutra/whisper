@@ -19,6 +19,9 @@
 
 #include "PageTableMaker.hpp"
 
+
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+
 using namespace WhisperUtil;
 
 
@@ -48,6 +51,7 @@ static const std::unordered_map<std::string, HeaderTag> headerMap = {
 };
 
 static const unsigned cacheLineSize = 64;
+
 
 TraceReader::TraceReader(const std::string& inputPath)
   : intRegs_(32), fpRegs_(32), csRegs_(4096), vecRegs_(32),
@@ -1033,7 +1037,7 @@ TraceReader::extractHeaderIndices(const std::string& line, uint64_t lineNum)
   std::vector<std::string> cols;
   mySplit(cols, line, ',');
 
-  for (size_t i = 0; i < cols.size(); ++i)
+  for (unsigned i = 0; i < cols.size(); ++i)
     {
       std::string tag = cols.at(i);
       boost::trim(tag);
@@ -1152,3 +1156,6 @@ TraceReader::genPageTableWalk(uint64_t vaddr, uint64_t paddr,
     return false;
   return pageMaker_->makeWalk(vaddr, paddr, walk);
 }
+
+
+// NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)

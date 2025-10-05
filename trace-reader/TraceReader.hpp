@@ -461,6 +461,7 @@ namespace WhisperUtil  {
 
     // Extract a pair of addresses from the given field. Return true on
     // success and false on failure.
+    static
     bool extractAddressPair(uint64_t lineNum, const char* tag,
 			    const char* pairString,
 			    uint64_t& virt, uint64_t& phys,
