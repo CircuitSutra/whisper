@@ -4669,7 +4669,7 @@ CsRegs<URV>::addMachineFields()
   setCsrFields(CsrNumber::MNCAUSE,  {{"CODE", xlen - 1}, {"INT", 1}});
   setCsrFields(CsrNumber::MNSTATUS,
       {{"res0", 3}, {"NMIE",   1}, {"res1", 3}, {"MNPV", 1},
-       {"res2", 1}, {"MNPELP", 2}, {"res3", 1}, {"MNPP", 2}, {"res4", xlen-14}});
+       {"res2", 1}, {"MNPELP", 1}, {"res3", 1}, {"MNPP", 2}, {"res4", xlen-13}});
 
   if (rv32_)
     {
