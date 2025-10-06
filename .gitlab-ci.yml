@@ -39,18 +39,20 @@ variables:
   allow_failure: false
   variables:
     GIT_DEPTH: 0
+  before_script:
+    # gitlab has issues with GIT_DEPTH
+    - git fetch --unshallow origin +refs/heads/*:refs/remotes/origin/*
   script:
-    # Fetch all branches
     - git fetch origin $TARGET_BRANCH
 
-    # Generate list of commits in the push
+    # generate list of commits in the push
     - COMMITS=$(git rev-list --reverse $CI_COMMIT_BEFORE_SHA..$CI_COMMIT_SHA)
     - echo "Commits to cherry-pick:"
     - echo "$COMMITS"
 
     - git checkout origin/"$TARGET_BRANCH"
 
-    # Cherry-pick commits
+    # cherry-pick commits
     - |
       set +e
       for COMMIT in $COMMITS; do
@@ -64,7 +66,7 @@ variables:
       done
       set -e
 
-    # Push branch to origin
+    # push branch to origin
     - git push origin "$TARGET_BRANCH"
 
 stages:
