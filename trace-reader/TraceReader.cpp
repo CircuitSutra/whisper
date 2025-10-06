@@ -1037,7 +1037,7 @@ TraceReader::extractHeaderIndices(const std::string& line, uint64_t lineNum)
   std::vector<std::string> cols;
   mySplit(cols, line, ',');
 
-  for (size_t i = 0; i < cols.size(); ++i)
+  for (int i = 0; i < cols.size(); ++i)
     {
       std::string tag = cols.at(i);
       boost::trim(tag);
