@@ -58,7 +58,6 @@ System<URV>::System(unsigned coreCount, unsigned hartsPerCore,
   cores_.resize(coreCount);
 
   memory_ = std::make_unique<Memory>(memSize, pageSize);
-  syscall_ = std::make_unique<Syscall<URV>>(sysHarts_, memSize);
 
   Memory& mem = *memory_;
   mem.setHartCount(hartCount_);
@@ -148,6 +147,7 @@ System<URV>::defineUart(const std::string& type, uint64_t addr, uint64_t size,
         // Remove existing socket file if present before binding
         unlink(filename.c_str());
 
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
         if (bind(server_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
           perror("System::defineUart: Failed to bind unix socket");
           close(server_fd);
@@ -1093,6 +1093,7 @@ template <typename URV>
 bool
 System<URV>::addPciDevices(const std::vector<std::string>& devs)
 {
+  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks)
   if (not pci_)
     {
       std::cerr << "Error: Please specify a PCI region in the json" << '\n';
@@ -1102,7 +1103,6 @@ System<URV>::addPciDevices(const std::vector<std::string>& devs)
   for (const auto& devStr : devs)
     {
       std::vector<std::string> tokens;
-      // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
       boost::split(tokens, devStr, boost::is_any_of(":"), boost::token_compress_on);
 
       if (tokens.size() < 3)
@@ -1134,6 +1134,7 @@ System<URV>::addPciDevices(const std::vector<std::string>& devs)
         return false;
     }
   return true;
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 
 
@@ -2194,6 +2195,7 @@ System<URV>::saveAplicDomainSnapshot(const Filesystem::path& snapDir,
         ofs << "topi " << std::dec << hartIndex << std::hex << " 0x" << topi << "\n";
     }
 
+  // NOLINTNEXTLINE(readability-use-anyofallof)
   for (auto& child : *domain)
     {
       if (not saveAplicDomainSnapshot(snapDir, child, nsources))
@@ -2317,7 +2319,7 @@ parseAplicRegisterName(const std::string& name, AplicRegister& reg, bool& hasSou
 template <typename URV>
 bool
 System<URV>::loadAplicDomainSnapshot(const Filesystem::path& snapDir,
-                                     std::shared_ptr<TT_APLIC::Domain> domain,
+                                     const std::shared_ptr<TT_APLIC::Domain> domain,
                                      unsigned nsources)
 {
   auto filepath = snapDir / domain->name();
@@ -2414,6 +2416,7 @@ System<URV>::loadAplicDomainSnapshot(const Filesystem::path& snapDir,
         }
     }
 
+  // NOLINTNEXTLINE(readability-use-anyofallof)
   for (auto& child : *domain)
     {
       if (not loadAplicDomainSnapshot(snapDir, child, nsources))

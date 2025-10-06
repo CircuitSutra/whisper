@@ -9268,7 +9268,7 @@ Hart<URV>::vmvr_v(const DecodedInst* di, unsigned nr)
       auto source = vecRegs_.getVecData(vs1);
       bytes -= start*bytesPerElem;
 
-      memcpy(&dest[start*bytesPerElem], &source[start*bytesPerElem], bytes);
+      memcpy(&dest[static_cast<size_t>(start)*bytesPerElem], &source[static_cast<size_t>(start)*bytesPerElem], bytes);
       vecRegs_.setOpEmul(nr, nr);  // Track operand group for logging
     }
 
