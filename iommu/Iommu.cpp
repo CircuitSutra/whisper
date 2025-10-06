@@ -2075,9 +2075,9 @@ Iommu::executeIodirCommand(const AtsCommand& atsCmd)
   bool isInvalDdt = cmd.func3 == IodirFunc::INVAL_DDT;
   bool isInvalPdt = cmd.func3 == IodirFunc::INVAL_PDT;
   if (isInvalDdt)
-    printf("IODIR.INVAL_DDT: PID=%ld, DV=%ld, DID=%ld \n", cmd.PID, cmd.DV, cmd.DID);
+    printf("IODIR.INVAL_DDT: PID=%d, DV=%d, DID=%d \n", cmd.PID, cmd.DV, cmd.DID);
   if (isInvalPdt)
-    printf("IODIR.INVAL_PDT: PID=%ld, DV=%ld, DID=%ld \n", cmd.PID, cmd.DV, cmd.DID);
+    printf("IODIR.INVAL_PDT: PID=%d, DV=%d, DID=%d \n", cmd.PID, cmd.DV, cmd.DID);
 }
 
 void 
