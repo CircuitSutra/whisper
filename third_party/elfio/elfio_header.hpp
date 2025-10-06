@@ -94,7 +94,7 @@ template< class T > class elf_header_impl : public elf_header
         header.e_phentsize         = (*convertor)( header.e_phentsize );
         header.e_shentsize         = (*convertor)( header.e_shentsize );
 
-		set_version( EV_CURRENT );
+        elf_header_impl::set_version( EV_CURRENT );
     }
 
     bool

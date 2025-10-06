@@ -164,7 +164,7 @@ receivePacketFromGdb(int fd, std::string& packet)
     {
       ch = buffer.at(ix++);
       auto pacSum = static_cast<uint8_t>(hexCharToInt(ch) << 4); // Packet checksum
-      ch = buffer[ix++];
+      ch = buffer.at(ix++);
       pacSum = static_cast<uint8_t>(pacSum + hexCharToInt(ch));
 
       if (sum != pacSum)
@@ -203,13 +203,13 @@ sendPacketToGdb(const std::string& data, int fd)
   packet.push_back('$');
   packet += data;
   packet.push_back('#');
-  packet.push_back(highDigit);
-  packet.push_back(lowerDigit);
+  packet.push_back(std::bit_cast<char>(highDigit));
+  packet.push_back(std::bit_cast<char>(lowerDigit));
 
   while (true)
     {
       (void)!write(fd, packet.data(), packet.size());
-      char c = getDebugChar(fd);
+      unsigned char c = getDebugChar(fd);
       if (c == '+')
 	return;
     }
@@ -539,11 +539,12 @@ handleExceptionForGdb(WdRiscv::Hart<URV>& hart, int fd)
 	      status = "E01";
 	    else
 	      {
-		const char* ptr = packet.c_str() + 1;
+		const char* ptr = &packet.at(1);
 		for (unsigned i = 0; i < hart.intRegCount(); ++i)
 		  {
 		    std::string buffer;
 		    for (unsigned i = 0; i < 2*sizeof(URV); ++i)
+                      // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
 		      buffer += *ptr++;
 		    URV val = 0;
 		    if (littleEndianHexToInt(buffer, val))
@@ -595,8 +596,8 @@ handleExceptionForGdb(WdRiscv::Hart<URV>& hart, int fd)
                         bool usePma = false; // Ignore physical memory attributes.
 			hart.peekMemory(addr++, byte, usePma);
                         byteToHexChars(byte, high, low);
-                        reply.write(reinterpret_cast<char*> (&high), 1);
-                        reply.write((char*) &low, 1);
+                        reply << std::bit_cast<char>(high);
+                        reply << std::bit_cast<char>(low);
 		      }
 		  }
 	      }
