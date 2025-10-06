@@ -596,7 +596,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     void getVectorOperandsLmul(Hart64& hart, InstrPac& packet);
 
     /// Helper to getVectorOperandsLmul
-    void getVecOpsLmul(Hart64& hart, InstrPac& packet);
+    static void getVecOpsLmul(Hart64& hart, InstrPac& packet);
 
     /// Return the page number corresponding to the given address
     uint64_t pageNum(uint64_t addr) const
@@ -647,13 +647,13 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
       return ~unsigned(0);
     }
 
-    bool peekRegister(Hart64& hart, WdRiscv::OperandType type, unsigned regNum,
-		      OpVal& value);
+    static bool peekRegister(Hart64& hart, WdRiscv::OperandType type, unsigned regNum,
+                             OpVal& value);
 
-    bool pokeRegister(Hart64& hart, WdRiscv::OperandType type, unsigned regNum,
-                      const OpVal& value);
+    static bool pokeRegister(Hart64& hart, WdRiscv::OperandType type, unsigned regNum,
+                             const OpVal& value);
 
-    bool peekVecRegGroup(Hart64& hart, unsigned regNum, unsigned lmul, OpVal& value);
+    static bool peekVecRegGroup(Hart64& hart, unsigned regNum, unsigned lmul, OpVal& value);
 
     /// Get from the producing packet, the value of the register with the given global
     /// register index.
@@ -702,24 +702,24 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     /// Save hart register values corresponding to packet operands in prevVal.  Return
     /// true on success. Return false if any of the required hart registers cannot be
     /// read.
-    bool saveHartValues(Hart64& hart, const InstrPac& packet,
-			std::array<OpVal, 8>& prevVal);
+    static bool saveHartValues(Hart64& hart, const InstrPac& packet,
+                               std::array<OpVal, 8>& prevVal);
 
     /// Install packet operand values (some obtained from previous in-flight instructions)
     /// into the hart registers. Return true on success. Return false if any of the
     /// required hart registers cannot be written.
-    bool setHartValues(Hart64& hart, const InstrPac& packet);
+    static bool setHartValues(Hart64& hart, const InstrPac& packet);
 
     /// Restore the hart registers corresponding to the packet operands to the values in
     /// the prevVal array.
-    void restoreHartValues(Hart64& hart, const InstrPac& packet,
-			   const std::array<OpVal, 8>& prevVal);
+    static void restoreHartValues(Hart64& hart, const InstrPac& packet,
+                                  const std::array<OpVal, 8>& prevVal);
 
     /// Helper to execute. Restore IMSIC top interrupt if csrn is one of M/S/VS TOPEI.
-    void restoreImsicTopei(Hart64& hart, WdRiscv::CsrNumber csrn, unsigned id, unsigned guest);
+    static void restoreImsicTopei(Hart64& hart, WdRiscv::CsrNumber csrn, unsigned id, unsigned guest);
 
     /// Helper to execute. Save IMSIC top interupt if csrn is one of M/S/VS TOPEI.
-    void saveImsicTopei(Hart64& hart, WdRiscv::CsrNumber csrn, unsigned& id, unsigned& guest);
+    static void saveImsicTopei(Hart64& hart, WdRiscv::CsrNumber csrn, unsigned& id, unsigned& guest);
 
     /// Record the results (register values) corresponding to the operands of the packet
     /// after the execution of the instruction of that packet.
@@ -730,13 +730,13 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
 
     /// Check execute stage results versus retire stage. Return true on match and false on
     /// mismatch.
-    bool checkExecVsRetire(const Hart64& hart, const InstrPac& packet) const;
+    static bool checkExecVsRetire(const Hart64& hart, const InstrPac& packet);
 
     /// Helper to decode method.
-    void determineExplicitOperands(InstrPac& packet);
+    static void determineExplicitOperands(InstrPac& packet);
 
     /// Helper to decode method.
-    void determineImplicitOperands(InstrPac& packet);
+    static void determineImplicitOperands(InstrPac& packet);
 
   private:
 

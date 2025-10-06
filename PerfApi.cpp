@@ -390,7 +390,12 @@ PerfApi::execute(unsigned hartIx, InstrPac& packet)
 
   // Only make the time adjustment when the hart has retired at least one instruction. 
   if (hartLastRetired_.at(hartIx) != initHartLastRetired)
-    hart.adjustTime(packet.tag_ - hartLastRetired_.at(hartIx) - 1);
+    {
+      auto itag = std::bit_cast<int64_t>(packet.tag_);
+      auto ilast = std::bit_cast<int64_t>(hartLastRetired_.at(hartIx));
+      assert(itag >= 0 and ilast >= 0);  // Check overflow
+      hart.adjustTime(itag - ilast - 1);
+    }
 
   const auto& di = packet.decodedInst();
 
@@ -607,7 +612,7 @@ PerfApi::retire(unsigned hartIx, uint64_t time, uint64_t tag)
 
 
 bool
-PerfApi::checkExecVsRetire(const Hart64& hart, const InstrPac& packet) const
+PerfApi::checkExecVsRetire(const Hart64& hart, const InstrPac& packet)
 {
   unsigned hartIx = hart.sysHartIndex();
   auto tag = packet.tag_;
@@ -1561,7 +1566,7 @@ PerfApi::restoreHartValues(Hart64& hart, const InstrPac& packet,
             assert(count * bytesPerReg == vec.size());
             for (unsigned i = 0; i < count; ++i)
               {
-                const auto* pokeData = vec.data() + i*bytesPerReg;
+                const auto* pokeData = &vec.at(i*bytesPerReg);
                 if (not hart.pokeVecRegLsb(number + i, std::span(pokeData, bytesPerReg)))
                   assert(packet.trap_);
               }
@@ -1647,7 +1652,7 @@ PerfApi::pokeRegister(Hart64& hart, WdRiscv::OperandType type, unsigned regNum,
 
         for (unsigned i = 0; i < count; ++i)
           {
-            auto* pokeData = vecVal.data() + i*bytesPerReg;
+            const auto* pokeData = &vecVal.at(i*bytesPerReg);
             ok = hart.pokeVecRegLsb(regNum + i, std::span(pokeData, bytesPerReg)) and ok;
           }
 
@@ -1703,7 +1708,10 @@ PerfApi::updatePacketDataAddress(Hart64& hart, InstrPac& packet)
     {
       const auto& info = hart.getLastVectorMemory();
       for (const auto& elem : info.elems_)
-        packet.vecAddrs_.push_back(InstrPac::VaPaSkip{elem.va_, elem.pa_, elem.skip_});
+        {
+          InstrPac::VaPaSkip skip{elem.va_, elem.pa_, elem.skip_};
+          packet.vecAddrs_.emplace_back(skip);
+        }
       packet.dsize_ = info.elemSize_;
     }
   else if (di.isStore() or di.isAmo() or di.isVectorStore() or di.isCbo_zero() or di.isCmo())
@@ -1736,7 +1744,10 @@ PerfApi::updatePacketDataAddress(Hart64& hart, InstrPac& packet)
         {
           const auto& info = hart.getLastVectorMemory();
           for (const auto& elem : info.elems_)
-            packet.vecAddrs_.push_back(InstrPac::VaPaSkip{ elem.va_, elem.pa_, elem.skip_});
+            {
+              InstrPac::VaPaSkip skip{elem.va_, elem.pa_, elem.skip_};
+              packet.vecAddrs_.emplace_back(skip);
+            }
 
           packet.dsize_ = info.elemSize_;
 
@@ -1839,7 +1850,7 @@ PerfApi::getVectorOperandsLmul(Hart64& hart, InstrPac& packet)
 void
 PerfApi::getVecOpsLmul(Hart64& hart, InstrPac& packet)
 {
-  auto& vecRegs = hart.vecRegs();
+  const auto& vecRegs = hart.vecRegs();
 
   auto groupX8 = vecRegs.groupMultiplierX8();
   unsigned effLmul = groupX8 <= 8 ? 1 : groupX8 / 8;
