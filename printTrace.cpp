@@ -342,10 +342,10 @@ Hart<URV>::printDecodedInstTrace(const DecodedInst& di, uint64_t tag, std::strin
       auto& vecInfo = getLastVectorMemory();
       if (not vecInfo.empty())
 	{
-          unsigned num_nibbles = vecInfo.elemSize_*2;
+          int num_nibbles = vecInfo.elemSize_*2;
 	  std::ostringstream oss;
 	  auto& elems = vecInfo.elems_;
-          auto sep = "";
+          const auto* sep = "";
 	  for (uint64_t i = 0; i < elems.size(); ++i)
 	    {
 	      auto& einfo = elems.at(i);
@@ -526,6 +526,7 @@ namespace Whisper
 	{
 	  size_t beg = pos_;
 	  for ( ; num; num = num >> 4 )
+            // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
 	    buff_.at(pos_++) = "0123456789abcdef"[num&0xf];
 	  std::reverse(buff_.begin() + beg, buff_.begin() + pos_);
 	}
@@ -538,6 +539,7 @@ namespace Whisper
     {
       if (str)
 	while (*str)
+          // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
 	  buff_.at(pos_++) = *str++;
       return *this;
     }
@@ -837,7 +839,7 @@ Hart<URV>::printInstCsvTrace(const DecodedInst& di, FILE* out)
         std::vector<VirtMem::WalkEntry> addrs;
         std::vector<uint64_t> entries;
 
-        auto sep = "";
+        const auto* sep = "";
         unsigned count = isFetch ? virtMem_.numFetchWalks() : virtMem_.numDataWalks();
 
         for (unsigned walk = 0; walk < count; ++walk)
