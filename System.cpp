@@ -142,7 +142,7 @@ System<URV>::defineUart(const std::string& type, uint64_t addr, uint64_t size,
         struct sockaddr_un addr{};
         memset(&addr, 0, sizeof(addr));
         addr.sun_family = AF_UNIX;
-        strncpy(addr.sun_path, filename.c_str(), sizeof(addr.sun_path) - 1);
+        strncpy((char*) addr.sun_path, filename.c_str(), sizeof(addr.sun_path) - 1);
 
         // Remove existing socket file if present before binding
         unlink(filename.c_str());
@@ -2319,7 +2319,7 @@ parseAplicRegisterName(const std::string& name, AplicRegister& reg, bool& hasSou
 template <typename URV>
 bool
 System<URV>::loadAplicDomainSnapshot(const Filesystem::path& snapDir,
-                                     const std::shared_ptr<TT_APLIC::Domain> domain,
+                                     const std::shared_ptr<TT_APLIC::Domain>& domain,
                                      unsigned nsources)
 {
   auto filepath = snapDir / domain->name();

@@ -483,7 +483,7 @@ namespace WdRiscv
                                  unsigned nsources) const;
     bool loadAplicSnapshot(const Filesystem::path& snapDir);
     bool loadAplicDomainSnapshot(const Filesystem::path& snapDir,
-                                 std::shared_ptr<TT_APLIC::Domain> domain,
+                                 const std::shared_ptr<TT_APLIC::Domain>& domain,
                                  unsigned nsources);
 
     unsigned hartCount_;
