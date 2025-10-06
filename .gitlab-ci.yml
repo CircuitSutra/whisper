@@ -39,18 +39,20 @@ variables:
   allow_failure: false
   variables:
     GIT_DEPTH: 0
+  before_script:
+    # gitlab has issues with GIT_DEPTH
+    - git fetch --unshallow origin +refs/heads/*:refs/remotes/origin/*
   script:
-    # Fetch all branches
     - git fetch origin $TARGET_BRANCH
 
-    # Generate list of commits in the push
+    # generate list of commits in the push
     - COMMITS=$(git rev-list --reverse $CI_COMMIT_BEFORE_SHA..$CI_COMMIT_SHA)
     - echo "Commits to cherry-pick:"
     - echo "$COMMITS"
 
     - git checkout origin/"$TARGET_BRANCH"
 
-    # Cherry-pick commits
+    # cherry-pick commits
     - |
       set +e
       for COMMIT in $COMMITS; do
@@ -64,7 +66,7 @@ variables:
       done
       set -e
 
-    # Push branch to origin
+    # push branch to origin
     - git push origin "$TARGET_BRANCH"
 
 stages:
@@ -171,10 +173,41 @@ snapshot-job:
     - grep -q 'Command(s) completed, halting.' output.log
     - grep -q 'System halted' output.log
 
+notify_riscv_cluster:
+  stage: notify
+  rules:
+    # https://tenstorrent.atlassian.net/wiki/spaces/RVRTLDV/pages/1421574263/Ascalon+-+Dependency+Freeze+Plan
+    - if: '$CI_COMMIT_BRANCH =~ /^ascalon\/ea\/a0/ && $CI_PIPELINE_SOURCE == "push"'
+  variables:
+    UPDATE_REPO_POINTER: "True"
+    SHA_UPDATE_REPO: "whisper"
+    SHA_UPDATE_POINTER: $CI_COMMIT_SHA
+    GIT_STRATEGY: none
+    SKIP_BUILD: "True"
+    ANCESTRY: $ANCESTRY
+    ANCESTOR_COMMITS: $CI_COMMIT_TITLE # this is the previous HEAD, not the current branch? # why doesn't this need quotes
+    UPDATE_DIRECTORY: risc-p-cores
+    UPDATE_TARGET_BRANCH: ascalon/work/core
+  trigger:
+      project: riscv/riscv_cluster
+      branch: ascalon/work/core
+
 notify-riescue:
   <<: *notify-template
   trigger:
     project: riscv/riescue
+
+# notify-archcov:
+#   <<: *notify-template
+#   trigger:
+#     project: riscv/dv/corearchcoverage
+
+# notify-rv-tester:
+#   <<: *notify-template
+#   trigger:
+#     project: riscv/dv/rv_tester
+
+
 
 upload-release:
   stage: upload
