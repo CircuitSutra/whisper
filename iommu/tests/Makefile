@@ -43,3 +43,5 @@ iofence-test: iofence-test.o
 
 test_iotinval_commands: test_iotinval_commands.o
 	$(CXX) $< -o $@ ../libiommu.a
+
+

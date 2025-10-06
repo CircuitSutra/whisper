@@ -1,7 +1,3 @@
-// Copyright 2024 Tenstorrent Corporation.
-//
-// Test IOFENCE.C command implementation
-
 #include <cassert>
 #include <iostream>
 #include <memory>
