@@ -173,10 +173,41 @@ snapshot-job:
     - grep -q 'Command(s) completed, halting.' output.log
     - grep -q 'System halted' output.log
 
+notify_riscv_cluster:
+  stage: notify
+  rules:
+    # https://tenstorrent.atlassian.net/wiki/spaces/RVRTLDV/pages/1421574263/Ascalon+-+Dependency+Freeze+Plan
+    - if: '$CI_COMMIT_BRANCH =~ /^ascalon\/ea\/a0/ && $CI_PIPELINE_SOURCE == "push"'
+  variables:
+    UPDATE_REPO_POINTER: "True"
+    SHA_UPDATE_REPO: "whisper"
+    SHA_UPDATE_POINTER: $CI_COMMIT_SHA
+    GIT_STRATEGY: none
+    SKIP_BUILD: "True"
+    ANCESTRY: $ANCESTRY
+    ANCESTOR_COMMITS: $CI_COMMIT_TITLE # this is the previous HEAD, not the current branch? # why doesn't this need quotes
+    UPDATE_DIRECTORY: risc-p-cores
+    UPDATE_TARGET_BRANCH: ascalon/work/core
+  trigger:
+      project: riscv/riscv_cluster
+      branch: ascalon/work/core
+
 notify-riescue:
   <<: *notify-template
   trigger:
     project: riscv/riescue
+
+# notify-archcov:
+#   <<: *notify-template
+#   trigger:
+#     project: riscv/dv/corearchcoverage
+
+# notify-rv-tester:
+#   <<: *notify-template
+#   trigger:
+#     project: riscv/dv/rv_tester
+
+
 
 upload-release:
   stage: upload
