@@ -580,7 +580,7 @@ namespace Whisper
   private:
     using Buff = std::array<char, UINT64_C(12)*4096>;
 
-    Buff buff_;
+    Buff buff_{};
     size_t pos_ = 0;
   };
 }
