@@ -1,7 +1,7 @@
 #include "PageTableMaker.hpp"
 
 
-// NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic, cppcoreguidelines-owning-memory)
 
 
 using namespace WhisperUtil;
@@ -27,7 +27,7 @@ PageTableMaker::~PageTableMaker()
 
 
 bool
-PagetTableMakser::allocatePage(uint64_t& pageAddr);
+PageTableMaker::allocatePage(uint64_t& pageAddr)
 {
   if ((pageAddr % pageSize_) != 0)
     return false;
@@ -110,4 +110,4 @@ PageTableMaker::genericMakeWalk(uint64_t virtAddr, uint64_t physAddr,
 }
 
 
-// NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+// NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic, cppcoreguidelines-owning-memory)

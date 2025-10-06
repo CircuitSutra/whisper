@@ -5,6 +5,7 @@
 #include <cstring>
 #include "virtual_memory/Pte.hpp"
 
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
 
 namespace WhisperUtil {
 
@@ -20,12 +21,7 @@ namespace WhisperUtil {
     PageTableMaker(uint64_t rootPageAddr, Mode mode = Sv57,
 		   uint64_t arenaSize = uint64_t(4)*1024*1024);
 
-    ~PageTableMaker()
-    {
-      delete [] arena_;
-      arena_ = arenaTail_ = nullptr;
-      arenaSize_ = 0;
-    }
+    ~PageTableMaker();
 
     bool makeWalk(uint64_t virtAddr, uint64_t physAddr,
 		  std::vector<uint64_t>& walk);
@@ -67,6 +63,7 @@ namespace WhisperUtil {
       uint64_t offset = addr - rootPageAddr_;
       if (addr < rootPageAddr_ or offset + sizeof(word) - 1 >= arenaSize_)
 	return false;
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
       const auto* ptr = reinterpret_cast<const uint32_t*>(arena_ + offset);
       word = *ptr;
       return true;
@@ -77,6 +74,7 @@ namespace WhisperUtil {
       uint64_t offset = addr - rootPageAddr_;
       if (addr < rootPageAddr_ or offset + sizeof(doubleWord) - 1 >= arenaSize_)
 	return false;
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
       const auto* ptr = reinterpret_cast<const uint64_t*>(arena_ + offset);
       doubleWord = *ptr;
       return true;
@@ -87,6 +85,7 @@ namespace WhisperUtil {
       uint64_t offset = addr - rootPageAddr_;
       if (addr < rootPageAddr_ or offset + sizeof(word) - 1 >= arenaSize_)
 	return false;
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
       auto* ptr = reinterpret_cast<uint32_t*>(arena_ + offset);
       *ptr = word;
       return true;
@@ -97,6 +96,7 @@ namespace WhisperUtil {
       uint64_t offset = addr - rootPageAddr_;
       if (addr < rootPageAddr_ or offset + sizeof(doubleWord) - 1 >= arenaSize_)
 	return false;
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
       auto* ptr = reinterpret_cast<uint64_t*>(arena_ + offset);
       *ptr = doubleWord;
       return true;
@@ -114,3 +114,4 @@ namespace WhisperUtil {
 
 }
 
+// NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)

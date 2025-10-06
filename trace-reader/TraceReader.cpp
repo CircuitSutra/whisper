@@ -1,4 +1,3 @@
-#include <TraceReader.hpp>
 #include <sstream>
 #include <cinttypes>
 #include <cassert>
@@ -17,10 +16,11 @@
 #include <boost/iostreams/filter/zstd.hpp>
 #endif
 
+#include "TraceReader.hpp"
 #include "PageTableMaker.hpp"
 
 
-// NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic, cppcoreguidelines-owning-memory)
 
 using namespace WhisperUtil;
 
@@ -1037,7 +1037,7 @@ TraceReader::extractHeaderIndices(const std::string& line, uint64_t lineNum)
   std::vector<std::string> cols;
   mySplit(cols, line, ',');
 
-  for (unsigned i = 0; i < cols.size(); ++i)
+  for (size_t i = 0; i < cols.size(); ++i)
     {
       std::string tag = cols.at(i);
       boost::trim(tag);
@@ -1158,4 +1158,4 @@ TraceReader::genPageTableWalk(uint64_t vaddr, uint64_t paddr,
 }
 
 
-// NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+// NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic, cppcoreguidelines-owning-memory)
