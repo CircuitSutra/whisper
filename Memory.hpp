@@ -120,8 +120,7 @@ namespace WdRiscv
         return false;
       value = val;
 #else
-      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-      // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast, cppcoreguidelines-pro-bounds-pointer-arithmetic)
       value = *(reinterpret_cast<const T*>(data_ + address));
 #endif
 
@@ -152,8 +151,7 @@ namespace WdRiscv
 	return false;
       value = val;
 #else
-      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-      // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast, cppcoreguidelines-pro-bounds-pointer-arithmetic)
       value = *(reinterpret_cast<const T*>(data_ + address));
 #endif
 
@@ -249,8 +247,7 @@ namespace WdRiscv
       if (not writeCallback_(address, sizeof(T), val))
 	return false;
   #else
-      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-      // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast, cppcoreguidelines-pro-bounds-pointer-arithmetic)
       *(reinterpret_cast<T*>(data_ + address)) = value;
   #endif
 
@@ -345,8 +342,7 @@ namespace WdRiscv
       return true;
 #endif
 
-      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-      // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast, cppcoreguidelines-pro-bounds-pointer-arithmetic)
       value = *(reinterpret_cast<const T*>(data_ + address));
       return true;
     }
@@ -566,8 +562,7 @@ namespace WdRiscv
       return writeCallback_(address, sizeof(T), val);
 #endif
 
-      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-      // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast, cppcoreguidelines-pro-bounds-pointer-arithmetic)
       *(reinterpret_cast<T*>(data_ + address)) = value;
       return true;
     }
