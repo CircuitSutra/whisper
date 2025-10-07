@@ -119,7 +119,7 @@ namespace TT_IOMMU
     uint64_t      prgi          : 9;  
     uint64_t      zero1         : 3; 
     uint64_t      responsecode  : 4; 
-    uint64_t      destId        : 16; 
+    uint64_t      zero2         : 16;
 
     // Constructor to initialize opcode and func3
     AtsPrgrCommand()
@@ -130,7 +130,7 @@ namespace TT_IOMMU
       reserved1 = 0;
       zero0 = 0;
       zero1 = 0;
-      destId = 0;
+      zero2 = 0;
     }
   };
   
