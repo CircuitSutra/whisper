@@ -12024,12 +12024,13 @@ Hart<URV>::doCsrScWrite(const DecodedInst* di, CsrNumber csrn, URV csrVal,
 
   using CN = CsrNumber;
 
+  // All of these temporarily change the write mask in CsRegs::write.
   if (csrn == CN::MIP or csrn == CN::SIP or csrn == CN::SIE or
       csrn == CN::MSTATUS or csrn == CN::SSTATUS or csrn == CN::VSSTATUS or
       csrn == CN::MINSTRET or csrn == CN::MCYCLE or csrn == CN::SSTATEEN0 or
-      csrn == CN::SSTATEEN1 or csrn == CN::SSTATEEN2 or csrn == CN::SSTATEEN3 or
-      csrn == CN::HSTATEEN0 or csrn == CN::HSTATEEN1 or csrn == CN::HSTATEEN2 or
-      csrn == CN::HSTATEEN3)
+      (csrn >= CN::SSTATEEN1 and csrn <= CN::SSTATEEN3) or
+      (csrn >= CN::HSTATEEN0 and csrn <= CN::HSTATEEN3) or
+      (csrn >= CN::PMPADDR0 and csrn <= CN::PMPADDR63))
     {
       doCsrWrite(di, csrn, csrVal, intReg, intVal);
     }
