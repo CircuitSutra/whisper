@@ -1368,8 +1368,7 @@ Iommu::applyCapabilityRestrictions()
     }
 
     // If capabilities.IGS == WSI, set msi_cfg_tbl to 0
-    Fctl fctl(csrAt(CN::Fctl).read());
-    if (caps.bits_.igs_ == fctl.bits_.wsi_) {
+    if (caps.bits_.igs_ == unsigned(IgsMode::Wsi)) {
       for (unsigned i = 0; i < 32; ++i) {
           csrAt(static_cast<CN>(static_cast<uint32_t>(CN::MsiCfgTbl0) + i)).configureMask(0);
       }
