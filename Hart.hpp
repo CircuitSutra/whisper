@@ -3388,6 +3388,11 @@ namespace WdRiscv
     void doCsrWrite(const DecodedInst* di, CsrNumber csr, URV csrVal,
                     unsigned intReg, URV intRegVal);
 
+    /// Helper to CSR set/clear instructions: Write csr and integer register if csr is
+    /// writeable. The scMask is the mask to be set/cleared.
+    void doCsrScWrite(const DecodedInst* di, CsrNumber csrn, URV csrVal,
+                      URV scMask, unsigned intReg, URV intVal);
+
     /// Helper to CSR instructions: Read CSR register returning true on success and false
     /// on failure (CSR does not exist or is not accessible). The isWrite flags should be
     /// set to true if doCsrRead is called from a CSR instruction that would write the CSR

@@ -12016,6 +12016,39 @@ Hart<URV>::doCsrWrite(const DecodedInst* di, CsrNumber csr, URV val,
 }
 
 
+template <typename URV>
+void
+Hart<URV>::doCsrScWrite(const DecodedInst* di, CsrNumber csrn, URV csrVal,
+                        URV scMask, unsigned intReg, URV intVal)
+{
+  // This meethod is a workaround for CSRs with aliased bits that are still writable even
+  // when aliased. Say, we are executing "csrrc t0, mvip, t1" with t1[1]==0, the internal
+  // value of MVIP[1] is 1, MVIP[1] is aliased to MIP[1], and MIP[1] is 0. We read MVIP
+  // and we get the effective value of MVIP[1] as 0, we and it with ~t1[1] and get 0, we
+  // write it back to MVIP[1] changing that to 0. That should not have happened since
+  // t1[1] is 0 (bit 1 should not be cleared). So we set the write mask to 0 except where
+  // the anded/ored bits are 1 to preserve the non set/cleared bits. This would not be
+  // necessary if there is no aliasing.
+
+  using CN = CsrNumber;
+
+  if (csrn != CN::MVIP)
+    {
+      doCsrWrite(di, csrn, csrVal, intReg, intVal);
+    }
+  else
+    {
+      auto csr = csRegs_.getImplementedCsr(csrn);
+      auto prevMask = csr->getWriteMask();
+      csr->setWriteMask(prevMask & scMask);
+
+      doCsrWrite(di, csrn, csrVal, intReg, intVal);
+
+      csr->setWriteMask(prevMask);
+    }
+}
+
+
 // Set control and status register csr (op2) to value of register rs1
 // (op1) and save its original value in register rd (op0).
 template <typename URV>
@@ -12104,7 +12137,8 @@ Hart<URV>::execCsrrs(const DecodedInst* di)
             (csRegs_.peekMideleg() & (URV(1) << URV(IC::S_EXTERNAL))))
     prev = csRegs_.overrideWithMvip(prev);
 
-  URV next = prev | intRegs_.read(di->op1());
+  URV orMask = intRegs_.read(di->op1());
+  URV next = prev | orMask;
 
   // When determining read value, we check both Mvip and SEI pin.
   if (csr == CsrNumber::MIP)
@@ -12122,7 +12156,7 @@ Hart<URV>::execCsrrs(const DecodedInst* di)
       return;
     }
 
-  doCsrWrite(di, csr, next, di->op0(), prev);
+  doCsrScWrite(di, csr, next, orMask, di->op0(), prev);
 
   if (postCsrInst_)
     postCsrInst_(hartIx_, csr);
@@ -12169,7 +12203,8 @@ Hart<URV>::execCsrrc(const DecodedInst* di)
             (csRegs_.peekMideleg() & (URV(1) << URV(IC::S_EXTERNAL))))
     prev = csRegs_.overrideWithMvip(prev);
 
-  URV next = prev & (~ intRegs_.read(di->op1()));
+  URV andMask = intRegs_.read(di->op1());
+  URV next = prev & ~andMask;
 
   if (csr == CsrNumber::MIP)
     prev = csRegs_.overrideWithSeiPin(prev);
@@ -12186,7 +12221,7 @@ Hart<URV>::execCsrrc(const DecodedInst* di)
       return;
     }
 
-  doCsrWrite(di, csr, next, di->op0(), prev);
+  doCsrScWrite(di, csr, next, andMask, di->op0(), prev);
 
   if (postCsrInst_)
     postCsrInst_(hartIx_, csr);
@@ -12280,7 +12315,8 @@ Hart<URV>::execCsrrsi(const DecodedInst* di)
             (csRegs_.peekMideleg() & (URV(1) << URV(IC::S_EXTERNAL))))
     prev = csRegs_.overrideWithMvip(prev);
 
-  URV next = prev | imm;
+  URV orMask = imm;
+  URV next = prev | orMask;
 
   if (csr == CsrNumber::MIP)
     prev = csRegs_.overrideWithSeiPin(prev);
@@ -12297,7 +12333,7 @@ Hart<URV>::execCsrrsi(const DecodedInst* di)
       return;
     }
 
-  doCsrWrite(di, csr, next, di->op0(), prev);
+  doCsrScWrite(di, csr, next, orMask, di->op0(), prev);
 
   if (postCsrInst_)
     postCsrInst_(hartIx_, csr);
@@ -12346,7 +12382,8 @@ Hart<URV>::execCsrrci(const DecodedInst* di)
             (csRegs_.peekMideleg() & (URV(1) << URV(IC::S_EXTERNAL))))
     prev = csRegs_.overrideWithMvip(prev);
 
-  URV next = prev & (~ imm);
+  URV andMask = imm;
+  URV next = prev & ~andMask;
 
   if (csr == CsrNumber::MIP)
     prev = csRegs_.overrideWithSeiPin(prev);
@@ -12363,7 +12400,7 @@ Hart<URV>::execCsrrci(const DecodedInst* di)
       return;
     }
 
-  doCsrWrite(di, csr, next, di->op0(), prev);
+  doCsrScWrite(di, csr, next, andMask, di->op0(), prev);
 
   if (postCsrInst_)
     postCsrInst_(hartIx_, csr);
