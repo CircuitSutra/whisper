@@ -12017,9 +12017,7 @@ Hart<URV>::doCsrScWrite(const DecodedInst* di, CsrNumber csrn, URV csrVal,
 
   using CN = CsrNumber;
 
-  if (csrn == CN::MIP or csrn == CN::SIP or csrn == CN::SIE or
-      csrn == CN::MSTATUS or csrn == CN::SSTATUS or csrn == CN::VSSTATUS or
-      csrn == CN::MINSTRET or csrn == CN::MCYCLE)
+  if (csrn != CN::MVIP)
     {
       doCsrWrite(di, csrn, csrVal, intReg, intVal);
     }
