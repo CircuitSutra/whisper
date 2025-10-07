@@ -12021,6 +12021,14 @@ void
 Hart<URV>::doCsrScWrite(const DecodedInst* di, CsrNumber csrn, URV csrVal,
                         URV scMask, unsigned intReg, URV intVal)
 {
+  // This meethod is a workaround for CSRs with aliased bits like MVIP. Say, we are
+  // executing "csrrc t0, mvip, t1" with t1[1]==0, the internal value of MVIP[1] is 1,
+  // MVIP[1] is aliased to MIP[1], and MIP[1] is 0. We read MVIP and we get the effective
+  // value of MVIP[1] as 0, we and it with ~t1[1] and get 0, we write it back to MVIP[1]
+  // changing that to 0. That should not have happened since t1[1] is 0 (bit 1 should not
+  // be cleared). So we set the write mask to 0 except where the anded/ored bits are 1 to
+  // preserve the non set/cleared bits. This would not be necessary if there is no
+  // aliasing.
 
   using CN = CsrNumber;
 
