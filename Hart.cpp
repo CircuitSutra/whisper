@@ -10917,6 +10917,7 @@ Hart<URV>::execEbreak(const DecodedInst* di)
   if (inDebugParkLoop_)
     {
       pc_ = debugParkLoop_;
+      ebreakInstDebug_ = true;         // Avoid incrementing MINSTRET
       return;
       if (hasDcsr)
 	{
@@ -10955,7 +10956,7 @@ Hart<URV>::execEbreak(const DecodedInst* di)
           // The documentation (RISCV external debug support) does not say whether or not
           // we set EPC and MTVAL.
           enterDebugMode_(dmCause, currPc_);
-          ebreakInstDebug_ = true;
+          ebreakInstDebug_ = true;         // Avoid incrementing MINSTRET
           recordCsrWrite(CsrNumber::DCSR);
           return;
         }
