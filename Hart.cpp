@@ -12134,7 +12134,8 @@ Hart<URV>::execCsrrs(const DecodedInst* di)
             (csRegs_.peekMideleg() & (URV(1) << URV(IC::S_EXTERNAL))))
     prev = csRegs_.overrideWithMvip(prev);
 
-  URV next = prev | intRegs_.read(di->op1());
+  URV orMask = intRegs_.read(di->op1());
+  URV next = prev | orMask;
 
   // When determining read value, we check both Mvip and SEI pin.
   if (csr == CsrNumber::MIP)
@@ -12152,7 +12153,7 @@ Hart<URV>::execCsrrs(const DecodedInst* di)
       return;
     }
 
-  doCsrWrite(di, csr, next, di->op0(), prev);
+  doCsrScWrite(di, csr, next, orMask, di->op0(), prev);
 
   if (postCsrInst_)
     postCsrInst_(hartIx_, csr);
@@ -12199,7 +12200,8 @@ Hart<URV>::execCsrrc(const DecodedInst* di)
             (csRegs_.peekMideleg() & (URV(1) << URV(IC::S_EXTERNAL))))
     prev = csRegs_.overrideWithMvip(prev);
 
-  URV next = prev & (~ intRegs_.read(di->op1()));
+  URV andMask = intRegs_.read(di->op1());
+  URV next = prev & ~andMask;
 
   if (csr == CsrNumber::MIP)
     prev = csRegs_.overrideWithSeiPin(prev);
@@ -12216,7 +12218,7 @@ Hart<URV>::execCsrrc(const DecodedInst* di)
       return;
     }
 
-  doCsrWrite(di, csr, next, di->op0(), prev);
+  doCsrScWrite(di, csr, next, andMask, di->op0(), prev);
 
   if (postCsrInst_)
     postCsrInst_(hartIx_, csr);
@@ -12310,7 +12312,8 @@ Hart<URV>::execCsrrsi(const DecodedInst* di)
             (csRegs_.peekMideleg() & (URV(1) << URV(IC::S_EXTERNAL))))
     prev = csRegs_.overrideWithMvip(prev);
 
-  URV next = prev | imm;
+  URV orMask = imm;
+  URV next = prev | orMask;
 
   if (csr == CsrNumber::MIP)
     prev = csRegs_.overrideWithSeiPin(prev);
@@ -12327,7 +12330,7 @@ Hart<URV>::execCsrrsi(const DecodedInst* di)
       return;
     }
 
-  doCsrWrite(di, csr, next, di->op0(), prev);
+  doCsrScWrite(di, csr, next, orMask, di->op0(), prev);
 
   if (postCsrInst_)
     postCsrInst_(hartIx_, csr);
@@ -12376,7 +12379,8 @@ Hart<URV>::execCsrrci(const DecodedInst* di)
             (csRegs_.peekMideleg() & (URV(1) << URV(IC::S_EXTERNAL))))
     prev = csRegs_.overrideWithMvip(prev);
 
-  URV next = prev & (~ imm);
+  URV andMask = imm;
+  URV next = prev & ~andMask;
 
   if (csr == CsrNumber::MIP)
     prev = csRegs_.overrideWithSeiPin(prev);
@@ -12393,7 +12397,7 @@ Hart<URV>::execCsrrci(const DecodedInst* di)
       return;
     }
 
-  doCsrWrite(di, csr, next, di->op0(), prev);
+  doCsrScWrite(di, csr, next, andMask, di->op0(), prev);
 
   if (postCsrInst_)
     postCsrInst_(hartIx_, csr);
