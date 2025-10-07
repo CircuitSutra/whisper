@@ -243,7 +243,8 @@ Iommu::defineCsrs()
     {
       CN num{unsigned(CN::MsiCfgTbl0) + i};
       std::string name = base + std::to_string(i);
-      csrAt(num).define(name, offset, size, 0, ones, 0, 0);
+      uint64_t mask = (i % 2 == 0) ? ones & ~uint64_t(3) : ones;
+      csrAt(num).define(name, offset, size, 0, mask, 0, 0);
     }
 
   if (offset > size_)
