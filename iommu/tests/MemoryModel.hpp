@@ -3,10 +3,9 @@
 #include <vector>
 #include <iostream>
 #include <cstring>
+#include <functional>
 
-// -----------------------------------------------------------------------------
-// Simple flat memory model
-// -----------------------------------------------------------------------------
+
 class MemoryModel {
 public:
     explicit MemoryModel(size_t size) : memory(size, 0) {
