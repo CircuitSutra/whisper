@@ -808,20 +808,24 @@ Iommu::translate(const IommuRequest& req, uint64_t& pa, unsigned& cause)
           assert(0);
         }
 
-      if (not queueFull(CsrNumber::Fqb, CsrNumber::Fqh, CsrNumber::Fqt))
+      Fqcsr fqcsr{uint32_t(readCsr(CsrNumber::Fqcsr))};
+      if (fqcsr.bits_.fqon_)
         {
-          writeFaultRecord(record);
+          if (queueFull(CsrNumber::Fqb, CsrNumber::Fqh, CsrNumber::Fqt))
+            {
+              fqcsr.bits_.fqof_ = 1;
+              pokeCsr(CsrNumber::Fqcsr, fqcsr.value_);
+            }
+          else
+            writeFaultRecord(record);
 
-          // Signal interrupt pending in Ipsr.
-          Ipsr ipsr{uint32_t(readCsr(CsrNumber::Ipsr))};
-          ipsr.bits_.fip_ = 1;  // Fault queue interrupt pending.
-          pokeCsr(CsrNumber::Ipsr, ipsr.value_);
-        }
-      else
-        {
-          Fqcsr fqcsr{uint32_t(readCsr(CsrNumber::Fqcsr))};
-          fqcsr.bits_.fqof_ = 1;
-          pokeCsr(CsrNumber::Fqcsr, fqcsr.value_);
+          if (fqcsr.bits_.fie_)
+            {
+              // Signal interrupt pending in Ipsr.
+              Ipsr ipsr{uint32_t(readCsr(CsrNumber::Ipsr))};
+              ipsr.bits_.fip_ = 1;  // Fault queue interrupt pending.
+              pokeCsr(CsrNumber::Ipsr, ipsr.value_);
+            }
         }
     }
 
