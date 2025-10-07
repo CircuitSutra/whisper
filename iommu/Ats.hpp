@@ -74,7 +74,7 @@ namespace TT_IOMMU
     uint64_t dw0;
     uint64_t dw1;
   };
-  
+
   // ATS.INVAL command structure
   struct AtsInvalCommand
   {
@@ -87,10 +87,10 @@ namespace TT_IOMMU
     uint64_t      reserved1 : 6;  // Reserved bits (bits 34-39)
     uint64_t      RID       : 16; // PCIe Routing ID (bits 40-55)
     uint64_t      DSEG      : 8;  // Destination Segment Number (bits 56-63)
-    uint64_t      G         : 1;  
-    uint64_t      zero      : 10; 
-    uint64_t      s         : 1;  
-    uint64_t      address   : 52; 
+    uint64_t      G         : 1;
+    uint64_t      zero      : 10;
+    uint64_t      s         : 1;
+    uint64_t      address   : 52;
 
     // Constructor to initialize opcode and func3
     AtsInvalCommand()
@@ -115,10 +115,10 @@ namespace TT_IOMMU
     uint64_t      reserved1 : 6;  // Reserved bits (bits 34-39)
     uint64_t      RID       : 16; // PCIe Routing ID (bits 40-55)
     uint64_t      DSEG      : 8;  // Destination Segment Number (bits 56-63)
-    uint64_t      zero0         : 32;  
-    uint64_t      prgi          : 9;  
-    uint64_t      zero1         : 3; 
-    uint64_t      responsecode  : 4; 
+    uint64_t      zero0         : 32;
+    uint64_t      prgi          : 9;
+    uint64_t      zero1         : 3;
+    uint64_t      responsecode  : 4;
     uint64_t      zero2         : 16;
 
     // Constructor to initialize opcode and func3
@@ -133,7 +133,7 @@ namespace TT_IOMMU
       zero2 = 0;
     }
   };
-  
+
   // IODIR command structure
   struct IodirCommand
   {

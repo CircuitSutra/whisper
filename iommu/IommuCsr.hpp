@@ -67,7 +67,7 @@ namespace TT_IOMMU
       MsiCfgTbl0,
       MsiCfgTbl31 = MsiCfgTbl0 + 31,
     };
-  
+
 
   // Bits that are RW1S (writing 0 has no effect, writing 1 will set):
   //   tr_req_ctl bit 0

@@ -88,7 +88,7 @@ namespace TT_IOMMU
     /// this object according to the configured capabilities.
     Iommu(uint64_t addr, uint64_t size, uint64_t memorySize)
       : addr_(addr), size_(size), pmaMgr_(memorySize)
-    { 
+    {
       wordToCsr_.resize(size / 4, nullptr);
       defineCsrs();
     }
@@ -101,7 +101,7 @@ namespace TT_IOMMU
     /// below.
     Iommu(uint64_t addr, uint64_t size, uint64_t memorySize, uint64_t capabilities)
       : addr_(addr), size_(size), pmaMgr_(memorySize)
-    { 
+    {
       wordToCsr_.resize(size / 4, nullptr);
       defineCsrs();
       configureCapabilities(capabilities);
@@ -183,7 +183,7 @@ namespace TT_IOMMU
       bool isCompleterAbort = false; // True for CA, false for UR (when success=false)
       uint64_t translatedAddr = 0; // Translated address (SPA or GPA based on T2GPA)
       bool readPerm = false;       // R bit in ATS completion
-      bool writePerm = false;      // W bit in ATS completion  
+      bool writePerm = false;      // W bit in ATS completion
       bool execPerm = false;       // X bit in ATS completion
       bool privMode = false;       // Priv bit in ATS completion
       bool noSnoop = false;        // N bit in ATS completion (always 0 per spec)
@@ -280,7 +280,7 @@ namespace TT_IOMMU
     /// testing.
     uint64_t getCsrAddress(CsrNumber csrn) const
     { return addr_ + csrs_.at(size_t(csrn)).offset_; }
-    
+
     /// Return the base address of the queue associated with the given queue base CSR.
     /// Public wrapper for testing.
     uint64_t getQueueAddress(CsrNumber qbase) const
@@ -455,7 +455,7 @@ namespace TT_IOMMU
 
     /// Return true if the device directory table is big endian.
     bool devDirTableBe() const
-    { return fctlBe_; }  // Cached FCTL.BE }
+    { return fctlBe_; }  // Cached FCTL.BE
 
     /// Return true if the device directory table is big endian.
     bool devDirBigEnd() const
@@ -512,7 +512,7 @@ namespace TT_IOMMU
       bool bigEnd = devDirTableBe();
       return memWriteDouble(addr, bigEnd, ddte);
     }
-    
+
     /// Write to memory, at the given address, he base/extended part of the given device
     /// context based on whether or not the device is extended. Honor the endianness of the
     /// device directory table. Return true on success and false on failure.
@@ -550,7 +550,7 @@ namespace TT_IOMMU
 
     bool isAtsInvalCommand(const AtsCommand& cmd) const
     { return cmd.isInval(); }
-    
+
     bool isAtsPrgrCommand(const AtsCommand& cmd) const
     { return cmd.isPrgr(); }
 
@@ -577,7 +577,7 @@ namespace TT_IOMMU
 
     /// Execute an ATS.INVAL command for address translation cache invalidation
     void executeAtsInvalCommand(const AtsCommand& cmd);
-    
+
     /// Execute an ATS.PRGR command for page request group response
     void executeAtsPrgrCommand(const AtsCommand& cmd);
 
@@ -593,10 +593,10 @@ namespace TT_IOMMU
 
     /// Process pending page requests in the page request queue
     void processPageRequestQueue();
-    
+
     /// Send a page request to a device
     void sendPageRequest(uint32_t devId, uint32_t pid, uint64_t address, uint32_t prgi);
-    
+
     /// Check if a page request is pending for the given parameters
     bool isPageRequestPending(uint32_t devId, uint32_t pid, uint32_t prgi) const;
 
@@ -793,7 +793,7 @@ namespace TT_IOMMU
       uint32_t prgi;
       bool pidValid;
     };
-    
+
     std::vector<PageRequest> pendingPageRequests_;
 
 
