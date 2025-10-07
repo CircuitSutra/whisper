@@ -88,78 +88,78 @@ public:
     }
 
     void setupBasicIommu() {
-        // Configure memory callbacks
+    // Configure memory callbacks
         iommu.setMemReadCb([this](uint64_t addr, unsigned size, uint64_t& data) {
-            return memory.read(addr, size, data);
-        });
-        
+        return memory.read(addr, size, data);
+    });
+    
         iommu.setMemWriteCb([this](uint64_t addr, unsigned size, uint64_t data) {
-            return memory.write(addr, size, data);
-        });
-        
-        // Configure basic capabilities
-        uint64_t caps = 0;
-        caps |= (1ULL << 8);  // Sv32
-        caps |= (1ULL << 9);  // Sv39
-        caps |= (1ULL << 16); // Sv32x4
+        return memory.write(addr, size, data);
+    });
+    
+    // Configure basic capabilities
+    uint64_t caps = 0;
+    caps |= (1ULL << 8);  // Sv32
+    caps |= (1ULL << 9);  // Sv39
+    caps |= (1ULL << 16); // Sv32x4
         caps |= (1ULL << 38); // PD8 - Process context support (for some tests)
-        iommu.configureCapabilities(caps);
-        
-        // Configure FCTL
-        iommu.writeCsr(CsrNumber::Fctl, 0); // little-endian, no WSI
+    iommu.configureCapabilities(caps);
+    
+    // Configure FCTL
+    iommu.writeCsr(CsrNumber::Fctl, 0); // little-endian, no WSI
     }
 
     void setupFaultQueue(uint64_t fqAddr, uint8_t log2sz = 2) {
-        const uint64_t fqPpn = fqAddr / 4096;
+    const uint64_t fqPpn = fqAddr / 4096;
         const uint64_t numEntries = 1ULL << log2sz;
-        
-        // Clear memory for fault queue
+    
+    // Clear memory for fault queue
         for (uint64_t i = 0; i < numEntries * sizeof(FaultRecord); i += 8) {
-            memory.write(fqAddr + i, 8, 0);
-        }
-        
+        memory.write(fqAddr + i, 8, 0);
+    }
+    
         // Configure fault queue base
         uint64_t fqb = (log2sz << 0) | (fqPpn << 10);
-        iommu.writeCsr(CsrNumber::Fqb, fqb);
-        iommu.writeCsr(CsrNumber::Fqh, 0); // Head at entry 0
-        
-        // Enable fault queue with interrupts
-        uint32_t fqcsr = 0x3; // enable and interrupt enable
-        iommu.writeCsr(CsrNumber::Fqcsr, fqcsr);
-        
-        // Wait for fault queue to be active
-        for (int i = 0; i < 10; i++) {
-            uint32_t fqcsrVal = iommu.readCsr(CsrNumber::Fqcsr);
-            if (fqcsrVal & (1 << 16)) { // fqon bit
-                break;
-            }
-            std::cout << "Waiting for fault queue to activate..." << std::endl;
+    iommu.writeCsr(CsrNumber::Fqb, fqb);
+    iommu.writeCsr(CsrNumber::Fqh, 0); // Head at entry 0
+    
+    // Enable fault queue with interrupts
+    uint32_t fqcsr = 0x3; // enable and interrupt enable
+    iommu.writeCsr(CsrNumber::Fqcsr, fqcsr);
+    
+    // Wait for fault queue to be active
+    for (int i = 0; i < 10; i++) {
+        uint32_t fqcsrVal = iommu.readCsr(CsrNumber::Fqcsr);
+        if (fqcsrVal & (1 << 16)) { // fqon bit
+            break;
         }
+        std::cout << "Waiting for fault queue to activate..." << std::endl;
+    }
     }
 
     void setupStageCallbacks() {
-        // Setup translation stubs - the stage 1 should always fail
+    // Setup translation stubs - the stage 1 should always fail
         iommu.setStage1Cb([](uint64_t va, unsigned /*privMode*/, bool r, bool w, bool x, 
-                             uint64_t& /*gpa*/, unsigned& cause) {
-            std::cout << "Stage1 callback called: va=0x" << std::hex << va << std::dec 
-                      << ", r=" << r << ", w=" << w << ", x=" << x << std::endl;
-            cause = 5; // Read access fault
-            return false; // Return false to indicate failure
-        });
-        
-        iommu.setStage2Cb([](uint64_t gpa, unsigned /*privMode*/, bool r, bool w, bool x, 
-                             uint64_t& /*pa*/, unsigned& cause) {
-            std::cout << "Stage2 callback called: gpa=0x" << std::hex << gpa << std::dec 
-                      << ", r=" << r << ", w=" << w << ", x=" << x << std::endl;
-            cause = 5; // Read access fault
-            return false; // Return false to indicate failure
-        });
-        
-        iommu.setStage2TrapInfoCb([](uint64_t& gpa, bool& implicit, bool& write) {
-            gpa = 0x1000;
-            implicit = false;
-            write = false;
-        });
+                                      uint64_t& /*gpa*/, unsigned& cause) {
+        std::cout << "Stage1 callback called: va=0x" << std::hex << va << std::dec 
+                  << ", r=" << r << ", w=" << w << ", x=" << x << std::endl;
+        cause = 5; // Read access fault
+        return false; // Return false to indicate failure
+    });
+    
+    iommu.setStage2Cb([](uint64_t gpa, unsigned /*privMode*/, bool r, bool w, bool x, 
+                         uint64_t& /*pa*/, unsigned& cause) {
+        std::cout << "Stage2 callback called: gpa=0x" << std::hex << gpa << std::dec 
+                  << ", r=" << r << ", w=" << w << ", x=" << x << std::endl;
+        cause = 5; // Read access fault
+        return false; // Return false to indicate failure
+    });
+    
+    iommu.setStage2TrapInfoCb([](uint64_t& gpa, bool& implicit, bool& write) {
+        gpa = 0x1000;
+        implicit = false;
+        write = false;
+    });
     }
 
     // Perform a translation that should fail
@@ -184,9 +184,9 @@ public:
     }
 
     bool waitForFaultQueueActivation() {
-        for (int i = 0; i < 10; i++) {
-            uint32_t fqcsrVal = iommu.readCsr(CsrNumber::Fqcsr);
-            if (fqcsrVal & (1 << 16)) { // fqon bit
+    for (int i = 0; i < 10; i++) {
+        uint32_t fqcsrVal = iommu.readCsr(CsrNumber::Fqcsr);
+        if (fqcsrVal & (1 << 16)) { // fqon bit
                 return true;
             }
             std::cout << "Waiting for fault queue to activate..." << std::endl;
@@ -201,11 +201,6 @@ public:
     TableBuilder tableBuilder;
 };
 
-// -----------------------------------------------------------------------------
-// Test Functions (refactored versions)
-// -----------------------------------------------------------------------------
-
-// Simple test for fault queue (refactored)
 void testSimpleFaultQueue() {
     std::cout << "=== Simple Fault Queue Test (Refactored) ===\n";
     bool testPassed = true;
@@ -238,11 +233,11 @@ void testSimpleFaultQueue() {
     
     // Perform translation (should fail with cause = 256 because DDTP is Off)
     if (!helper.performFailingTranslation(0x1, 0x1000, 256)) {
-        testPassed = false;
+            testPassed = false;
         std::cout << "ERROR: Translation did not fail as expected" << std::endl;
-    }
-    
-    // Check fault queue state
+        }
+        
+        // Check fault queue state
     uint64_t fqhAfter = helper.iommu.readCsr(CsrNumber::Fqh);
     uint64_t fqtAfter = helper.iommu.readCsr(CsrNumber::Fqt);
     uint32_t ipsrAfter = helper.iommu.readCsr(CsrNumber::Ipsr);
@@ -251,8 +246,8 @@ void testSimpleFaultQueue() {
               << ", IPSR=0x" << std::hex << ipsrAfter << std::dec << "\n";
     
     // Verify fault was recorded
-    if (fqtBefore == fqtAfter) {
-        testPassed = false;
+        if (fqtBefore == fqtAfter) {
+            testPassed = false;
         std::cout << "ERROR: Fault queue tail did not advance" << std::endl;
     }
     
@@ -261,7 +256,7 @@ void testSimpleFaultQueue() {
     std::cout << "FIP bit: " << (fipSet ? "SET" : "NOT SET") << "\n";
     
     if (!fipSet) {
-        testPassed = false;
+            testPassed = false;
         std::cout << "ERROR: FIP bit not set after fault" << std::endl;
     }
     
@@ -539,7 +534,7 @@ int main() {
         testFaultQueueOverflow();
         
         std::cout << "\n=== All fault queue tests completed! ===\n";
-        return 0;
+    return 0;
         
     } catch (const std::exception& e) {
         std::cerr << "Fault queue test failed with exception: " << e.what() << std::endl;

@@ -200,8 +200,8 @@ private:
 
 void testBasicAtsTranslation() {
     std::cout << "\n=== Basic ATS Translation Test (using TableBuilder) ===\n";
-    
-    AtsTestHelper helper;
+  
+  AtsTestHelper helper;
     
     // Test device ID
     constexpr uint32_t devId = 0x123;
@@ -223,8 +223,8 @@ void testBasicAtsTranslation() {
     // Process the ATS request
     auto& iommu = helper.getIommu();
     Iommu::AtsResponse resp;
-    unsigned cause = 0;
-    
+  unsigned cause = 0;
+  
     bool success = iommu.atsTranslate(atsReq, resp, cause);
     std::cout << "[TEST] ATS translation request: " << (success ? "PASS" : "FAIL") << std::endl;
     
@@ -236,9 +236,9 @@ void testBasicAtsTranslation() {
 
 void testAtsWithT2gpa() {
     std::cout << "\n=== ATS with T2GPA Test (using TableBuilder) ===\n";
-    
-    AtsTestHelper helper;
-    
+  
+  AtsTestHelper helper;
+  
     constexpr uint32_t devId = 0x456;
     
     // Set up device context with both ATS and T2GPA enabled
@@ -256,8 +256,8 @@ void testAtsWithT2gpa() {
     
     auto& iommu = helper.getIommu();
     Iommu::AtsResponse resp;
-    unsigned cause = 0;
-    
+  unsigned cause = 0;
+  
     bool success = iommu.atsTranslate(atsReq, resp, cause);
     std::cout << "[TEST] ATS with T2GPA request: " << (success ? "PASS" : "FAIL") << std::endl;
     
@@ -269,9 +269,9 @@ void testAtsWithT2gpa() {
 
 void testMultipleDevicesAts() {
     std::cout << "\n=== Multiple Devices ATS Test (using TableBuilder) ===\n";
-    
-    AtsTestHelper helper;
-    
+  
+  AtsTestHelper helper;
+  
     // Set up multiple devices with different configurations
     std::vector<std::pair<uint32_t, bool>> devices = {
         {0x100, true},   // ATS enabled
@@ -316,9 +316,9 @@ void testMultipleDevicesAts() {
 
 void testAtsCommandQueue() {
     std::cout << "\n=== ATS Command Queue Test (using TableBuilder) ===\n";
-    
-    AtsTestHelper helper;
-    
+  
+  AtsTestHelper helper;
+  
     // Set up command queue
     helper.setupCommandQueue();
     
@@ -344,8 +344,8 @@ void testAtsCommandQueue() {
 
 void testTableBuilderStats() {
     std::cout << "\n=== TableBuilder Memory Statistics ===\n";
-    
-    AtsTestHelper helper;
+  
+  AtsTestHelper helper;
     
     // Set up several devices to show memory allocation
     for (uint32_t devId = 0x1000; devId <= 0x1005; devId++) {
@@ -362,9 +362,9 @@ void testTableBuilderStats() {
 
 int main() {
     std::cout << "=== IOMMU ATS Unified Tests (Refactored with TableBuilder) ===\n";
-    
-    try {
-        testBasicAtsTranslation();
+  
+  try {
+    testBasicAtsTranslation();
         testAtsWithT2gpa();
         testMultipleDevicesAts();
         testAtsCommandQueue();
@@ -372,12 +372,12 @@ int main() {
         
         std::cout << "\n=== All ATS tests completed! ===\n";
         return 0;
-        
-    } catch (const std::exception& e) {
+    
+  } catch (const std::exception& e) {
         std::cerr << "ATS test failed with exception: " << e.what() << std::endl;
-        return 1;
-    } catch (...) {
+    return 1;
+  } catch (...) {
         std::cerr << "ATS test failed with unknown exception" << std::endl;
-        return 1;
-    }
-}
+    return 1;
+  }
+} 

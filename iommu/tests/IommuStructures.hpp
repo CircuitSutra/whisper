@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <cstring>
 
@@ -197,26 +198,26 @@ struct pte_t {
 
 // First Stage Context
 struct fsc_t {
-    pdtp_t pdtp;
-    iosatp_t iosatp;
-    uint64_t reserved[6];
+    pdtp_t pdtp{};
+    iosatp_t iosatp{};
+    std::array<uint64_t, 6> reserved{};
 };
 
 // Device Context
 struct device_context_t {
-    uint64_t tc;
-    iohgatp_t iohgatp;
-    fsc_t fsc;
-    uint64_t msiptp;
-    uint64_t msi_addr_mask;
-    uint64_t msi_addr_pattern;
-    uint64_t reserved[2];
+    uint64_t tc{};
+    iohgatp_t iohgatp{};
+    fsc_t fsc{};
+    uint64_t msiptp{};
+    uint64_t msi_addr_mask{};
+    uint64_t msi_addr_pattern{};
+    std::array<uint64_t, 2> reserved{};
 };
 
 // Process Context
 struct process_context_t {
-    iosatp_t ta;
-    uint64_t reserved[1];
+    iosatp_t ta{};
+    std::array<uint64_t, 1> reserved{};
 };
 
 // Capabilities

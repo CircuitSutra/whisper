@@ -194,7 +194,7 @@ static DeviceContext createDeviceContext(
         msi_addr_mask != 0 || msi_addr_pattern != 0) {
         uint64_t msiptp = (uint64_t(msi_mode) << 60) | msi_ppn;
         return DeviceContext(tc.value_, iohgatpVal, ta, fsc.value_, 
-                           msiptp, msi_addr_mask, msi_addr_pattern);
+                          msiptp, msi_addr_mask, msi_addr_pattern);
     }
     
     return dc;
@@ -280,19 +280,19 @@ void testDeviceContextTranslation() {
                                                    TestValues::SIMPLE_DEV_ID, Ddtp::Mode::Level2);
     
     // Write a device context with more complex settings
-    DeviceContext dc = createDeviceContext(
-        true,    // valid
+            DeviceContext dc = createDeviceContext(
+                true,    // valid
         true,    // enable_ats  
-        false,   // enable_pri
-        false,   // t2gpa
-        false,   // dtf
-        false,   // pdtv
-        false,   // prpr
-        false,   // gade
-        false,   // sade
-        false,   // dpe
-        false,   // sbe
-        false,   // sxl
+                false,   // enable_pri
+                false,   // t2gpa
+                false,   // dtf
+                false,   // pdtv
+                false,   // prpr
+                false,   // gade 
+                false,   // sade
+                false,   // dpe
+                false,   // sbe
+                false,   // sxl
         IohgatpMode::Bare,  // iohgatp_mode
         0,       // gscid
         0,       // iohgatp_ppn

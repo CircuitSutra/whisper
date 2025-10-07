@@ -22,25 +22,25 @@ namespace TestValues {
 
 // Configure DDTP for index calculation
 static void configureDdtp(Iommu& iommu, uint64_t rootPpn, Ddtp::Mode mode) {
-    Ddtp ddtp;
-    ddtp.bits_.mode_ = mode;
-    ddtp.bits_.ppn_ = rootPpn;
+  Ddtp ddtp;
+  ddtp.bits_.mode_ = mode;
+  ddtp.bits_.ppn_ = rootPpn;
 
-    iommu.writeCsr(CsrNumber::Ddtp, ddtp.value_);
-    
-    uint64_t readBack = iommu.readCsr(CsrNumber::Ddtp);
+  iommu.writeCsr(CsrNumber::Ddtp, ddtp.value_);
+  
+  uint64_t readBack = iommu.readCsr(CsrNumber::Ddtp);
     assert(readBack == ddtp.value_);
 }
 
 static void installMemCbs(Iommu& iommu, MemoryModel& mem) {
-    std::function<bool(uint64_t,unsigned,uint64_t&)> rcb =
-        [&mem](uint64_t a, unsigned s, uint64_t& d) { return mem.read(a, s, d); };
+  std::function<bool(uint64_t,unsigned,uint64_t&)> rcb =
+    [&mem](uint64_t a, unsigned s, uint64_t& d) { return mem.read(a, s, d); };
 
-    std::function<bool(uint64_t,unsigned,uint64_t)> wcb =
-        [&mem](uint64_t a, unsigned s, uint64_t d) { return mem.write(a, s, d); };
+  std::function<bool(uint64_t,unsigned,uint64_t)> wcb =
+    [&mem](uint64_t a, unsigned s, uint64_t d) { return mem.write(a, s, d); };
 
-    iommu.setMemReadCb(rcb);
-    iommu.setMemWriteCb(wcb);
+  iommu.setMemReadCb(rcb);
+  iommu.setMemWriteCb(wcb);
 }
 
 static uint64_t setupTablesWithBuilder(Iommu& iommu, MemoryModel& /* memory */,
