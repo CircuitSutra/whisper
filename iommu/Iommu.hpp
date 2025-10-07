@@ -49,7 +49,7 @@ namespace TT_IOMMU
     /// GPA that would be translated using stage2 translation even though this method
     /// returns true (in this case is-translated means is partially translated).
     bool isTranslated() const  // Translated request
-    { return type == Ttype::TransRead or type == Ttype::TransWrite; }
+    { return type == Ttype::TransRead or type == Ttype::TransWrite or type == Ttype::TransExec; }
 
     /// Return true if the request is for a read.
     bool isRead() const
