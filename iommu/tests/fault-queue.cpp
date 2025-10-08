@@ -264,9 +264,9 @@ void testSimpleFaultQueue() {
             std::cout << "ERROR: Fault record TTYP doesn't match expected value" << '\n';
         }
         
-        // Read device ID from second 8 bytes
-        memory.read(fqAddr + 8, 8, recordData);
-        unsigned recordDid = recordData & 0xFFFFFFFF;
+    // Read device ID from first 8 bytes (bits 40-63)
+    memory.read(fqAddr, 8, recordData);
+    unsigned recordDid = (recordData >> 40) & 0xFFFFFF;
         
         std::cout << "Record device ID: 0x" << std::hex << recordDid << std::dec << "\n";
         bool didMatch = (recordDid == req.devId);
@@ -1249,7 +1249,7 @@ void testProcessIdFaultRecord() {
     // Use the correct bit positions
     unsigned recordCause = recordData0 & 0xFFF;
     unsigned recordTtyp = (recordData0 >> 34) & 0x3F;
-    unsigned recordDid = recordData1 & 0xFFFFFF;
+    unsigned recordDid = (recordData0 >> 40) & 0xFFFFFF;
     bool recordPv = (recordData0 >> 12) & 0x1;
     unsigned recordPid = (recordData0 >> 13) & 0xFFFFF;
     bool recordPriv = (recordData0 >> 33) & 0x1;
@@ -2027,7 +2027,7 @@ void testTranslateFailFaultQueueRecord() {
     // Extract the fields from the fault record
     unsigned recordCause = recordData0 & 0xFFF;
     unsigned recordTtyp = (recordData0 >> 34) & 0x3F;
-    unsigned recordDid = recordData1 & 0xFFFFFF;
+    unsigned recordDid = (recordData0 >> 40) & 0xFFFFFF;
     
     std::cout << "Record cause: " << recordCause << "\n";
     std::cout << "Record TTYP: " << recordTtyp << "\n";

@@ -788,14 +788,14 @@ int main() {
     
     // Run component tests
     std::cout << "\n--- Component Tests ---" << '\n';
-    // testMsiAddressMatching(dc);
-    // testMsiBitsExtraction(dc);
-    // testMsiPteRetrieval(mem, dc);
-    // testManualMsiTranslation(mem, dc);
+    testMsiAddressMatching(dc);
+    testMsiBitsExtraction(dc);
+    testMsiPteRetrieval(mem, dc);
+    testManualMsiTranslation(mem, dc);
 
     testIommuMsiTranslation(iommu);
     testMsiFaultConditions(iommu, mem, dc);
-    // testDirectPteModification(iommu, mem, dc);
+    testDirectPteModification(iommu, mem, dc);
     std::cout << "\nMSI Translation Tests Completed" << '\n';
     return 0;
 }
