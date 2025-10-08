@@ -49,7 +49,7 @@ static uint64_t setupTablesWithBuilder(Iommu& iommu, MemoryModel& /* memory */,
                                       Ddtp::Mode ddtMode, PdtpMode pdtMode) {
     
     // Convert TT_IOMMU modes to IOMMU namespace modes
-    DDTMode ddtBuilderMode;
+    DDTMode ddtBuilderMode{};
     switch (ddtMode) {
         case Ddtp::Mode::Level3: ddtBuilderMode = DDT_3LVL; break;
         case Ddtp::Mode::Level2: ddtBuilderMode = DDT_2LVL; break;
@@ -57,7 +57,7 @@ static uint64_t setupTablesWithBuilder(Iommu& iommu, MemoryModel& /* memory */,
         default: ddtBuilderMode = DDT_OFF; break;
     }
     
-    PDTMode pdtBuilderMode;
+    PDTMode pdtBuilderMode{};
     switch (pdtMode) {
         case PdtpMode::Pd20: pdtBuilderMode = PD20; break;
         case PdtpMode::Pd17: pdtBuilderMode = PD17; break;
@@ -91,12 +91,12 @@ static uint64_t setupTablesWithBuilder(Iommu& iommu, MemoryModel& /* memory */,
     uint64_t dc_addr = tableBuilder.addDeviceContext(dc, devId, ddtp, msi_flat);
     
     if (dc_addr == 0) {
-        std::cerr << "[ERROR] Failed to create device context" << std::endl;
+        std::cerr << "[ERROR] Failed to create device context" << '\n';;
         return 0;
     }
     
     std::cout << "[TABLE_BUILDER] Created device context at 0x" << std::hex << dc_addr 
-              << " for device ID 0x" << devId << std::dec << std::endl;
+              << " for device ID 0x" << devId << std::dec << '\n';
     
     // Create a process context
     process_context_t pc = {};
@@ -109,12 +109,12 @@ static uint64_t setupTablesWithBuilder(Iommu& iommu, MemoryModel& /* memory */,
     uint64_t pc_addr = tableBuilder.addProcessContext(dc, pc, processId);
     
     if (pc_addr == 0) {
-        std::cerr << "[ERROR] Failed to create process context" << std::endl;
+        std::cerr << "[ERROR] Failed to create process context" << '\n';
         return 0;
     }
     
     std::cout << "[TABLE_BUILDER] Created process context at 0x" << std::hex << pc_addr 
-              << " for process ID 0x" << processId << std::dec << std::endl;
+              << " for process ID 0x" << processId << std::dec << '\n';
     
     return pc_addr;
 }
@@ -123,7 +123,7 @@ void testProcessDirectoryPd8() {
     std::cout << "\n=== Process Directory PD8 Test (using TableBuilder) ===\n";
     
     // Create infrastructure
-    MemoryModel memory(1024 * 1024);  // 1MB
+    MemoryModel memory(size_t(1024) * 1024);  // 1MB
     MemoryManager memMgr;
     
     auto readFunc = [&memory](uint64_t addr, unsigned size, uint64_t& data) {
@@ -152,20 +152,20 @@ void testProcessDirectoryPd8() {
     
     bool success = (pcAddr != 0);
     std::cout << "[TEST] PD8 process directory creation: " 
-              << (success ? "PASS" : "FAIL") << std::endl;
+              << (success ? "PASS" : "FAIL") << '\n';
     
     if (success) {
         // Verify we can read back the process context would require device context
         // For now, just verify the address is non-zero (context was created)
         std::cout << "[VERIFY] Process context created successfully at address 0x" 
-                  << std::hex << pcAddr << std::dec << std::endl;
+                  << std::hex << pcAddr << std::dec << '\n';
     }
 }
 
 void testProcessDirectoryPd17() {
     std::cout << "\n=== Process Directory PD17 Test (using TableBuilder) ===\n";
     
-    MemoryModel memory(2 * 1024 * 1024);  // 2MB
+    MemoryModel memory(size_t(2) * 1024 * 1024);  // 2MB
     MemoryManager memMgr;
     
     auto readFunc = [&memory](uint64_t addr, unsigned size, uint64_t& data) {
@@ -194,13 +194,13 @@ void testProcessDirectoryPd17() {
     
     bool success = (pcAddr != 0);
     std::cout << "[TEST] PD17 process directory creation: " 
-              << (success ? "PASS" : "FAIL") << std::endl;
+              << (success ? "PASS" : "FAIL") << '\n';
 }
 
 void testProcessDirectoryPd20() {
     std::cout << "\n=== Process Directory PD20 Test (using TableBuilder) ===\n";
     
-    MemoryModel memory(4 * 1024 * 1024);  // 4MB
+    MemoryModel memory(size_t(4) * 1024 * 1024);  // 4MB
     MemoryManager memMgr;
     
     auto readFunc = [&memory](uint64_t addr, unsigned size, uint64_t& data) {
@@ -229,13 +229,13 @@ void testProcessDirectoryPd20() {
     
     bool success = (pcAddr != 0);
     std::cout << "[TEST] PD20 process directory creation: " 
-              << (success ? "PASS" : "FAIL") << std::endl;
+              << (success ? "PASS" : "FAIL") << '\n';
 }
 
 void testMultipleProcesses() {
     std::cout << "\n=== Multiple Processes Test (using TableBuilder) ===\n";
     
-    MemoryModel memory(8 * 1024 * 1024);  // 8MB
+    MemoryModel memory(size_t(8) * 1024 * 1024);  // 8MB
     MemoryManager memMgr;
     
     auto readFunc = [&memory](uint64_t addr, unsigned size, uint64_t& data) {
@@ -270,7 +270,7 @@ void testMultipleProcesses() {
     uint64_t dc_addr = tableBuilder.addDeviceContext(dc, TestValues::TEST_DEV_ID, ddtp, false);
     
     if (dc_addr == 0) {
-        std::cout << "[TEST] Multiple processes setup: FAIL (device context creation failed)" << std::endl;
+        std::cout << "[TEST] Multiple processes setup: FAIL (device context creation failed)" << '\n';
         return;
     }
     
@@ -287,7 +287,7 @@ void testMultipleProcesses() {
         pcAddrs.push_back(pc_addr);
         
         std::cout << "[TABLE_BUILDER] Process ID 0x" << std::hex << pid 
-                  << " -> context at 0x" << pc_addr << std::dec << std::endl;
+                  << " -> context at 0x" << pc_addr << std::dec << '\n';
     }
     
     // Verify all processes were created successfully
@@ -300,7 +300,7 @@ void testMultipleProcesses() {
     }
     
     std::cout << "[TEST] Multiple processes creation: " 
-              << (allSuccess ? "PASS" : "FAIL") << std::endl;
+              << (allSuccess ? "PASS" : "FAIL") << '\n';
     
     // Print memory allocation statistics
     std::cout << "\n--- Memory Allocation Statistics ---\n";
@@ -320,10 +320,10 @@ int main() {
         return 0;
         
     } catch (const std::exception& e) {
-        std::cerr << "Test failed with exception: " << e.what() << std::endl;
+        std::cerr << "Test failed with exception: " << e.what() << '\n';
         return 1;
     } catch (...) {
-        std::cerr << "Test failed with unknown exception" << std::endl;
+        std::cerr << "Test failed with unknown exception" << '\n';
         return 1;
     }
 }

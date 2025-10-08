@@ -60,7 +60,7 @@ public:
         installStandardCallbacks();
         
         std::cout << "[FRAMEWORK] IOMMU test framework initialized with " 
-                  << getPresetName(preset) << " capabilities" << std::endl;
+                  << getPresetName(preset) << " capabilities" << '\n';
     }
     
     /// Constructor with custom capabilities
@@ -81,7 +81,7 @@ public:
         installStandardCallbacks();
         
         std::cout << "[FRAMEWORK] IOMMU test framework initialized with custom capabilities 0x" 
-                  << std::hex << customCaps << std::dec << std::endl;
+                  << std::hex << customCaps << std::dec << '\n'
     }
     
     // Accessors
@@ -135,7 +135,7 @@ public:
         uint64_t dc_addr = tableBuilder_.addDeviceContext(dc, deviceId, ddtp, msi_flat);
         
         std::cout << "[FRAMEWORK] Setup basic device 0x" << std::hex << deviceId 
-                  << " at address 0x" << dc_addr << std::dec << std::endl;
+                  << " at address 0x" << dc_addr << std::dec << '\n';
         
         return dc_addr;
     }
@@ -175,7 +175,7 @@ public:
         }
         
         std::cout << "[FRAMEWORK] Setup MSI device 0x" << std::hex << deviceId 
-                  << " at address 0x" << dc_addr << std::dec << std::endl;
+                  << " at address 0x" << dc_addr << std::dec << '\n';
         
         return dc_addr;
     }
@@ -196,7 +196,7 @@ public:
         iommu_->writeCsr(CsrNumber::Cqcsr, cqcsrValue);
         
         std::cout << "[FRAMEWORK] Command queue setup at 0x" << std::hex << queueAddr 
-                  << " with " << std::dec << (1 << (logSize + 1)) << " entries" << std::endl;
+                  << " with " << std::dec << (1 << (logSize + 1)) << " entries" << '\n';
         
         return true;
     }
@@ -214,14 +214,14 @@ public:
         iommu_->writeCsr(CsrNumber::Fqcsr, fqcsr);
         
         std::cout << "[FRAMEWORK] Fault queue setup at 0x" << std::hex << queueAddr 
-                  << " with " << std::dec << (1 << (logSize + 1)) << " entries" << std::endl;
+                  << " with " << std::dec << (1 << (logSize + 1)) << " entries" << '\n';
         
         return true;
     }
     
     /// Print memory allocation statistics
     void printMemoryStats() {
-        std::cout << "\n--- Framework Memory Statistics ---" << std::endl;
+        std::cout << "\n--- Framework Memory Statistics ---" << '\n';
         memMgr_.printStats();
     }
     
@@ -235,7 +235,7 @@ public:
         
         std::cout << "[VERIFY] Command queue: Head=" << actualHead 
                   << (headCorrect ? " ✓" : " ✗") << ", Tail=" << actualTail 
-                  << (tailCorrect ? " ✓" : " ✗") << std::endl;
+                  << (tailCorrect ? " ✓" : " ✗") << '\n';
         
         return headCorrect && tailCorrect;
     }
@@ -248,7 +248,7 @@ private:
     std::function<bool(uint64_t,unsigned,uint64_t)> writeFunc_;
     TableBuilder tableBuilder_;
     
-    uint64_t getCapabilitiesForPreset(CapabilityPreset preset) {
+    static uint64_t getCapabilitiesForPreset(CapabilityPreset preset) {
         Capabilities caps;
         caps.value_ = 0;
         
@@ -308,7 +308,7 @@ private:
         return caps.value_;
     }
     
-    const char* getPresetName(CapabilityPreset preset) {
+    static const char* getPresetName(CapabilityPreset preset) {
         switch (preset) {
             case CapabilityPreset::Basic: return "Basic";
             case CapabilityPreset::ATS: return "ATS";
@@ -319,7 +319,7 @@ private:
         return "Unknown";
     }
     
-    Ddtp::Mode convertDdtMode(DDTMode mode) {
+    static Ddtp::Mode convertDdtMode(DDTMode mode) {
         switch (mode) {
             case DDT_3LVL: return Ddtp::Mode::Level3;
             case DDT_2LVL: return Ddtp::Mode::Level2;  

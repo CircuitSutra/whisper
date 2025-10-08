@@ -73,7 +73,7 @@ private:
 class FaultQueueTestHelper {
 public:
     FaultQueueTestHelper() 
-        : memory(1024 * 1024) // 1MB
+        : memory(1024 * uint64_t(1024)) // 1MB
         , iommu(0x1000, 0x800, memory.size())
         , memMgr()
         , tableBuilder(memMgr,
@@ -184,18 +184,18 @@ public:
         bool result = iommu.translate(req, pa, cause);
         
         std::cout << "Translation result: " << (result ? "SUCCESS" : "FAILED")
-                  << ", cause=" << cause << std::endl;
+                  << ", cause=" << cause << '\n';
         
         return (!result && cause == expectedCause);
     }
 
-    bool waitForFaultQueueActivation() {
+    bool waitForFaultQueueActivation() const {
     for (int i = 0; i < 10; i++) {
         uint32_t fqcsrVal = iommu.readCsr(CsrNumber::Fqcsr);
         if (fqcsrVal & (1 << 16)) { // fqon bit
                 return true;
             }
-            std::cout << "Waiting for fault queue to activate..." << std::endl;
+            std::cout << "Waiting for fault queue to activate..." << '\n';
         }
         return false;
     }
@@ -221,8 +221,7 @@ void testSimpleFaultQueue() {
     helper.setupFaultQueue(fqAddr, 2); // 2^2 = 4 entries
     
     if (!helper.waitForFaultQueueActivation()) {
-        testPassed = false;
-        std::cout << "ERROR: Fault queue did not activate!" << std::endl;
+        std::cout << "ERROR: Fault queue did not activate!" << '\n';
         std::cout << "=== Simple Fault Queue Test: FAILED ===\n\n";
         return;
     }
@@ -240,7 +239,7 @@ void testSimpleFaultQueue() {
     // Perform translation (should fail with cause = 256 because DDTP is Off)
     if (!helper.performFailingTranslation(0x1, 0x1000, 256)) {
             testPassed = false;
-        std::cout << "ERROR: Translation did not fail as expected" << std::endl;
+        std::cout << "ERROR: Translation did not fail as expected" << '\n';
         }
         
         // Check fault queue state
@@ -254,7 +253,7 @@ void testSimpleFaultQueue() {
     // Verify fault was recorded
         if (fqtBefore == fqtAfter) {
             testPassed = false;
-        std::cout << "ERROR: Fault queue tail did not advance" << std::endl;
+        std::cout << "ERROR: Fault queue tail did not advance" << '\n';
     }
     
     // Check if FIP bit was set (bit 1 of IPSR)
@@ -263,7 +262,7 @@ void testSimpleFaultQueue() {
     
     if (!fipSet) {
         testPassed = false;
-        std::cout << "ERROR: FIP bit not set after fault" << std::endl;
+        std::cout << "ERROR: FIP bit not set after fault" << '\n';
     }
     
     std::cout << "=== Simple Fault Queue Test: " 
@@ -282,8 +281,7 @@ void testDtfBitWithDdtErrors() {
     helper.setupFaultQueue(fqAddr, 2); // 4 entries
     
     if (!helper.waitForFaultQueueActivation()) {
-        testPassed = false;
-        std::cout << "ERROR: Fault queue did not activate!" << std::endl;
+        std::cout << "ERROR: Fault queue did not activate!" << '\n';
         std::cout << "=== DTF Bit With DDT Errors Test: FAILED ===\n\n";
         return;
     }
@@ -297,8 +295,8 @@ void testDtfBitWithDdtErrors() {
     
     uint64_t validPpn = (validDdtp.raw >> 12) & 0xFFFFFFFFFFFULL;
     uint64_t invalidPpn = (invalidDdtp.raw >> 12) & 0xFFFFFFFFFFFULL;
-    std::cout << "Valid DDT PPN: 0x" << std::hex << validPpn << std::dec << std::endl;
-    std::cout << "Invalid DDT PPN: 0x" << std::hex << invalidPpn << std::dec << std::endl;
+    std::cout << "Valid DDT PPN: 0x" << std::hex << validPpn << std::dec << '\n';
+    std::cout << "Invalid DDT PPN: 0x" << std::hex << invalidPpn << std::dec << '\n';
     
     // Create device contexts using TableBuilder
     // Valid DDT - Create device contexts with DTF=0 and DTF=1
@@ -311,7 +309,7 @@ void testDtfBitWithDdtErrors() {
     
     std::cout << "Created device contexts: valid(0x" << std::hex << validDc0Addr 
               << ", 0x" << validDc1Addr << "), invalid(0x" << invalidDc0Addr 
-              << ", 0x" << invalidDc1Addr << ")" << std::dec << std::endl;
+              << ", 0x" << invalidDc1Addr << ")" << std::dec << '\n';
     
     // Test cases to verify DTF behavior
     struct DtfTestCase {
@@ -353,12 +351,12 @@ void testDtfBitWithDdtErrors() {
         bool faultRecorded = (fqtAfter != fqtBefore);
         
         std::cout << "FQT before: " << fqtBefore << ", after: " << fqtAfter 
-                  << " (fault recorded: " << (faultRecorded ? "YES" : "NO") << ")" << std::endl;
+                  << " (fault recorded: " << (faultRecorded ? "YES" : "NO") << ")" << '\n';
         
         // For DTF=1 cases, we expect certain faults to NOT be recorded
         if (test.deviceId == 1 && faultRecorded) {
             // This might be expected depending on fault type - just log it
-            std::cout << "INFO: Fault recorded for DTF=1 device (may be expected)" << std::endl;
+            std::cout << "INFO: Fault recorded for DTF=1 device (may be expected)" << '\n';
         }
     }
     
@@ -381,8 +379,7 @@ void testSbeFieldEndianness() {
     helper.setupFaultQueue(fqAddr, 2); // 4 entries
     
     if (!helper.waitForFaultQueueActivation()) {
-        testPassed = false;
-        std::cout << "ERROR: Fault queue did not activate!" << std::endl;
+        std::cout << "ERROR: Fault queue did not activate!" << '\n';
         std::cout << "=== SBE Field Endianness Test: FAILED ===\n\n";
         return;
     }
@@ -408,7 +405,7 @@ void testSbeFieldEndianness() {
         1, ddtp, false, true, true, pdtp1);  // SBE=1 (BE), PDTV=1
     
     std::cout << "Created LE device context at 0x" << std::hex << dc0Addr 
-              << " and BE device context at 0x" << dc1Addr << std::dec << std::endl;
+              << " and BE device context at 0x" << dc1Addr << std::dec << '\n';
     
     // Create Process Contexts in PDTs (with appropriate endianness)
     const uint64_t leProcessId = 0x5;
@@ -433,10 +430,10 @@ void testSbeFieldEndianness() {
     // Set DDTP
     helper.iommu.writeCsr(CsrNumber::Ddtp, ddtp.raw);
     
-    std::cout << "Testing LE device (device_id=0)..." << std::endl;
+    std::cout << "Testing LE device (device_id=0)..." << '\n';
     helper.performFailingTranslation(0, 0x1000);
     
-    std::cout << "Testing BE device (device_id=1)..." << std::endl;
+    std::cout << "Testing BE device (device_id=1)..." << '\n';
     helper.performFailingTranslation(1, 0x1000);
     
     // Print memory allocation statistics
@@ -462,8 +459,7 @@ void testFaultQueueOverflow() {
     helper.setupFaultQueue(fqAddr, 1); // 2^1 = 2 entries
     
     if (!helper.waitForFaultQueueActivation()) {
-        testPassed = false;
-        std::cout << "ERROR: Fault queue did not activate!" << std::endl;
+        std::cout << "ERROR: Fault queue did not activate!" << '\n';
         std::cout << "=== Fault Queue Overflow Test: FAILED ===\n\n";
         return;
     }
@@ -472,7 +468,7 @@ void testFaultQueueOverflow() {
     uint64_t initialFqh = helper.iommu.readCsr(CsrNumber::Fqh);
     uint64_t initialFqt = helper.iommu.readCsr(CsrNumber::Fqt);
     
-    std::cout << "Initial: FQH=" << initialFqh << ", FQT=" << initialFqt << std::endl;
+    std::cout << "Initial: FQH=" << initialFqh << ", FQT=" << initialFqt << '\n';
     
     bool overflowDetected = false;
     
@@ -491,8 +487,8 @@ void testFaultQueueOverflow() {
         uint32_t fqcsrAfter = helper.iommu.readCsr(CsrNumber::Fqcsr);
         bool fqofAfter = (fqcsrAfter & (1 << 8)) != 0; // FQOF bit
         
-        std::cout << "Before: FQT=" << fqtBefore << ", FQOF=" << fqofBefore << std::endl;
-        std::cout << "After:  FQT=" << fqtAfter << ", FQOF=" << fqofAfter << std::endl;
+        std::cout << "Before: FQT=" << fqtBefore << ", FQOF=" << fqofBefore << '\n';
+        std::cout << "After:  FQT=" << fqtAfter << ", FQOF=" << fqofAfter << '\n';
         
         // Check for overflow condition
         if (i == 2 && !fqofAfter) {
@@ -543,10 +539,10 @@ int main() {
     return 0;
         
     } catch (const std::exception& e) {
-        std::cerr << "Fault queue test failed with exception: " << e.what() << std::endl;
+        std::cerr << "Fault queue test failed with exception: " << e.what() << '\n';
         return 1;
     } catch (...) {
-        std::cerr << "Fault queue test failed with unknown exception" << std::endl;
+        std::cerr << "Fault queue test failed with unknown exception" << '\n';
         return 1;
     }
 }

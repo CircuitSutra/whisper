@@ -150,18 +150,18 @@ static uint64_t setupMsiDeviceWithBuilder(Iommu& iommu, MemoryModel& memory,
                                                        msiptp);
     
     if (dc_addr == 0) {
-        std::cerr << "[MSI_SETUP] Failed to create MSI device context!" << std::endl;
+        std::cerr << "[MSI_SETUP] Failed to create MSI device context!" << '\n';
         return 0;
     }
     
     // Setup MSI page table using TableBuilder
     if (!tableBuilder.setupMsiPageTable(msi_ppn, TestValues::MSI_TARGET_PPN)) {
-        std::cerr << "[MSI_SETUP] Failed to setup MSI page table!" << std::endl;
+        std::cerr << "[MSI_SETUP] Failed to setup MSI page table!" << '\n';
         return 0;
     }
     
     std::cout << "[MSI_SETUP] Created MSI-enabled device context at 0x" << std::hex << dc_addr 
-              << " with MSI table at PPN 0x" << msi_ppn << std::dec << std::endl;
+              << " with MSI table at PPN 0x" << msi_ppn << std::dec << '\n';
     
     return dc_addr;
 }
@@ -170,7 +170,7 @@ void testMsiBasicTranslation() {
     std::cout << "\n=== MSI Basic Translation Test (using TableBuilder) ===\n";
     
     // Create infrastructure
-    MemoryModel memory(4 * 1024 * 1024);  // 4MB
+    MemoryModel memory(size_t(4) * 1024 * 1024);  // 4MB
     MemoryManager memMgr;
     
     auto readFunc = [&memory](uint64_t addr, unsigned size, uint64_t& data) {
@@ -192,30 +192,30 @@ void testMsiBasicTranslation() {
                                                TestValues::DEV_ID);
     
     bool success = (dcAddr != 0);
-    std::cout << "[TEST] MSI device setup: " << (success ? "PASS" : "FAIL") << std::endl;
+    std::cout << "[TEST] MSI device setup: " << (success ? "PASS" : "FAIL") << '\n';
     
     if (success) {
         // Test MSI address matching
-        std::cout << "[TEST] MSI configuration created at address 0x" << std::hex << dcAddr << std::dec << std::endl;
-        std::cout << "[TEST] MSI address pattern: 0x" << std::hex << TestValues::MSI_ADDR_PATTERN << std::dec << std::endl;
-        std::cout << "[TEST] MSI address mask: 0x" << std::hex << TestValues::MSI_ADDR_MASK << std::dec << std::endl;
+        std::cout << "[TEST] MSI configuration created at address 0x" << std::hex << dcAddr << std::dec << '\n';
+        std::cout << "[TEST] MSI address pattern: 0x" << std::hex << TestValues::MSI_ADDR_PATTERN << std::dec << '\n';
+        std::cout << "[TEST] MSI address mask: 0x" << std::hex << TestValues::MSI_ADDR_MASK << std::dec << '\n';
         
         // Verify the MSI IOVA matches the pattern
         uint64_t maskedIova = TestValues::MSI_IOVA & TestValues::MSI_ADDR_MASK;
         uint64_t maskedPattern = TestValues::MSI_ADDR_PATTERN & TestValues::MSI_ADDR_MASK;
         bool matches = (maskedIova == maskedPattern);
         
-        std::cout << "[TEST] MSI address matching: " << (matches ? "PASS" : "FAIL") << std::endl;
+        std::cout << "[TEST] MSI address matching: " << (matches ? "PASS" : "FAIL") << '\n';
         std::cout << "[VERIFY] IOVA 0x" << std::hex << TestValues::MSI_IOVA 
                   << " masked to 0x" << maskedIova 
-                  << " matches pattern 0x" << maskedPattern << std::dec << std::endl;
+                  << " matches pattern 0x" << maskedPattern << std::dec << '\n';
     }
 }
 
 void testMsiPageTableSetup() {
     std::cout << "\n=== MSI Page Table Setup Test (using TableBuilder) ===\n";
     
-    MemoryModel memory(2 * 1024 * 1024);  // 2MB
+    MemoryModel memory(size_t(2) * 1024 * 1024);  // 2MB
     MemoryManager memMgr;
     
     auto readFunc = [&memory](uint64_t addr, unsigned size, uint64_t& data) {
@@ -233,16 +233,16 @@ void testMsiPageTableSetup() {
     
     // Test MSI page table setup
     bool success = tableBuilder.setupMsiPageTable(msi_ppn, target_ppn, 16);
-    std::cout << "[TEST] MSI page table setup: " << (success ? "PASS" : "FAIL") << std::endl;
+    std::cout << "[TEST] MSI page table setup: " << (success ? "PASS" : "FAIL") << '\n';
     
     if (success) {
         // Verify a few entries were written correctly
         uint64_t pageSize = 4096;
         uint64_t msiTableAddr = msi_ppn * pageSize;
         
-        for (int i = 0; i < 3; i++) {
-            uint64_t pte_addr = msiTableAddr + (i * 8);
-            uint64_t pte_value;
+        for (unsigned i = 0; i < 3; i++) {
+            uint64_t pte_addr = msiTableAddr + (i * uint64_t(8));
+            uint64_t pte_value{};
             
             if (memory.read(pte_addr, 8, pte_value)) {
                 uint64_t expected = 0x1 | (0x3ULL << 1) | (target_ppn << 10);
@@ -250,7 +250,7 @@ void testMsiPageTableSetup() {
                 
                 std::cout << "[VERIFY] MSI PTE[" << i << "] at 0x" << std::hex << pte_addr 
                           << ": got 0x" << pte_value << ", expected 0x" << expected 
-                          << " (" << (entryCorrect ? "CORRECT" : "INCORRECT") << ")" << std::dec << std::endl;
+                          << " (" << (entryCorrect ? "CORRECT" : "INCORRECT") << ")" << std::dec << '\n';
             }
         }
     }
@@ -259,7 +259,7 @@ void testMsiPageTableSetup() {
 void testMsiExtendedFormatSupport() {
     std::cout << "\n=== MSI Extended Format Support Test ===\n";
     
-    MemoryModel memory(4 * 1024 * 1024);  // 4MB
+    MemoryModel memory(size_t(4) * 1024 * 1024);  // 4MB
     MemoryManager memMgr;
     
     auto readFunc = [&memory](uint64_t addr, unsigned size, uint64_t& data) {
@@ -277,14 +277,14 @@ void testMsiExtendedFormatSupport() {
     
     // Force extended format by setting MSI capabilities
     bool isExtended = iommu.isDcExtended();
-    std::cout << "[TEST] Device context format: " << (isExtended ? "Extended" : "Base") << std::endl;
+    std::cout << "[TEST] Device context format: " << (isExtended ? "Extended" : "Base") << '\n';
     
     // Setup MSI device - should use extended format due to MSI capabilities
     uint64_t dcAddr = setupMsiDeviceWithBuilder(iommu, memory, memMgr, tableBuilder,
                                                TestValues::DEV_ID);
     
     bool success = (dcAddr != 0);
-    std::cout << "[TEST] Extended format MSI device setup: " << (success ? "PASS" : "FAIL") << std::endl;
+    std::cout << "[TEST] Extended format MSI device setup: " << (success ? "PASS" : "FAIL") << '\n';
     
     if (success && isExtended) {
         // Verify extended format fields were written
@@ -292,22 +292,22 @@ void testMsiExtendedFormatSupport() {
         uint64_t msi_mask_addr = dcAddr + 40;
         uint64_t msi_pattern_addr = dcAddr + 48;
         
-        uint64_t msiptp_value, mask_value, pattern_value;
+        uint64_t msiptp_value{}, mask_value{}, pattern_value{};
         
         if (memory.read(msiptp_addr, 8, msiptp_value) &&
             memory.read(msi_mask_addr, 8, mask_value) &&
             memory.read(msi_pattern_addr, 8, pattern_value)) {
             
-            std::cout << "[VERIFY] Extended MSI fields:" << std::endl;
-            std::cout << "  MSIPTP at 0x" << std::hex << msiptp_addr << ": 0x" << msiptp_value << std::endl;
-            std::cout << "  MSI Mask at 0x" << msi_mask_addr << ": 0x" << mask_value << std::endl;
-            std::cout << "  MSI Pattern at 0x" << msi_pattern_addr << ": 0x" << pattern_value << std::dec << std::endl;
+            std::cout << "[VERIFY] Extended MSI fields:" << '\n';
+            std::cout << "  MSIPTP at 0x" << std::hex << msiptp_addr << ": 0x" << msiptp_value << '\n';
+            std::cout << "  MSI Mask at 0x" << msi_mask_addr << ": 0x" << mask_value << '\n';
+            std::cout << "  MSI Pattern at 0x" << msi_pattern_addr << ": 0x" << pattern_value << std::dec << '\n';
             
             bool fieldsCorrect = (mask_value == TestValues::MSI_ADDR_MASK) &&
                                (pattern_value == TestValues::MSI_ADDR_PATTERN);
             
             std::cout << "[TEST] Extended MSI field verification: " 
-                      << (fieldsCorrect ? "PASS" : "FAIL") << std::endl;
+                      << (fieldsCorrect ? "PASS" : "FAIL") << '\n';
         }
     }
 }
@@ -324,10 +324,10 @@ int main() {
         return 0;
         
     } catch (const std::exception& e) {
-        std::cerr << "MSI test failed with exception: " << e.what() << std::endl;
+        std::cerr << "MSI test failed with exception: " << e.what() << '\n';
         return 1;
     } catch (...) {
-        std::cerr << "MSI test failed with unknown exception" << std::endl;
+        std::cerr << "MSI test failed with unknown exception" << '\n';
         return 1;
     }
 }

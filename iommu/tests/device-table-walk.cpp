@@ -77,7 +77,7 @@ static uint64_t setupDeviceTableWithBuilder(TT_IOMMU::Iommu& iommu, MemoryModel&
                                            MemoryManager& memMgr, TableBuilder& tableBuilder,
                                            uint32_t devId, Ddtp::Mode mode) {
     // Convert TT_IOMMU::Ddtp::Mode to IOMMU::DDTMode
-    DDTMode ddtMode;
+    DDTMode ddtMode{};
     switch (mode) {
         case Ddtp::Mode::Level3: ddtMode = DDT_3LVL; break;
         case Ddtp::Mode::Level2: ddtMode = DDT_2LVL; break;
@@ -119,7 +119,7 @@ static uint64_t setupDeviceTableWithBuilder(TT_IOMMU::Iommu& iommu, MemoryModel&
     
     std::cout << "[TABLE_BUILDER] Created DDT structure for device ID 0x" 
               << std::hex << devId << " using " << (int)ddtMode << "-level mode" 
-              << ", device context at 0x" << dc_addr << std::dec << std::endl;
+              << ", device context at 0x" << dc_addr << std::dec << '\n';;
     
     return dc_addr;
 }
@@ -203,14 +203,14 @@ static DeviceContext createDeviceContext(
 // Helper function to print test results  
 static void printTestResult(const std::string& testName, bool success) {
     std::cout << "[TEST] " << testName << ": " 
-              << (success ? "PASS" : "FAIL") << std::endl;
+              << (success ? "PASS" : "FAIL") << '\n';
 }
 
 void testBasicDeviceTableWalk() {
     std::cout << "\n=== Basic Device Table Walk Test (using TableBuilder) ===\n";
     
     // Create infrastructure
-    MemoryModel memory(1024 * 1024);  // 1MB
+    MemoryModel memory(size_t(1024) * 1024);  // 1MB
     MemoryManager memMgr;
     
     // Create table builder with memory callbacks
@@ -258,7 +258,7 @@ void testDeviceContextTranslation() {
     std::cout << "\n=== Device Context Translation Test ===\n";
     
     // Create infrastructure 
-    MemoryModel memory(2 * 1024 * 1024);  // 2MB
+    MemoryModel memory(size_t(2) * 1024 * 1024);  // 2MB
     MemoryManager memMgr;
     
     auto readFunc = [&memory](uint64_t addr, unsigned size, uint64_t& data) {
@@ -312,10 +312,10 @@ void testDeviceContextTranslation() {
     printTestResult("Device context write/read", readSuccess);
     
     if (readSuccess) {
-        std::cout << "[VERIFY] Device context valid: " << (readDc.valid() ? "true" : "false") << std::endl;
-        std::cout << "[VERIFY] Device context ATS enabled: " << (readDc.ats() ? "true" : "false") << std::endl;
-        std::cout << "[VERIFY] Device context IOHGATP: 0x" << std::hex << readDc.iohgatp() << std::dec << std::endl;
-        std::cout << "[VERIFY] Device context IOHGATP mode: " << static_cast<int>(readDc.iohgatpMode()) << std::endl;
+        std::cout << "[VERIFY] Device context valid: " << (readDc.valid() ? "true" : "false") << '\n';
+        std::cout << "[VERIFY] Device context ATS enabled: " << (readDc.ats() ? "true" : "false") << '\n';
+        std::cout << "[VERIFY] Device context IOHGATP: 0x" << std::hex << readDc.iohgatp() << std::dec << '\n';
+        std::cout << "[VERIFY] Device context IOHGATP mode: " << static_cast<int>(readDc.iohgatpMode()) << '\n';
     }
 }
 
@@ -330,10 +330,10 @@ int main() {
         return 0;
         
     } catch (const std::exception& e) {
-        std::cerr << "Test failed with exception: " << e.what() << std::endl;
+        std::cerr << "Test failed with exception: " << e.what() << '\n';
         return 1;
     } catch (...) {
-        std::cerr << "Test failed with unknown exception" << std::endl;
+        std::cerr << "Test failed with unknown exception" << '\n';
         return 1;
     }
 }

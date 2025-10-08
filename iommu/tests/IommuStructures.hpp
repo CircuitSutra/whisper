@@ -67,7 +67,7 @@ enum PBMT : uint8_t {
 // Device Directory Table Pointer
 struct ddtp_t {
     union {
-        uint64_t raw;
+        uint64_t raw = 0;
         struct {
             uint64_t iommu_mode : 4;
             uint64_t busy : 1;
@@ -82,7 +82,7 @@ struct ddtp_t {
 // Device Directory Table Entry
 struct ddte_t {
     union {
-        uint64_t raw;
+        uint64_t raw = 0;
         struct {
             uint64_t V : 1;
             uint64_t reserved : 11;
@@ -96,7 +96,7 @@ struct ddte_t {
 // Process Directory Table Pointer
 struct pdtp_t {
     union {
-        uint64_t raw;
+        uint64_t raw = 0;
         struct {
             uint64_t MODE : 4;
             uint64_t reserved : 8;
@@ -110,7 +110,7 @@ struct pdtp_t {
 // Process Directory Table Entry
 struct pdte_t {
     union {
-        uint64_t raw;
+        uint64_t raw = 0;
         struct {
             uint64_t V : 1;
             uint64_t reserved0 : 11;
@@ -124,7 +124,7 @@ struct pdte_t {
 // IOHGATP register
 struct iohgatp_t {
     union {
-        uint64_t raw;
+        uint64_t raw = 0;
         struct {
             uint64_t MODE : 4;
             uint64_t reserved0 : 12;

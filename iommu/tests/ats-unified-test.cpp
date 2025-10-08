@@ -53,7 +53,7 @@ public:
   void setupDeviceContextWithBuilder(uint32_t devId, bool enableAts = true, bool enableT2gpa = false)
   {
     std::cout << "[ATS_HELPER] Setting up device context for ID 0x" << std::hex << devId 
-              << " with ATS=" << (enableAts ? "enabled" : "disabled") << std::dec << std::endl;
+              << " with ATS=" << (enableAts ? "enabled" : "disabled") << std::dec << '\n';
     
     // Set up DDTP for 2-level DDT
     ddtp_t ddtp;
@@ -103,14 +103,14 @@ public:
     uint64_t dc_addr = tableBuilder_.addDeviceContext(dc, devId, ddtp, msi_flat);
     
     if (dc_addr == 0) {
-        std::cerr << "[ATS_HELPER] Failed to create device context!" << std::endl;
+        std::cerr << "[ATS_HELPER] Failed to create device context!" << '\n';
         return;
     }
     
     // Store the device context address for later use
     deviceContextAddrs_[devId] = dc_addr;
     
-    std::cout << "[ATS_HELPER] Device context created at address 0x" << std::hex << dc_addr << std::dec << std::endl;
+    std::cout << "[ATS_HELPER] Device context created at address 0x" << std::hex << dc_addr << std::dec << '\n';
   }
 
   // Create an ATS request
@@ -143,7 +143,7 @@ public:
     uint32_t cqcsrValue = 1; // Enable
     iommu_->writeCsr(CsrNumber::Cqcsr, cqcsrValue);
     
-    std::cout << "[ATS_HELPER] Command queue configured at PPN 0x" << std::hex << (cqbAddr >> 12) << std::dec << std::endl;
+    std::cout << "[ATS_HELPER] Command queue configured at PPN 0x" << std::hex << (cqbAddr >> 12) << std::dec << '\n';
   }
 
   // Check if device context exists
@@ -194,7 +194,7 @@ private:
     // Configure FCTL for little-endian operation
     iommu_->writeCsr(CsrNumber::Fctl, 0);
     
-    std::cout << "[ATS_HELPER] IOMMU configured with capabilities 0x" << std::hex << caps << std::dec << std::endl;
+    std::cout << "[ATS_HELPER] IOMMU configured with capabilities 0x" << std::hex << caps << std::dec << '\n';
   }
 };
 
@@ -211,14 +211,14 @@ void testBasicAtsTranslation() {
     
     // Verify device context was created
     bool contextExists = helper.hasDeviceContext(devId);
-    std::cout << "[TEST] Device context creation: " << (contextExists ? "PASS" : "FAIL") << std::endl;
+    std::cout << "[TEST] Device context creation: " << (contextExists ? "PASS" : "FAIL") << '\n';
     
     if (!contextExists) {
         return;
     }
     
     // Create ATS translation request
-    IommuRequest atsReq = helper.createAtsRequest(devId, 0x1000);
+    IommuRequest atsReq = AtsTestHelper::createAtsRequest(devId, 0x1000);
     
     // Process the ATS request
     auto& iommu = helper.getIommu();
@@ -226,18 +226,18 @@ void testBasicAtsTranslation() {
   unsigned cause = 0;
   
     bool success = iommu.atsTranslate(atsReq, resp, cause);
-    std::cout << "[TEST] ATS translation request: " << (success ? "PASS" : "FAIL") << std::endl;
+    std::cout << "[TEST] ATS translation request: " << (success ? "PASS" : "FAIL") << '\n';
     
     if (success && resp.success) {
         std::cout << "[RESULT] ATS translation: IOVA 0x" << std::hex << atsReq.iova 
-                  << " -> PA 0x" << resp.translatedAddr << std::dec << std::endl;
+                  << " -> PA 0x" << resp.translatedAddr << std::dec << '\n';
     }
 }
 
 void testAtsWithT2gpa() {
     std::cout << "\n=== ATS with T2GPA Test (using TableBuilder) ===\n";
   
-  AtsTestHelper helper;
+    AtsTestHelper helper;
   
     constexpr uint32_t devId = 0x456;
     
@@ -245,25 +245,25 @@ void testAtsWithT2gpa() {
     helper.setupDeviceContextWithBuilder(devId, true, true);
     
     bool contextExists = helper.hasDeviceContext(devId);
-    std::cout << "[TEST] Device context with T2GPA creation: " << (contextExists ? "PASS" : "FAIL") << std::endl;
+    std::cout << "[TEST] Device context with T2GPA creation: " << (contextExists ? "PASS" : "FAIL") << '\n';
     
     if (!contextExists) {
         return;
     }
     
     // Create ATS request for a higher address that will go through G-stage translation
-    IommuRequest atsReq = helper.createAtsRequest(devId, 0x10000000);
+    IommuRequest atsReq = AtsTestHelper::createAtsRequest(devId, 0x10000000);
     
     auto& iommu = helper.getIommu();
     Iommu::AtsResponse resp;
   unsigned cause = 0;
   
     bool success = iommu.atsTranslate(atsReq, resp, cause);
-    std::cout << "[TEST] ATS with T2GPA request: " << (success ? "PASS" : "FAIL") << std::endl;
+    std::cout << "[TEST] ATS with T2GPA request: " << (success ? "PASS" : "FAIL") << '\n';
     
     if (success && resp.success) {
         std::cout << "[RESULT] ATS+T2GPA translation: IOVA 0x" << std::hex << atsReq.iova 
-                  << " -> PA 0x" << resp.translatedAddr << std::dec << std::endl;
+                  << " -> PA 0x" << resp.translatedAddr << std::dec << '\n';
     }
 }
 
@@ -286,7 +286,7 @@ void testMultipleDevicesAts() {
         
         bool contextExists = helper.hasDeviceContext(devId);
         std::cout << "[SETUP] Device 0x" << std::hex << devId << std::dec 
-                  << " context: " << (contextExists ? "PASS" : "FAIL") << std::endl;
+                  << " context: " << (contextExists ? "PASS" : "FAIL") << '\n';
     }
     
     // Test ATS requests for ATS-enabled devices
@@ -298,7 +298,7 @@ void testMultipleDevicesAts() {
         if (!atsEnabled) continue; // Skip non-ATS devices
         
         totalAtsDevices++;
-        IommuRequest atsReq = helper.createAtsRequest(devId, 0x2000 + (devId << 12));
+        IommuRequest atsReq = AtsTestHelper::createAtsRequest(devId, 0x2000 + (devId << 12));
         Iommu::AtsResponse resp;
         unsigned cause = 0;
         
@@ -306,12 +306,12 @@ void testMultipleDevicesAts() {
         if (success && resp.success) {
             successCount++;
             std::cout << "[ATS] Device 0x" << std::hex << devId << ": IOVA 0x" << atsReq.iova 
-                      << " -> PA 0x" << resp.translatedAddr << std::dec << std::endl;
+                      << " -> PA 0x" << resp.translatedAddr << std::dec << '\n';
         }
     }
     
     std::cout << "[TEST] Multiple devices ATS: " << successCount << "/" << totalAtsDevices 
-              << " successful (" << (successCount == totalAtsDevices ? "PASS" : "FAIL") << ")" << std::endl;
+              << " successful (" << (successCount == totalAtsDevices ? "PASS" : "FAIL") << ")" << '\n';
 }
 
 void testAtsCommandQueue() {
@@ -328,7 +328,7 @@ void testAtsCommandQueue() {
     helper.setupDeviceContextWithBuilder(devId, true, false);
     
     bool contextExists = helper.hasDeviceContext(devId);
-    std::cout << "[TEST] ATS command queue setup: " << (contextExists ? "PASS" : "FAIL") << std::endl;
+    std::cout << "[TEST] ATS command queue setup: " << (contextExists ? "PASS" : "FAIL") << '\n';
     
     // For a more comprehensive test, we would issue ATS invalidation commands
     // through the command queue, but that requires more complex setup
@@ -339,7 +339,7 @@ void testAtsCommandQueue() {
     uint64_t cqcsr = iommu.readCsr(CsrNumber::Cqcsr);
     bool cqEnabled = (cqcsr & 0x1) != 0;
     
-    std::cout << "[TEST] Command queue enabled: " << (cqEnabled ? "PASS" : "FAIL") << std::endl;
+    std::cout << "[TEST] Command queue enabled: " << (cqEnabled ? "PASS" : "FAIL") << '\n';
 }
 
 void testTableBuilderStats() {
@@ -374,10 +374,10 @@ int main() {
         return 0;
     
   } catch (const std::exception& e) {
-        std::cerr << "ATS test failed with exception: " << e.what() << std::endl;
+        std::cerr << "ATS test failed with exception: " << e.what() << '\n';
     return 1;
   } catch (...) {
-        std::cerr << "ATS test failed with unknown exception" << std::endl;
+        std::cerr << "ATS test failed with unknown exception" << '\n';
     return 1;
   }
 } 
