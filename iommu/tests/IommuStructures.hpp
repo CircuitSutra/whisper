@@ -75,7 +75,7 @@ struct ddtp_t {
             uint64_t ppn : 52;
         };
     };
-    ddtp_t() : raw(0) {}
+    ddtp_t() {}
     ddtp_t(uint64_t val) : raw(val) {}
 };
 
@@ -89,7 +89,7 @@ struct ddte_t {
             uint64_t PPN : 52;
         };
     };
-    ddte_t() : raw(0) {}
+    ddte_t() {}
     ddte_t(uint64_t val) : raw(val) {}
 };
 
@@ -103,7 +103,7 @@ struct pdtp_t {
             uint64_t PPN : 52;
         };
     };
-    pdtp_t() : raw(0) {}
+    pdtp_t() {}
     pdtp_t(uint64_t val) : raw(val) {}
 };
 
@@ -117,7 +117,7 @@ struct pdte_t {
             uint64_t PPN : 52;
         };
     };
-    pdte_t() : raw(0) {}
+    pdte_t() {}
     pdte_t(uint64_t val) : raw(val) {}
 };
 
@@ -132,28 +132,28 @@ struct iohgatp_t {
             uint64_t PPN : 32;
         };
     };
-    iohgatp_t() : raw(0) {}
+    iohgatp_t() {}
     iohgatp_t(uint64_t val) : raw(val) {}
 };
 
 // IOSATP register
 struct iosatp_t {
     union {
-        uint64_t raw;
+        uint64_t raw = 0;
         struct {
             uint64_t MODE : 4;
             uint64_t reserved : 60;
             uint64_t PPN : 44;
         };
     };
-    iosatp_t() : raw(0) {}
+    iosatp_t() {}
     iosatp_t(uint64_t val) : raw(val) {}
 };
 
 // G-stage Page Table Entry
 struct gpte_t {
     union {
-        uint64_t raw;
+        uint64_t raw = 0;
         struct {
             uint64_t V : 1;
             uint64_t R : 1;
@@ -170,14 +170,14 @@ struct gpte_t {
             uint64_t N : 1;
         };
     };
-    gpte_t() : raw(0) {}
+    gpte_t() {}
     gpte_t(uint64_t val) : raw(val) {}
 };
 
 // S-stage Page Table Entry  
 struct pte_t {
     union {
-        uint64_t raw;
+        uint64_t raw = 0;
         struct {
             uint64_t V : 1;
             uint64_t R : 1;
@@ -192,7 +192,7 @@ struct pte_t {
             uint64_t reserved1 : 10;
         };
     };
-    pte_t() : raw(0) {}
+    pte_t() {}
     pte_t(uint64_t val) : raw(val) {}
 };
 
