@@ -87,19 +87,16 @@ static uint64_t setupDeviceTableWithBuilder(TT_IOMMU::Iommu& iommu, MemoryModel&
     // Create a basic device context
     device_context_t dc = {};
     dc.tc = 0x1; // Valid device context
+    dc.ta = 0;   // Translation Attributes (no PSCID)
     
     // Set up IOHGATP for bare mode (no G-stage translation)
     dc.iohgatp.bits_.mode_ = TT_IOMMU::IohgatpMode::Bare;
     dc.iohgatp.bits_.gcsid_ = 0;
     dc.iohgatp.bits_.ppn_ = 0;
     
-    // Set up first-stage context with basic configuration
-    dc.fsc.pdtp.bits_.mode_ = TT_IOMMU::PdtpMode::Pd8; // Simple 1-level PDT
-    dc.fsc.pdtp.bits_.ppn_ = memMgr.getFreePhysicalPages(1);
-    
-    // Set up S-stage translation  
-    dc.fsc.iosatp.MODE = IOSATP_Sv39;
-    dc.fsc.iosatp.PPN = memMgr.getFreePhysicalPages(1);
+    // Set up first-stage context - FSC holds IOSATP when PDTV=0
+    dc.fsc.bits_.mode_ = static_cast<uint32_t>(TT_IOMMU::IosatpMode::Sv39);
+    dc.fsc.bits_.ppn_ = memMgr.getFreePhysicalPages(1);
     
     // Use TableBuilder to create the DDT structure
     bool msi_flat = iommu.isDcExtended();

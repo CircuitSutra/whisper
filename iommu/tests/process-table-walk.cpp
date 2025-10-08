@@ -65,9 +65,9 @@ static uint64_t setupTablesWithBuilder(Iommu& iommu, MemoryModel& /* memory */,
     dc.iohgatp.bits_.gcsid_ = 0;
     dc.iohgatp.bits_.ppn_ = 0;
     
-    // Set up first-stage context with PDT
-    dc.fsc.pdtp.bits_.mode_ = pdtMode;
-    dc.fsc.pdtp.bits_.ppn_ = memMgr.getFreePhysicalPages(1);
+    // Set up first-stage context with PDT (FSC holds PDTP when PDTV=1)
+    dc.fsc.bits_.mode_ = static_cast<uint32_t>(pdtMode);
+    dc.fsc.bits_.ppn_ = memMgr.getFreePhysicalPages(1);
     
     // Create device context using TableBuilder
     bool msi_flat = iommu.isDcExtended();
@@ -85,8 +85,8 @@ static uint64_t setupTablesWithBuilder(Iommu& iommu, MemoryModel& /* memory */,
     process_context_t pc = {};
     
     // Set up process SATP for address translation
-    pc.ta.MODE = IOSATP_Sv39;
-    pc.ta.PPN = memMgr.getFreePhysicalPages(1);
+    pc.ta.bits_.mode_ = TT_IOMMU::IosatpMode::Sv39;
+    pc.ta.bits_.ppn_ = memMgr.getFreePhysicalPages(1);
     
     // Add process context using TableBuilder
     uint64_t pc_addr = tableBuilder.addProcessContext(dc, pc, processId);
@@ -247,8 +247,8 @@ void testMultipleProcesses() {
     device_context_t dc = {};
     dc.tc = 0x21; // Valid with PDTV=1
     dc.iohgatp.bits_.mode_ = TT_IOMMU::IohgatpMode::Bare;
-    dc.fsc.pdtp.bits_.mode_ = TT_IOMMU::PdtpMode::Pd17;
-    dc.fsc.pdtp.bits_.ppn_ = memMgr.getFreePhysicalPages(1);
+    dc.fsc.bits_.mode_ = static_cast<uint32_t>(TT_IOMMU::PdtpMode::Pd17);
+    dc.fsc.bits_.ppn_ = memMgr.getFreePhysicalPages(1);
     
     uint64_t dc_addr = tableBuilder.addDeviceContext(dc, TestValues::TEST_DEV_ID, ddtp, false);
     
@@ -263,8 +263,8 @@ void testMultipleProcesses() {
     
     for (uint32_t pid : processIds) {
         process_context_t pc = {};
-        pc.ta.MODE = IOSATP_Sv39;
-        pc.ta.PPN = memMgr.getFreePhysicalPages(1);
+        pc.ta.bits_.mode_ = TT_IOMMU::IosatpMode::Sv39;
+        pc.ta.bits_.ppn_ = memMgr.getFreePhysicalPages(1);
         
         uint64_t pc_addr = tableBuilder.addProcessContext(dc, pc, pid);
         pcAddrs.push_back(pc_addr);

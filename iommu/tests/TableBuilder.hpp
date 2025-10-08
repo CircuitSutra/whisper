@@ -94,8 +94,10 @@ public:
         pdi.at(1) = get_bits(16, 8, process_id);
         pdi.at(2) = get_bits(19, 17, process_id);
 
+        // FSC holds PDTP when PDTV=1
         uint8_t levels = 0;
-        switch (dc.fsc.pdtp.bits_.mode_) {
+        auto pdtpMode = static_cast<TT_IOMMU::PdtpMode>(dc.fsc.bits_.mode_);
+        switch (pdtpMode) {
             case TT_IOMMU::PdtpMode::Pd20: levels = 3; break;
             case TT_IOMMU::PdtpMode::Pd17: levels = 2; break;
             case TT_IOMMU::PdtpMode::Pd8: levels = 1; break;
@@ -104,7 +106,7 @@ public:
                 return 0;
         }
 
-        uint64_t addr = dc.fsc.pdtp.bits_.ppn_ * PAGESIZE;
+        uint64_t addr = dc.fsc.bits_.ppn_ * PAGESIZE;
         
         // Walk down the process directory levels
         for (int i = levels - 1; i > 0; i--) {
@@ -348,8 +350,8 @@ public:
         uint8_t levels = 0, pte_size = 8;
         
         // Determine levels and VPN extraction based on mode
-        switch (satp.MODE) {
-            case IOSATP_Sv32:
+        switch (satp.bits_.mode_) {
+            case TT_IOMMU::IosatpMode::Sv32:
                 if (sxl == 1) {
                     vpn.at(0) = get_bits(21, 12, va);
                     vpn.at(1) = get_bits(31, 22, va);
@@ -360,7 +362,7 @@ public:
                     return false;
                 }
                 break;
-            case IOSATP_Sv39:
+            case TT_IOMMU::IosatpMode::Sv39:
                 if (sxl == 0) {
                     vpn.at(0) = get_bits(20, 12, va);
                     vpn.at(1) = get_bits(29, 21, va);
@@ -371,14 +373,14 @@ public:
                     return false;
                 }
                 break;
-            case IOSATP_Sv48:
+            case TT_IOMMU::IosatpMode::Sv48:
                 vpn.at(0) = get_bits(20, 12, va);
                 vpn.at(1) = get_bits(29, 21, va);
                 vpn.at(2) = get_bits(38, 30, va);
                 vpn.at(3) = get_bits(47, 39, va);
                 levels = 4;
                 break;
-            case IOSATP_Sv57:
+            case TT_IOMMU::IosatpMode::Sv57:
                 vpn.at(0) = get_bits(20, 12, va);
                 vpn.at(1) = get_bits(29, 21, va);
                 vpn.at(2) = get_bits(38, 30, va);
@@ -387,11 +389,11 @@ public:
                 levels = 5;
                 break;
             default:
-                std::cerr << "[TABLE] Invalid IOSATP mode: " << satp.MODE << '\n';
+                std::cerr << "[TABLE] Invalid IOSATP mode\n";
                 return false;
         }
 
-        uint64_t addr = satp.PPN * PAGESIZE;
+        uint64_t addr = satp.bits_.ppn_ * PAGESIZE;
         
         // Walk down page table levels
         for (int i = levels - 1; i > add_level; i--) {
@@ -461,7 +463,7 @@ public:
         
         // Set process directory pointer if PDTV is enabled  
         if (pdtv_enabled && pdtp_value != 0) {
-            dc.fsc.pdtp.value_ = pdtp_value;
+            dc.fsc.value_ = pdtp_value;
         }
         
         return addDeviceContext(dc, device_id, ddtp);

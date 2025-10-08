@@ -24,40 +24,23 @@ using ddtp_t = TT_IOMMU::Ddtp;
 using ddte_t = TT_IOMMU::Ddte;
 using pdtp_t = TT_IOMMU::Pdtp;
 using pdte_t = TT_IOMMU::Pdte;
-
 using iohgatp_t = TT_IOMMU::Iohgatp;
-
-struct iosatp_t {
-    union {
-        uint64_t raw = 0;
-        struct {
-            uint64_t MODE : 4;
-            uint64_t reserved : 16;
-            uint64_t PPN : 44;
-        };
-    };
-    iosatp_t() = default;
-    iosatp_t(uint64_t val) : raw(val) {}
-};
-
-struct fsc_t {
-    pdtp_t pdtp{};
-    iosatp_t iosatp{};
-    std::array<uint64_t, 6> reserved{};
-};
+using iosatp_t = TT_IOMMU::Iosatp;
+using fsc_t = TT_IOMMU::Fsc;
 
 struct device_context_t {
     uint64_t tc{};
     iohgatp_t iohgatp{};
+    uint64_t ta{};              // Translation Attributes (was missing!)
     fsc_t fsc{};
     uint64_t msiptp{};
     uint64_t msi_addr_mask{};
     uint64_t msi_addr_pattern{};
-    std::array<uint64_t, 2> reserved{};
+    uint64_t reserved{};        // Only 1 reserved field (8 bytes)
 };
 
 struct process_context_t {
-    iosatp_t ta{};
+    iosatp_t ta{0};
     std::array<uint64_t, 1> reserved{};
 };
 

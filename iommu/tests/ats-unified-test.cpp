@@ -94,12 +94,9 @@ public:
     }
     
     // Set up first-stage context - direct IOSATP mode (PDTV=0)
-    dc.fsc.pdtp.bits_.mode_ = TT_IOMMU::PdtpMode::Bare; // Not used when PDTV=0
-    dc.fsc.pdtp.bits_.ppn_ = 0;
-    
-    // Set up S-stage translation
-    dc.fsc.iosatp.MODE = IOSATP_Sv39;
-    dc.fsc.iosatp.PPN = memMgr_.getFreePhysicalPages(1);
+    // FSC holds an IOSATP when PDTV=0
+    dc.fsc.bits_.mode_ = static_cast<uint32_t>(TT_IOMMU::IosatpMode::Sv39);
+    dc.fsc.bits_.ppn_ = memMgr_.getFreePhysicalPages(1);
     
     // Use TableBuilder to create the device context
     bool msi_flat = iommu_->isDcExtended();
@@ -190,7 +187,9 @@ public:
         pte.PPN = memMgr_.getFreePhysicalPages(1); // Map to physical page
         
         // Add S-stage page table entry directly using the IOSATP from device context
-        bool success = tableBuilder_.addSStagePageTableEntry(dc.fsc.iosatp, iova, pte, 0);
+        // FSC holds an IOSATP when PDTV=0
+        iosatp_t iosatp(dc.fsc.value_);
+        bool success = tableBuilder_.addSStagePageTableEntry(iosatp, iova, pte, 0);
         if (!success) {
             std::cerr << "[ATS_HELPER] Failed to create S-stage PTE for IOVA 0x" 
                       << std::hex << iova << " device 0x" << devId << std::dec << '\n';
