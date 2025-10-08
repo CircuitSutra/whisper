@@ -35,19 +35,7 @@ struct ddtp_t {
     ddtp_t(uint64_t val) : raw(val) {}
 };
 
-struct ddte_t {
-    union {
-        uint64_t raw = 0;
-        struct {
-            uint64_t V : 1;
-            uint64_t reserved : 9;
-            uint64_t PPN : 44;
-            uint64_t reserved2 : 10;
-        };
-    };
-    ddte_t() = default;
-    ddte_t(uint64_t val) : raw(val) {}
-};
+using ddte_t = TT_IOMMU::Ddte;
 
 struct pdtp_t {
     union {
@@ -78,16 +66,15 @@ struct pdte_t {
 
 struct iohgatp_t {
     union {
-        uint64_t raw = 0;
+        uint64_t value_ = 0;
         struct {
-            uint64_t MODE : 4;
-            uint64_t reserved0 : 12;
-            uint64_t GSCID : 16;
-            uint64_t PPN : 32;
-        };
+            uint64_t ppn_     : 44;
+            unsigned gcsid_   : 16;
+            uint32_t mode_    : 4;
+        } bits_;
     };
     iohgatp_t() = default;
-    iohgatp_t(uint64_t val) : raw(val) {}
+    iohgatp_t(uint64_t val) : value_(val) {}
 };
 
 struct iosatp_t {

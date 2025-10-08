@@ -66,6 +66,12 @@ public:
     iommuDdtp.bits_.ppn_ = ddtp.ppn;
     iommu_->writeCsr(CsrNumber::Ddtp, iommuDdtp.value_);
     
+    // Debug: Verify DDTP was written correctly
+    uint64_t ddtpValue = iommu_->readCsr(CsrNumber::Ddtp);
+    Ddtp readDdtp{ddtpValue};
+    std::cout << "[DEBUG] DDTP written: 0x" << std::hex << iommuDdtp.value_ 
+              << ", read: 0x" << ddtpValue << ", mode: " << static_cast<int>(readDdtp.mode()) << std::dec << '\n';
+    
     // Create device context with ATS configuration
     device_context_t dc = {};
     dc.tc = 0x1; // Valid device context
@@ -80,14 +86,14 @@ public:
         dc.tc |= 0x8; // Enable T2GPA bit
         
         // Set up IOHGATP for G-stage translation
-        dc.iohgatp.MODE = IOHGATP_Sv39x4;
-        dc.iohgatp.GSCID = 0;
-        dc.iohgatp.PPN = memMgr_.getFreePhysicalPages(1);
+        dc.iohgatp.bits_.mode_ = 8; // Sv39x4
+        dc.iohgatp.bits_.gcsid_ = 0;
+        dc.iohgatp.bits_.ppn_ = memMgr_.getFreePhysicalPages(1);
     } else {
         // Bare mode - no G-stage translation
-        dc.iohgatp.MODE = IOHGATP_Bare;
-        dc.iohgatp.GSCID = 0;
-        dc.iohgatp.PPN = 0;
+        dc.iohgatp.bits_.mode_ = 0; // Bare
+        dc.iohgatp.bits_.gcsid_ = 0;
+        dc.iohgatp.bits_.ppn_ = 0;
     }
     
     // Set up first-stage context - direct IOSATP mode (PDTV=0)
@@ -111,6 +117,9 @@ public:
     deviceContextAddrs_[devId] = dc_addr;
     
     std::cout << "[ATS_HELPER] Device context created at address 0x" << std::hex << dc_addr << std::dec << '\n';
+    
+    // Create process context and page table entries for common IOVA addresses
+    setupPageTablesForDevice(devId, dc);
   }
 
   // Create an ATS request
@@ -157,6 +166,44 @@ public:
     return (it != deviceContextAddrs_.end()) ? it->second : 0;
   }
 
+  // Setup page tables for common IOVA addresses used in tests
+  void setupPageTablesForDevice(uint32_t devId, const device_context_t& dc) {
+    // For direct IOSATP mode (PDTV=0), we directly create S-stage page table entries
+    // using the IOSATP from the device context's first-stage context
+    
+    // Create S-stage page table entries for common test IOVA addresses
+    std::vector<uint64_t> testIovas = {
+        0x1000,           // Basic test
+        0x2000,           // Multiple devices test
+        0x10000000,       // T2GPA test
+        0x2000 + (devId << 12)  // Device-specific IOVA
+    };
+    
+    for (uint64_t iova : testIovas) {
+        // Create a leaf PTE for this IOVA
+        pte_t pte;
+        pte.V = 1;        // Valid
+        pte.R = 1;        // Readable
+        pte.W = 1;        // Writable
+        pte.X = 0;        // Not executable
+        pte.U = 1;        // User accessible
+        pte.G = 0;        // Not global
+        pte.A = 1;        // Accessed
+        pte.D = 0;        // Not dirty
+        pte.PPN = memMgr_.getFreePhysicalPages(1); // Map to physical page
+        
+        // Add S-stage page table entry directly using the IOSATP from device context
+        bool success = tableBuilder_.addSStagePageTableEntry(dc.fsc.iosatp, iova, pte, 0);
+        if (!success) {
+            std::cerr << "[ATS_HELPER] Failed to create S-stage PTE for IOVA 0x" 
+                      << std::hex << iova << " device 0x" << devId << std::dec << '\n';
+        }
+    }
+    
+    std::cout << "[ATS_HELPER] Created page tables for device 0x" << std::hex << devId 
+              << " with " << testIovas.size() << " IOVA mappings" << std::dec << '\n';
+  }
+
 private:
   MemoryModel mem_;
   MemoryManager memMgr_{};
@@ -183,11 +230,12 @@ private:
     caps |= (1ULL << 16); // Sv32x4
     caps |= (1ULL << 17); // Sv39x4
     caps |= (1ULL << 18); // Sv48x4
-    caps |= (1ULL << 19); // ATS
-    caps |= (1ULL << 20); // T2GPA
-    caps |= (1ULL << 22); // PD8
-    caps |= (1ULL << 23); // PD17
-    caps |= (1ULL << 24); // PD20
+    caps |= (1ULL << 19); // Sv57x4
+    caps |= (1ULL << 25); // ATS (correct bit position)
+    caps |= (1ULL << 26); // T2GPA (correct bit position)
+    caps |= (1ULL << 38); // PD8 (correct bit position)
+    caps |= (1ULL << 39); // PD17 (correct bit position)
+    caps |= (1ULL << 40); // PD20 (correct bit position)
     
     iommu_->configureCapabilities(caps);
     
@@ -222,11 +270,22 @@ void testBasicAtsTranslation() {
     
     // Process the ATS request
     auto& iommu = helper.getIommu();
+    
+    // Debug: Check DDTP before ATS request
+    uint64_t ddtpBefore = iommu.readCsr(CsrNumber::Ddtp);
+    Ddtp ddtpBeforeObj{ddtpBefore};
+    std::cout << "[DEBUG] DDTP before ATS: 0x" << std::hex << ddtpBefore 
+              << ", mode: " << static_cast<int>(ddtpBeforeObj.mode()) << std::dec << '\n';
     Iommu::AtsResponse resp;
   unsigned cause = 0;
   
     bool success = iommu.atsTranslate(atsReq, resp, cause);
     std::cout << "[TEST] ATS translation request: " << (success ? "PASS" : "FAIL") << '\n';
+    
+    if (!success) {
+        std::cout << "[DEBUG] ATS translation failed with cause: " << cause << '\n';
+        std::cout << "[DEBUG] Response success: " << resp.success << ", isCompleterAbort: " << resp.isCompleterAbort << '\n';
+    }
     
     if (success && resp.success) {
         std::cout << "[RESULT] ATS translation: IOVA 0x" << std::hex << atsReq.iova 
@@ -260,6 +319,11 @@ void testAtsWithT2gpa() {
   
     bool success = iommu.atsTranslate(atsReq, resp, cause);
     std::cout << "[TEST] ATS with T2GPA request: " << (success ? "PASS" : "FAIL") << '\n';
+    
+    if (!success) {
+        std::cout << "[DEBUG] ATS+T2GPA translation failed with cause: " << cause << '\n';
+        std::cout << "[DEBUG] Response success: " << resp.success << ", isCompleterAbort: " << resp.isCompleterAbort << '\n';
+    }
     
     if (success && resp.success) {
         std::cout << "[RESULT] ATS+T2GPA translation: IOVA 0x" << std::hex << atsReq.iova 

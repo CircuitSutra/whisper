@@ -101,9 +101,9 @@ static uint64_t setupDeviceTableWithBuilder(TT_IOMMU::Iommu& iommu, MemoryModel&
     dc.tc = 0x1; // Valid device context
     
     // Set up IOHGATP for bare mode (no G-stage translation)
-    dc.iohgatp.MODE = IOHGATP_Bare;
-    dc.iohgatp.GSCID = 0;
-    dc.iohgatp.PPN = 0;
+    dc.iohgatp.bits_.mode_ = 0; // Bare
+    dc.iohgatp.bits_.gcsid_ = 0;
+    dc.iohgatp.bits_.ppn_ = 0;
     
     // Set up first-stage context with basic configuration
     dc.fsc.pdtp.MODE = PD8; // Simple 1-level PDT

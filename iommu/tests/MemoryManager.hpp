@@ -36,7 +36,7 @@ public:
 
     // Get free guest physical page numbers (equivalent to get_free_gppn)
     uint64_t getFreeGuestPages(uint64_t num_pages, const iohgatp_t& iohgatp) {
-        uint16_t gscid = iohgatp.GSCID;
+        uint16_t gscid = iohgatp.bits_.gcsid_;
         if (gscid >= MAX_GSCID) {
             std::cerr << "[MEM_MGR] Invalid GSCID: " << gscid << '\n';
             return 0;

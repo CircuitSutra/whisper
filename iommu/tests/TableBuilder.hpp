@@ -54,26 +54,26 @@ public:
             ddte_t ddte;
             uint64_t entry_addr = addr + (ddi.at(i) * uint64_t(8));
             
-            if (!read_func_(entry_addr, 8, ddte.raw)) {
+            if (!read_func_(entry_addr, 8, ddte.value_)) {
                 std::cerr << "[TABLE] Failed to read DDTE at 0x" << std::hex << entry_addr << '\n';
                 return 0;
             }
 
-            if (ddte.V == 0) {
+            if (ddte.bits_.v_ == 0) {
                 // Allocate new page for next level
-                ddte.V = 1;
-                ddte.PPN = mem_mgr_.getFreePhysicalPages(1);
+                ddte.bits_.v_ = 1;
+                ddte.bits_.ppn_ = mem_mgr_.getFreePhysicalPages(1);
                 
-                if (!write_func_(entry_addr, 8, ddte.raw)) {
+                if (!write_func_(entry_addr, 8, ddte.value_)) {
                     std::cerr << "[TABLE] Failed to write DDTE at 0x" << std::hex << entry_addr << '\n';
                     return 0;
                 }
                 
                 std::cout << "[TABLE] Created DDT level " << i << " entry at 0x" 
-                          << std::hex << entry_addr << " -> PPN 0x" << ddte.PPN << std::dec << '\n';
+                          << std::hex << entry_addr << " -> PPN 0x" << ddte.bits_.ppn_ << std::dec << '\n';
             }
             
-            addr = ddte.PPN * PAGESIZE;
+            addr = ddte.bits_.ppn_ * PAGESIZE;
         }
 
         // Write device context at leaf level
@@ -113,7 +113,7 @@ public:
         // Walk down the process directory levels
         for (int i = levels - 1; i > 0; i--) {
             // Translate through G-stage if needed
-            if (dc.iohgatp.MODE != IOHGATP_Bare) {
+            if (dc.iohgatp.bits_.mode_ != 0) {
                 uint64_t spa = 0;
                 if (!translateGPA(dc.iohgatp, addr, spa)) {
                     std::cerr << "[TABLE] G-stage translation failed for addr 0x" 
@@ -134,7 +134,7 @@ public:
             if (pdte.V == 0) {
                 pdte.V = 1;
                 
-                if (dc.iohgatp.MODE != IOHGATP_Bare) {
+                if (dc.iohgatp.bits_.mode_ != 0) {
                     // Allocate guest page and map it
                     pdte.PPN = mem_mgr_.getFreeGuestPages(1, dc.iohgatp);
                     
@@ -172,7 +172,7 @@ public:
         }
 
         // Translate final address if needed
-        if (dc.iohgatp.MODE != IOHGATP_Bare) {
+        if (dc.iohgatp.bits_.mode_ != 0) {
             uint64_t spa = 0;
             if (!translateGPA(dc.iohgatp, addr, spa)) {
                 std::cerr << "[TABLE] Final G-stage translation failed" << '\n';
@@ -201,27 +201,27 @@ public:
         uint8_t levels = 0, pte_size = 8;
         
         // Determine levels and VPN extraction based on mode
-        switch (iohgatp.MODE) {
-            case IOHGATP_Sv32x4:
+        switch (iohgatp.bits_.mode_) {
+            case 1:
                 vpn.at(0) = get_bits(21, 12, gpa);
                 vpn.at(1) = get_bits(34, 22, gpa);
                 levels = 2;
                 pte_size = 4; // 32-bit PTEs
                 break;
-            case IOHGATP_Sv39x4:
+            case 8:
                 vpn.at(0) = get_bits(20, 12, gpa);
                 vpn.at(1) = get_bits(29, 21, gpa);
                 vpn.at(2) = get_bits(40, 30, gpa);
                 levels = 3;
                 break;
-            case IOHGATP_Sv48x4:
+            case 9:
                 vpn.at(0) = get_bits(20, 12, gpa);
                 vpn.at(1) = get_bits(29, 21, gpa);
                 vpn.at(2) = get_bits(38, 30, gpa);
                 vpn.at(3) = get_bits(49, 39, gpa);
                 levels = 4;
                 break;
-            case IOHGATP_Sv57x4:
+            case 10:
                 vpn.at(0) = get_bits(20, 12, gpa);
                 vpn.at(1) = get_bits(29, 21, gpa);
                 vpn.at(2) = get_bits(38, 30, gpa);
@@ -230,11 +230,11 @@ public:
                 levels = 5;
                 break;
             default:
-                std::cerr << "[TABLE] Invalid IOHGATP mode: " << iohgatp.MODE << '\n';
+                std::cerr << "[TABLE] Invalid IOHGATP mode: " << static_cast<int>(iohgatp.bits_.mode_) << '\n';
                 return false;
         }
 
-        uint64_t addr = iohgatp.PPN * PAGESIZE;
+        uint64_t addr = iohgatp.bits_.ppn_ * PAGESIZE;
         
         // Walk down page table levels
         for (int i = levels - 1; i > add_level; i--) {
@@ -438,7 +438,7 @@ public:
 
     // Simplified GPA translation (basic version of translate_gpa)
     static bool translateGPA(const iohgatp_t& iohgatp, uint64_t gpa, uint64_t& spa) {
-        if (iohgatp.MODE == IOHGATP_Bare) {
+        if (iohgatp.bits_.mode_ == 0) {
             spa = gpa;
             return true;
         }
