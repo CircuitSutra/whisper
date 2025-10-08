@@ -74,7 +74,20 @@ public:
 
         // Write device context at leaf level
         uint64_t dc_addr = addr + (ddi.at(0) * uint64_t(dc_size));
-        if (!write_func_(dc_addr, dc_size, reinterpret_cast<const uint64_t&>(dc))) {
+        bool ok = true;
+        ok = ok and write_func_(dc_addr + 0,  8, dc.tc_);
+        ok = ok and write_func_(dc_addr + 8,  8, dc.iohgatp_);
+        ok = ok and write_func_(dc_addr + 16, 8, dc.ta_);
+        ok = ok and write_func_(dc_addr + 24, 8, dc.fsc_);
+        if (msi_flat)
+          {
+            ok = ok and write_func_(dc_addr + 32, 8, dc.msiptp_);
+            ok = ok and write_func_(dc_addr + 40, 8, dc.msimask_);
+            ok = ok and write_func_(dc_addr + 48, 8, dc.msipat_);
+            ok = ok and write_func_(dc_addr + 56, 8, 0);  // reserved field
+          }
+
+        if (not ok) {
             std::cerr << "[TABLE] Failed to write device context at 0x" << std::hex << dc_addr << '\n';
             return 0;
         }
@@ -182,8 +195,11 @@ public:
         }
 
         // Write process context at leaf level
-        uint64_t pc_addr = addr + (pdi.at(0) * uint64_t(16));
-        if (!write_func_(pc_addr, 16, reinterpret_cast<const uint64_t&>(pc))) {
+        uint64_t pc_addr = addr + (pdi.at(0) * sizeof(pc));
+        bool ok = true;
+        ok = ok and write_func_(pc_addr + 0, 8, pc.ta);
+        ok = ok and write_func_(pc_addr + 8, 8, pc.fsc);
+        if (not ok) {
             std::cerr << "[TABLE] Failed to write process context at 0x" << std::hex << pc_addr << '\n';
             return 0;
         }
