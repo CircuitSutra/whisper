@@ -6583,6 +6583,8 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
 
       decode(pc_, physPc, inst, di);
 
+      auto debugStopCount = isDebugModeStopCount(*this);
+
       // Increment pc and execute instruction
       pc_ += di.instSize();
       execute(&di);
@@ -6608,7 +6610,7 @@ Hart<URV>::singleStep(DecodedInst& di, FILE* traceFile)
 	  return;
 	}
 
-      if (minstretEnabled() and not ebreakInstDebug_ and not isDebugModeStopCount(*this))
+      if (minstretEnabled() and not ebreakInstDebug_ and not debugStopCount)
         ++retiredInsts_;
 
       if (doStats)
