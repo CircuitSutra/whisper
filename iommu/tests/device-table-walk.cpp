@@ -193,8 +193,8 @@ static DeviceContext createDeviceContext(
     if (msi_mode != MsiptpMode::Off || msi_ppn != 0 || 
         msi_addr_mask != 0 || msi_addr_pattern != 0) {
         uint64_t msiptp = (uint64_t(msi_mode) << 60) | msi_ppn;
-        return DeviceContext(tc.value_, iohgatpVal, ta, fsc.value_, 
-                          msiptp, msi_addr_mask, msi_addr_pattern);
+        dc = DeviceContext{tc.value_, iohgatpVal, ta, fsc.value_, 
+                           msiptp, msi_addr_mask, msi_addr_pattern};
     }
     
     return dc;

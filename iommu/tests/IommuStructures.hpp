@@ -222,39 +222,35 @@ struct process_context_t {
 
 // Capabilities
 struct capabilities_t {
-    uint8_t version;
-    uint8_t Sv32 : 1;
-    uint8_t Sv39 : 1; 
-    uint8_t Sv48 : 1;
-    uint8_t Sv57 : 1;
-    uint8_t Sv39x4 : 1;
-    uint8_t Sv48x4 : 1;
-    uint8_t Sv57x4 : 1;
-    uint8_t amo_hwad : 1;
-    uint8_t ats : 1;
-    uint8_t t2gpa : 1;
-    uint8_t hpm : 1;
-    uint8_t dbg : 1;
-    uint8_t msi_flat : 1;
-    uint8_t msi_mrif : 1;
-    uint8_t amo_mrif : 1;
-    uint8_t pas;
-    uint8_t pd8 : 1;
-    uint8_t pd17 : 1;
-    uint8_t pd20 : 1;
-    uint8_t Svrsw60t59b : 1;
-    
-    capabilities_t() { std::memset(this, 0, sizeof(*this)); }
+    uint8_t version = 0;
+    uint8_t Sv32 : 1 = 0;
+    uint8_t Sv39 : 1 = 0; 
+    uint8_t Sv48 : 1 = 0;
+    uint8_t Sv57 : 1 = 0;
+    uint8_t Sv39x4 : 1 = 0;
+    uint8_t Sv48x4 : 1 = 0;
+    uint8_t Sv57x4 : 1 = 0;
+    uint8_t amo_hwad : 1 = 0;
+    uint8_t ats : 1 = 0;
+    uint8_t t2gpa : 1 = 0;
+    uint8_t hpm : 1 = 0;
+    uint8_t dbg : 1 = 0;
+    uint8_t msi_flat : 1 = 0;
+    uint8_t msi_mrif : 1 = 0;
+    uint8_t amo_mrif : 1 = 0;
+    uint8_t pas = 0;
+    uint8_t pd8 : 1 = 0;
+    uint8_t pd17 : 1 = 0;
+    uint8_t pd20 : 1 = 0;
+    uint8_t Svrsw60t59b : 1 = 0;
 };
 
 // Feature Control
 struct fctl_t {
-    uint8_t be : 1;
-    uint8_t wsi : 1;
-    uint8_t gxl : 1;
-    uint8_t reserved : 5;
-    
-    fctl_t() { std::memset(this, 0, sizeof(*this)); }
+    uint8_t be : 1 = 0;
+    uint8_t wsi : 1 = 0;
+    uint8_t gxl : 1 = 0;
+    uint8_t reserved : 5 = 0;
 };
 
 } // namespace IOMMU

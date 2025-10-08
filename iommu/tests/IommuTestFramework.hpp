@@ -81,7 +81,7 @@ public:
         installStandardCallbacks();
         
         std::cout << "[FRAMEWORK] IOMMU test framework initialized with custom capabilities 0x" 
-                  << std::hex << customCaps << std::dec << '\n'
+                  << std::hex << customCaps << std::dec << '\n';
     }
     
     // Accessors
