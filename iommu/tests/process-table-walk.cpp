@@ -81,10 +81,13 @@ static uint64_t setupTablesWithBuilder(Iommu& iommu, MemoryModel& /* memory */,
     
     // Create a process context
     process_context_t pc = {};
+    pc.ta = 0x1;  // Translation Attributes: V=1 (valid)
     
-    // Set up process SATP for address translation
-    pc.ta.bits_.mode_ = TT_IOMMU::IosatpMode::Sv39;
-    pc.ta.bits_.ppn_ = memMgr.getFreePhysicalPages(1);
+    // Set up process SATP for address translation (FSC field)
+    TT_IOMMU::Iosatp iosatp(0);
+    iosatp.bits_.mode_ = TT_IOMMU::IosatpMode::Sv39;
+    iosatp.bits_.ppn_ = memMgr.getFreePhysicalPages(1);
+    pc.fsc = iosatp.value_;
     
     // Add process context using TableBuilder
     uint64_t pc_addr = tableBuilder.addProcessContext(dc, pc, processId);
@@ -263,8 +266,11 @@ void testMultipleProcesses() {
     
     for (uint32_t pid : processIds) {
         process_context_t pc = {};
-        pc.ta.bits_.mode_ = TT_IOMMU::IosatpMode::Sv39;
-        pc.ta.bits_.ppn_ = memMgr.getFreePhysicalPages(1);
+        pc.ta = 0x1;  // Translation Attributes: V=1 (valid)
+        TT_IOMMU::Iosatp iosatp(0);
+        iosatp.bits_.mode_ = TT_IOMMU::IosatpMode::Sv39;
+        iosatp.bits_.ppn_ = memMgr.getFreePhysicalPages(1);
+        pc.fsc = iosatp.value_;
         
         uint64_t pc_addr = tableBuilder.addProcessContext(dc, pc, pid);
         pcAddrs.push_back(pc_addr);
