@@ -14,9 +14,9 @@ public:
     using MemoryReadFunc = std::function<bool(uint64_t, unsigned, uint64_t&)>;
     using MemoryWriteFunc = std::function<bool(uint64_t, unsigned, uint64_t)>;
 
-    TableBuilder(MemoryManager& memMgr, const MemoryReadFunc& readFunc,
-                 const MemoryWriteFunc& writeFunc)
-        : mem_mgr_(memMgr), read_func_(readFunc), write_func_(writeFunc) {}
+    TableBuilder(MemoryManager& memMgr, MemoryReadFunc readFunc,
+                 MemoryWriteFunc writeFunc)
+      : mem_mgr_(memMgr), read_func_(std::move(readFunc)), write_func_(std::move(writeFunc)) {}
 
     // Build Device Directory Table entry (adapted from add_dev_context)
     uint64_t addDeviceContext(const device_context_t& dc, uint32_t device_id, 
