@@ -122,17 +122,17 @@ public:
             pdte_t pdte;
             uint64_t entry_addr = addr + (pdi.at(i) * uint64_t(8));
             
-            if (!read_func_(entry_addr, 8, pdte.raw)) {
+            if (!read_func_(entry_addr, 8, pdte.value_)) {
                 std::cerr << "[TABLE] Failed to read PDTE at 0x" << std::hex << entry_addr << '\n';
                 return 0;
             }
 
-            if (pdte.V == 0) {
-                pdte.V = 1;
+            if (pdte.bits_.v_ == 0) {
+                pdte.bits_.v_ = 1;
                 
                 if (dc.iohgatp.bits_.mode_ != 0) {
                     // Allocate guest page and map it
-                    pdte.PPN = mem_mgr_.getFreeGuestPages(1, dc.iohgatp);
+                    pdte.bits_.ppn_ = mem_mgr_.getFreeGuestPages(1, dc.iohgatp);
                     
                     // Create G-stage mapping for the allocated page
                     gpte_t gpte;
@@ -147,24 +147,24 @@ public:
                     gpte.PBMT = PMA;
                     gpte.PPN = mem_mgr_.getFreePhysicalPages(1);
                     
-                    if (!addGStagePageTableEntry(dc.iohgatp, PAGESIZE * pdte.PPN, gpte, 0)) {
+                    if (!addGStagePageTableEntry(dc.iohgatp, PAGESIZE * pdte.bits_.ppn_, gpte, 0)) {
                         std::cerr << "[TABLE] Failed to create G-stage mapping" << '\n';
                         return 0;
                     }
                 } else {
-                    pdte.PPN = mem_mgr_.getFreePhysicalPages(1);
+                    pdte.bits_.ppn_ = mem_mgr_.getFreePhysicalPages(1);
                 }
                 
-                if (!write_func_(entry_addr, 8, pdte.raw)) {
+                if (!write_func_(entry_addr, 8, pdte.value_)) {
                     std::cerr << "[TABLE] Failed to write PDTE at 0x" << std::hex << entry_addr << '\n';
                     return 0;
                 }
                 
                 std::cout << "[TABLE] Created PDT level " << i << " entry at 0x" 
-                          << std::hex << entry_addr << " -> PPN 0x" << pdte.PPN << std::dec << '\n';
+                          << std::hex << entry_addr << " -> PPN 0x" << pdte.bits_.ppn_ << std::dec << '\n';
             }
             
-            addr = pdte.PPN * PAGESIZE;
+            addr = pdte.bits_.ppn_ * PAGESIZE;
         }
 
         // Translate final address if needed

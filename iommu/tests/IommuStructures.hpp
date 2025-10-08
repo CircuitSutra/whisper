@@ -23,20 +23,7 @@ inline uint64_t get_bits(uint8_t msb, uint8_t lsb, uint64_t value) {
 using ddtp_t = TT_IOMMU::Ddtp;
 using ddte_t = TT_IOMMU::Ddte;
 using pdtp_t = TT_IOMMU::Pdtp;
-
-struct pdte_t {
-    union {
-        uint64_t raw = 0;
-        struct {
-            uint64_t V : 1;
-            uint64_t reserved0 : 9;
-            uint64_t PPN : 44;
-            uint64_t reserved1 : 10;
-        };
-    };
-    pdte_t() = default;
-    pdte_t(uint64_t val) : raw(val) {}
-};
+using pdte_t = TT_IOMMU::Pdte;
 
 struct iohgatp_t {
     union {
