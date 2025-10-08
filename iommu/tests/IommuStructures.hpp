@@ -25,18 +25,7 @@ using ddte_t = TT_IOMMU::Ddte;
 using pdtp_t = TT_IOMMU::Pdtp;
 using pdte_t = TT_IOMMU::Pdte;
 
-struct iohgatp_t {
-    union {
-        uint64_t value_ = 0;
-        struct {
-            uint64_t ppn_     : 44;
-            unsigned gcsid_   : 16;
-            uint32_t mode_    : 4;
-        } bits_;
-    };
-    iohgatp_t() = default;
-    iohgatp_t(uint64_t val) : value_(val) {}
-};
+using iohgatp_t = TT_IOMMU::Iohgatp;
 
 struct iosatp_t {
     union {

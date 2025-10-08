@@ -83,12 +83,12 @@ public:
         dc.tc |= 0x8; // Enable T2GPA bit
         
         // Set up IOHGATP for G-stage translation
-        dc.iohgatp.bits_.mode_ = 8; // Sv39x4
+        dc.iohgatp.bits_.mode_ = TT_IOMMU::IohgatpMode::Sv39x4;
         dc.iohgatp.bits_.gcsid_ = 0;
         dc.iohgatp.bits_.ppn_ = memMgr_.getFreePhysicalPages(1);
     } else {
         // Bare mode - no G-stage translation
-        dc.iohgatp.bits_.mode_ = 0; // Bare
+        dc.iohgatp.bits_.mode_ = TT_IOMMU::IohgatpMode::Bare;
         dc.iohgatp.bits_.gcsid_ = 0;
         dc.iohgatp.bits_.ppn_ = 0;
     }

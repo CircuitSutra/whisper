@@ -109,7 +109,7 @@ public:
         // Walk down the process directory levels
         for (int i = levels - 1; i > 0; i--) {
             // Translate through G-stage if needed
-            if (dc.iohgatp.bits_.mode_ != 0) {
+            if (dc.iohgatp.bits_.mode_ != TT_IOMMU::IohgatpMode::Bare) {
                 uint64_t spa = 0;
                 if (!translateGPA(dc.iohgatp, addr, spa)) {
                     std::cerr << "[TABLE] G-stage translation failed for addr 0x" 
@@ -130,7 +130,7 @@ public:
             if (pdte.bits_.v_ == 0) {
                 pdte.bits_.v_ = 1;
                 
-                if (dc.iohgatp.bits_.mode_ != 0) {
+                if (dc.iohgatp.bits_.mode_ != TT_IOMMU::IohgatpMode::Bare) {
                     // Allocate guest page and map it
                     pdte.bits_.ppn_ = mem_mgr_.getFreeGuestPages(1, dc.iohgatp);
                     
@@ -168,7 +168,7 @@ public:
         }
 
         // Translate final address if needed
-        if (dc.iohgatp.bits_.mode_ != 0) {
+        if (dc.iohgatp.bits_.mode_ != TT_IOMMU::IohgatpMode::Bare) {
             uint64_t spa = 0;
             if (!translateGPA(dc.iohgatp, addr, spa)) {
                 std::cerr << "[TABLE] Final G-stage translation failed" << '\n';
@@ -198,26 +198,26 @@ public:
         
         // Determine levels and VPN extraction based on mode
         switch (iohgatp.bits_.mode_) {
-            case 1:
+            case TT_IOMMU::IohgatpMode::Sv32x4:
                 vpn.at(0) = get_bits(21, 12, gpa);
                 vpn.at(1) = get_bits(34, 22, gpa);
                 levels = 2;
                 pte_size = 4; // 32-bit PTEs
                 break;
-            case 8:
+            case TT_IOMMU::IohgatpMode::Sv39x4:
                 vpn.at(0) = get_bits(20, 12, gpa);
                 vpn.at(1) = get_bits(29, 21, gpa);
                 vpn.at(2) = get_bits(40, 30, gpa);
                 levels = 3;
                 break;
-            case 9:
+            case TT_IOMMU::IohgatpMode::Sv48x4:
                 vpn.at(0) = get_bits(20, 12, gpa);
                 vpn.at(1) = get_bits(29, 21, gpa);
                 vpn.at(2) = get_bits(38, 30, gpa);
                 vpn.at(3) = get_bits(49, 39, gpa);
                 levels = 4;
                 break;
-            case 10:
+            case TT_IOMMU::IohgatpMode::Sv57x4:
                 vpn.at(0) = get_bits(20, 12, gpa);
                 vpn.at(1) = get_bits(29, 21, gpa);
                 vpn.at(2) = get_bits(38, 30, gpa);
@@ -434,7 +434,7 @@ public:
 
     // Simplified GPA translation (basic version of translate_gpa)
     static bool translateGPA(const iohgatp_t& iohgatp, uint64_t gpa, uint64_t& spa) {
-        if (iohgatp.bits_.mode_ == 0) {
+        if (iohgatp.bits_.mode_ == TT_IOMMU::IohgatpMode::Bare) {
             spa = gpa;
             return true;
         }

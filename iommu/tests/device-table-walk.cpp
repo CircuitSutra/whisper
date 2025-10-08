@@ -89,7 +89,7 @@ static uint64_t setupDeviceTableWithBuilder(TT_IOMMU::Iommu& iommu, MemoryModel&
     dc.tc = 0x1; // Valid device context
     
     // Set up IOHGATP for bare mode (no G-stage translation)
-    dc.iohgatp.bits_.mode_ = 0; // Bare
+    dc.iohgatp.bits_.mode_ = TT_IOMMU::IohgatpMode::Bare;
     dc.iohgatp.bits_.gcsid_ = 0;
     dc.iohgatp.bits_.ppn_ = 0;
     

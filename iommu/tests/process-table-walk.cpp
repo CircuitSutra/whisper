@@ -61,7 +61,7 @@ static uint64_t setupTablesWithBuilder(Iommu& iommu, MemoryModel& /* memory */,
     dc.tc = 0x21; // Valid device context with PDTV=1 for process directory
     
     // Set up IOHGATP for bare mode (no G-stage translation)
-    dc.iohgatp.bits_.mode_ = 0; // Bare
+    dc.iohgatp.bits_.mode_ = TT_IOMMU::IohgatpMode::Bare;
     dc.iohgatp.bits_.gcsid_ = 0;
     dc.iohgatp.bits_.ppn_ = 0;
     
@@ -246,7 +246,7 @@ void testMultipleProcesses() {
     
     device_context_t dc = {};
     dc.tc = 0x21; // Valid with PDTV=1
-    dc.iohgatp.bits_.mode_ = 0; // Bare
+    dc.iohgatp.bits_.mode_ = TT_IOMMU::IohgatpMode::Bare;
     dc.fsc.pdtp.bits_.mode_ = TT_IOMMU::PdtpMode::Pd17;
     dc.fsc.pdtp.bits_.ppn_ = memMgr.getFreePhysicalPages(1);
     
