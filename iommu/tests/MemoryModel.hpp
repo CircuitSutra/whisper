@@ -6,9 +6,6 @@
 #include <functional>
 #include <cstdint>
 
-// -----------------------------------------------------------------------------
-// Simple flat memory model
-// -----------------------------------------------------------------------------
 class MemoryModel {
 public:
   MemoryModel(size_t size) : memory(size) {
