@@ -74,7 +74,7 @@ namespace TT_IOMMU
     uint64_t dw0 = 0;
     uint64_t dw1 = 0;
   };
-  
+
   // ATS.INVAL command structure
   struct AtsInvalCommand
   {
@@ -117,7 +117,7 @@ namespace TT_IOMMU
     // Constructor to initialize opcode and func3
     AtsPrgrCommand() = default;
   };
-  
+
   // IODIR command structure
   struct IodirCommand
   {

@@ -260,7 +260,7 @@ namespace TT_IOMMU
       uint64_t shiftedGpa = gpa >> 12;
       uint64_t pattern = msiPattern();
       uint64_t mask = msiMask();
-      
+
       // The matching criteria should be: (shifted_gpa & ~shifted_mask) == (shifted_pattern & ~shifted_mask)
       return (shiftedGpa & ~mask) == (pattern & ~mask);
     }
@@ -438,7 +438,7 @@ namespace TT_IOMMU
     /// Return mask of reserved bits in msi pattern field.
     static uint64_t msiPatternResMask() 
     { return 0xfff0'0000'0000'0000; }
-    
+
     /// Comparison operator. Compare all the fields.
     bool operator==(const DeviceContext& other) const = default;
 
