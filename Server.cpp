@@ -804,7 +804,7 @@ Server<URV>::mcmReadCommand(const WhisperMessage& req, WhisperMessage& reply,
 	  else
 	    {
 	      for (unsigned i = 0; i < size and ok; ++i, ++addr)
-		ok = system_.mcmRead(hart, time, tag, addr + i, 1, req.buffer.at(i), elem, field, cache);
+		ok = system_.mcmRead(hart, time, tag, addr, 1, req.buffer.at(i), elem, field, cache);
 	    }
 
 	  if (cmdLog)
