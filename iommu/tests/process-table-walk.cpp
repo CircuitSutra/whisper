@@ -49,14 +49,6 @@ static uint64_t setupTablesWithBuilder(Iommu& iommu, MemoryModel& /* memory */,
                                       Ddtp::Mode ddtMode, PdtpMode pdtMode) {
     
     // Convert TT_IOMMU modes to IOMMU namespace modes
-    DDTMode ddtBuilderMode{};
-    switch (ddtMode) {
-        case Ddtp::Mode::Level3: ddtBuilderMode = DDT_3LVL; break;
-        case Ddtp::Mode::Level2: ddtBuilderMode = DDT_2LVL; break;
-        case Ddtp::Mode::Level1: ddtBuilderMode = DDT_1LVL; break;
-        default: ddtBuilderMode = DDT_OFF; break;
-    }
-    
     PDTMode pdtBuilderMode{};
     switch (pdtMode) {
         case PdtpMode::Pd20: pdtBuilderMode = PD20; break;
@@ -65,22 +57,22 @@ static uint64_t setupTablesWithBuilder(Iommu& iommu, MemoryModel& /* memory */,
         default: pdtBuilderMode = PD_OFF; break;
     }
     
-    // Set up DDTP using our structure
+    // Set up DDTP
     ddtp_t ddtp;
-    ddtp.iommu_mode = ddtBuilderMode;  
-    ddtp.ppn = memMgr.getFreePhysicalPages(1);
+    ddtp.bits_.mode_ = ddtMode;
+    ddtp.bits_.ppn_ = memMgr.getFreePhysicalPages(1);
     
     // Configure DDTP register in the IOMMU
-    configureDdtp(iommu, ddtp.ppn, ddtMode);
+    configureDdtp(iommu, ddtp.ppn(), ddtMode);
     
     // Create a device context with PDT enabled
     device_context_t dc = {};
     dc.tc = 0x21; // Valid device context with PDTV=1 for process directory
     
     // Set up IOHGATP for bare mode (no G-stage translation)
-    dc.iohgatp.MODE = IOHGATP_Bare;
-    dc.iohgatp.GSCID = 0;
-    dc.iohgatp.PPN = 0;
+    dc.iohgatp.bits_.mode_ = 0; // Bare
+    dc.iohgatp.bits_.gcsid_ = 0;
+    dc.iohgatp.bits_.ppn_ = 0;
     
     // Set up first-stage context with PDT
     dc.fsc.pdtp.MODE = pdtBuilderMode;
@@ -257,13 +249,13 @@ void testMultipleProcesses() {
     
     // Set up device context first
     ddtp_t ddtp;
-    ddtp.iommu_mode = DDT_2LVL;
-    ddtp.ppn = memMgr.getFreePhysicalPages(1);
-    configureDdtp(iommu, ddtp.ppn, Ddtp::Mode::Level2);
+    ddtp.bits_.mode_ = Ddtp::Mode::Level2;
+    ddtp.bits_.ppn_ = memMgr.getFreePhysicalPages(1);
+    configureDdtp(iommu, ddtp.ppn(), Ddtp::Mode::Level2);
     
     device_context_t dc = {};
     dc.tc = 0x21; // Valid with PDTV=1
-    dc.iohgatp.MODE = IOHGATP_Bare;
+    dc.iohgatp.bits_.mode_ = 0; // Bare
     dc.fsc.pdtp.MODE = PD17;
     dc.fsc.pdtp.PPN = memMgr.getFreePhysicalPages(1);
     

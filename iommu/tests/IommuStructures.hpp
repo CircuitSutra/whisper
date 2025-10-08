@@ -20,20 +20,7 @@ inline uint64_t get_bits(uint8_t msb, uint8_t lsb, uint64_t value) {
     return (value >> lsb) & mask;
 }
 
-struct ddtp_t {
-    union {
-        uint64_t raw = 0;
-        struct {
-            uint64_t iommu_mode : 4;
-            uint64_t busy : 1;
-            uint64_t reserved : 5;
-            uint64_t ppn : 44;
-            uint64_t reserved2 : 10;
-        };
-    };
-    ddtp_t() = default;
-    ddtp_t(uint64_t val) : raw(val) {}
-};
+using ddtp_t = TT_IOMMU::Ddtp;
 
 using ddte_t = TT_IOMMU::Ddte;
 

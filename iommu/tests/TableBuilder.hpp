@@ -37,16 +37,12 @@ public:
             dc_size = EXT_FORMAT_DC_SIZE;
         }
 
-        uint64_t addr = ddtp.ppn * PAGESIZE;
-        uint8_t levels = 0;
+        uint64_t addr = ddtp.ppn() * PAGESIZE;
+        uint8_t levels = ddtp.levels();
         
-        switch (ddtp.iommu_mode) {
-            case DDT_3LVL: levels = 3; break;
-            case DDT_2LVL: levels = 2; break;
-            case DDT_1LVL: levels = 1; break;
-            default:
-                std::cerr << "[TABLE] Invalid DDT mode: " << ddtp.iommu_mode << '\n';
-                return 0;
+        if (levels == 0) {
+            std::cerr << "[TABLE] Invalid DDT mode\n";
+            return 0;
         }
 
         // Walk down the directory levels

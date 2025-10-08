@@ -76,25 +76,13 @@ static void configureFctl(TT_IOMMU::Iommu& iommu, bool gxl = false, bool be = fa
 static uint64_t setupDeviceTableWithBuilder(TT_IOMMU::Iommu& iommu, MemoryModel& /* memory */,
                                            MemoryManager& memMgr, TableBuilder& tableBuilder,
                                            uint32_t devId, Ddtp::Mode mode) {
-    // Convert TT_IOMMU::Ddtp::Mode to IOMMU::DDTMode
-    DDTMode ddtMode{};
-    switch (mode) {
-        case Ddtp::Mode::Level3: ddtMode = DDT_3LVL; break;
-        case Ddtp::Mode::Level2: ddtMode = DDT_2LVL; break;
-        case Ddtp::Mode::Level1: ddtMode = DDT_1LVL; break;
-        default: ddtMode = DDT_OFF; break;
-    }
-    
-    // Set up DDTP using our structure
+    // Set up DDTP
     ddtp_t ddtp;
-    ddtp.iommu_mode = ddtMode;
-    ddtp.ppn = memMgr.getFreePhysicalPages(1);
+    ddtp.bits_.mode_ = mode;
+    ddtp.bits_.ppn_ = memMgr.getFreePhysicalPages(1);
     
     // Configure DDTP register in the IOMMU
-    Ddtp iommuDdtp;
-    iommuDdtp.bits_.mode_ = mode;
-    iommuDdtp.bits_.ppn_ = ddtp.ppn;
-    iommu.writeCsr(CsrNumber::Ddtp, iommuDdtp.value_);
+    iommu.writeCsr(CsrNumber::Ddtp, ddtp.value_);
     
     // Create a basic device context
     device_context_t dc = {};
@@ -118,7 +106,7 @@ static uint64_t setupDeviceTableWithBuilder(TT_IOMMU::Iommu& iommu, MemoryModel&
     uint64_t dc_addr = tableBuilder.addDeviceContext(dc, devId, ddtp, msi_flat);
     
     std::cout << "[TABLE_BUILDER] Created DDT structure for device ID 0x" 
-              << std::hex << devId << " using " << (int)ddtMode << "-level mode" 
+              << std::hex << devId << " using " << static_cast<int>(mode) << "-level mode" 
               << ", device context at 0x" << dc_addr << std::dec << '\n';;
     
     return dc_addr;

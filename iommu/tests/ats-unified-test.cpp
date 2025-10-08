@@ -57,19 +57,16 @@ public:
     
     // Set up DDTP for 2-level DDT
     ddtp_t ddtp;
-    ddtp.iommu_mode = DDT_2LVL;
-    ddtp.ppn = memMgr_.getFreePhysicalPages(1);
+    ddtp.bits_.mode_ = Ddtp::Mode::Level2;
+    ddtp.bits_.ppn_ = memMgr_.getFreePhysicalPages(1);
     
     // Configure DDTP register in the IOMMU
-    Ddtp iommuDdtp;
-    iommuDdtp.bits_.mode_ = Ddtp::Mode::Level2;
-    iommuDdtp.bits_.ppn_ = ddtp.ppn;
-    iommu_->writeCsr(CsrNumber::Ddtp, iommuDdtp.value_);
+    iommu_->writeCsr(CsrNumber::Ddtp, ddtp.value_);
     
     // Debug: Verify DDTP was written correctly
     uint64_t ddtpValue = iommu_->readCsr(CsrNumber::Ddtp);
     Ddtp readDdtp{ddtpValue};
-    std::cout << "[DEBUG] DDTP written: 0x" << std::hex << iommuDdtp.value_ 
+    std::cout << "[DEBUG] DDTP written: 0x" << std::hex << ddtp.value_ 
               << ", read: 0x" << ddtpValue << ", mode: " << static_cast<int>(readDdtp.mode()) << std::dec << '\n';
     
     // Create device context with ATS configuration
