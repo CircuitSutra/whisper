@@ -58,16 +58,14 @@ static uint64_t setupTablesWithBuilder(Iommu& iommu, MemoryModel& /* memory */,
     
     // Create a device context with PDT enabled
     device_context_t dc = {};
-    dc.tc = 0x21; // Valid device context with PDTV=1 for process directory
-    
-    // Set up IOHGATP for bare mode (no G-stage translation)
-    dc.iohgatp.bits_.mode_ = TT_IOMMU::IohgatpMode::Bare;
-    dc.iohgatp.bits_.gcsid_ = 0;
-    dc.iohgatp.bits_.ppn_ = 0;
+    dc.tc_ = 0x21; // Valid device context with PDTV=1 for process directory
+    dc.iohgatp_ = 0; // Bare mode
     
     // Set up first-stage context with PDT (FSC holds PDTP when PDTV=1)
-    dc.fsc.bits_.mode_ = static_cast<uint32_t>(pdtMode);
-    dc.fsc.bits_.ppn_ = memMgr.getFreePhysicalPages(1);
+    TT_IOMMU::Fsc fsc;
+    fsc.bits_.mode_ = static_cast<uint32_t>(pdtMode);
+    fsc.bits_.ppn_ = memMgr.getFreePhysicalPages(1);
+    dc.fsc_ = fsc.value_;
     
     // Create device context using TableBuilder
     bool msi_flat = iommu.isDcExtended();
@@ -245,10 +243,12 @@ void testMultipleProcesses() {
     configureDdtp(iommu, ddtp.ppn(), Ddtp::Mode::Level2);
     
     device_context_t dc = {};
-    dc.tc = 0x21; // Valid with PDTV=1
-    dc.iohgatp.bits_.mode_ = TT_IOMMU::IohgatpMode::Bare;
-    dc.fsc.bits_.mode_ = static_cast<uint32_t>(TT_IOMMU::PdtpMode::Pd17);
-    dc.fsc.bits_.ppn_ = memMgr.getFreePhysicalPages(1);
+    dc.tc_ = 0x21; // Valid with PDTV=1
+    dc.iohgatp_ = 0; // Bare mode
+    TT_IOMMU::Fsc fsc;
+    fsc.bits_.mode_ = static_cast<uint32_t>(TT_IOMMU::PdtpMode::Pd17);
+    fsc.bits_.ppn_ = memMgr.getFreePhysicalPages(1);
+    dc.fsc_ = fsc.value_;
     
     uint64_t dc_addr = tableBuilder.addDeviceContext(dc, TestValues::TEST_DEV_ID, ddtp, false);
     

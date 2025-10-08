@@ -71,32 +71,34 @@ public:
     
     // Create device context with ATS configuration
     device_context_t dc = {};
-    dc.tc = 0x1; // Valid device context
+    dc.tc_ = 0x1; // Valid device context
     
     // Configure ATS
     if (enableAts) {
-        dc.tc |= 0x2; // Enable ATS bit
+        dc.tc_ |= 0x2; // Enable ATS bit
     }
     
     // Configure T2GPA  
     if (enableT2gpa) {
-        dc.tc |= 0x8; // Enable T2GPA bit
+        dc.tc_ |= 0x8; // Enable T2GPA bit
         
         // Set up IOHGATP for G-stage translation
-        dc.iohgatp.bits_.mode_ = TT_IOMMU::IohgatpMode::Sv39x4;
-        dc.iohgatp.bits_.gcsid_ = 0;
-        dc.iohgatp.bits_.ppn_ = memMgr_.getFreePhysicalPages(1);
+        TT_IOMMU::Iohgatp iohgatp;
+        iohgatp.bits_.mode_ = TT_IOMMU::IohgatpMode::Sv39x4;
+        iohgatp.bits_.gcsid_ = 0;
+        iohgatp.bits_.ppn_ = memMgr_.getFreePhysicalPages(1);
+        dc.iohgatp_ = iohgatp.value_;
     } else {
         // Bare mode - no G-stage translation
-        dc.iohgatp.bits_.mode_ = TT_IOMMU::IohgatpMode::Bare;
-        dc.iohgatp.bits_.gcsid_ = 0;
-        dc.iohgatp.bits_.ppn_ = 0;
+        dc.iohgatp_ = 0;
     }
     
     // Set up first-stage context - direct IOSATP mode (PDTV=0)
     // FSC holds an IOSATP when PDTV=0
-    dc.fsc.bits_.mode_ = static_cast<uint32_t>(TT_IOMMU::IosatpMode::Sv39);
-    dc.fsc.bits_.ppn_ = memMgr_.getFreePhysicalPages(1);
+    TT_IOMMU::Fsc fsc;
+    fsc.bits_.mode_ = static_cast<uint32_t>(TT_IOMMU::IosatpMode::Sv39);
+    fsc.bits_.ppn_ = memMgr_.getFreePhysicalPages(1);
+    dc.fsc_ = fsc.value_;
     
     // Use TableBuilder to create the device context
     bool msi_flat = iommu_->isDcExtended();
@@ -188,7 +190,7 @@ public:
         
         // Add S-stage page table entry directly using the IOSATP from device context
         // FSC holds an IOSATP when PDTV=0
-        iosatp_t iosatp(dc.fsc.value_);
+        iosatp_t iosatp(dc.fsc_);
         bool success = tableBuilder_.addSStagePageTableEntry(iosatp, iova, pte, 0);
         if (!success) {
             std::cerr << "[ATS_HELPER] Failed to create S-stage PTE for IOVA 0x" 

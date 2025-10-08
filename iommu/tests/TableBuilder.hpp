@@ -95,8 +95,9 @@ public:
         pdi.at(2) = get_bits(19, 17, process_id);
 
         // FSC holds PDTP when PDTV=1
+        TT_IOMMU::Fsc fsc(dc.fsc_);
         uint8_t levels = 0;
-        auto pdtpMode = static_cast<TT_IOMMU::PdtpMode>(dc.fsc.bits_.mode_);
+        auto pdtpMode = static_cast<TT_IOMMU::PdtpMode>(fsc.bits_.mode_);
         switch (pdtpMode) {
             case TT_IOMMU::PdtpMode::Pd20: levels = 3; break;
             case TT_IOMMU::PdtpMode::Pd17: levels = 2; break;
@@ -106,14 +107,15 @@ public:
                 return 0;
         }
 
-        uint64_t addr = dc.fsc.bits_.ppn_ * PAGESIZE;
+        uint64_t addr = fsc.bits_.ppn_ * PAGESIZE;
         
         // Walk down the process directory levels
+        TT_IOMMU::Iohgatp iohgatp(dc.iohgatp_);
         for (int i = levels - 1; i > 0; i--) {
             // Translate through G-stage if needed
-            if (dc.iohgatp.bits_.mode_ != TT_IOMMU::IohgatpMode::Bare) {
+            if (iohgatp.bits_.mode_ != TT_IOMMU::IohgatpMode::Bare) {
                 uint64_t spa = 0;
-                if (!translateGPA(dc.iohgatp, addr, spa)) {
+                if (!translateGPA(iohgatp, addr, spa)) {
                     std::cerr << "[TABLE] G-stage translation failed for addr 0x" 
                               << std::hex << addr << '\n';
                     return 0;
@@ -132,9 +134,9 @@ public:
             if (pdte.bits_.v_ == 0) {
                 pdte.bits_.v_ = 1;
                 
-                if (dc.iohgatp.bits_.mode_ != TT_IOMMU::IohgatpMode::Bare) {
+                if (iohgatp.bits_.mode_ != TT_IOMMU::IohgatpMode::Bare) {
                     // Allocate guest page and map it
-                    pdte.bits_.ppn_ = mem_mgr_.getFreeGuestPages(1, dc.iohgatp);
+                    pdte.bits_.ppn_ = mem_mgr_.getFreeGuestPages(1, iohgatp);
                     
                     // Create G-stage mapping for the allocated page
                     gpte_t gpte;
@@ -149,7 +151,7 @@ public:
                     gpte.PBMT = PMA;
                     gpte.PPN = mem_mgr_.getFreePhysicalPages(1);
                     
-                    if (!addGStagePageTableEntry(dc.iohgatp, PAGESIZE * pdte.bits_.ppn_, gpte, 0)) {
+                    if (!addGStagePageTableEntry(iohgatp, PAGESIZE * pdte.bits_.ppn_, gpte, 0)) {
                         std::cerr << "[TABLE] Failed to create G-stage mapping" << '\n';
                         return 0;
                     }
@@ -170,9 +172,9 @@ public:
         }
 
         // Translate final address if needed
-        if (dc.iohgatp.bits_.mode_ != TT_IOMMU::IohgatpMode::Bare) {
+        if (iohgatp.bits_.mode_ != TT_IOMMU::IohgatpMode::Bare) {
             uint64_t spa = 0;
-            if (!translateGPA(dc.iohgatp, addr, spa)) {
+            if (!translateGPA(iohgatp, addr, spa)) {
                 std::cerr << "[TABLE] Final G-stage translation failed" << '\n';
                 return 0;
             }
@@ -459,11 +461,11 @@ public:
         if (dtf_enabled) tc_value |= (1ULL << 6);  // DTF bit
         if (sbe_enabled) tc_value |= (1ULL << 8);  // SBE bit  
         if (pdtv_enabled) tc_value |= (1ULL << 10); // PDTV bit
-        dc.tc = tc_value;
+        dc.tc_ = tc_value;
         
         // Set process directory pointer if PDTV is enabled  
         if (pdtv_enabled && pdtp_value != 0) {
-            dc.fsc.value_ = pdtp_value;
+            dc.fsc_ = pdtp_value;
         }
         
         return addDeviceContext(dc, device_id, ddtp);

@@ -27,17 +27,7 @@ using pdte_t = TT_IOMMU::Pdte;
 using iohgatp_t = TT_IOMMU::Iohgatp;
 using iosatp_t = TT_IOMMU::Iosatp;
 using fsc_t = TT_IOMMU::Fsc;
-
-struct device_context_t {
-    uint64_t tc{};
-    iohgatp_t iohgatp{};
-    uint64_t ta{};              // Translation Attributes (was missing!)
-    fsc_t fsc{};
-    uint64_t msiptp{};
-    uint64_t msi_addr_mask{};
-    uint64_t msi_addr_pattern{};
-    uint64_t reserved{};        // Only 1 reserved field (8 bytes)
-};
+using device_context_t = TT_IOMMU::ExtendedDeviceContext;
 
 struct process_context_t {
     iosatp_t ta{0};
