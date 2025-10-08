@@ -41,7 +41,7 @@ public:
                       TestMemorySize memSize = TestMemorySize::Medium,
                       uint64_t iommuAddr = 0x1000,
                       uint64_t iommuSize = 0x800)
-        : memory_(static_cast<size_t>(memSize)), memMgr_(),
+        : memory_(static_cast<size_t>(memSize)),
           readFunc_([this](uint64_t addr, unsigned size, uint64_t& data) {
               return memory_.read(addr, size, data);
           }),
@@ -68,7 +68,7 @@ public:
                       TestMemorySize memSize = TestMemorySize::Medium,
                       uint64_t iommuAddr = 0x1000,
                       uint64_t iommuSize = 0x800)
-        : memory_(static_cast<size_t>(memSize)), memMgr_(),
+        : memory_(static_cast<size_t>(memSize)),
           readFunc_([this](uint64_t addr, unsigned size, uint64_t& data) {
               return memory_.read(addr, size, data);
           }),
@@ -243,7 +243,7 @@ public:
 private:
     std::unique_ptr<Iommu> iommu_;
     MemoryModel memory_;
-    MemoryManager memMgr_;
+    MemoryManager memMgr_{};
     std::function<bool(uint64_t,unsigned,uint64_t&)> readFunc_;
     std::function<bool(uint64_t,unsigned,uint64_t)> writeFunc_;
     TableBuilder tableBuilder_;

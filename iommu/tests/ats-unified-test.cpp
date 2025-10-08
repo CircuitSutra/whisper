@@ -32,7 +32,7 @@ using namespace IOMMU;
 class AtsTestHelper
 {
 public:
-  AtsTestHelper() : mem_(size_t(256) * 1024 * 1024), memMgr_(), // 256MB memory
+  AtsTestHelper() : mem_(size_t(256) * 1024 * 1024), // 256MB memory
                     readFunc_([this](uint64_t addr, unsigned size, uint64_t& data) {
                         return mem_.read(addr, size, data);
                     }),
@@ -159,7 +159,7 @@ public:
 
 private:
   MemoryModel mem_;
-  MemoryManager memMgr_;
+  MemoryManager memMgr_{};
   std::function<bool(uint64_t,unsigned,uint64_t&)> readFunc_;
   std::function<bool(uint64_t,unsigned,uint64_t)> writeFunc_;
   TableBuilder tableBuilder_;
