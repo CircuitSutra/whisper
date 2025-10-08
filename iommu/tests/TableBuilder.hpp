@@ -95,16 +95,16 @@ public:
         pdi.at(2) = get_bits(19, 17, process_id);
 
         uint8_t levels = 0;
-        switch (dc.fsc.pdtp.MODE) {
-            case PD20: levels = 3; break;
-            case PD17: levels = 2; break;
-            case PD8: levels = 1; break;
+        switch (dc.fsc.pdtp.bits_.mode_) {
+            case TT_IOMMU::PdtpMode::Pd20: levels = 3; break;
+            case TT_IOMMU::PdtpMode::Pd17: levels = 2; break;
+            case TT_IOMMU::PdtpMode::Pd8: levels = 1; break;
             default:
-                std::cerr << "[TABLE] Invalid PDT mode: " << dc.fsc.pdtp.MODE << '\n';
+                std::cerr << "[TABLE] Invalid PDT mode\n";
                 return 0;
         }
 
-        uint64_t addr = dc.fsc.pdtp.PPN * PAGESIZE;
+        uint64_t addr = dc.fsc.pdtp.bits_.ppn_ * PAGESIZE;
         
         // Walk down the process directory levels
         for (int i = levels - 1; i > 0; i--) {
@@ -461,7 +461,7 @@ public:
         
         // Set process directory pointer if PDTV is enabled  
         if (pdtv_enabled && pdtp_value != 0) {
-            dc.fsc.pdtp.raw = pdtp_value;
+            dc.fsc.pdtp.value_ = pdtp_value;
         }
         
         return addDeviceContext(dc, device_id, ddtp);

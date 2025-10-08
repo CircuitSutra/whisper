@@ -48,15 +48,6 @@ static uint64_t setupTablesWithBuilder(Iommu& iommu, MemoryModel& /* memory */,
                                       uint32_t devId, uint32_t processId, 
                                       Ddtp::Mode ddtMode, PdtpMode pdtMode) {
     
-    // Convert TT_IOMMU modes to IOMMU namespace modes
-    PDTMode pdtBuilderMode{};
-    switch (pdtMode) {
-        case PdtpMode::Pd20: pdtBuilderMode = PD20; break;
-        case PdtpMode::Pd17: pdtBuilderMode = PD17; break;
-        case PdtpMode::Pd8: pdtBuilderMode = PD8; break;
-        default: pdtBuilderMode = PD_OFF; break;
-    }
-    
     // Set up DDTP
     ddtp_t ddtp;
     ddtp.bits_.mode_ = ddtMode;
@@ -75,8 +66,8 @@ static uint64_t setupTablesWithBuilder(Iommu& iommu, MemoryModel& /* memory */,
     dc.iohgatp.bits_.ppn_ = 0;
     
     // Set up first-stage context with PDT
-    dc.fsc.pdtp.MODE = pdtBuilderMode;
-    dc.fsc.pdtp.PPN = memMgr.getFreePhysicalPages(1);
+    dc.fsc.pdtp.bits_.mode_ = pdtMode;
+    dc.fsc.pdtp.bits_.ppn_ = memMgr.getFreePhysicalPages(1);
     
     // Create device context using TableBuilder
     bool msi_flat = iommu.isDcExtended();
@@ -256,8 +247,8 @@ void testMultipleProcesses() {
     device_context_t dc = {};
     dc.tc = 0x21; // Valid with PDTV=1
     dc.iohgatp.bits_.mode_ = 0; // Bare
-    dc.fsc.pdtp.MODE = PD17;
-    dc.fsc.pdtp.PPN = memMgr.getFreePhysicalPages(1);
+    dc.fsc.pdtp.bits_.mode_ = TT_IOMMU::PdtpMode::Pd17;
+    dc.fsc.pdtp.bits_.ppn_ = memMgr.getFreePhysicalPages(1);
     
     uint64_t dc_addr = tableBuilder.addDeviceContext(dc, TestValues::TEST_DEV_ID, ddtp, false);
     

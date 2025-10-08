@@ -94,8 +94,8 @@ public:
     }
     
     // Set up first-stage context - direct IOSATP mode (PDTV=0)
-    dc.fsc.pdtp.MODE = PD_OFF; // Not used when PDTV=0
-    dc.fsc.pdtp.PPN = 0;
+    dc.fsc.pdtp.bits_.mode_ = TT_IOMMU::PdtpMode::Bare; // Not used when PDTV=0
+    dc.fsc.pdtp.bits_.ppn_ = 0;
     
     // Set up S-stage translation
     dc.fsc.iosatp.MODE = IOSATP_Sv39;

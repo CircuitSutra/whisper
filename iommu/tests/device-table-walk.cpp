@@ -94,8 +94,8 @@ static uint64_t setupDeviceTableWithBuilder(TT_IOMMU::Iommu& iommu, MemoryModel&
     dc.iohgatp.bits_.ppn_ = 0;
     
     // Set up first-stage context with basic configuration
-    dc.fsc.pdtp.MODE = PD8; // Simple 1-level PDT
-    dc.fsc.pdtp.PPN = memMgr.getFreePhysicalPages(1);
+    dc.fsc.pdtp.bits_.mode_ = TT_IOMMU::PdtpMode::Pd8; // Simple 1-level PDT
+    dc.fsc.pdtp.bits_.ppn_ = memMgr.getFreePhysicalPages(1);
     
     // Set up S-stage translation  
     dc.fsc.iosatp.MODE = IOSATP_Sv39;
