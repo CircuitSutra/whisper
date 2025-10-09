@@ -5,7 +5,7 @@ using namespace TT_IMSIC;
 
 /// Until we have C++23 and std::byteswap
 template <typename T,
-            std::enable_if_t<std::is_integral<T>::value, int> = 0>
+            std::enable_if_t<std::is_integral_v<T>, int> = 0>
 constexpr T byteswap(T x)
 {
   if constexpr (sizeof(x) == 1)
@@ -27,15 +27,16 @@ File::iregRead(unsigned sel, URV& val) const
   using EIC = ExternalInterruptCsr;
   val = 0;
 
+  if ((sel == EIC::SRES0) or
+      (sel >= EIC::SRES1 and sel <= EIC::SRES2))
+    return true;
+  if (sel >= EIC::IPRIO0 and sel <= EIC::IPRIO15) // accessible when V=1
+    return true;
+
   if (sel == EIC::DELIVERY)
     val = delivery_;
   else if (sel == EIC::THRESHOLD)
     val = threshold_;
-  else if ((sel == EIC::SRES0) or
-           (sel >= EIC::SRES1 and sel <= EIC::SRES2))
-    return true;
-  else if (sel >= EIC::IPRIO0 and sel <= EIC::IPRIO15) // accessible when V=1
-    return true;
   else
     {
       unsigned offset = 0;
@@ -79,6 +80,12 @@ File::iregWrite(unsigned sel, URV val)
   if (trace_)
     selects_.emplace_back(sel, sizeof(URV));
 
+  if ((sel == EIC::SRES0) or
+           (sel >= EIC::SRES1 and sel <= EIC::SRES2))
+    return true;
+  if (sel >= EIC::IPRIO0 and sel <= EIC::IPRIO15)
+    return true;
+
   if (sel == EIC::DELIVERY)
     {
       // Legalize value.
@@ -88,11 +95,6 @@ File::iregWrite(unsigned sel, URV val)
     }
   else if (sel == EIC::THRESHOLD)
     threshold_ = val & thresholdMask_;
-  else if ((sel == EIC::SRES0) or
-           (sel >= EIC::SRES1 and sel <= EIC::SRES2))
-    return true;
-  else if (sel >= EIC::IPRIO0 and sel <= EIC::IPRIO15)
-    return true;
   else
     {
       unsigned offset = 0;
@@ -119,9 +121,9 @@ File::iregWrite(unsigned sel, URV val)
 
       auto& vec = *vecPtr;
       constexpr size_t bits = sizeof(URV)*8;
-      int begin = offset*32;
-      int end = std::min(begin + bits, vec.size());
-      for (int i = begin; i < end; i++)
+      unsigned begin = offset*32;
+      unsigned end = std::min(begin + bits, vec.size());
+      for (unsigned i = begin; i < end; i++)
         vec[i] = (val >> (i - begin)) & 1;
 
       updateTopId();
@@ -194,14 +196,11 @@ Imsic::write(uint64_t addr,  unsigned size, uint64_t data)
 }
 
 
-ImsicMgr::ImsicMgr(unsigned hartCount, unsigned pageSize)
-  : pageSize_(pageSize), imsics_(hartCount)
+ImsicMgr::ImsicMgr(unsigned pageSize)
+  : pageSize_(pageSize)
 {
   if (pageSize_ == 0)
     throw std::runtime_error("Zero page size in ImsciMgr constructor.");
-
-  for (unsigned ix = 0; ix < hartCount; ++ix)
-    imsics_.at(ix) = std::make_shared<Imsic>();
 }
 
 
@@ -217,7 +216,7 @@ ImsicMgr::configureMachine(uint64_t addr, uint64_t stride, unsigned ids,
 
   mbase_ = addr;
   mstride_ = stride;
-  for (auto imsic : imsics_)
+  for (const auto& imsic : imsics_)
     {
       imsic->configureMachine(addr, ids, pageSize_, thresholdMax, aplic);
       addr += stride;
@@ -238,7 +237,7 @@ ImsicMgr::configureSupervisor(uint64_t addr, uint64_t stride, unsigned ids,
 
   sbase_ = addr;
   sstride_ = stride;
-  for (auto imsic : imsics_)
+  for (const auto& imsic : imsics_)
     {
       imsic->configureSupervisor(addr, ids, pageSize_, thresholdMax, aplic);
       addr += stride;
@@ -250,10 +249,10 @@ ImsicMgr::configureSupervisor(uint64_t addr, uint64_t stride, unsigned ids,
 bool
 ImsicMgr::configureGuests(unsigned n, unsigned ids, unsigned thresholdMax)
 {
-  if (sstride_ < (n+1) * pageSize_)
+  if (sstride_ < static_cast<uint64_t>(n+1) * pageSize_)
     return false;  // No enough space.
 
-  for (auto imsic : imsics_)
+  for (const auto& imsic : imsics_)
     imsic->configureGuests(n, ids, pageSize_, thresholdMax);
 
   return true;

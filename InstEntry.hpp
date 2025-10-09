@@ -423,7 +423,7 @@ namespace WdRiscv
     OperandMode op2Mode_;
     OperandMode op3Mode_;
 
-    unsigned opCount_;
+    unsigned opCount_{0};
     unsigned ldSize_ = 0;      // Load size: Zero for non-load.
     unsigned stSize_ = 0;      // Store size: Zero for non-store.
     unsigned immedShiftSize_ = 0; // Shift size of immediate operand (eg. lui/auipc are automatically shifted left by 12) 

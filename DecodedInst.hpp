@@ -283,7 +283,7 @@ namespace WdRiscv
     bool isVectorLoadFaultFirst() const
     { 
       auto id = instId();
-      unsigned ix = unsigned(id);
+      auto ix = unsigned(id);
       return ( (ix >= unsigned(InstId::vle8ff_v) and ix <= unsigned(InstId::vle64ff_v)) or
                (ix >= unsigned(InstId::vlsege8ff_v) and ix <= unsigned(InstId::vlsege64ff_v)) );
     }
@@ -486,7 +486,7 @@ namespace WdRiscv
 
     /// Return value associated with ith operand.
     uint64_t ithOperandValue(unsigned i) const
-    { return i < 4? values_[i] : 0; }
+    { return i < 4? values_.at(i) : 0; }
 
     /// Return true if this is a vector instruction with masking enabled,
     bool isMasked() const
@@ -558,7 +558,7 @@ namespace WdRiscv
     uint32_t op2_;    // 3rd operand (register number or immediate value)
     uint32_t op3_;    // 4th operand (typically a register number)
 
-    std::array<uint64_t, 4> values_;  // Values of operands.
+    std::array<uint64_t, 4> values_{};  // Values of operands.
     bool valid_;
     bool masked_;     // For vector instructions.
     uint8_t vecFields_;   // For vector ld/st instructions.

@@ -5,33 +5,30 @@
 #include <chrono>
 #include <fstream>
 #include <cstring>
-#include <rfb/rfb.h>
-
 #include "RemoteFrameBuffer.hpp"
+#include <rfb/rfb.h>
 
 using namespace WdRiscv;
 
 // Don't change these
-#define RFB_BITS_PER_SAMPLE 8
-#define RFB_SAMPLES_PER_PIXEL 3
+enum {
+RFB_BITS_PER_SAMPLE = 8,
+RFB_SAMPLES_PER_PIXEL = 3
+};
 
 // Time between RFB updates
-#define RFB_FRAME_TIME_US  100000 
+enum {
+RFB_FRAME_TIME_US =  100000
+};
 
-RemoteFrameBuffer::RemoteFrameBuffer(uint64_t addr, uint64_t width, uint64_t height, uint64_t bytes_per_pixel)
-  : IoDevice("frame_buffer", addr, width*height*bytes_per_pixel), width_(width), height_(height), bytes_per_pixel_(bytes_per_pixel) {
+RemoteFrameBuffer::RemoteFrameBuffer(uint64_t addr, uint64_t width, uint64_t height, uint64_t bytes_per_pixel, int port)
+  : IoDevice("frame_buffer", addr, width*height*bytes_per_pixel), width_(width), height_(height), bytes_per_pixel_(bytes_per_pixel), port_(port) {
 
   // TODO: either hard code it to be 4 or support 1,2,4 bpp
   assert(bytes_per_pixel == 4 && "bytes per pixel must be 4");
 
   // each value in the frame buffer represents a pixel
-  frame_buffer_ = (uint32_t *) malloc(size());
-  if (frame_buffer_ == nullptr) {
-    std::cerr << "Failed to allocate frame buffer of size " << size() << "bytes.\n";
-    throw std::runtime_error("Out of memory");
-  }
-  
-  memset(frame_buffer_, 0, size());
+  frame_buffer_.resize(size() >> 2 /* size in bytes */, 0);
 
   auto func = [this]() { this->vncServerLoop(); };
   displayThread_ = std::thread(func);
@@ -42,12 +39,6 @@ RemoteFrameBuffer::~RemoteFrameBuffer()
   terminate_ = true;
   if (displayThread_.joinable())
     displayThread_.join();
-  
-  if (frame_buffer_)
-    {
-      free(frame_buffer_);
-      frame_buffer_ = nullptr;
-    }
 }
 
 void
@@ -64,13 +55,13 @@ RemoteFrameBuffer::vncServerLoop()
   if (!rfbScreen)
     return;
   rfbScreen->desktopName = "Whisper VNC";
-  rfbScreen->frameBuffer = (char*) frame_buffer_;
+  rfbScreen->frameBuffer = (char*) frame_buffer_.data();
   rfbScreen->alwaysShared = TRUE;
-  rfbScreen->port = 5998;
+  rfbScreen->port = port_;
 
   rfbInitServer(rfbScreen);
 
-  while(rfbIsActive(rfbScreen) && !terminate_) 
+  while(rfbIsActive(rfbScreen) && !terminate_)
   {
     rfbProcessEvents(rfbScreen, RFB_FRAME_TIME_US);
     if (frame_buffer_updated_) {
@@ -89,11 +80,11 @@ uint32_t
 RemoteFrameBuffer::read(uint64_t addr)
 {
   uint64_t offset = addr - address();
-  
-  if (offset >= size()) 
+
+  if (offset >= size())
     return 0;
 
-  return *(frame_buffer_ + (offset) / 4);
+  return frame_buffer_.at(offset);
 }
 
 void
@@ -102,7 +93,7 @@ RemoteFrameBuffer::write(uint64_t addr, uint32_t value)
   uint64_t offset = addr - address();
 
   assert(offset < size() && "RemoteFrameBuffer: Writing outside of buffer range");
-  *(frame_buffer_ + (offset) / 4) = value;
+  frame_buffer_.at(offset) = value;
   frame_buffer_updated_ = true;
 }
 
@@ -126,8 +117,9 @@ RemoteFrameBuffer::saveSnapshot(const std::string& filename) const
       return false;
     }
 
-  ofs.write(reinterpret_cast<const char*>(frame_buffer_), size());
-  
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+  ofs.write(reinterpret_cast<const char*>(frame_buffer_.data()), long(size()));
+
   if (!ofs)
     {
       std::cerr << "Error: failed to write frame buffer data to: " << filename << "\n";
@@ -147,8 +139,9 @@ RemoteFrameBuffer::loadSnapshot(const std::string& filename)
       return false;
     }
 
-  ifs.read(reinterpret_cast<char*>(frame_buffer_), size());
-  
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+  ifs.read(reinterpret_cast<char*>(frame_buffer_.data()), long(size()));
+
   if (!ifs)
     {
       std::cerr << "Error: failed to read frame buffer data from " << filename << "\n";

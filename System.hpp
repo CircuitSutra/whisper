@@ -281,10 +281,10 @@ namespace WdRiscv
     }
 
 #if REMOTE_FRAME_BUFFER
-    /// Frame Buffer that can drive a display. Specify the width, height, and 
-    /// the number of bytes per pixel. 
-    bool defineFrameBuffer(const std::string& type, uint64_t addr, uint64_t width, 
-        uint64_t height, uint64_t bytes_per_pixel);
+    /// Frame Buffer that can drive a display. Specify the width, height, and
+    /// the number of bytes per pixel.
+    bool defineFrameBuffer(const std::string& type, uint64_t addr, uint64_t width,
+        uint64_t height, uint64_t bytes_per_pixel, int port);
 #endif
 
     /// Return the memory page size.
@@ -365,7 +365,7 @@ namespace WdRiscv
     /// For vector load elemIx is the element index and fieldIx is the field number
     /// for segmented loads (zero if non-segment).
     bool mcmRead(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t addr,
-		 unsigned size, uint64_t data, unsigned elemIx, unsigned fieldIx);
+		 unsigned size, uint64_t data, unsigned elemIx, unsigned fieldIx, bool cache);
 
     /// Initiate a merge buffer write.  All associated store write
     /// transactions are marked completed. Write instructions where
@@ -457,13 +457,13 @@ namespace WdRiscv
     /// 0, each hart runs in its own simulator thread independent of
     /// the other harts. If earlyTerminate is true, returns on first
     /// roiEntry exception.
-    bool batchRun(std::vector<FILE*>& traceFiles, bool waitAll, uint64_t stepWinLo, uint64_t stepWinHi, bool earlyRoiTerminate = false);
+    bool batchRun(std::vector<util::file::SharedFile>& traceFiles, bool waitAll, uint64_t stepWinLo, uint64_t stepWinHi, bool earlyRoiTerminate = false);
 
     /// Run producing a snapshot after each snapPeriod instructions. Each
     /// snapshot goes into its own directory names <dir><n> where <dir> is
     /// the string in snapDir and <n> is a sequential integer starting at
     /// 0. Return true on success and false on failure.
-    bool snapshotRun(std::vector<FILE*>& traceFiles, const std::vector<uint64_t>& periods, bool aperiodic);
+    bool snapshotRun(std::vector<util::file::SharedFile>& traceFiles, const std::vector<uint64_t>& periods, bool aperiodic);
 
     /// Set snapshot directory path.
     void setSnapshotDir(const std::string& snapDir)
@@ -478,21 +478,25 @@ namespace WdRiscv
   private:
 
     bool saveAplicSnapshot(const Filesystem::path& snapDir) const;
-    bool saveAplicDomainSnapshot(const Filesystem::path& snapDir, std::shared_ptr<TT_APLIC::Domain> domain, unsigned nsources) const;
+    bool saveAplicDomainSnapshot(const Filesystem::path& snapDir,
+                                 const std::shared_ptr<TT_APLIC::Domain>& domain,
+                                 unsigned nsources) const;
     bool loadAplicSnapshot(const Filesystem::path& snapDir);
-    bool loadAplicDomainSnapshot(const Filesystem::path& snapDir, std::shared_ptr<TT_APLIC::Domain> domain, unsigned nsources);
+    bool loadAplicDomainSnapshot(const Filesystem::path& snapDir,
+                                 const std::shared_ptr<TT_APLIC::Domain>& domain,
+                                 unsigned nsources);
 
     unsigned hartCount_;
     unsigned hartsPerCore_;
     TT_IMSIC::ImsicMgr imsicMgr_;
-    std::atomic<uint64_t> time_;
+    uint64_t time_;
 
     std::vector< std::shared_ptr<CoreClass> > cores_;
     std::vector< std::shared_ptr<HartClass> > sysHarts_; // All harts in system.
     std::unordered_map<URV, unsigned> hartIdToIndex_;
     std::shared_ptr<Memory> memory_;
-    std::shared_ptr<Syscall<URV>> syscall_;
-    std::unique_ptr<SparseMem> sparseMem_;
+    std::shared_ptr<Syscall<URV>> syscall_ = nullptr;
+    std::unique_ptr<SparseMem> sparseMem_ = nullptr;
     std::shared_ptr<Mcm<URV>> mcm_;
     std::shared_ptr<TT_PERF::PerfApi> perfApi_;
     unsigned mbSize_ = 64;  // Merge buffer size.
@@ -512,7 +516,7 @@ namespace WdRiscv
     std::shared_ptr<TT_CACHE::Cache> dataCache_;
 
     // Name, size, and address in memory of a binary file.
-    typedef std::tuple<std::string, uint64_t, uint64_t> BinaryFile;
+    using BinaryFile = std::tuple<std::string, uint64_t, uint64_t>;
     std::vector<BinaryFile> binaryFiles_;
 
     std::string snapDir_ = "snapshot"; // Directory to save snapshots.

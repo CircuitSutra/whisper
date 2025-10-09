@@ -687,7 +687,7 @@ processMinBytesPerLmul(const nlohmann::json& jsonMap, unsigned minBytes, unsigne
 
   for (auto it = jsonMap.begin(); it != jsonMap.end(); it++)
     {
-      GroupMultiplier group;
+      GroupMultiplier group = GroupMultiplier::One;
       std::string_view lmul = it.key();
       const unsigned mewb = it.value();  // min element width in bytes
       if (not VecRegs::to_lmul(lmul, group))
@@ -736,7 +736,7 @@ processMaxBytesPerLmul(const nlohmann::json& jsonMap, unsigned minBytes, unsigne
 
   for (auto it = jsonMap.begin(); it != jsonMap.end(); it++)
     {
-      GroupMultiplier group;
+      GroupMultiplier group = GroupMultiplier::One;
       std::string_view lmul = it.key();
       const unsigned mewb = it.value();  // max element width in bytes
       if (not VecRegs::to_lmul(lmul, group))
@@ -891,7 +891,7 @@ applyVectorConfig(Hart<URV>& hart, const nlohmann::json& config)
   tag = "mask_agnostic_policy";
   if (vconf.contains(tag))
     {
-      auto& item = vconf.at(tag);
+      const auto& item = vconf.at(tag);
       if (not item.is_string())
 	{
 	  std::cerr << "Error: Configuration file tag vector.mask_agnostic_policy must have a string value\n";
@@ -915,7 +915,7 @@ applyVectorConfig(Hart<URV>& hart, const nlohmann::json& config)
   tag = "tail_agnostic_policy";
   if (vconf.contains(tag))
     {
-      auto& item = vconf.at(tag);
+      const auto& item = vconf.at(tag);
       if (not item.is_string())
 	{
 	  std::cerr << "Error: Configuration file tag vector.tail_agnostic_policy must have a string value\n";
@@ -985,7 +985,7 @@ applyVectorConfig(Hart<URV>& hart, const nlohmann::json& config)
             }
 
           std::string_view sew = item.get<std::string_view>();
-          ElementWidth ew;
+          ElementWidth ew = ElementWidth::Byte;
           if (not VecRegs::to_sew(sew, ew))
             {
               std::cerr << "Error: can't convert to valid SEW: " << tag << '\n';
@@ -1051,7 +1051,7 @@ applyVectorConfig(Hart<URV>& hart, const nlohmann::json& config)
             }
 
           std::string_view sew = item.get<std::string_view>();
-          ElementWidth ew;
+          ElementWidth ew = ElementWidth::Byte;
           if (not VecRegs::to_sew(sew, ew))
             {
               std::cerr << "Error: can't convert to valid SEW: " << tag << '\n';
@@ -1533,13 +1533,13 @@ HartConfig::applyAplicConfig(System<URV>& system) const
   std::unordered_set<std::string> domain_names;
   int num_roots = 0;
 
-  for (auto& el : domains.items())
+  for (const auto& el : domains.items())
     {
       TT_APLIC::DomainParams domain_params;
       domain_params.name = el.key();
       const auto& domain = el.value();
 
-      if (domain_params.name == "")
+      if (domain_params.name.empty())
         {
           std::cerr << "Error: the empty string is not a valid domain name.\n";
           return false;
@@ -1596,7 +1596,7 @@ HartConfig::applyAplicConfig(System<URV>& system) const
         }
 
       tag = "is_machine";
-      bool is_machine;
+      bool is_machine = false;
       if (not getJsonBoolean(tag, domain.at(tag), is_machine))
         return false;
       domain_params.privilege = is_machine ? TT_APLIC::Machine : TT_APLIC::Supervisor;
@@ -1605,7 +1605,7 @@ HartConfig::applyAplicConfig(System<URV>& system) const
       tag = "hart_indices";
       if (domain.contains(tag))
         {
-          for (auto index : domain.at(tag))
+          for (const auto& index : domain.at(tag))
             domain_params.hart_indices.push_back(index.get<unsigned>());
         }
 
@@ -1616,7 +1616,7 @@ HartConfig::applyAplicConfig(System<URV>& system) const
   for (const auto& ci : child_indices)
     {
       bool valid = true;
-      auto& indices = ci.second;
+      const auto& indices = ci.second;
       if (indices[0] != 0)
         valid = false;
       for (size_t i = 1; i < indices.size(); i++)
@@ -1699,7 +1699,7 @@ parseInterruptArray(const nlohmann::json &arr, const std::string &context,
   unsigned errors = 0;
   for (const auto &item : arr)
     {
-      InterruptCause ic;
+      auto ic = InterruptCause{};
       if (item.is_number())
         {
           unsigned num = item.get<unsigned>();
@@ -1762,7 +1762,7 @@ parseTriggerAllAddr(const nlohmann::json& arr, const std::string_view tag,
     }
 
   unsigned errors = 0;
-  for (auto& item : arr)
+  for (const auto& item : arr)
     {
       if (not item.is_array())
         {
@@ -1777,7 +1777,7 @@ parseTriggerAllAddr(const nlohmann::json& arr, const std::string_view tag,
           continue;
         }
 
-      auto& elem0 = item.at(0);
+      const auto& elem0 = item.at(0);
       std::string elemTag = std::string(tag) + ".match_type";
       unsigned matchType = 0;
       if (not getJsonUnsigned(elemTag, elem0, matchType))
@@ -1786,7 +1786,7 @@ parseTriggerAllAddr(const nlohmann::json& arr, const std::string_view tag,
           continue;
         }
 
-      auto& elem1 = item.at(1);
+      const auto& elem1 = item.at(1);
       elemTag = std::string(tag) + ".flag";
       bool flag = false;
       if (not getJsonBoolean(elemTag, elem1, flag))
@@ -1795,7 +1795,8 @@ parseTriggerAllAddr(const nlohmann::json& arr, const std::string_view tag,
           continue;
         }
 
-      vec.push_back(std::pair<unsigned, bool>{matchType, flag});
+      std::pair<unsigned, bool> elem{matchType, flag};
+      vec.emplace_back(elem);
     }
 
   return errors == 0;
@@ -1817,7 +1818,7 @@ HartConfig::applyFrameBufferConfig(System<URV>& system) const
   const auto& frame_buffer_cfg = config_ -> at(tag);
 
   std::string type = "";
-  uint64_t base, width, height, bytes_per_pixel = 0;
+  uint64_t base, width, height, bytes_per_pixel = 0, port = 5998;
 
   tag = "type";
   if (frame_buffer_cfg.contains(tag))
@@ -1878,7 +1879,14 @@ HartConfig::applyFrameBufferConfig(System<URV>& system) const
       return false;
     }
 
-  return system.defineFrameBuffer(type, base, width, height, bytes_per_pixel);
+  tag = "port";
+  if (frame_buffer_cfg.contains(tag))
+    {
+      if (not getJsonUnsigned("frame_buffer.port", frame_buffer_cfg.at(tag), port))
+        return false;
+    }
+
+  return system.defineFrameBuffer(type, base, width, height, bytes_per_pixel, port);
 }
 #endif
 
@@ -2158,7 +2166,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
   tag = "trigger_napot_maskmax";
   if (config_ -> contains(tag))
     {
-      unsigned bits;
+      unsigned bits = 0;
       getJsonUnsigned(tag, config_ -> at(tag), bits) or errors++;
       hart.configTriggerNapotMaskMax(bits);
     }
@@ -2458,7 +2466,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
 	      continue;
 	    }
 	  std::string_view modeStr = item.get<std::string_view>();
-	  VirtMem::Mode mode;
+	  VirtMem::Mode mode = VirtMem::Mode::Bare;
 	  if (not VirtMem::to_mode(modeStr, mode))
 	    {
 	      cerr << "Error: Error no such address translation mode: " << tag << '\n';
@@ -2493,7 +2501,7 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
 	      continue;
 	    }
 	  std::string_view pmmStr = item.get<std::string_view>();
-	  PmaskManager::Mode pmm;
+	  PmaskManager::Mode pmm{};
 	  if (not PmaskManager::to_pmm(pmmStr, pmm))
 	    {
 	      cerr << "Error: Error no such address translation pmm: " << tag << '\n';
@@ -3142,20 +3150,23 @@ HartConfig::getXlen(unsigned& xlen) const
   std::string isa;
   if (not getIsa(isa))
     return false;
-  if (isa.size() >= 4 and isa.at(0) == 'r' and isa.at(1) == 'v')
+
+  if (isa.empty())
+    return false;
+
+  if (isa.starts_with("rv64"))
     {
-      unsigned len;
-      if (auto convResult = std::from_chars(isa.c_str() + 2, isa.c_str() + isa.size(), len);
-          convResult.ec == std::errc{})
-        {
-          if (len == 32 or len == 64)
-            {
-              xlen = len;
-              return true;
-            }
-        }
-      std::cerr << "Error: Invalid register width in isa string (" << isa << ") in config file -- ignored\n";
+      xlen = 64;
+      return true;
     }
+
+  if (isa.starts_with("rv32"))
+    {
+      xlen = 32;
+      return true;
+    }
+
+  std::cerr << "Error: Invalid register width in isa string (" << isa << ") in config file -- ignored\n";
   return false;
 }
 

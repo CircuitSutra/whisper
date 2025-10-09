@@ -54,7 +54,7 @@ std::shared_ptr<Domain> Aplic::createDomain(const DomainParams& params)
     if (params.size % 4096 != 0)
         throw std::runtime_error("size of domain '" + params.name + "' (" + std::to_string(params.size) + ") is not aligned to 4KiB\n");
 
-    for (auto domain : domains_) {
+    for (const auto& domain : domains_) {
         if (domain->overlaps(params.base, params.size))
             throw std::runtime_error("control regions for domains '" + params.name + "' and '" + domain->name() + "' overlap\n");
     }
@@ -84,7 +84,7 @@ std::shared_ptr<Domain> Aplic::createDomain(const DomainParams& params)
     if (findDomainByName(params.name) != nullptr)
         throw std::runtime_error("domain with name '" + params.name + "' already exists\n");
 
-    for (auto domain : domains_) {
+    for (const auto& domain : domains_) {
         if (domain->privilege() != params.privilege)
             continue;
         for (unsigned i : params.hart_indices) {
@@ -140,18 +140,16 @@ std::shared_ptr<Domain> Aplic::findDomainByAddr(uint64_t addr) const
 void Aplic::reset()
 {
     for (unsigned i = 0; i <= num_sources_; i++)
-        source_states_[i] = 0;
+        source_states_[i] = false;
     if (root_)
         root_->reset();
 }
 
 bool Aplic::containsAddr(uint64_t addr) const {
-    if (findDomainByAddr(addr) == nullptr)
-        return false;
-    return true;
+    return findDomainByAddr(addr) != nullptr;
 }
 
-bool Aplic::read(uint64_t addr, size_t size, uint32_t& data)
+bool Aplic::read(uint64_t addr, size_t size, uint32_t& data) const
 {
     if (size != 4)
         return false;
@@ -164,7 +162,7 @@ bool Aplic::read(uint64_t addr, size_t size, uint32_t& data)
     return true;
 }
 
-bool Aplic::write(uint64_t addr, size_t size, uint32_t data)
+bool Aplic::write(uint64_t addr, size_t size, uint32_t data) const
 {
     if (size != 4)
         return false;
@@ -177,14 +175,14 @@ bool Aplic::write(uint64_t addr, size_t size, uint32_t data)
     return true;
 }
 
-void Aplic::setDirectCallback(DirectDeliveryCallback callback)
+void Aplic::setDirectCallback(const DirectDeliveryCallback& callback)
 {
     direct_callback_ = callback;
     if (root_)
         root_->setDirectCallback(callback);
 }
 
-void Aplic::setMsiCallback(MsiDeliveryCallback callback)
+void Aplic::setMsiCallback(const MsiDeliveryCallback& callback)
 {
     msi_callback_ = callback;
     if (root_)
@@ -202,11 +200,13 @@ void Aplic::setSourceState(unsigned i, bool state)
 
 bool Aplic::forwardViaMsi(unsigned i)
 {
-    for (auto domain : domains_) {
-        if (domain->readyToForwardViaMsi(i)) {
-            domain->forwardViaMsi(i);
-            return true;
-        }
-    }
-    return false;
+  // NOLINTBEGIN(readability-use-anyofallof)
+  for (const auto& domain : domains_) {
+      if (domain->readyToForwardViaMsi(i)) {
+          domain->forwardViaMsi(i);
+          return true;
+      }
+  }
+  // NOLINTEND(readability-use-anyofallof)
+  return false;
 }

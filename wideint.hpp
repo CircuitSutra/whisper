@@ -110,8 +110,8 @@ namespace WdRiscv
     using Half          = Half_;
     using Quarter       = Quarter_;
     using Self          = UwideInt<Half, Quarter>;
-    using HalfSigned    = typename std::make_signed<Half>::type;
-    using QuarterSigned = typename std::make_signed<Quarter>::type;
+    using HalfSigned    = std::make_signed_t<Half>;
+    using QuarterSigned = std::make_signed_t<Quarter>;
     using Signed        = WideInt<HalfSigned, QuarterSigned>;
 
     static constexpr int width()     { return 8*sizeof(Self); }
@@ -282,20 +282,16 @@ namespace WdRiscv
 
       Self y = *this;  // Dividend
 
-      uint8_t* remLow = reinterpret_cast<uint8_t*> (&rem);  // Least sig byte of rem
-      uint8_t* resultLow = reinterpret_cast<uint8_t*> (&result);  // Least sig byte of result
-      uint8_t* yHigh = (reinterpret_cast<uint8_t*> (&y)) + sizeof(y) - 1; // Most sig byte of dividend
-
       for (unsigned i = 0; i < n; ++i)
 	{
-	  uint8_t yMsb = *yHigh >> 7; // Most sig bit of dividend
+	  uint8_t yMsb = y.bits_.bytes_.at(sizeof(y) - 1) >> 7; // Most sig bit of dividend
 	  rem <<= 1;
 	  result <<= 1;
 	  y <<= 1;
-	  *remLow |= yMsb;
+          rem.bits_.bytes_.at(0) |= yMsb;  // Update least sig byte of remainder.
 	  if (x <= rem)
 	    {
-	      *resultLow |= 1;
+	      result.bits_.bytes_.at(0) |= 1;  // Update least sig byte of result.
 	      rem -= x;
 	    }
 	}
@@ -312,20 +308,16 @@ namespace WdRiscv
 
       Self y = *this;  // Dividend
 
-      uint8_t* remLow = reinterpret_cast<uint8_t*> (&rem);  // Least sig byte of rem
-      uint8_t* resultLow = reinterpret_cast<uint8_t*> (&result);  // Least sig byte of result
-      uint8_t* yHigh = (reinterpret_cast<uint8_t*> (&y)) + sizeof(y) - 1; // Most sig byte of dividend
-
       for (unsigned i = 0; i < n; ++i)
 	{
-	  uint8_t yMsb = *yHigh >> 7; // Most sig bit of dividend
+	  uint8_t yMsb = y.bits_.bytes_.at(sizeof(y)-1) >> 7; // Most sig bit of dividend
 	  rem <<= 1;
 	  result <<= 1;
 	  y <<= 1;
-	  *remLow |= yMsb;
+	  rem.bits_.bytes_.at(0) |= yMsb;   // Update least sig byte of rem
 	  if (x <= rem)
 	    {
-	      *resultLow |= 1;
+	      result.bits_.bytes_.at(0) |= 1;  // Update least sig byte of result.
 	      rem -= x;
 	    }
 	}
@@ -449,9 +441,9 @@ namespace WdRiscv
       Quarter q3_;
     };
 
-    /// Wide integer as a union of two half-width or four
-    /// quarter-width values.  For example, Uint128 is a pair of
-    /// uint64_t or a quad of uint32_t values.
+    /// Wide integer as a union of two half-width, or four quarter-width values, or array
+    /// of uint8_t.  For example, Uint128 is a pair of uint64_t or a quad of uint32_t
+    /// values.
     union Bits
     {
       constexpr Bits(Half high = 0, Half low = 0)
@@ -459,6 +451,7 @@ namespace WdRiscv
       { }
       Halfs halfs_;
       Quarters quarters_;
+      std::array<uint8_t, sizeof(Halfs)> bytes_;
     };
 
     Bits bits_;
@@ -474,8 +467,8 @@ namespace WdRiscv
     using Half            = Half_;
     using Quarter         = Quarter_;
     using Self            = WideInt<Half, Quarter>;
-    using HalfUnsigned    = typename std::make_unsigned<Half>::type;
-    using QuarterUnsigned = typename std::make_unsigned<Quarter>::type;
+    using HalfUnsigned    = std::make_unsigned_t<Half>;
+    using QuarterUnsigned = std::make_unsigned_t<Quarter>;
     using Unsigned        = UwideInt<HalfUnsigned, QuarterUnsigned>;
 
     static constexpr int width()     { return 8*sizeof(Self); }
@@ -545,7 +538,7 @@ namespace WdRiscv
     /// Plus-equal operator.
     constexpr Self& operator += (const Self& x)
     {
-      HalfUnsigned prevLow = static_cast<HalfUnsigned>(low_);
+      auto prevLow = static_cast<HalfUnsigned>(low_);
       low_ += x.low_;
       high_ += x.high_;
       if (HalfUnsigned(low_) < prevLow)
@@ -556,7 +549,7 @@ namespace WdRiscv
     /// Minus-equal operator.
     constexpr Self& operator -= (const Self& x)
     {
-      HalfUnsigned prevLow = static_cast<HalfUnsigned>(low_);
+      auto prevLow = static_cast<HalfUnsigned>(low_);
       low_ -= x.low_;
       high_ -= x.high_;
       if (HalfUnsigned(low_) > prevLow)
@@ -840,65 +833,65 @@ namespace WdRiscv
   /// Plus operator: Return sum of wide-int and a wide-int/regular-int.
   template <typename Left, typename Right>
   requires std::derived_from<Left, WideIntBase> &&
-    (std::is_integral<Right>::value || std::is_same<Left, Right>::value)
+    (std::is_integral_v<Right> || std::is_same_v<Left, Right>)
   constexpr Left operator + (Left a, Right b)
   { a += b; return a; }
 
   /// Plus operator: Return sum of a regular-int and a wide-int
   template <typename Left, typename Right>
-  requires std::is_integral<Left>::value && std::derived_from<Right, WideIntBase>
+  requires std::is_integral_v<Left> && std::derived_from<Right, WideIntBase>
   constexpr Right operator + (Left a, Right b)
   { b += a; return b; }
 
   /// Minus operator: Return difference of wide-int and a wide-int/regular-int.
   template <typename Left, typename Right>
   requires std::derived_from<Left, WideIntBase> &&
-    (std::is_integral<Right>::value || std::is_same<Left, Right>::value)
+    (std::is_integral_v<Right> || std::is_same_v<Left, Right>)
   constexpr Left operator - (Left a, Right b)
   { a -= b; return a; }
 
   /// Minus operator: Return difference of a regular-int and a wide-int
   template <typename Left, typename Right>
-  requires std::is_integral<Left>::value && std::derived_from<Right, WideIntBase>
+  requires std::is_integral_v<Left> && std::derived_from<Right, WideIntBase>
   constexpr Right operator - (Left a, Right b)
   { b -= a; return -b; }
 
   /// Multiply operator: Return product of wide-int and a wide-int/regular-int.
   template <typename Left, typename Right>
   requires std::derived_from<Left, WideIntBase> &&
-    (std::is_integral<Right>::value || std::is_same<Left, Right>::value)
+    (std::is_integral_v<Right> || std::is_same_v<Left, Right>)
   constexpr Left operator * (Left a, Right b)
   { a *= b; return a; }
 
   /// Multiply operator: Return product of a regular-int and a wide-int
   template <typename Left, typename Right>
-  requires std::is_integral<Left>::value && std::derived_from<Right, WideIntBase>
+  requires std::is_integral_v<Left> && std::derived_from<Right, WideIntBase>
   constexpr Right operator * (Left a, Right b)
   { b *= a; return b; }
 
   /// Divide operator: Return quotient of wide-int and a wide-int/regular-int.
   template <typename Left, typename Right>
   requires std::derived_from<Left, WideIntBase> &&
-    (std::is_integral<Right>::value || std::is_same<Left, Right>::value)
+    (std::is_integral_v<Right> || std::is_same_v<Left, Right>)
   constexpr Left operator / (Left a, Right b)
   { a /= b; return a; }
 
   /// Divide operator: Return quotient of a regular-int and a wide-int
   template <typename Left, typename Right>
-  requires std::is_integral<Left>::value && std::derived_from<Right, WideIntBase>
+  requires std::is_integral_v<Left> && std::derived_from<Right, WideIntBase>
   constexpr Right operator / (Left a, Right b)
   { Right c = a; c /= b; return c; }
 
   /// Remainder operator: Return remainder of wide-int and a wide-int/regular-int.
   template <typename Left, typename Right>
   requires std::derived_from<Left, WideIntBase> &&
-    (std::is_integral<Right>::value || std::is_same<Left, Right>::value)
+    (std::is_integral_v<Right> || std::is_same_v<Left, Right>)
   constexpr Left operator % (Left a, Right b)
   { a %= b; return a; }
 
   /// Remainder operator: Return remainde of a regular-int and a wide-int
   template <typename Left, typename Right>
-  requires std::is_integral<Left>::value && std::derived_from<Right, WideIntBase>
+  requires std::is_integral_v<Left> && std::derived_from<Right, WideIntBase>
   constexpr Right operator % (Left a, Right b)
   { Right c = a; c %= b; return c; }
 
@@ -929,39 +922,39 @@ namespace WdRiscv
   /// Bitwise-or operator: Return a wide-int ored with a wide-int/regular-int.
   template <typename Left, typename Right>
   requires std::derived_from<Left, WideIntBase> &&
-    (std::is_integral<Right>::value || std::is_same<Left, Right>::value)
+    (std::is_integral_v<Right> || std::is_same_v<Left, Right>)
   constexpr Left operator | (Left a, Right b)
   { a |= b; return a; }
 
   /// Bitwise-or operator: Return or of a regular-int with a wide-int.
   template <typename Left, typename Right>
-  requires std::is_integral<Left>::value && std::derived_from<Right, WideIntBase>
+  requires std::is_integral_v<Left> && std::derived_from<Right, WideIntBase>
   constexpr Right operator | (Left a, Right b)
   { b |= a; return b; }
 
   /// Bitwise-and operator: Return a wide-int anded with a wide-int/regular-int.
   template <typename Left, typename Right>
   requires std::derived_from<Left, WideIntBase> &&
-    (std::is_integral<Right>::value || std::is_same<Left, Right>::value)
+    (std::is_integral_v<Right> || std::is_same_v<Left, Right>)
   constexpr Left operator & (Left a, Right b)
   { a &= b; return a; }
 
   /// Bitwise-and operator: Return and of a regular-int with a wide-int.
   template <typename Left, typename Right>
-  requires std::is_integral<Left>::value && std::derived_from<Right, WideIntBase>
+  requires std::is_integral_v<Left> && std::derived_from<Right, WideIntBase>
   constexpr Right operator & (Left a, Right b)
   { b &= a; return b; }
 
   /// Bitwise-xor operator: Return a wide-int xored with a wide-int/regular-int.
   template <typename Left, typename Right>
   requires std::derived_from<Left, WideIntBase> &&
-    (std::is_integral<Right>::value || std::is_same<Left, Right>::value)
+    (std::is_integral_v<Right> || std::is_same_v<Left, Right>)
   constexpr Left operator ^ (Left a, Right b)
   { a ^= b; return a; }
 
   /// Bitwise-xor operator: Return xor of a regular-int with a wide-int.
   template <typename Left, typename Right>
-  requires std::is_integral<Left>::value && std::derived_from<Right, WideIntBase>
+  requires std::is_integral_v<Left> && std::derived_from<Right, WideIntBase>
   constexpr Right operator ^ (Left a, Right b)
   { b ^= a; return b; }
 
@@ -971,14 +964,14 @@ namespace WdRiscv
   constexpr unsigned
   integerWidth()
   {
-    if constexpr (std::is_same<Int128, T>::value)   return 128;
-    if constexpr (std::is_same<Int256, T>::value)   return 256;
-    if constexpr (std::is_same<Int512, T>::value)   return 512;
-    if constexpr (std::is_same<Int1024, T>::value)  return 1024;
-    if constexpr (std::is_same<Uint128, T>::value)  return 128;
-    if constexpr (std::is_same<Uint256, T>::value)  return 256;
-    if constexpr (std::is_same<Uint512, T>::value)  return 512;
-    if constexpr (std::is_same<Uint1024, T>::value) return 1024;
+    if constexpr (std::is_same_v<Int128, T>)   return 128;
+    if constexpr (std::is_same_v<Int256, T>)   return 256;
+    if constexpr (std::is_same_v<Int512, T>)   return 512;
+    if constexpr (std::is_same_v<Int1024, T>)  return 1024;
+    if constexpr (std::is_same_v<Uint128, T>)  return 128;
+    if constexpr (std::is_same_v<Uint256, T>)  return 256;
+    if constexpr (std::is_same_v<Uint512, T>)  return 512;
+    if constexpr (std::is_same_v<Uint1024, T>) return 1024;
 
     return 8*sizeof(T);
   }
@@ -1010,6 +1003,9 @@ namespace WdRiscv
 
   template <typename T>
   concept hasDoubleWide = requires { typename makeDoubleWide<T>::type; };
+
+  template <typename T>
+  using makeDoubleWide_t = typename makeDoubleWide<T>::type;
 
 
   /// Return the integral type that is half as wide as the given
@@ -1045,7 +1041,7 @@ namespace WdRiscv
   {
     using RetType = decltype(toHalves(w));
 
-    if constexpr (std::is_base_of<WideIntBase, Whole>::value)
+    if constexpr (std::is_base_of_v<WideIntBase, Whole>)
      return std::array{ w.low(), w.high() };
 
     RetType result = std::bit_cast<RetType>(w);
@@ -1065,7 +1061,7 @@ namespace WdRiscv
   {
     using RetType = decltype(toQuarters(w));
 
-    if constexpr (std::is_base_of<WideIntBase, Whole>::value)
+    if constexpr (std::is_base_of_v<WideIntBase, Whole>)
       {
         auto&& [h0, h1] = toHalves(w);
         auto&& [q0, q1] = toHalves(h0);
@@ -1085,11 +1081,11 @@ namespace WdRiscv
   /// in order of significance (i.e. LS first, MS last)
   template <hasDoubleWide Half>
   constexpr auto fromHalves(Half h0, Half h1)
-    -> typename makeDoubleWide<Half>::type
+    -> makeDoubleWide_t<Half>
   {
     using RetType = decltype(fromHalves(h0, h1));
 
-    if constexpr (std::is_base_of<WideIntBase, RetType>::value)
+    if constexpr (std::is_base_of_v<WideIntBase, RetType>)
       return RetType{ h1, h0 }; // Upper half is provided first
 
     auto halves = std::array{ h0, h1 };
@@ -1103,13 +1099,13 @@ namespace WdRiscv
   /// Converts the given four quarter values into a single value.  Quarters are provided
   /// in order of significance (i.e. LS first, MS last)
   template <typename Quarter>
-  requires hasDoubleWide<Quarter> and hasDoubleWide<typename makeDoubleWide<Quarter>::type>
+  requires hasDoubleWide<Quarter> and hasDoubleWide<makeDoubleWide_t<Quarter>>
   constexpr auto fromQuarters(Quarter q0, Quarter q1, Quarter q2, Quarter q3)
-    -> typename makeDoubleWide<typename makeDoubleWide<Quarter>::type>::type
+    -> makeDoubleWide_t<makeDoubleWide_t<Quarter>>
   {
     using RetType = decltype(fromQuarters(q0, q1, q2, q3));
 
-    if constexpr (std::is_base_of<WideIntBase, RetType>::value)
+    if constexpr (std::is_base_of_v<WideIntBase, RetType>)
       {
         // Upper half is provided first
         auto h0 = fromHalves(q0, q1);
@@ -1125,3 +1121,4 @@ namespace WdRiscv
   }
 
 }
+

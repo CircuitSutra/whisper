@@ -1,6 +1,7 @@
 #pragma once
 
 #include <iostream>
+#include <span>
 #include "PciDev.hpp"
 
 namespace msix {
@@ -34,10 +35,11 @@ namespace msix {
     if (num == 0)
       return false;
 
+    // NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast)
     cap_entry = reinterpret_cast<cap*>(dev.template ask_header_blocks<uint32_t>(sizeof(cap), cap_offset));
     if (not cap_entry)
       {
-        std::cerr << "Error: No more space for MSIX cap entry" << std::endl;
+        std::cerr << "Error: No more space for MSIX cap entry" << '\n';
         return false;
       }
 
@@ -45,24 +47,25 @@ namespace msix {
     cap_entry->next = 0;
     cap_entry->ctrl = num - 1; // 1 less than number of MSIX desired
 
-    uint32_t msix_table_offset;
+    uint32_t msix_table_offset = 0;
     msix_table = reinterpret_cast<msix_table_entry*>(dev.template ask_bar_blocks<uint64_t>(2, num*sizeof(msix_table_entry), msix_table_offset));
     if (not msix_table)
       {
-        std::cerr << "Error: No more space for MSIX table" << std::endl;
+        std::cerr << "Error: No more space for MSIX table" << '\n';
         return false;
       }
 
     cap_entry->msix_table = msix_table_offset | 2;
 
-    uint32_t pba_table_offset;
+    uint32_t pba_table_offset = 0;
     unsigned num_pba_entries = (num - 1)/64 + 1;
     pba_table = reinterpret_cast<pba_table_entry*>(dev.template ask_bar_blocks<uint64_t>(2, num_pba_entries*sizeof(pba_table_entry), pba_table_offset));
     if (not pba_table)
       {
-        std::cerr << "Error: No more space for MSIX PBA table" << std::endl;
+        std::cerr << "Error: No more space for MSIX PBA table" << '\n';
         return false;
       }
+    // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
 
     cap_entry->pba_table = pba_table_offset | 2;
     return true;
@@ -77,6 +80,7 @@ namespace msix {
     if (not (cap_entry->ctrl & PCI_MSIX_FLAGS_ENABLE) or (cap_entry->ctrl & PCI_MSIX_FLAGS_MASKALL))
       return;
 
+    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
     for (unsigned i = 0; i < num; i += pba_width)
       {
         auto& pba = pba_table[i/pba_width];
@@ -97,6 +101,7 @@ namespace msix {
               }
           }
       }
+    // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
   }
 
 
@@ -106,6 +111,6 @@ namespace msix {
     if (not dev.bar_size(2))
       dev.set_bar_size(2, 0x1000);
     else
-      std::cerr << "Error: Bar 2 size already set" << std::endl;
+      std::cerr << "Error: Bar 2 size already set" << '\n';
   }
 }

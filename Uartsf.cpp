@@ -18,7 +18,7 @@ Uartsf::Uartsf(uint64_t addr, uint64_t size)
   regs_.at(TX_CTRL) = TX_EN;
   regs_.at(RX_CTRL) = RX_EN;
 
-  struct termios term;
+  struct termios term{};
   tcgetattr(fileno(stdin), &term);
   cfmakeraw(&term);
   term.c_lflag &= ~ECHO;
@@ -73,7 +73,7 @@ Uartsf::write(uint64_t addr, uint32_t value)
 void
 Uartsf::monitorInput()
 {
-  struct pollfd inPollfd;
+  struct pollfd inPollfd{};
 
   int fd = fileno(stdin);        // stdin file descriptor
   inPollfd.fd = fd;
@@ -93,10 +93,10 @@ Uartsf::monitorInput()
 	  if ((inPollfd.revents & POLLIN) != 0)
 	    {
 	      std::lock_guard<std::mutex> lock(mutex_);
-	      char c;
+	      char c = 0;
 	      if (::read(fd, &c, sizeof(c)) != 1)
 		std::cerr << "Error: Uartsf::monitorInput: unexpected fail on read\n";
-	      regs_.at(RX_FIFO) = c;
+	      regs_.at(RX_FIFO) = std::bit_cast<unsigned char>(c);
 	      // setInterruptPending(true);
 	    }
 	}

@@ -1,29 +1,25 @@
 #include "TraceReader.hpp"
 
 
+// NOLINTBEGIN(cppcoreguidelines-owning-memory, cppcoreguidelines-pro-bounds-pointer-arithmetic)
 int
 main(int argc, char* argv[])
 {
   using namespace WhisperUtil;
 
-  TraceReader* reader;
+  if (argc < 2)
+    return 0;
 
-  if (argc > 2)
-    {
-      reader = new TraceReader(argv[1], argv[2]);
-    }
-  else if (argc > 1)
-    {
-      reader = new TraceReader(argv[1]);
-    }
-  else
-    {
-      return 0;
-    }
+  // usage: sample-reader <trace-file> [<initial-state-file>]
 
-  if (not *reader)
+  std::string traceFile = argv[1];
+  std::string initialFile = argc > 2 ? argv[2] : "";
+
+  TraceReader reader{traceFile, initialFile};
+
+  if (not reader)
     {
-      std::cerr << "Error: Failed to open " << argv[1] << " for input.\n";
+      std::cerr << "Error: Failed to open " << traceFile << " for input.\n";
       return 1;
     }
 
@@ -33,14 +29,13 @@ main(int argc, char* argv[])
 
   //reader->definePageTableMaker(0x100000000, WhisperUtil::PageTableMaker::Sv57, 4*1024*1024);
 
-  uint64_t nn = 0;
-  while (reader->nextRecord(record))
+  while (reader.nextRecord(record))
     {
-      record.print(std::cout);
+      reader.printRecord(std::cout, record);
     }
 
-  if (not reader->eof())
+  if (not reader.eof())
     return 1;
-
-  return nn;
+  return 0;
 }
+// NOLINTEND(cppcoreguidelines-owning-memory, cppcoreguidelines-pro-bounds-pointer-arithmetic)

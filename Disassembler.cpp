@@ -54,7 +54,7 @@ void
 printLdSt(const Disassembler& disas, std::ostream& stream, const DecodedInst& di)
 {
   unsigned rd = di.op0(), rs1 = di.op1();
-  int32_t imm = di.op2As<int32_t>();
+  auto imm = di.op2As<int32_t>();
 
   stream << std::left << std::setw(8) << di.name() << ' ';
 
@@ -175,7 +175,7 @@ printBranch3(const Disassembler& disas, std::ostream& stream,
   stream << disas.intRegName(rs1) << ", " << disas.intRegName(rs2) << ", . ";
 
   char sign = '+';
-  int32_t imm = di.op2As<int32_t>();
+  auto imm = di.op2As<int32_t>();
   if (imm < 0)
     {
       sign = '-';
@@ -193,7 +193,7 @@ void
 printBranch2(const Disassembler& disas, std::ostream& stream, const DecodedInst& di)
 {
   unsigned rs1 = di.op0();
-  int32_t imm = di.op2As<int32_t>();
+  auto imm = di.op2As<int32_t>();
 
   stream << std::left << std::setw(8) << di.name() << ' ';
   stream << disas.intRegName(rs1) << ", . ";
@@ -419,7 +419,7 @@ printLfi(const Disassembler& disas, std::ostream& out, const DecodedInst& di)
   out << std::left << std::setw(9) << name;
   out << disas.fpRegName(di.op0()) << ", ";
   const char* infOr64k = (di.instId() == InstId::fli_h) ? "inf" : "65536.0";
-    
+
   switch(di.op1())
     {
     case 0:  out << "-1.0";           break;
@@ -504,7 +504,7 @@ Disassembler::disassembleUncached(const DecodedInst& di, std::ostream& out) cons
 	else
 	  out << "jal      " << intRegName(di.op0()) << ", ";
 	char sign = '+';
-	int32_t imm = di.op1As<int32_t>();
+	auto imm = di.op1As<int32_t>();
 	if (imm < 0) { sign = '-'; imm = -imm; }
 	out << ". " << sign << " 0x" << std::hex << (imm & 0xfffff) << std::dec;
       }
@@ -586,7 +586,7 @@ Disassembler::disassembleUncached(const DecodedInst& di, std::ostream& out) cons
     case InstId::c_jal:
       {
 	out << "c.jal    . ";
-	int32_t imm = di.op1As<int32_t>();
+	auto imm = di.op1As<int32_t>();
 	char sign = '+';
 	if (imm < 0) { sign = '-'; imm = -imm; }
 	out << sign << " 0x" << std::hex << imm << std::dec;
@@ -599,7 +599,7 @@ Disassembler::disassembleUncached(const DecodedInst& di, std::ostream& out) cons
 
     case InstId::c_addi16sp:
       {
-	int32_t imm = di.op2As<int32_t>();
+	auto imm = di.op2As<int32_t>();
 	out << "c.addi16sp ";
 	if (imm < 0) { out << "-"; imm = -imm; }
 	out << "0x" << std::hex << (imm >> 4) << std::dec;
@@ -657,7 +657,7 @@ Disassembler::disassembleUncached(const DecodedInst& di, std::ostream& out) cons
     case InstId::c_j:
       {
 	out << "c.j      . ";
-	int32_t imm = di.op1As<int32_t>();
+	auto imm = di.op1As<int32_t>();
 	char sign = '+';
 	if (imm < 0) { sign = '-'; imm = -imm; }
 	out << sign << " 0x" << std::hex << imm << std::dec;

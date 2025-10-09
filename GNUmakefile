@@ -76,7 +76,7 @@ ifeq ($(LZ4_COMPRESS), 1)
 endif
 
 ifeq ($(REMOTE_FRAME_BUFFER), 1)
-  override CPPFLAGS += -DREMOTE_FRAME_BUFFER
+  override CPPFLAGS += -DREMOTE_FRAME_BUFFER=1
   EXTRA_LIBS += -lvncserver
 endif
 

@@ -15,6 +15,9 @@
 #pragma once
 
 #include <cstdint>
+#include <cassert>
+#include <algorithm>
+#include <vector>
 
 namespace WdRiscv
 {
@@ -31,7 +34,7 @@ namespace WdRiscv
     bool skip_ = false;    // True if element is not active (masked off or tail).
 
     VecLdStElem()
-    { }
+    = default;
 
     VecLdStElem(uint64_t va, uint64_t pa, uint64_t pa2, uint64_t data, unsigned ix,
 		bool skipped, unsigned field = 0)

@@ -7,12 +7,12 @@ using namespace WdRiscv;
 
 
 VirtMem::VirtMem(unsigned hartIx, unsigned pageSize, unsigned tlbSize)
-  : pageSize_(pageSize), hartIx_(hartIx), tlb_(tlbSize), vsTlb_(tlbSize), stage2Tlb_(tlbSize)
+  : pageSize_(pageSize), pageBits_(static_cast<unsigned>(std::log2(pageSize_))), hartIx_(hartIx), tlb_(tlbSize), vsTlb_(tlbSize), stage2Tlb_(tlbSize)
 {
   supportedModes_.resize(unsigned(Mode::Limit_));
   setSupportedModes({Mode::Bare, Mode::Sv32, Mode::Sv39, Mode::Sv48, Mode::Sv57, Mode::Sv64});
 
-  pageBits_ = static_cast<unsigned>(std::log2(pageSize_));
+  
   unsigned p2PageSize =  unsigned(1) << pageBits_;
   (void)p2PageSize;
   assert(p2PageSize == pageSize);
@@ -593,7 +593,7 @@ VirtMem::pageTableWalk(uint64_t address, PrivilegeMode privMode, bool read, bool
       // 2.
       uint64_t pteAddr = root + va.vpn(ii)*pteSize;
 
-      int walkEntryIx = 0;
+      size_t walkEntryIx = 0;
       if (trace_)
         {
           walkVec.back().emplace_back(pteAddr);
@@ -774,7 +774,7 @@ VirtMem::stage2PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
       // 2.
       uint64_t pteAddr = root + va.vpn(ii)*pteSize;
 
-      int walkEntryIx = 0;
+      size_t walkEntryIx = 0;
       if (trace_)
         {
           walkVec.back().emplace_back(pteAddr);
@@ -966,7 +966,7 @@ VirtMem::stage1PageTableWalk(uint64_t address, PrivilegeMode privMode, bool read
       if (ec != ExceptionCause::NONE)
 	return stage2ExceptionToStage1(ec, read, write, exec);
 
-      int walkEntryIx = 0;
+      size_t walkEntryIx = 0;
       if (trace_)
         {
           walkVec.back().emplace_back(pteAddr);
@@ -1133,7 +1133,7 @@ VirtMem::setPageSize(uint64_t size)
   if (size == 0)
     return false;
 
-  unsigned bits = static_cast<unsigned>(std::log2(pageSize_));
+  auto bits = static_cast<unsigned>(std::log2(pageSize_));
   uint64_t p2Size =  uint64_t(1) << bits;
 
   if (size != p2Size)

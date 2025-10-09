@@ -48,7 +48,7 @@ namespace WdRiscv
   template <typename T>
   void mulh(const T& a, const T& b, T& result)
   {
-    using T2 = typename makeDoubleWide<T>::type; // Double wide type
+    using T2 = makeDoubleWide_t<T>; // Double wide type
 
     unsigned tbits = integerWidth<T> (); // Number of bits in T
 
@@ -65,7 +65,7 @@ namespace WdRiscv
   template <typename TS, typename TU>
   void mulhsu(const TS& a, const TU& b, TS& result)
   {
-    using TS2 = typename makeDoubleWide<TS>::type; // Double wide signed type
+    using TS2 = makeDoubleWide_t<TS>; // Double wide signed type
 
     unsigned bits = integerWidth<TS> (); // Number of bits in TS and TU
 
@@ -104,7 +104,7 @@ using namespace WdRiscv;
 template <typename ELEM_TYPE>
 class WidenedFpScalar
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type;
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>;
 
   public:
     constexpr WidenedFpScalar(ELEM_TYPE value): v_{value}, vDw_{fpConvertTo<ELEM_TYPE2X, true>(value)} {};
@@ -950,8 +950,8 @@ Hart<URV>::vsetvl(unsigned rd, unsigned rs1, URV vtypeVal, bool vli /* vsetvli i
 {
   bool ma = (vtypeVal >> 7) & 1;  // Mask agnostic
   bool ta = (vtypeVal >> 6) & 1;  // Tail agnostic
-  GroupMultiplier gm = GroupMultiplier(vtypeVal & 7);
-  ElementWidth ew = ElementWidth((vtypeVal >> 3) & 7);
+  auto gm = GroupMultiplier(vtypeVal & 7);
+  auto ew = ElementWidth((vtypeVal >> 3) & 7);
 
   bool vill = (vtypeVal >> (8*sizeof(URV) - 1)) & 1;
   vill = vill or not vecRegs_.legalConfig(ew, gm);
@@ -1114,8 +1114,8 @@ Hart<URV>::execVsetivli(const DecodedInst* di)
   
   bool ma = (imm >> 7) & 1;  // Mask agnostic
   bool ta = (imm >> 6) & 1;  // Tail agnostic
-  GroupMultiplier gm = GroupMultiplier(imm & 7);
-  ElementWidth ew = ElementWidth((imm >> 3) & 7);
+  auto gm = GroupMultiplier(imm & 7);
+  auto ew = ElementWidth((imm >> 3) & 7);
 
   // Only least sig 8 bits can be non-zero.
   bool vill = (imm >> 8) != 0;
@@ -1200,7 +1200,7 @@ Hart<URV>::vop_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   ELEM_TYPE e1{}, e2{}, dest{};
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -1227,7 +1227,7 @@ Hart<URV>::vfop_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   ELEM_TYPE e1{}, e2{}, dest{};
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -1258,7 +1258,7 @@ Hart<URV>::vop_vx(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned group,
 {
   ELEM_TYPE e1 = 0, dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -1455,7 +1455,7 @@ Hart<URV>::execVop_vi(const DecodedInst* di, OP op)
 
   bool masked = di->isMasked();
   unsigned vd = di->op0(), vs1 = di->op1();
-  int32_t imm = di->op2As<int32_t>();
+  auto imm = di->op2As<int32_t>();
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
   unsigned elems = vecRegs_.elemMax();
   ElementWidth sew = vecRegs_.elemWidth();
@@ -1497,7 +1497,7 @@ Hart<URV>::execVopu_vi(const DecodedInst* di, OP op)
 
   bool masked = di->isMasked();
   unsigned vd = di->op0(), vs1 = di->op1();
-  int32_t imm = di->op2As<int32_t>();
+  auto imm = di->op2As<int32_t>();
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
   unsigned elems = vecRegs_.elemMax();
   ElementWidth sew = vecRegs_.elemWidth();
@@ -1591,13 +1591,13 @@ void
 Hart<URV>::vwadd_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
                     unsigned start, unsigned elems, bool masked)
 {
-  using DWT = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide type
+  using DWT = makeDoubleWide_t<ELEM_TYPE>; // Double wide type
 
   ELEM_TYPE e1 = 0, e2 = 0;
   DWT dest = 0;
 
   // We take the max of lmul == 1 to compensate for tail elements.
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group*2);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group*2);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -1624,7 +1624,7 @@ Hart<URV>::execVwaddu_vv(const DecodedInst* di)
     return;
 
   unsigned group = vecRegs_.groupMultiplierX8();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -1660,7 +1660,7 @@ Hart<URV>::execVwadd_vv(const DecodedInst* di)
     return;
 
   unsigned group = vecRegs_.groupMultiplierX8();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -1694,12 +1694,12 @@ void
 Hart<URV>::vwadd_vx(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned group,
                     unsigned start, unsigned elems, bool masked)
 {
-  using DWT = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide type
+  using DWT = makeDoubleWide_t<ELEM_TYPE>; // Double wide type
 
   ELEM_TYPE e1 = 0;
   DWT dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group*2);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group*2);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -1725,7 +1725,7 @@ Hart<URV>::execVwaddu_vx(const DecodedInst* di)
     return;
 
   unsigned group = vecRegs_.groupMultiplierX8();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -1763,7 +1763,7 @@ Hart<URV>::execVwadd_vx(const DecodedInst* di)
     return;
 
   unsigned group = vecRegs_.groupMultiplierX8();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -1799,12 +1799,12 @@ void
 Hart<URV>::vwsub_vx(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
-  using DWT = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide type
+  using DWT = makeDoubleWide_t<ELEM_TYPE>; // Double wide type
 
   ELEM_TYPE e1 = 0;
   DWT dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group*2);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group*2);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -1830,7 +1830,7 @@ Hart<URV>::execVwsubu_vx(const DecodedInst* di)
     return;
 
   unsigned group = vecRegs_.groupMultiplierX8();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -1868,7 +1868,7 @@ Hart<URV>::execVwsub_vx(const DecodedInst* di)
     return;
 
   unsigned group = vecRegs_.groupMultiplierX8();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -1904,12 +1904,12 @@ void
 Hart<URV>::vwsub_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
                     unsigned start, unsigned elems, bool masked)
 {
-  using DWT = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide type
+  using DWT = makeDoubleWide_t<ELEM_TYPE>; // Double wide type
 
   ELEM_TYPE e1 = 0, e2 = 0;
   DWT dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group*2);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group*2);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -1936,7 +1936,7 @@ Hart<URV>::execVwsubu_vv(const DecodedInst* di)
     return;
 
   unsigned group = vecRegs_.groupMultiplierX8();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -1972,7 +1972,7 @@ Hart<URV>::execVwsub_vv(const DecodedInst* di)
     return;
 
   unsigned group = vecRegs_.groupMultiplierX8();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -2006,13 +2006,13 @@ void
 Hart<URV>::vwadd_wv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
                     unsigned start, unsigned elems, bool masked)
 {
-  using DWT = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide type
+  using DWT = makeDoubleWide_t<ELEM_TYPE>; // Double wide type
   unsigned wideGroup = group*2;
 
   ELEM_TYPE e2 = 0;
   DWT e1 = 0, dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), wideGroup);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), wideGroup);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -2039,7 +2039,7 @@ Hart<URV>::execVwaddu_wv(const DecodedInst* di)
     return;
 
   unsigned group = vecRegs_.groupMultiplierX8();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -2075,7 +2075,7 @@ Hart<URV>::execVwadd_wv(const DecodedInst* di)
     return;
 
   unsigned group = vecRegs_.groupMultiplierX8();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -2111,7 +2111,7 @@ Hart<URV>::execVwaddu_wx(const DecodedInst* di)
     return;
 
   unsigned group = vecRegs_.groupMultiplierX8();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -2156,7 +2156,7 @@ Hart<URV>::execVwadd_wx(const DecodedInst* di)
     return;
 
   unsigned group = vecRegs_.groupMultiplierX8();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -2202,7 +2202,7 @@ Hart<URV>::execVwsubu_wx(const DecodedInst* di)
     return;
 
   unsigned group = vecRegs_.groupMultiplierX8();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -2248,7 +2248,7 @@ Hart<URV>::execVwsub_wx(const DecodedInst* di)
     return;
 
   unsigned group = vecRegs_.groupMultiplierX8();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -2292,13 +2292,13 @@ void
 Hart<URV>::vwsub_wv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
                     unsigned start, unsigned elems, bool masked)
 {
-  using DWT = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide type
+  using DWT = makeDoubleWide_t<ELEM_TYPE>; // Double wide type
   unsigned wideGroup = group*2;
 
   ELEM_TYPE e2 = 0;
   DWT e1 = 0, dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), wideGroup);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), wideGroup);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -2325,7 +2325,7 @@ Hart<URV>::execVwsubu_wv(const DecodedInst* di)
     return;
 
   unsigned group = vecRegs_.groupMultiplierX8();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -2361,7 +2361,7 @@ Hart<URV>::execVwsub_wv(const DecodedInst* di)
     return;
 
   unsigned group = vecRegs_.groupMultiplierX8();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -2528,7 +2528,7 @@ Hart<URV>::execVmseq_vi(const DecodedInst* di)
   if (not checkVecMaskInst(di, vd, vs1, group))
     return;
 
-  int32_t imm = di->op2As<int32_t>();
+  auto imm = di->op2As<int32_t>();
 
   using EW = ElementWidth;
   switch (sew)
@@ -2641,7 +2641,7 @@ Hart<URV>::execVmsne_vi(const DecodedInst* di)
   if (not checkVecMaskInst(di, vd, vs1, group))
     return;
 
-  int32_t imm = di->op2As<int32_t>();
+  auto imm = di->op2As<int32_t>();
 
   using EW = ElementWidth;
   switch (sew)
@@ -3019,7 +3019,7 @@ Hart<URV>::execVmsle_vi(const DecodedInst* di)
   if (not checkVecMaskInst(di, vd, vs1, group))
     return;
 
-  int32_t imm = di->op2As<int32_t>();
+  auto imm = di->op2As<int32_t>();
 
   using EW = ElementWidth;
   switch (sew)
@@ -3172,7 +3172,7 @@ Hart<URV>::execVmsgt_vi(const DecodedInst* di)
   if (not checkVecMaskInst(di, vd, vs1, group))
     return;
 
-  int32_t imm = di->op2As<int32_t>();
+  auto imm = di->op2As<int32_t>();
 
   using EW = ElementWidth;
   switch (sew)
@@ -3411,7 +3411,7 @@ void
 Hart<URV>::vnsr_wv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 		  unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE2X e1 = 0;
   ELEM_TYPE e2 = 0, dest = 0;
@@ -3420,7 +3420,7 @@ Hart<URV>::vnsr_wv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
   unsigned mask = elemBits - 1;
   unsigned group2x = group*2;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -3479,7 +3479,7 @@ void
 Hart<URV>::vnsr_wx(unsigned vd, unsigned vs1, URV e2, unsigned group,
                    unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE2X e1 = 0;
   ELEM_TYPE dest = 0;
@@ -3489,7 +3489,7 @@ Hart<URV>::vnsr_wx(unsigned vd, unsigned vs1, URV e2, unsigned group,
   unsigned amount = unsigned(e2) & mask;
   unsigned group2x = group*2;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -3702,7 +3702,7 @@ Hart<URV>::vrgather_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   ELEM_TYPE e1 = 0, e2 = 0, dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -3716,7 +3716,7 @@ Hart<URV>::vrgather_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 	  dest = 0;
 	  if (e2 < vecRegs_.bytesPerRegister() * 8)
 	    {
-	      unsigned vs1Ix = unsigned(e2);
+	      auto vs1Ix = unsigned(e2);
 	      if (vecRegs_.isValidIndex(vs1, vs1Ix, group, sizeof(e1)))
 		{
 		  vecRegs_.read(vs1, vs1Ix, group, e1);
@@ -3780,7 +3780,7 @@ Hart<URV>::vrgather_vx(unsigned vd, unsigned vs1, unsigned rs2, unsigned group,
 
   ELEM_TYPE e1 = 0, dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -3845,7 +3845,7 @@ Hart<URV>::vrgather_vi(unsigned vd, unsigned vs1, uint32_t imm, unsigned group,
   uint32_t vs1Ix = imm;
   ELEM_TYPE e1 = 0, dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -3912,7 +3912,7 @@ Hart<URV>::vrgatherei16_vv(unsigned vd, unsigned vs1, unsigned vs2,
   uint16_t e2 = 0;
   unsigned e2Group = (16UL*group)/(8*sizeof(ELEM_TYPE));
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -4020,7 +4020,7 @@ Hart<URV>::vcompress_vm(unsigned vd, unsigned vs1, unsigned vs2,
 	}
     }
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   // Remaining elements are treated as tail elements.
   bool setTail = vecRegs_.isTailAgnostic() and vecRegs_.isTailAgnosticOnes();
@@ -4263,7 +4263,7 @@ Hart<URV>::vwredsum_vs(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
   if (elems == 0)
     return;
 
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type;
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>;
 
   ELEM_TYPE2X result = 0;
   unsigned scalarElemIx = 0, scalarElemGroupX8 = 8;
@@ -4283,8 +4283,8 @@ Hart<URV>::vwredsum_vs(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
     }
 
   vecRegs_.write(vd, scalarElemIx, scalarElemGroupX8, result);
-  ElementWidth dsew;
-  if (not vecRegs_.doubleSew(vecRegs_.elemWidth(), dsew))
+  ElementWidth dsew{};
+  if (not VecRegs::doubleSew(vecRegs_.elemWidth(), dsew))
     assert(0 && "Error: Assertion failed");
 
   unsigned destElems = vecRegs_.singleMax(dsew);
@@ -4790,7 +4790,7 @@ Hart<URV>::execVid_v(const DecodedInst* di)
   if (not checkVecOpsVsEmul(di, vd, group))
     return;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   elems = vecRegs_.elemMax();
   if (start < vecRegs_.elemCount())
@@ -4848,7 +4848,7 @@ Hart<URV>::vslideup(unsigned vd, unsigned vs1, URV amount, unsigned group,
   if (start >= vecRegs_.elemCount())
     return;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   for (unsigned ix = start; ix < elems; ++ix)
     {
@@ -4981,7 +4981,7 @@ Hart<URV>::execVslide1up_vx(const DecodedInst* di)
 	case ElementWidth::Byte:
 	  {
 	    vslideup<uint8_t>(vd, vs1, amount, group, start, elems, masked);
-	    int8_t dest = int8_t{};
+	    auto dest = int8_t{};
 	    if (vecRegs_.isDestActive(vd, 0, group, masked, dest))
 	      dest = int8_t(replacement);
 	    if (not start)
@@ -4992,7 +4992,7 @@ Hart<URV>::execVslide1up_vx(const DecodedInst* di)
 	case ElementWidth::Half:
 	  {
 	    vslideup<uint16_t>(vd, vs1, amount, group, start, elems, masked);
-	    int16_t dest = int16_t{};
+	    auto dest = int16_t{};
 	    if (vecRegs_.isDestActive(vd, 0, group, masked, dest) and not start)
 	      dest = int16_t(replacement);
 	    if (not start)
@@ -5003,7 +5003,7 @@ Hart<URV>::execVslide1up_vx(const DecodedInst* di)
 	case ElementWidth::Word:
 	  {
 	    vslideup<uint32_t>(vd, vs1, amount, group, start, elems, masked);
-	    int32_t dest = int32_t{};
+	    auto dest = int32_t{};
 	    if (vecRegs_.isDestActive(vd, 0, group, masked, dest) and not start)
 	      dest = int32_t(replacement);
 	    if (not start)
@@ -5014,7 +5014,7 @@ Hart<URV>::execVslide1up_vx(const DecodedInst* di)
 	case ElementWidth::Word2:
 	  {
 	    vslideup<uint64_t>(vd, vs1, amount, group, start, elems, masked);
-	    int64_t dest = int64_t{};
+	    auto dest = int64_t{};
 	    if (vecRegs_.isDestActive(vd, 0, group, masked, dest) and not start)
 	      dest = int64_t(replacement);
 	    if (not start)
@@ -5041,7 +5041,7 @@ Hart<URV>::vslidedown(unsigned vd, unsigned vs1, URV amount, unsigned group,
   if (start >= vecRegs_.elemCount())
     return;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   for (unsigned ix = start; ix < elems; ++ix)
     {
@@ -5219,7 +5219,7 @@ Hart<URV>::execVfslide1up_vf(const DecodedInst* di)
             vslideup<uint16_t>(vd, vs1, amount, group, start, elems, masked);
             if (not start)
               {
-                Float16 f;
+                Float16 f{};
                 if (vecRegs_.isDestActive(vd, 0, group, masked, f))
                   f = fpRegs_.readHalf(rs2);
                 vecRegs_.write(vd, 0, group, std::bit_cast<uint16_t>(f));
@@ -5232,7 +5232,7 @@ Hart<URV>::execVfslide1up_vf(const DecodedInst* di)
             vslideup<uint32_t>(vd, vs1, amount, group, start, elems, masked);
             if (not start)
               {
-                float f;
+                float f{};
                 if (vecRegs_.isDestActive(vd, 0, group, masked, f))
                   f = fpRegs_.readSingle(rs2);
                 vecRegs_.write(vd, 0, group, std::bit_cast<uint32_t>(f));
@@ -5245,7 +5245,7 @@ Hart<URV>::execVfslide1up_vf(const DecodedInst* di)
             vslideup<uint64_t>(vd, vs1, amount, group, start, elems, masked);
             if (not start)
               {
-                double d;
+                double d{};
                 if (vecRegs_.isDestActive(vd, 0, group, masked, d))
                   d = fpRegs_.readDouble(rs2);
                 vecRegs_.write(vd, 0, group, std::bit_cast<uint64_t>(d));
@@ -5358,7 +5358,7 @@ Hart<URV>::vmulh_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   ELEM_TYPE e1 = 0, e2 = 0, dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -5414,7 +5414,7 @@ Hart<URV>::vmulh_vx(unsigned vd, unsigned vs1, unsigned rs2, unsigned group,
 {
   ELEM_TYPE e1 = 0, e2 = SRV(intRegs_.read(rs2)), dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -5499,7 +5499,7 @@ Hart<URV>::vmulhu_vx(unsigned vd, unsigned vs1, unsigned rs2, unsigned group,
 {
   ELEM_TYPE e1 = 0, e2 = intRegs_.read(rs2), dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -5552,12 +5552,12 @@ void
 Hart<URV>::vmulhsu_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
                       unsigned start, unsigned elems, bool masked)
 {
-  using U_ELEM_TYPE = typename std::make_unsigned<ELEM_TYPE>::type;
+  using U_ELEM_TYPE = std::make_unsigned_t<ELEM_TYPE>;
 
   ELEM_TYPE e1 = 0, dest = 0;
   U_ELEM_TYPE e2 = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -5611,12 +5611,12 @@ void
 Hart<URV>::vmulhsu_vx(unsigned vd, unsigned vs1, unsigned rs2, unsigned group,
                       unsigned start, unsigned elems, bool masked)
 {
-  using U_ELEM_TYPE = typename std::make_unsigned<ELEM_TYPE>::type;
+  using U_ELEM_TYPE = std::make_unsigned_t<ELEM_TYPE>;
 
   ELEM_TYPE e1 = 0, dest = 0;
   U_ELEM_TYPE e2 = intRegs_.read(rs2);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -5671,7 +5671,7 @@ Hart<URV>::vmadd_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   ELEM_TYPE e1 = 0, e2 = 0, dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -5727,9 +5727,10 @@ Hart<URV>::vmadd_vx(unsigned vd, unsigned rs1, unsigned v2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
   ELEM_TYPE e2 = 0, dest = 0;
+  // NOLINTNEXTLINE(modernize-use-auto)
   ELEM_TYPE e1 = SRV(intRegs_.read(rs1));
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -5784,7 +5785,7 @@ Hart<URV>::vnmsub_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   ELEM_TYPE e1 = 0, e2 = 0, dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -5840,9 +5841,10 @@ Hart<URV>::vnmsub_vx(unsigned vd, unsigned rs1, unsigned v2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
   ELEM_TYPE e2 = 0, dest = 0;
+  // NOLINTNEXTLINE(modernize-use-auto)
   ELEM_TYPE e1 = SRV(intRegs_.read(rs1));
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -5898,7 +5900,7 @@ Hart<URV>::vmacc_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   ELEM_TYPE e1 = 0, e2 = 0, dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -5954,9 +5956,10 @@ Hart<URV>::vmacc_vx(unsigned vd, unsigned rs1, unsigned vs2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
   ELEM_TYPE e2 = 0, dest = 0;
+  // NOLINTNEXTLINE(modernize-use-auto)
   ELEM_TYPE e1 = SRV(intRegs_.read(rs1));
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -6013,7 +6016,7 @@ Hart<URV>::vnmsac_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   ELEM_TYPE e1 = 0, e2 = 0, dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -6068,10 +6071,9 @@ void
 Hart<URV>::vnmsac_vx(unsigned vd, unsigned rs1, unsigned vs2, unsigned group,
 		     unsigned start, unsigned elems, bool masked)
 {
-  ELEM_TYPE e2 = 0, dest = 0;
-  ELEM_TYPE e1 = SRV(intRegs_.read(rs1));
+  ELEM_TYPE e1 = SRV(intRegs_.read(rs1)), e2 = 0, dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -6125,12 +6127,12 @@ void
 Hart<URV>::vwmulu_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
                      unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE_X2 = typename makeDoubleWide<ELEM_TYPE>::type;
+  using ELEM_TYPE_X2 = makeDoubleWide_t<ELEM_TYPE>;
 
   ELEM_TYPE e1 = 0, e2 = 0;
   ELEM_TYPE_X2 dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group*2);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group*2);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -6160,7 +6162,7 @@ Hart<URV>::execVwmulu_vv(const DecodedInst* di)
   unsigned vd = di->op0(),  vs1 = di->op1(),  vs2 = di->op2();
 
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   // Double wide legal.
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
@@ -6193,12 +6195,12 @@ void
 Hart<URV>::vwmulu_vx(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned group,
                      unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE_X2 = typename makeDoubleWide<ELEM_TYPE>::type;
+  using ELEM_TYPE_X2 = makeDoubleWide_t<ELEM_TYPE>;
 
   ELEM_TYPE e1 = 0;
   ELEM_TYPE_X2 dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group*2);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group*2);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -6227,7 +6229,7 @@ Hart<URV>::execVwmulu_vx(const DecodedInst* di)
   unsigned vd = di->op0(),  vs1 = di->op1(),  rs2 = di->op2();
 
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -6261,12 +6263,12 @@ void
 Hart<URV>::vwmul_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
                      unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE_X2 = typename makeDoubleWide<ELEM_TYPE>::type;
+  using ELEM_TYPE_X2 = makeDoubleWide_t<ELEM_TYPE>;
 
   ELEM_TYPE e1 = 0, e2 = 0;
   ELEM_TYPE_X2 dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group*2);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group*2);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -6296,7 +6298,7 @@ Hart<URV>::execVwmul_vv(const DecodedInst* di)
   unsigned vd = di->op0(),  vs1 = di->op1(),  vs2 = di->op2();
 
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   // Double wide legal.
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
@@ -6329,13 +6331,13 @@ void
 Hart<URV>::vwmul_vx(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned group,
                      unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE_X2 = typename makeDoubleWide<ELEM_TYPE>::type;
+  using ELEM_TYPE_X2 = makeDoubleWide_t<ELEM_TYPE>;
 
   ELEM_TYPE e1 = 0;
   ELEM_TYPE_X2 dest = 0;
   ELEM_TYPE_X2 e2Wide(e2);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group*2);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group*2);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -6364,7 +6366,7 @@ Hart<URV>::execVwmul_vx(const DecodedInst* di)
   unsigned vd = di->op0(),  vs1 = di->op1(),  rs2 = di->op2();
 
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   // Double wide legal.
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
@@ -6399,14 +6401,14 @@ void
 Hart<URV>::vwmulsu_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
                      unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE_X2 = typename makeDoubleWide<ELEM_TYPE>::type;
-  using ELEM_TYPE_U  = typename std::make_unsigned<ELEM_TYPE>::type;
+  using ELEM_TYPE_X2 = makeDoubleWide_t<ELEM_TYPE>;
+  using ELEM_TYPE_U  = std::make_unsigned_t<ELEM_TYPE>;
 
   ELEM_TYPE e1 = 0;
   ELEM_TYPE_U e2u = 0;
   ELEM_TYPE_X2 dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group*2);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group*2);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -6437,7 +6439,7 @@ Hart<URV>::execVwmulsu_vv(const DecodedInst* di)
   unsigned vd = di->op0(),  vs1 = di->op1(),  vs2 = di->op2();
 
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -6469,15 +6471,15 @@ void
 Hart<URV>::vwmulsu_vx(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned group,
                      unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE_X2 = typename makeDoubleWide<ELEM_TYPE>::type;
-  using ELEM_TYPE_U  = typename std::make_unsigned<ELEM_TYPE>::type;
+  using ELEM_TYPE_X2 = makeDoubleWide_t<ELEM_TYPE>;
+  using ELEM_TYPE_U  = std::make_unsigned_t<ELEM_TYPE>;
 
   ELEM_TYPE e1 = 0;
   ELEM_TYPE_X2 dest = 0;
-  ELEM_TYPE_U e2u = ELEM_TYPE_U(e2);
+  auto e2u = ELEM_TYPE_U(e2);
   ELEM_TYPE_X2 e2Wide(e2u);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group*2);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group*2);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -6506,7 +6508,7 @@ Hart<URV>::execVwmulsu_vx(const DecodedInst* di)
   unsigned vd = di->op0(),  vs1 = di->op1(),  rs2 = di->op2();
 
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -6540,13 +6542,13 @@ void
 Hart<URV>::vwmacc_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
                      unsigned start, unsigned elems, bool masked)
 {
-  using DWT = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide type
+  using DWT = makeDoubleWide_t<ELEM_TYPE>; // Double wide type
   unsigned wideGroup = group*2;
 
   ELEM_TYPE e1 = 0, e2 = 0;
   DWT dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), wideGroup);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), wideGroup);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -6573,7 +6575,7 @@ Hart<URV>::execVwmaccu_vv(const DecodedInst* di)
     return;
 
   unsigned group = vecRegs_.groupMultiplierX8();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  vs1 = di->op1(),  vs2 = di->op2();
@@ -6609,8 +6611,8 @@ void
 Hart<URV>::vwmaccu_vx(unsigned vd, ELEM_TYPE e1, unsigned vs2, unsigned group,
                       unsigned start, unsigned elems, bool masked)
 {
-  using DWT  = typename makeDoubleWide<ELEM_TYPE>::type;  // Double wide type
-  using SDWT = typename std::make_signed<DWT>::type;      // Signed double wide type
+  using DWT  = makeDoubleWide_t<ELEM_TYPE>;  // Double wide type
+  using SDWT = std::make_signed_t<DWT>;      // Signed double wide type
   unsigned wideGroup = group*2;
 
   ELEM_TYPE e2 = 0;
@@ -6618,7 +6620,7 @@ Hart<URV>::vwmaccu_vx(unsigned vd, ELEM_TYPE e1, unsigned vs2, unsigned group,
   SDWT sde1 = SDWT(e1);  // sign extend (per spec)
   DWT de1 = sde1;  // And make unsigned
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), wideGroup);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), wideGroup);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -6647,7 +6649,7 @@ Hart<URV>::execVwmaccu_vx(const DecodedInst* di)
   unsigned vd = di->op0(),  rs1 = di->op1(),  vs2 = di->op2();
 
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -6683,7 +6685,7 @@ Hart<URV>::execVwmacc_vv(const DecodedInst* di)
     return;
 
   unsigned group = vecRegs_.groupMultiplierX8();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  vs1 = di->op1(),  vs2 = di->op2();
@@ -6720,14 +6722,14 @@ void
 Hart<URV>::vwmacc_vx(unsigned vd, ELEM_TYPE e1, unsigned vs2, unsigned group,
                      unsigned start, unsigned elems, bool masked)
 {
-  using DWT = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide type
+  using DWT = makeDoubleWide_t<ELEM_TYPE>; // Double wide type
   unsigned wideGroup = group*2;
 
   ELEM_TYPE e2 = 0;
   DWT dest = 0;
   DWT de1 = DWT(e1);  // sign extend
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), wideGroup);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), wideGroup);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -6756,7 +6758,7 @@ Hart<URV>::execVwmacc_vx(const DecodedInst* di)
   unsigned vd = di->op0(),  rs1 = di->op1(),  vs2 = di->op2();
 
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -6790,16 +6792,16 @@ void
 Hart<URV>::vwmaccsu_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
                        unsigned start, unsigned elems, bool masked)
 {
-  using DWT  = typename makeDoubleWide<ELEM_TYPE>::type;      // Double wide type
-  using DWTU = typename std::make_unsigned<DWT>::type;        // Double wide type unsigned
-  using SWTU = typename std::make_unsigned<ELEM_TYPE>::type;  // Single wide type unsigned
+  using DWT  = makeDoubleWide_t<ELEM_TYPE>;      // Double wide type
+  using DWTU = std::make_unsigned_t<DWT>;        // Double wide type unsigned
+  using SWTU = std::make_unsigned_t<ELEM_TYPE>;  // Single wide type unsigned
 
   unsigned wideGroup = group*2;
 
   ELEM_TYPE e1 = 0, e2 = 0;
   DWT dest = 0, temp = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), wideGroup);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), wideGroup);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -6827,7 +6829,7 @@ Hart<URV>::execVwmaccsu_vv(const DecodedInst* di)
     return;
 
   unsigned group = vecRegs_.groupMultiplierX8();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  vs1 = di->op1(),  vs2 = di->op2();
@@ -6863,9 +6865,9 @@ void
 Hart<URV>::vwmaccsu_vx(unsigned vd, ELEM_TYPE e1, unsigned vs2, unsigned group,
                        unsigned start, unsigned elems, bool masked)
 {
-  using DWT  = typename makeDoubleWide<ELEM_TYPE>::type;      // Double wide type
-  using DWTU = typename std::make_unsigned<DWT>::type;        // Double wide type unsigned
-  using SWTU = typename std::make_unsigned<ELEM_TYPE>::type;  // Single wide type unsigned
+  using DWT  = makeDoubleWide_t<ELEM_TYPE>;      // Double wide type
+  using DWTU = std::make_unsigned_t<DWT>;        // Double wide type unsigned
+  using SWTU = std::make_unsigned_t<ELEM_TYPE>;  // Single wide type unsigned
 
   unsigned wideGroup = group*2;
 
@@ -6873,7 +6875,7 @@ Hart<URV>::vwmaccsu_vx(unsigned vd, ELEM_TYPE e1, unsigned vs2, unsigned group,
   DWT de1 = DWT(e1);  // Sign extend.
   DWT dest = 0, temp = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), wideGroup);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), wideGroup);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -6903,7 +6905,7 @@ Hart<URV>::execVwmaccsu_vx(const DecodedInst* di)
   unsigned vd = di->op0(),  rs1 = di->op1(),  vs2 = di->op2();
 
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -6937,9 +6939,9 @@ void
 Hart<URV>::vwmaccus_vx(unsigned vd, ELEM_TYPE e1, unsigned vs2, unsigned group,
                        unsigned start, unsigned elems, bool masked)
 {
-  using DWT  = typename makeDoubleWide<ELEM_TYPE>::type;      // Double wide type
-  using DWTU = typename std::make_unsigned<DWT>::type;        // Double wide type unsigned
-  using SWTU = typename std::make_unsigned<ELEM_TYPE>::type;  // Single wide type unsigned
+  using DWT  = makeDoubleWide_t<ELEM_TYPE>;      // Double wide type
+  using DWTU = std::make_unsigned_t<DWT>;        // Double wide type unsigned
+  using SWTU = std::make_unsigned_t<ELEM_TYPE>;  // Single wide type unsigned
 
   unsigned wideGroup = group*2;
 
@@ -6947,7 +6949,7 @@ Hart<URV>::vwmaccus_vx(unsigned vd, ELEM_TYPE e1, unsigned vs2, unsigned group,
   DWT de1u = DWTU(SWTU(e1));  // Sign extend.
   DWT dest = 0, temp = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), wideGroup);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), wideGroup);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -6977,7 +6979,7 @@ Hart<URV>::execVwmaccus_vx(const DecodedInst* di)
   unsigned vd = di->op0(),  rs1 = di->op1(),  vs2 = di->op2();
 
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -7013,7 +7015,7 @@ Hart<URV>::vdivu_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   ELEM_TYPE e1 = 0, e2 = 0, dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -7073,7 +7075,7 @@ Hart<URV>::vdivu_vx(unsigned vd, unsigned vs1, unsigned rs2, unsigned group,
   // extended.
   ELEM_TYPE e1 = 0, e2 = intRegs_.read(rs2), dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -7130,10 +7132,10 @@ Hart<URV>::vdiv_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   int elemBits = integerWidth<ELEM_TYPE> ();
   ELEM_TYPE e1 = 0, e2 = 0, dest = 0;
-  ELEM_TYPE minInt = ELEM_TYPE(1) << (elemBits - 1);
-  ELEM_TYPE negOne = ELEM_TYPE(-1);
+  auto minInt = ELEM_TYPE(1) << (elemBits - 1);
+  auto negOne = ELEM_TYPE(-1);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -7197,10 +7199,10 @@ Hart<URV>::vdiv_vx(unsigned vd, unsigned vs1, unsigned rs2, unsigned group,
 {
   int elemBits = integerWidth<ELEM_TYPE> ();
   ELEM_TYPE e1 = 0, e2 = SRV(intRegs_.read(rs2)), dest = 0;
-  ELEM_TYPE minInt = ELEM_TYPE(1) << (elemBits - 1);
-  ELEM_TYPE negOne = ELEM_TYPE(-1);
+  auto minInt = ELEM_TYPE(1) << (elemBits - 1);
+  auto negOne = ELEM_TYPE(-1);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -7263,7 +7265,7 @@ Hart<URV>::vremu_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   ELEM_TYPE e1 = 0, e2 = 0, dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -7324,7 +7326,7 @@ Hart<URV>::vremu_vx(unsigned vd, unsigned vs1, unsigned rs2, unsigned group,
   // extended.
   ELEM_TYPE e1 = 0, e2 = intRegs_.read(rs2), dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -7381,10 +7383,10 @@ Hart<URV>::vrem_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   int elemBits = integerWidth<ELEM_TYPE> ();
   ELEM_TYPE e1 = 0, e2 = 0, dest = 0;
-  ELEM_TYPE minInt = ELEM_TYPE(1) << (elemBits - 1);
-  ELEM_TYPE negOne = ELEM_TYPE(-1);
+  auto minInt = ELEM_TYPE(1) << (elemBits - 1);
+  auto negOne = ELEM_TYPE(-1);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -7448,10 +7450,10 @@ Hart<URV>::vrem_vx(unsigned vd, unsigned vs1, unsigned rs2, unsigned group,
   unsigned elemBits = integerWidth<ELEM_TYPE> ();
 
   ELEM_TYPE e1 = 0, e2 = SRV(intRegs_.read(rs2)), dest = 0;
-  ELEM_TYPE minInt = ELEM_TYPE(1) << (elemBits - 1);
-  ELEM_TYPE negOne = ELEM_TYPE(-1);
+  auto minInt = ELEM_TYPE(1) << (elemBits - 1);
+  auto negOne = ELEM_TYPE(-1);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -7514,7 +7516,7 @@ Hart<URV>::vsext(unsigned vd, unsigned vs1, unsigned group, unsigned fromGroup,
   FROM_TYPE e1 = 0;
   ELEM_TYPE dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -7777,7 +7779,7 @@ Hart<URV>::vzext(unsigned vd, unsigned vs1, unsigned group, unsigned fromGroup,
   FROM_TYPE e1 = 0;
   ELEM_TYPE dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -8039,7 +8041,7 @@ Hart<URV>::vadc_vvm(unsigned vd, unsigned vs1, unsigned vs2, unsigned vcin,
 {
   ELEM_TYPE e1 = 0, e2 = 0, dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -8068,7 +8070,7 @@ Hart<URV>::vadc_vxm(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned vcin,
 {
   ELEM_TYPE e1 = 0, dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -8096,7 +8098,7 @@ Hart<URV>::vsbc_vvm(unsigned vd, unsigned vs1, unsigned vs2, unsigned vbin,
 {
   ELEM_TYPE e1 = 0, e2 = 0, dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -8125,7 +8127,7 @@ Hart<URV>::vsbc_vxm(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned vbin,
 {
   ELEM_TYPE e1 = 0, dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -8645,7 +8647,7 @@ Hart<URV>::vmerge_vvm(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   ELEM_TYPE e1 = 0, e2 = 0, dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -8709,7 +8711,7 @@ Hart<URV>::vmerge_vxm(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned group,
 {
   ELEM_TYPE e1 = 0, dest = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -8773,7 +8775,7 @@ Hart<URV>::execVmerge_vim(const DecodedInst* di)
     return;
 
   unsigned vd = di->op0(), vs1 = di->op1(), start = csRegs_.peekVstart();
-  int32_t imm = di->op2As<int32_t>();
+  auto imm = di->op2As<int32_t>();
 
   // Must be masked, dest must not overlap v0. Source must not overlap v0.
   if (not di->isMasked() or vd == 0 or vs1 == 0)
@@ -9109,7 +9111,7 @@ Hart<URV>::execVmv_v_v(const DecodedInst* di)
   unsigned vd = di->op0(),  vs1 = di->op1();
 
   unsigned group = vecRegs_.groupMultiplierX8();
-  group = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  group = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   unsigned elems = vecRegs_.elemMax();
   ElementWidth sew = vecRegs_.elemWidth();
@@ -9168,7 +9170,7 @@ Hart<URV>::execVmv_v_x(const DecodedInst* di)
   unsigned vd = di->op0();
   unsigned rs1 = di->op1();
   unsigned group = vecRegs_.groupMultiplierX8();
-  group = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  group = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
   unsigned elems = vecRegs_.elemMax();
   ElementWidth sew = vecRegs_.elemWidth();
 
@@ -9208,14 +9210,14 @@ Hart<URV>::execVmv_v_i(const DecodedInst* di)
   unsigned start = csRegs_.peekVstart();
   unsigned vd = di->op0();
   unsigned group = vecRegs_.groupMultiplierX8();
-  group = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  group = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
   unsigned elems = vecRegs_.elemMax();
   ElementWidth sew = vecRegs_.elemWidth();
 
   if (not checkVecOpsVsEmul(di, vd, group))
     return;
 
-  int32_t e1 = di->op1As<int32_t>();
+  auto e1 = di->op1As<int32_t>();
 
   using EW = ElementWidth;
   switch (sew)
@@ -9257,21 +9259,16 @@ Hart<URV>::vmvr_v(const DecodedInst* di, unsigned nr)
   unsigned bytes = vecRegs_.bytesPerRegister() * nr;
 
   unsigned start = csRegs_.peekVstart();
-  unsigned bytesPerElem = vecRegs_.elemWidthInBytes(vecRegs_.elemWidth());
+  unsigned bytesPerElem = VecRegs::elemWidthInBytes(vecRegs_.elemWidth());
   unsigned elems = bytes / bytesPerElem;
 
   if (vd != vs1 and start < elems)
     {
-      uint8_t* dest = vecRegs_.getVecData(vd);
-      uint8_t* source = vecRegs_.getVecData(vs1);
-      assert(dest);
-      assert(source);
-
-      dest += start*bytesPerElem;
-      source += start*bytesPerElem;
+      auto dest = vecRegs_.getVecData(vd);
+      auto source = vecRegs_.getVecData(vs1);
       bytes -= start*bytesPerElem;
 
-      memcpy(dest, source, bytes);
+      memcpy(&dest[static_cast<size_t>(start)*bytesPerElem], &source[static_cast<size_t>(start)*bytesPerElem], bytes);
       vecRegs_.setOpEmul(nr, nr);  // Track operand group for logging
     }
 
@@ -9322,7 +9319,7 @@ Hart<URV>::vsaddu_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 
   ELEM_TYPE maxVal = ~ ELEM_TYPE(0);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -9387,7 +9384,7 @@ Hart<URV>::vsaddu_vx(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned group,
 
   ELEM_TYPE maxVal = ~ ELEM_TYPE(0);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -9452,7 +9449,7 @@ Hart<URV>::execVsaddu_vi(const DecodedInst* di)
 
   bool masked = di->isMasked();
   unsigned vd = di->op0(), vs1 = di->op1();
-  int32_t imm = di->op2As<int32_t>();
+  auto imm = di->op2As<int32_t>();
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
   unsigned elems = vecRegs_.elemMax();
   ElementWidth sew = vecRegs_.elemWidth();
@@ -9484,7 +9481,7 @@ Hart<URV>::vsadd_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
   static constexpr ELEM_TYPE minVal = std::numeric_limits<ELEM_TYPE>::min();
   static constexpr ELEM_TYPE maxVal = std::numeric_limits<ELEM_TYPE>::max();
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -9555,7 +9552,7 @@ Hart<URV>::vsadd_vx(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned group,
   static constexpr ELEM_TYPE minVal = std::numeric_limits<ELEM_TYPE>::min();
   static constexpr ELEM_TYPE maxVal = std::numeric_limits<ELEM_TYPE>::max();
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -9625,7 +9622,7 @@ Hart<URV>::execVsadd_vi(const DecodedInst* di)
 
   bool masked = di->isMasked();
   unsigned vd = di->op0(), vs1 = di->op1();
-  int32_t imm = di->op2As<int32_t>();
+  auto imm = di->op2As<int32_t>();
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
   unsigned elems = vecRegs_.elemMax();
   ElementWidth sew = vecRegs_.elemWidth();
@@ -9656,7 +9653,7 @@ Hart<URV>::vssubu_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 
   ELEM_TYPE minVal = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -9721,7 +9718,7 @@ Hart<URV>::vssubu_vx(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned group,
   ELEM_TYPE e1 = 0, dest = 0;
   ELEM_TYPE minVal = 0;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -9789,7 +9786,7 @@ Hart<URV>::vssub_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
   static constexpr ELEM_TYPE minVal = std::numeric_limits<ELEM_TYPE>::min();
   static constexpr ELEM_TYPE maxVal = std::numeric_limits<ELEM_TYPE>::max();
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -9860,7 +9857,7 @@ Hart<URV>::vssub_vx(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned group,
   static constexpr ELEM_TYPE minVal = std::numeric_limits<ELEM_TYPE>::min();
   static constexpr ELEM_TYPE maxVal = std::numeric_limits<ELEM_TYPE>::max();
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -9931,8 +9928,8 @@ roundoff(VecRoundingMode mode, T& value, unsigned d)
 
   unsigned bit = 0;
 
-  unsigned vd = unsigned((value >> d) & 1);
-  unsigned vd_1 = unsigned((value >> (d-1)) & 1);
+  auto vd = unsigned((value >> d) & 1);
+  auto vd_1 = unsigned((value >> (d-1)) & 1);
 
   switch (mode)
     {
@@ -9969,12 +9966,12 @@ Hart<URV>::vaadd_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   ELEM_TYPE e1 = 0, e2 = 0;
 
-  using ELEM_TYPE2 = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2 = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   URV rmVal = peekCsr(CsrNumber::VXRM);
-  VecRoundingMode rm = VecRoundingMode(rmVal);
+  auto rm = VecRoundingMode(rmVal);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -10063,12 +10060,12 @@ Hart<URV>::vaadd_vx(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned group,
 {
   ELEM_TYPE e1 = 0;
 
-  using ELEM_TYPE2 = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2 = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   URV rmVal = peekCsr(CsrNumber::VXRM);
-  VecRoundingMode rm = VecRoundingMode(rmVal);
+  auto rm = VecRoundingMode(rmVal);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -10160,12 +10157,12 @@ Hart<URV>::vasub_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   ELEM_TYPE e1 = 0, e2 = 0;
 
-  using ELEM_TYPE2 = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2 = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   URV rmVal = peekCsr(CsrNumber::VXRM);
-  VecRoundingMode rm = VecRoundingMode(rmVal);
+  auto rm = VecRoundingMode(rmVal);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -10254,12 +10251,12 @@ Hart<URV>::vasub_vx(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned group,
 {
   ELEM_TYPE e1 = 0;
 
-  using ELEM_TYPE2 = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2 = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   URV rmVal = peekCsr(CsrNumber::VXRM);
-  VecRoundingMode rm = VecRoundingMode(rmVal);
+  auto rm = VecRoundingMode(rmVal);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -10351,14 +10348,14 @@ Hart<URV>::vsmul_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   ELEM_TYPE e1 = 0, e2 = 0;
 
-  using ELEM_TYPE2 = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2 = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   URV rmVal = peekCsr(CsrNumber::VXRM);
-  VecRoundingMode rm = VecRoundingMode(rmVal);
+  auto rm = VecRoundingMode(rmVal);
 
   static constexpr ELEM_TYPE minVal = std::numeric_limits<ELEM_TYPE>::min();
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -10430,14 +10427,14 @@ Hart<URV>::vsmul_vx(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned group,
 {
   ELEM_TYPE e1 = 0;
 
-  using ELEM_TYPE2 = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2 = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   URV rmVal = peekCsr(CsrNumber::VXRM);
-  VecRoundingMode rm = VecRoundingMode(rmVal);
+  auto rm = VecRoundingMode(rmVal);
 
   static constexpr ELEM_TYPE minVal = std::numeric_limits<ELEM_TYPE>::min();
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -10511,12 +10508,12 @@ Hart<URV>::vssr_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
   ELEM_TYPE e1 = 0, e2 = 0;
 
   URV rmVal = peekCsr(CsrNumber::VXRM);
-  VecRoundingMode rm = VecRoundingMode(rmVal);
+  auto rm = VecRoundingMode(rmVal);
 
   unsigned elemBits = integerWidth<ELEM_TYPE> ();
   unsigned mask = elemBits - 1;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -10577,13 +10574,13 @@ Hart<URV>::vssr_vx(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned group,
   ELEM_TYPE e1 = 0;
 
   URV rmVal = peekCsr(CsrNumber::VXRM);
-  VecRoundingMode rm = VecRoundingMode(rmVal);
+  auto rm = VecRoundingMode(rmVal);
 
   unsigned elemBits = integerWidth<ELEM_TYPE> ();
   unsigned mask = elemBits - 1;
   unsigned amount = unsigned(e2) & mask;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -10757,21 +10754,21 @@ void
 Hart<URV>::vnclip_wv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
                      unsigned start, unsigned elems, bool masked)
 {
-  using U_ELEM_TYPE = typename std::make_unsigned<ELEM_TYPE>::type;
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using U_ELEM_TYPE = std::make_unsigned_t<ELEM_TYPE>;
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE2X e1 = 0;
   ELEM_TYPE e2 = 0;
 
   URV rmVal = peekCsr(CsrNumber::VXRM);
-  VecRoundingMode rm = VecRoundingMode(rmVal);
+  auto rm = VecRoundingMode(rmVal);
 
   unsigned elemBits = integerWidth<ELEM_TYPE2X> ();
   unsigned mask = elemBits - 1;
   unsigned group2x = group*2;
   bool saturated = false; // True if any of the elements saturate.
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -10849,13 +10846,13 @@ void
 Hart<URV>::vnclip_wx(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned group,
                      unsigned start, unsigned elems, bool masked)
 {
-  using U_ELEM_TYPE = typename std::make_unsigned<ELEM_TYPE>::type;
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using U_ELEM_TYPE = std::make_unsigned_t<ELEM_TYPE>;
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE2X e1 = 0;
 
   URV rmVal = peekCsr(CsrNumber::VXRM);
-  VecRoundingMode rm = VecRoundingMode(rmVal);
+  auto rm = VecRoundingMode(rmVal);
 
   unsigned elemBits = integerWidth<ELEM_TYPE2X> ();
   unsigned mask = elemBits - 1;
@@ -10863,7 +10860,7 @@ Hart<URV>::vnclip_wx(unsigned vd, unsigned vs1, ELEM_TYPE e2, unsigned group,
   unsigned group2x = group*2;
   bool saturated = false; // True if any of the elements saturate.
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -11111,7 +11108,7 @@ Hart<URV>::vectorLoad(const DecodedInst* di, ElementWidth eew, bool faultFirst)
   uint64_t addr = intRegs_.read(rs1) + start*elemSize;
 
   // Effective group. If group is fractional, snap to 1.
-  groupX8 = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), groupX8);
+  groupX8 = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), groupX8);
   unsigned group = groupX8 / 8;
 
   auto& ldStInfo = vecRegs_.ldStInfo_;
@@ -11323,7 +11320,7 @@ Hart<URV>::vectorStore(const DecodedInst* di, ElementWidth eew)
   uint64_t addr = intRegs_.read(rs1) + start*elemSize;
 
   // Effective group. If group is fractional, snap to 1.
-  groupX8 = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), groupX8);
+  groupX8 = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), groupX8);
   unsigned group = groupX8 / 8;
 
   auto& ldStInfo = vecRegs_.ldStInfo_;
@@ -11938,7 +11935,7 @@ Hart<URV>::vectorLoadStrided(const DecodedInst* di, ElementWidth eew)
   uint64_t addr = intRegs_.read(rs1) + start*stride;
 
   // Effective group. If group is fractional, snap to 1.
-  groupX8 = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), groupX8);
+  groupX8 = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), groupX8);
   unsigned group = groupX8 / 8;
 
   unsigned elemSize = sizeof(ELEM_TYPE);
@@ -12117,7 +12114,7 @@ Hart<URV>::vectorStoreStrided(const DecodedInst* di, ElementWidth eew)
   uint64_t addr = intRegs_.read(rs1) + start*stride;
 
   // Effective group. If group is fractional, snap to 1.
-  groupX8 = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), groupX8);
+  groupX8 = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), groupX8);
   unsigned group = groupX8 / 8;
 
   auto& ldStInfo = vecRegs_.ldStInfo_;
@@ -12282,11 +12279,11 @@ Hart<URV>::vectorLoadIndexed(const DecodedInst* di, ElementWidth offsetEew)
   unsigned elemSize = elemWidth / 8;
 
   // Effective group. If group is fractional, snap to 1.
-  groupX8 = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), groupX8);
+  groupX8 = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), groupX8);
   unsigned group = groupX8 / 8;
 
   // Effective index reg group. If group is fractional, snap to 1.
-  offsetGroupX8 = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), offsetGroupX8);
+  offsetGroupX8 = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), offsetGroupX8);
   unsigned ixGroup = offsetGroupX8 / 8;
 
   auto& ldStInfo = vecRegs_.ldStInfo_;
@@ -12582,11 +12579,11 @@ Hart<URV>::vectorStoreIndexed(const DecodedInst* di, ElementWidth offsetEew)
   unsigned elemCount = vecRegs_.elemCount(), elemSize = elemWidth / 8;
 
   // Effective group. If group is fractional, snap to 1.
-  groupX8 = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), groupX8);
+  groupX8 = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), groupX8);
   unsigned group = groupX8 / 8;
 
   // Effective index reg group. If group is fractional, snap to 1.
-  offsetGroupX8 = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), offsetGroupX8);
+  offsetGroupX8 = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), offsetGroupX8);
   unsigned ixGroup = offsetGroupX8 / 8;
 
   auto& ldStInfo = vecRegs_.ldStInfo_;
@@ -12920,7 +12917,7 @@ Hart<URV>::vectorLoadSeg(const DecodedInst* di, ElementWidth eew,
   unsigned elemCount = vecRegs_.elemCount();  // Does not include tail elements.
 
   // Effective group. If group is fractional, snap to 1.
-  groupX8 = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), groupX8);
+  groupX8 = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), groupX8);
   unsigned group = groupX8 / 8;
 
   // Used registers must not exceed register count (32).
@@ -13007,7 +13004,7 @@ Hart<URV>::vectorLoadSeg(const DecodedInst* di, ElementWidth eew,
                   initiateLoadException(di, cause, ldStFaultAddr_, gpa1);
                   return false;
                 }
-	      else if (vecRegs_.isTailAgnostic() and vecRegs_.isTailAgnosticOnes())
+	      if (vecRegs_.isTailAgnostic() and vecRegs_.isTailAgnosticOnes())
 		{
 		  // We reduce VL before processing tail elements. This is allowed
 		  // by the spec (items between old VL and new VL can be updated
@@ -13175,7 +13172,7 @@ Hart<URV>::vectorStoreSeg(const DecodedInst* di, ElementWidth eew,
     }
 
   // Effective group. If group is fractional, snap to 1.
-  groupX8 = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), groupX8);
+  groupX8 = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), groupX8);
   unsigned group = groupX8 / 8;
 
   auto& ldStInfo = vecRegs_.ldStInfo_;
@@ -13244,7 +13241,7 @@ Hart<URV>::vectorStoreSeg(const DecodedInst* di, ElementWidth eew,
               if (elem.skip_)
                 continue;
 
-              ELEM_TYPE val = ELEM_TYPE(elem.data_);
+              auto val = ELEM_TYPE(elem.data_);
               if (not writeForStore(elem.va_, elem.pa_, elem.pa2_, val))
                 assert(0 && "Error: Assertion failed");
             }
@@ -13533,7 +13530,7 @@ Hart<URV>::vectorLoadSegIndexed(const DecodedInst* di, ElementWidth offsetEew,
   unsigned elemCount = vecRegs_.elemCount();  // Does not include tail elements.
 
   // Effective group. If group is fractional, snap to 1.
-  groupX8 = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), groupX8);
+  groupX8 = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), groupX8);
   unsigned group = groupX8 / 8;
 
   // Used registers must not exceed register count (32).
@@ -13544,7 +13541,7 @@ Hart<URV>::vectorLoadSegIndexed(const DecodedInst* di, ElementWidth offsetEew,
     }
 
   // Effective index reg group. If group is fractional, snap to 1.
-  offsetGroupX8 = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), offsetGroupX8);
+  offsetGroupX8 = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), offsetGroupX8);
   unsigned ixGroup = offsetGroupX8 / 8;
 
   auto& ldStInfo = vecRegs_.ldStInfo_;
@@ -13564,13 +13561,13 @@ Hart<URV>::vectorLoadSegIndexed(const DecodedInst* di, ElementWidth offsetEew,
       for (unsigned field = 0; field < fieldCount; ++field)
         {
           uint64_t faddr = 0;
-          unsigned fdv = vd + field*group;  // Field destination register
+          unsigned fdv = vd + static_cast<uint64_t>(field)*group;  // Field destination register
           ELEM_TYPE elem(0);
           bool skip = not vecRegs_.isDestActive(fdv, ix, groupX8, masked, elem);
           if (ix < vecRegs_.elemCount())
             {
               uint64_t offset = vecRegs_.readIndexReg(vi, ix, offsetEew, offsetGroupX8);
-              faddr = addr + offset + field*elemSize;
+              faddr = addr + offset + static_cast<uint64_t>(field)*elemSize;
             }
 
           ldStInfo.addElem(VecLdStElem{faddr, faddr, faddr, elem, ix, skip, field});
@@ -13753,11 +13750,11 @@ Hart<URV>::vectorStoreSegIndexed(const DecodedInst* di, ElementWidth offsetEew,
     }
 
   // Effective group. If group is fractional, snap to 1.
-  groupX8 = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), groupX8);
+  groupX8 = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), groupX8);
   unsigned group = groupX8 / 8;
 
   // Effective index reg group. If group is fractional, snap to 1.
-  offsetGroupX8 = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), offsetGroupX8);
+  offsetGroupX8 = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), offsetGroupX8);
   unsigned ixGroup = offsetGroupX8 / 8;
 
   auto& ldStInfo = vecRegs_.ldStInfo_;
@@ -13824,7 +13821,7 @@ Hart<URV>::vectorStoreSegIndexed(const DecodedInst* di, ElementWidth offsetEew,
               if (elem.skip_)
                 continue;
 
-              ELEM_TYPE val = ELEM_TYPE(elem.data_);
+              auto val = ELEM_TYPE(elem.data_);
               if (not writeForStore(elem.va_, elem.pa_, elem.pa2_, val))
                 assert(0 && "Error: Assertion failed");
             }
@@ -14339,7 +14336,7 @@ doFrsqrt7(T val, bool& divByZero, bool& invalid)
   static constexpr int bias            = std::numeric_limits<T>::max_exponent - 1;
   static constexpr int bitsOfPrecision = std::numeric_limits<T>::digits - 1;
 
-  using uint_fsize_t = typename getSameWidthUintType<T>::type;
+  using uint_fsize_t = getSameWidthUintType_t<T>;
 
   divByZero = false;
   invalid = false;
@@ -14372,11 +14369,11 @@ doFrsqrt7(T val, bool& divByZero, bool& invalid)
       int inExp  = 0;
       T   inFrac = std::frexp(val, &inExp);
       inExp += bias - 1;
-      uint_fsize_t u         = std::bit_cast<uint_fsize_t>(inFrac);
+      auto u         = std::bit_cast<uint_fsize_t>(inFrac);
       int          sigMs6    = (u >> (bitsOfPrecision - 6)) & 0x3f;  // Most sig 6 bits of significand
       uint_fsize_t outExp    = (3 * bias - 1 - inExp) / 2;
       int          index     = (uint_fsize_t(inExp & 1) << 6) | sigMs6;
-      uint_fsize_t outSigMs7 = frsqrt7Table[index];
+      uint_fsize_t outSigMs7 = frsqrt7Table.at(index);
       u                      = (outSigMs7 << (bitsOfPrecision - 7)) | (outExp << bitsOfPrecision);
       val                    = std::bit_cast<T>(u);
     }
@@ -14404,7 +14401,7 @@ doFrec7(T val, RoundingMode mode, FpFlags& flags)
   static constexpr int bias            = std::numeric_limits<T>::max_exponent - 1;
   static constexpr int bitsOfPrecision = std::numeric_limits<T>::digits - 1;
 
-  using uint_fsize_t = typename getSameWidthUintType<T>::type;
+  using uint_fsize_t = getSameWidthUintType_t<T>;
 
   flags = FpFlags::None;
   bool signBit = std::signbit(val);
@@ -14454,10 +14451,10 @@ doFrec7(T val, RoundingMode mode, FpFlags& flags)
 	}
       else
         {
-          uint_fsize_t u         = std::bit_cast<uint_fsize_t>(inFrac);
+          auto u         = std::bit_cast<uint_fsize_t>(inFrac);
           int          sigMs7    = (u >> (bitsOfPrecision - 7)) & 0x7f;  // Most sig 7 bits of significand
           int          outExp    = (2*bias - 1 - inExp);
-          uint_fsize_t outSigMs7 = static_cast<uint_fsize_t>(frec7Table[sigMs7]) << (bitsOfPrecision - 7);
+          uint_fsize_t outSigMs7 = static_cast<uint_fsize_t>(frec7Table.at(sigMs7)) << (bitsOfPrecision - 7);
 
           if (outExp < 1)
             {
@@ -14521,9 +14518,9 @@ Hart<URV>::vfadd_vf(unsigned vd, unsigned vs1, unsigned fs2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
   ELEM_TYPE e1{}, dest{};
-  ELEM_TYPE e2 = fpRegs_.read<ELEM_TYPE>(fs2);
+  auto e2 = fpRegs_.read<ELEM_TYPE>(fs2);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -14621,7 +14618,7 @@ Hart<URV>::vfsub_vf(unsigned vd, unsigned vs1, unsigned fs2, unsigned group,
   ELEM_TYPE e1{}, dest{};
   ELEM_TYPE negE2 = - fpRegs_.read<ELEM_TYPE>(fs2);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -14679,9 +14676,9 @@ Hart<URV>::vfrsub_vf(unsigned vd, unsigned vs1, unsigned fs2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
   ELEM_TYPE e1{}, dest{};
-  ELEM_TYPE e2 = fpRegs_.read<ELEM_TYPE>(fs2);
+  auto e2 = fpRegs_.read<ELEM_TYPE>(fs2);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -14738,12 +14735,12 @@ void
 Hart<URV>::vfwadd_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 		     unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE e1 = ELEM_TYPE(), e2 = ELEM_TYPE();
   ELEM_TYPE2X e1dw{}, e2dw{}, dest{};
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group*2);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group*2);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -14776,7 +14773,7 @@ Hart<URV>::execVfwadd_vv(const DecodedInst* di)
     return;
 
   unsigned group = vecRegs_.groupMultiplierX8();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  vs1 = di->op1(),  vs2 = di->op2();
 
@@ -14813,13 +14810,13 @@ void
 Hart<URV>::vfwadd_vf(unsigned vd, unsigned vs1, unsigned fs2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE e1{};
-  ELEM_TYPE e2 = fpRegs_.read<ELEM_TYPE>(fs2);
+  auto e2 = fpRegs_.read<ELEM_TYPE>(fs2);
   ELEM_TYPE2X e1dw{}, dest{};
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group*2);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group*2);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -14850,7 +14847,7 @@ Hart<URV>::execVfwadd_vf(const DecodedInst* di)
     return;
 
   unsigned group = vecRegs_.groupMultiplierX8();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  vs1 = di->op1(),  rs2 = di->op2();
 
@@ -14885,12 +14882,12 @@ void
 Hart<URV>::vfwsub_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE e1 = ELEM_TYPE(), e2 = ELEM_TYPE();
   ELEM_TYPE2X e1dw{}, e2dw{}, dest{};
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group*2);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group*2);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -14923,7 +14920,7 @@ Hart<URV>::execVfwsub_vv(const DecodedInst* di)
     return;
 
   unsigned group = vecRegs_.groupMultiplierX8();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  vs1 = di->op1(),  vs2 = di->op2();
 
@@ -14960,13 +14957,13 @@ void
 Hart<URV>::vfwsub_vf(unsigned vd, unsigned vs1, unsigned fs2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE e1{};
-  ELEM_TYPE e2 = fpRegs_.read<ELEM_TYPE>(fs2);
+  auto e2 = fpRegs_.read<ELEM_TYPE>(fs2);
   ELEM_TYPE2X e1dw{}, dest{};
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group*2);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group*2);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -14997,7 +14994,7 @@ Hart<URV>::execVfwsub_vf(const DecodedInst* di)
     return;
 
   unsigned group = vecRegs_.groupMultiplierX8();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  vs1 = di->op1(),  rs2 = di->op2();
 
@@ -15032,13 +15029,13 @@ void
 Hart<URV>::vfwadd_wv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 		     unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE e2 = ELEM_TYPE();
   ELEM_TYPE2X e1dw{}, e2dw{}, dest{};
 
   unsigned group2x = group*2;
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group2x);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group2x);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -15069,7 +15066,7 @@ Hart<URV>::execVfwadd_wv(const DecodedInst* di)
     return;
 
   unsigned group = vecRegs_.groupMultiplierX8();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  vs1 = di->op1(),  vs2 = di->op2();
 
@@ -15106,13 +15103,13 @@ void
 Hart<URV>::vfwadd_wf(unsigned vd, unsigned vs1, unsigned fs2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
-  ELEM_TYPE e2 = fpRegs_.read<ELEM_TYPE>(fs2);
+  auto e2 = fpRegs_.read<ELEM_TYPE>(fs2);
   ELEM_TYPE2X e1dw{}, dest{};
 
   unsigned group2x = group*2;
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group2x);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group2x);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -15142,7 +15139,7 @@ Hart<URV>::execVfwadd_wf(const DecodedInst* di)
     return;
 
   unsigned group = vecRegs_.groupMultiplierX8();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  vs1 = di->op1(),  rs2 = di->op2();
 
@@ -15177,13 +15174,13 @@ void
 Hart<URV>::vfwsub_wv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE  e2 = ELEM_TYPE();
   ELEM_TYPE2X e1dw{}, e2dw{}, dest{};
 
   unsigned group2x = group*2;
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group2x);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group2x);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -15214,7 +15211,7 @@ Hart<URV>::execVfwsub_wv(const DecodedInst* di)
     return;
 
   unsigned group = vecRegs_.groupMultiplierX8();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  vs1 = di->op1(),  vs2 = di->op2();
 
@@ -15249,13 +15246,13 @@ void
 Hart<URV>::vfwsub_wf(unsigned vd, unsigned vs1, unsigned fs2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
-  ELEM_TYPE e2 = fpRegs_.read<ELEM_TYPE>(fs2);
+  auto e2 = fpRegs_.read<ELEM_TYPE>(fs2);
   ELEM_TYPE2X e1dw{}, dest{};
 
   unsigned group2x = group*2;
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group2x);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group2x);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -15285,7 +15282,7 @@ Hart<URV>::execVfwsub_wf(const DecodedInst* di)
     return;
 
   unsigned group = vecRegs_.groupMultiplierX8();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  vs1 = di->op1(),  rs2 = di->op2();
 
@@ -15359,9 +15356,9 @@ Hart<URV>::vfmul_vf(unsigned vd, unsigned vs1, unsigned fs2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
   ELEM_TYPE e1{}, dest{};
-  ELEM_TYPE e2 = fpRegs_.read<ELEM_TYPE>(fs2);
+  auto e2 = fpRegs_.read<ELEM_TYPE>(fs2);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -15457,9 +15454,9 @@ Hart<URV>::vfdiv_vf(unsigned vd, unsigned vs1, unsigned fs2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
   ELEM_TYPE e1{}, dest{};
-  ELEM_TYPE e2 = fpRegs_.read<ELEM_TYPE>(fs2);
+  auto e2 = fpRegs_.read<ELEM_TYPE>(fs2);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -15517,9 +15514,9 @@ Hart<URV>::vfrdiv_vf(unsigned vd, unsigned vs1, unsigned fs2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
   ELEM_TYPE e1{}, dest{};
-  ELEM_TYPE e2 = fpRegs_.read<ELEM_TYPE>(fs2);
+  auto e2 = fpRegs_.read<ELEM_TYPE>(fs2);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -15576,11 +15573,11 @@ void
 Hart<URV>::vfwmul_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 		     unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
   ELEM_TYPE e1 = ELEM_TYPE(), e2 = ELEM_TYPE();
   ELEM_TYPE2X e1dw{}, e2dw{}, dest{};
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group*2);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group*2);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -15615,7 +15612,7 @@ Hart<URV>::execVfwmul_vv(const DecodedInst* di)
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  vs1 = di->op1(),  vs2 = di->op2();
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   // Double wide legal. Destination register multiple of emul.
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
@@ -15648,13 +15645,13 @@ void
 Hart<URV>::vfwmul_vf(unsigned vd, unsigned vs1, unsigned fs2, unsigned group,
 		     unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE e1{};
-  ELEM_TYPE e2 = fpRegs_.read<ELEM_TYPE>(fs2);
+  auto e2 = fpRegs_.read<ELEM_TYPE>(fs2);
   ELEM_TYPE2X e1dw{}, dest{};
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group*2);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group*2);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -15687,7 +15684,7 @@ Hart<URV>::execVfwmul_vf(const DecodedInst* di)
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  vs1 = di->op1(),  rs2 = di->op2();
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   // Double wide legal. Destination register multiple of emul.
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
@@ -15722,7 +15719,7 @@ Hart<URV>::vfmadd_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   ELEM_TYPE e1 = ELEM_TYPE(), e2 = ELEM_TYPE(), dest = ELEM_TYPE();
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -15781,9 +15778,9 @@ Hart<URV>::vfmadd_vf(unsigned vd, unsigned f1, unsigned vf2, unsigned group,
 		     unsigned start, unsigned elems, bool masked)
 {
   ELEM_TYPE e2{}, dest{};
-  ELEM_TYPE e1 = fpRegs_.read<ELEM_TYPE>(f1);
+  auto e1 = fpRegs_.read<ELEM_TYPE>(f1);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -15843,7 +15840,7 @@ Hart<URV>::vfnmadd_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   ELEM_TYPE e1 = ELEM_TYPE(), e2 = ELEM_TYPE(), dest = ELEM_TYPE();
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -15902,9 +15899,9 @@ Hart<URV>::vfnmadd_vf(unsigned vd, unsigned f1, unsigned vs2, unsigned group,
 		      unsigned start, unsigned elems, bool masked)
 {
   ELEM_TYPE e2{}, dest{};
-  ELEM_TYPE e1 = fpRegs_.read<ELEM_TYPE>(f1);
+  auto e1 = fpRegs_.read<ELEM_TYPE>(f1);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -15964,7 +15961,7 @@ Hart<URV>::vfmsub_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   ELEM_TYPE e1 = ELEM_TYPE(), e2 = ELEM_TYPE(), dest = ELEM_TYPE();
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -16023,9 +16020,9 @@ Hart<URV>::vfmsub_vf(unsigned vd, unsigned f1, unsigned vs2, unsigned group,
 		     unsigned start, unsigned elems, bool masked)
 {
   ELEM_TYPE e2{}, dest{};
-  ELEM_TYPE e1 = fpRegs_.read<ELEM_TYPE>(f1);
+  auto e1 = fpRegs_.read<ELEM_TYPE>(f1);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -16085,7 +16082,7 @@ Hart<URV>::vfnmsub_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   ELEM_TYPE e1 = ELEM_TYPE(), e2 = ELEM_TYPE(), dest = ELEM_TYPE();
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -16144,9 +16141,9 @@ Hart<URV>::vfnmsub_vf(unsigned vd, unsigned f1, unsigned vs2, unsigned group,
 		      unsigned start, unsigned elems, bool masked)
 {
   ELEM_TYPE e2{}, dest{};
-  ELEM_TYPE e1 = fpRegs_.read<ELEM_TYPE>(f1);
+  auto e1 = fpRegs_.read<ELEM_TYPE>(f1);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -16206,7 +16203,7 @@ Hart<URV>::vfmacc_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   ELEM_TYPE e1 = ELEM_TYPE(), e2 = ELEM_TYPE(), dest = ELEM_TYPE();
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -16265,9 +16262,9 @@ Hart<URV>::vfmacc_vf(unsigned vd, unsigned f1, unsigned vs2, unsigned group,
 		     unsigned start, unsigned elems, bool masked)
 {
   ELEM_TYPE e2{}, dest{};
-  ELEM_TYPE e1 = fpRegs_.read<ELEM_TYPE>(f1);
+  auto e1 = fpRegs_.read<ELEM_TYPE>(f1);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -16339,7 +16336,7 @@ Hart<URV>::vfnmacc_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   ELEM_TYPE e1 = ELEM_TYPE(), e2 = ELEM_TYPE(), dest = ELEM_TYPE();
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -16398,9 +16395,9 @@ Hart<URV>::vfnmacc_vf(unsigned vd, unsigned f1, unsigned vs2, unsigned group,
 		      unsigned start, unsigned elems, bool masked)
 {
   ELEM_TYPE e2{}, dest{};
-  ELEM_TYPE e1 = fpRegs_.read<ELEM_TYPE>(f1);
+  auto e1 = fpRegs_.read<ELEM_TYPE>(f1);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -16460,7 +16457,7 @@ Hart<URV>::vfmsac_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   ELEM_TYPE e1 = ELEM_TYPE(), e2 = ELEM_TYPE(), dest = ELEM_TYPE();
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -16519,9 +16516,9 @@ Hart<URV>::vfmsac_vf(unsigned vd, unsigned f1, unsigned vs2, unsigned group,
 		     unsigned start, unsigned elems, bool masked)
 {
   ELEM_TYPE e2{}, dest{};
-  ELEM_TYPE e1 = fpRegs_.read<ELEM_TYPE>(f1);
+  auto e1 = fpRegs_.read<ELEM_TYPE>(f1);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -16581,7 +16578,7 @@ Hart<URV>::vfnmsac_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   ELEM_TYPE e1 = ELEM_TYPE(), e2 = ELEM_TYPE(), dest = ELEM_TYPE();
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -16640,9 +16637,9 @@ Hart<URV>::vfnmsac_vf(unsigned vd, unsigned f1, unsigned vs2, unsigned group,
 		      unsigned start, unsigned elems, bool masked)
 {
   ELEM_TYPE e2{}, dest{};
-  ELEM_TYPE e1 = fpRegs_.read<ELEM_TYPE>(f1);
+  auto e1 = fpRegs_.read<ELEM_TYPE>(f1);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -16700,13 +16697,13 @@ void
 Hart<URV>::vfwmacc_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 		      unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE e1 = ELEM_TYPE(), e2 = ELEM_TYPE();
   ELEM_TYPE2X e1dw{}, e2dw{}, dest{};
 
   unsigned group2x = group*2;
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group2x);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group2x);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -16744,7 +16741,7 @@ Hart<URV>::execVfwmacc_vv(const DecodedInst* di)
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  vs1 = di->op1(),  vs2 = di->op2();
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -16773,14 +16770,14 @@ void
 Hart<URV>::vfwmacc_vf(unsigned vd, unsigned f1, unsigned vs2, unsigned group,
 		      unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE e2{};
-  ELEM_TYPE e1 = fpRegs_.read<ELEM_TYPE>(f1);
+  auto e1 = fpRegs_.read<ELEM_TYPE>(f1);
   ELEM_TYPE2X e2dw{}, dest{};
 
   unsigned group2x = group*2;
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group2x);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group2x);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -16817,7 +16814,7 @@ Hart<URV>::execVfwmacc_vf(const DecodedInst* di)
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  fs1 = di->op1(),  vs2 = di->op2();
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -16847,13 +16844,13 @@ void
 Hart<URV>::vfwnmacc_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 		       unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE e1 = ELEM_TYPE(), e2 = ELEM_TYPE();
   ELEM_TYPE2X e1dw{}, e2dw{}, dest{};
 
   unsigned group2x = group*2;
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group2x);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group2x);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -16891,7 +16888,7 @@ Hart<URV>::execVfwnmacc_vv(const DecodedInst* di)
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  vs1 = di->op1(),  vs2 = di->op2();
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -16920,14 +16917,14 @@ void
 Hart<URV>::vfwnmacc_vf(unsigned vd, unsigned fs1, unsigned vs2, unsigned group,
 		       unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE e2{};
-  ELEM_TYPE e1 = fpRegs_.read<ELEM_TYPE>(fs1);
+  auto e1 = fpRegs_.read<ELEM_TYPE>(fs1);
   ELEM_TYPE2X e2dw{}, dest{};
 
   unsigned group2x = group*2;
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group2x);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group2x);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -16963,7 +16960,7 @@ Hart<URV>::execVfwnmacc_vf(const DecodedInst* di)
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  fs1 = di->op1(),  vs2 = di->op2();
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -16993,13 +16990,13 @@ void
 Hart<URV>::vfwmsac_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 		      unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE e1 = ELEM_TYPE(), e2 = ELEM_TYPE();
   ELEM_TYPE2X e1dw{}, e2dw{}, dest{};
 
   unsigned group2x = group*2;
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group2x);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group2x);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -17037,7 +17034,7 @@ Hart<URV>::execVfwmsac_vv(const DecodedInst* di)
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  vs1 = di->op1(),  vs2 = di->op2();
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -17066,14 +17063,14 @@ void
 Hart<URV>::vfwmsac_vf(unsigned vd, unsigned fs1, unsigned vs2, unsigned group,
 		      unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE e2{};
-  ELEM_TYPE e1 = fpRegs_.read<ELEM_TYPE>(fs1);
+  auto e1 = fpRegs_.read<ELEM_TYPE>(fs1);
   ELEM_TYPE2X e2dw{}, dest{};
 
   unsigned group2x = group*2;
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group2x);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group2x);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -17109,7 +17106,7 @@ Hart<URV>::execVfwmsac_vf(const DecodedInst* di)
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  fs1 = di->op1(),  vs2 = di->op2();
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -17139,13 +17136,13 @@ void
 Hart<URV>::vfwnmsac_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 		       unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE e1 = ELEM_TYPE(), e2 = ELEM_TYPE();
   ELEM_TYPE2X e1dw{}, e2dw{}, dest{};
 
   unsigned group2x = group*2;
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group2x);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group2x);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -17183,7 +17180,7 @@ Hart<URV>::execVfwnmsac_vv(const DecodedInst* di)
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  vs1 = di->op1(),  vs2 = di->op2();
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -17213,14 +17210,14 @@ void
 Hart<URV>::vfwnmsac_vf(unsigned vd, unsigned fs1, unsigned vs2, unsigned group,
 		       unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type; // Double wide
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>; // Double wide
 
   ELEM_TYPE e2{};
-  ELEM_TYPE e1 = fpRegs_.read<ELEM_TYPE>(fs1);
+  auto e1 = fpRegs_.read<ELEM_TYPE>(fs1);
   ELEM_TYPE2X e2dw{}, dest{};
 
   unsigned group2x = group*2;
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group2x);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group2x);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -17256,7 +17253,7 @@ Hart<URV>::execVfwnmsac_vf(const DecodedInst* di)
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  fs1 = di->op1(),  vs2 = di->op2();
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -17288,7 +17285,7 @@ Hart<URV>::vfsqrt_v(unsigned vd, unsigned vs1, unsigned group,
 {
   ELEM_TYPE e1{}, dest{};
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -17346,9 +17343,9 @@ Hart<URV>::vfmerge(unsigned vd, unsigned vs1, unsigned rs2, unsigned group,
 		   unsigned start, unsigned elems)
 {
   ELEM_TYPE e1{}, dest{};
-  ELEM_TYPE e2 = fpRegs_.read<ELEM_TYPE>(rs2);
+  auto e2 = fpRegs_.read<ELEM_TYPE>(rs2);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -17421,7 +17418,7 @@ Hart<URV>::vfmv_v_f(unsigned vd, unsigned rs1, unsigned group,
 {
   ELEM_TYPE e1 = fpRegs_.read<ELEM_TYPE>(rs1), dest;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -17548,7 +17545,7 @@ Hart<URV>::vmfeq_vf(unsigned vd, unsigned vs1, unsigned rs2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
   ELEM_TYPE e1{};
-  ELEM_TYPE e2 = fpRegs_.read<ELEM_TYPE>(rs2);
+  auto e2 = fpRegs_.read<ELEM_TYPE>(rs2);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -17670,7 +17667,7 @@ Hart<URV>::vmfne_vf(unsigned vd, unsigned vs1, unsigned rs2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
   ELEM_TYPE e1{};
-  ELEM_TYPE e2 = fpRegs_.read<ELEM_TYPE>(rs2);
+  auto e2 = fpRegs_.read<ELEM_TYPE>(rs2);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -17787,7 +17784,7 @@ Hart<URV>::vmflt_vf(unsigned vd, unsigned vs1, unsigned rs2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
   ELEM_TYPE e1{};
-  ELEM_TYPE e2 = fpRegs_.read<ELEM_TYPE>(rs2);
+  auto e2 = fpRegs_.read<ELEM_TYPE>(rs2);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -17900,7 +17897,7 @@ Hart<URV>::vmfle_vf(unsigned vd, unsigned vs1, unsigned rs2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
   ELEM_TYPE e1{};
-  ELEM_TYPE e2 = fpRegs_.read<ELEM_TYPE>(rs2);
+  auto e2 = fpRegs_.read<ELEM_TYPE>(rs2);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -17955,7 +17952,7 @@ Hart<URV>::vmfgt_vf(unsigned vd, unsigned vs1, unsigned rs2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
   ELEM_TYPE e1{};
-  ELEM_TYPE e2 = fpRegs_.read<ELEM_TYPE>(rs2);
+  auto e2 = fpRegs_.read<ELEM_TYPE>(rs2);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -18010,7 +18007,7 @@ Hart<URV>::vmfge_vf(unsigned vd, unsigned vs1, unsigned rs2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
   ELEM_TYPE e1{};
-  ELEM_TYPE e2 = fpRegs_.read<ELEM_TYPE>(rs2);
+  auto e2 = fpRegs_.read<ELEM_TYPE>(rs2);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -18066,14 +18063,14 @@ Hart<URV>::vfclass_v(unsigned vd, unsigned vs1, unsigned group,
 {
   ELEM_TYPE e1{};
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
 
   for (unsigned ix = start; ix < elems; ++ix)
     {
-      using INT_TYPE = typename getSameWidthIntType<ELEM_TYPE>::type;
+      using INT_TYPE = getSameWidthIntType_t<ELEM_TYPE>;
       INT_TYPE dest{};
       if (vecRegs_.isDestActive(vd, ix, destGroup, masked, dest))
 	{
@@ -18122,14 +18119,14 @@ Hart<URV>::vfcvt_xu_f_v(unsigned vd, unsigned vs1, unsigned group,
 {
   ELEM_TYPE e1{};
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
 
   for (unsigned ix = start; ix < elems; ++ix)
     {
-      using UINT_TYPE = typename getSameWidthUintType<ELEM_TYPE>::type;
+      using UINT_TYPE = getSameWidthUintType_t<ELEM_TYPE>;
       UINT_TYPE dest{};
 
       if (vecRegs_.isDestActive(vd, ix, destGroup, masked, dest))
@@ -18184,14 +18181,14 @@ Hart<URV>::vfcvt_x_f_v(unsigned vd, unsigned vs1, unsigned group,
 		       unsigned start, unsigned elems, bool masked)
 {
   ELEM_TYPE e1{};
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
 
   for (unsigned ix = start; ix < elems; ++ix)
     {
-      using INT_TYPE = typename getSameWidthIntType<ELEM_TYPE>::type;
+      using INT_TYPE = getSameWidthIntType_t<ELEM_TYPE>;
       INT_TYPE dest{};
 
       if (vecRegs_.isDestActive(vd, ix, destGroup, masked, dest))
@@ -18305,12 +18302,12 @@ void
 Hart<URV>::vfcvt_f_xu_v(unsigned vd, unsigned vs1, unsigned group,
 			unsigned start, unsigned elems, bool masked)
 {
-  using UINT_TYPE = typename getSameWidthUintType<ELEM_TYPE>::type;
+  using UINT_TYPE = getSameWidthUintType_t<ELEM_TYPE>;
 
   UINT_TYPE e1{0};
   ELEM_TYPE dest{};
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -18368,12 +18365,12 @@ void
 Hart<URV>::vfcvt_f_x_v(unsigned vd, unsigned vs1, unsigned group,
 		       unsigned start, unsigned elems, bool masked)
 {
-  using INT_TYPE = typename getSameWidthIntType<ELEM_TYPE>::type;
+  using INT_TYPE = getSameWidthIntType_t<ELEM_TYPE>;
 
   INT_TYPE e1{0};
   ELEM_TYPE dest{};
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -18433,15 +18430,15 @@ Hart<URV>::vfwcvt_xu_f_v(unsigned vd, unsigned vs1, unsigned group,
 {
   ELEM_TYPE e1{};
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group*2);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group*2);
 
   if (start >= vecRegs_.elemCount())
     return;
 
   for (unsigned ix = start; ix < elems; ++ix)
     {
-      using UINT_TYPE   = typename getSameWidthUintType<ELEM_TYPE>::type;
-      using UINT_TYPE2X = typename makeDoubleWide<UINT_TYPE>::type;
+      using UINT_TYPE   = getSameWidthUintType_t<ELEM_TYPE>;
+      using UINT_TYPE2X = makeDoubleWide_t<UINT_TYPE>;
       UINT_TYPE2X dest{};
 
       if (vecRegs_.isDestActive(vd, ix, destGroup, masked, dest))
@@ -18471,7 +18468,7 @@ Hart<URV>::execVfwcvt_xu_f_v(const DecodedInst* di)
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  vs1 = di->op1();
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -18505,15 +18502,15 @@ Hart<URV>::vfwcvt_x_f_v(unsigned vd, unsigned vs1, unsigned group,
 {
   ELEM_TYPE e1{};
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group*2);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group*2);
 
   if (start >= vecRegs_.elemCount())
     return;
 
   for (unsigned ix = start; ix < elems; ++ix)
     {
-      using INT_TYPE   = typename getSameWidthIntType<ELEM_TYPE>::type;
-      using INT_TYPE2X = typename makeDoubleWide<INT_TYPE>::type;
+      using INT_TYPE   = getSameWidthIntType_t<ELEM_TYPE>;
+      using INT_TYPE2X = makeDoubleWide_t<INT_TYPE>;
       INT_TYPE2X dest{};
 
       if (vecRegs_.isDestActive(vd, ix, destGroup, masked, dest))
@@ -18543,7 +18540,7 @@ Hart<URV>::execVfwcvt_x_f_v(const DecodedInst* di)
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  vs1 = di->op1();
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -18581,7 +18578,7 @@ Hart<URV>::execVfwcvt_rtz_xu_f_v(const DecodedInst* di)
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  vs1 = di->op1();
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -18618,7 +18615,7 @@ Hart<URV>::execVfwcvt_rtz_x_f_v(const DecodedInst* di)
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  vs1 = di->op1();
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -18650,13 +18647,13 @@ void
 Hart<URV>::vfwcvt_f_xu_v(unsigned vd, unsigned vs1, unsigned group,
 			 unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type;
-  using FP_TYPE2X   = typename getSameWidthFloatType<ELEM_TYPE2X>::type;
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>;
+  using FP_TYPE2X   = getSameWidthFloatType_t<ELEM_TYPE2X>;
 
   ELEM_TYPE e1{};
   FP_TYPE2X dest{};
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group*2);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group*2);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -18693,7 +18690,7 @@ Hart<URV>::execVfwcvt_f_xu_v(const DecodedInst* di)
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  vs1 = di->op1();
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group) or not checkRoundingModeCommon(di))
     {
@@ -18735,13 +18732,13 @@ void
 Hart<URV>::vfwcvt_f_x_v(unsigned vd, unsigned vs1, unsigned group,
 		       unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type;
-  using FP_TYPE2X   = typename getSameWidthFloatType<ELEM_TYPE2X>::type;
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>;
+  using FP_TYPE2X   = getSameWidthFloatType_t<ELEM_TYPE2X>;
 
   ELEM_TYPE e1{};
   FP_TYPE2X dest{};
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group*2);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group*2);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -18778,7 +18775,7 @@ Hart<URV>::execVfwcvt_f_x_v(const DecodedInst* di)
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  vs1 = di->op1();
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group) or not checkRoundingModeCommon(di))
     {
@@ -18820,12 +18817,12 @@ void
 Hart<URV>::vfwcvt_f_f_v(unsigned vd, unsigned vs1, unsigned group,
 			unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type;
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>;
 
   ELEM_TYPE e1{};
   ELEM_TYPE2X dest{};
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group*2);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group*2);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -18864,7 +18861,7 @@ Hart<URV>::execVfwcvt_f_f_v(const DecodedInst* di)
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  vs1 = di->op1();
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -18895,12 +18892,12 @@ void
 Hart<URV>::vfncvt_xu_f_w(unsigned vd, unsigned vs1, unsigned group,
 			 unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X  = typename makeDoubleWide<ELEM_TYPE>::type;
-  using FLOAT_TYPE2X = typename getSameWidthFloatType<ELEM_TYPE2X>::type;
+  using ELEM_TYPE2X  = makeDoubleWide_t<ELEM_TYPE>;
+  using FLOAT_TYPE2X = getSameWidthFloatType_t<ELEM_TYPE2X>;
 
   FLOAT_TYPE2X e1{};
   unsigned group2x = group*2;
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -18977,12 +18974,12 @@ void
 Hart<URV>::vfncvt_x_f_w(unsigned vd, unsigned vs1, unsigned group,
 			unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X  = typename makeDoubleWide<ELEM_TYPE>::type;
-  using FLOAT_TYPE2X = typename getSameWidthFloatType<ELEM_TYPE2X>::type;
+  using ELEM_TYPE2X  = makeDoubleWide_t<ELEM_TYPE>;
+  using FLOAT_TYPE2X = getSameWidthFloatType_t<ELEM_TYPE2X>;
 
   FLOAT_TYPE2X e1{};
   unsigned group2x = group*2;
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -19171,13 +19168,13 @@ void
 Hart<URV>::vfncvt_f_xu_w(unsigned vd, unsigned vs1, unsigned group,
 			 unsigned start, unsigned elems, bool masked)
 {
-  using FLOAT_TYPE  = typename getSameWidthFloatType<ELEM_TYPE>::type;
-  using UINT_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type;
+  using FLOAT_TYPE  = getSameWidthFloatType_t<ELEM_TYPE>;
+  using UINT_TYPE2X = makeDoubleWide_t<ELEM_TYPE>;
 
   UINT_TYPE2X e1{0};
   FLOAT_TYPE dest{};
   unsigned group2x = group*2;
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -19244,13 +19241,13 @@ void
 Hart<URV>::vfncvt_f_x_w(unsigned vd, unsigned vs1, unsigned group,
 			unsigned start, unsigned elems, bool masked)
 {
-  using FLOAT_TYPE = typename getSameWidthFloatType<ELEM_TYPE>::type;
-  using INT_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type;
+  using FLOAT_TYPE = getSameWidthFloatType_t<ELEM_TYPE>;
+  using INT_TYPE2X = makeDoubleWide_t<ELEM_TYPE>;
 
   INT_TYPE2X e1{0};
   FLOAT_TYPE dest{};
   unsigned group2x = group*2;
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -19317,12 +19314,12 @@ void
 Hart<URV>::vfncvt_f_f_w(unsigned vd, unsigned vs1, unsigned group,
 			unsigned start, unsigned elems, bool masked)
 {
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type;
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>;
 
   ELEM_TYPE2X e1{};
   ELEM_TYPE dest{};
   unsigned group2x = group*2;
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -19898,7 +19895,7 @@ Hart<URV>::vfwredusum_vs(unsigned vd, unsigned vs1, unsigned vs2, unsigned group
   if (elems == 0)
     return;
 
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type;
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>;
 
   ELEM_TYPE2X result{};
   unsigned scalarElemIx = 0, scalarElemGroupX8 = 8;
@@ -19906,7 +19903,7 @@ Hart<URV>::vfwredusum_vs(unsigned vd, unsigned vs1, unsigned vs2, unsigned group
   vecRegs_.read(vs2, scalarElemIx, scalarElemGroupX8, result);
 
   ElementWidth dsew = vecRegs_.elemWidth();
-  if (not vecRegs_.doubleSew(vecRegs_.elemWidth(), dsew))
+  if (not VecRegs::doubleSew(vecRegs_.elemWidth(), dsew))
     assert(0 && "Error: Assertion failed");
 
   ELEM_TYPE e1{};
@@ -20048,7 +20045,7 @@ Hart<URV>::vfwredosum_vs(unsigned vd, unsigned vs1, unsigned vs2, unsigned group
   if (elems == 0)
     return;
 
-  using ELEM_TYPE2X = typename makeDoubleWide<ELEM_TYPE>::type;
+  using ELEM_TYPE2X = makeDoubleWide_t<ELEM_TYPE>;
 
   ELEM_TYPE2X result{};
   unsigned scalarElemIx = 0, scalarElemGroupX8 = 8;
@@ -20074,8 +20071,8 @@ Hart<URV>::vfwredosum_vs(unsigned vd, unsigned vs1, unsigned vs2, unsigned group
     }
 
   vecRegs_.write(vd, scalarElemIx, scalarElemGroupX8, result);
-  ElementWidth dsew;
-  if (not vecRegs_.doubleSew(vecRegs_.elemWidth(), dsew))
+  ElementWidth dsew{};
+  if (not VecRegs::doubleSew(vecRegs_.elemWidth(), dsew))
     assert(0 && "Error: Assertion failed");
 
   unsigned destElems = vecRegs_.singleMax(dsew);
@@ -20137,7 +20134,7 @@ Hart<URV>::vfrsqrt7_v(unsigned vd, unsigned vs1, unsigned group,
 
   bool inv = false, dbz = false;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -20204,7 +20201,7 @@ Hart<URV>::vfrec7_v(unsigned vd, unsigned vs1, unsigned group,
   FpFlags flags = FpFlags::None;
   auto mode = getFpRoundingMode();
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -20262,7 +20259,7 @@ Hart<URV>::vfmin_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   ELEM_TYPE e1{}, e2{}, dest{};
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -20325,9 +20322,9 @@ Hart<URV>::vfmin_vf(unsigned vd, unsigned vs1, unsigned fs2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
   ELEM_TYPE e1{}, dest{};
-  ELEM_TYPE e2 = fpRegs_.read<ELEM_TYPE>(fs2);
+  auto e2 = fpRegs_.read<ELEM_TYPE>(fs2);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -20386,7 +20383,7 @@ Hart<URV>::vfmax_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   ELEM_TYPE e1{}, e2{}, dest{};
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -20448,9 +20445,9 @@ Hart<URV>::vfmax_vf(unsigned vd, unsigned vs1, unsigned fs2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
   ELEM_TYPE e1{}, dest{};
-  ELEM_TYPE e2 = fpRegs_.read<ELEM_TYPE>(fs2);
+  auto e2 = fpRegs_.read<ELEM_TYPE>(fs2);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -20510,7 +20507,7 @@ Hart<URV>::vfsgnj_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   ELEM_TYPE e1{}, e2{}, dest{};
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -20566,9 +20563,9 @@ Hart<URV>::vfsgnj_vf(unsigned vd, unsigned vs1, unsigned fs2, unsigned group,
 		    unsigned start, unsigned elems, bool masked)
 {
   ELEM_TYPE e1{}, dest{};
-  ELEM_TYPE e2 = fpRegs_.read<ELEM_TYPE>(fs2);
+  auto e2 = fpRegs_.read<ELEM_TYPE>(fs2);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -20622,7 +20619,7 @@ Hart<URV>::vfsgnjn_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   ELEM_TYPE e1{}, e2{}, dest{};
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -20679,11 +20676,11 @@ Hart<URV>::vfsgnjn_vf(unsigned vd, unsigned vs1, unsigned fs2, unsigned group,
 		      unsigned start, unsigned elems, bool masked)
 {
   ELEM_TYPE e1{}, dest{};
-  ELEM_TYPE e2 = fpRegs_.read<ELEM_TYPE>(fs2);
+  auto e2 = fpRegs_.read<ELEM_TYPE>(fs2);
 
   e2 = -e2;
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -20737,7 +20734,7 @@ Hart<URV>::vfsgnjx_vv(unsigned vd, unsigned vs1, unsigned vs2, unsigned group,
 {
   ELEM_TYPE e1{}, e2{}, dest{};
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -20800,9 +20797,9 @@ Hart<URV>::vfsgnjx_vf(unsigned vd, unsigned vs1, unsigned fs2, unsigned group,
 		      unsigned start, unsigned elems, bool masked)
 {
   ELEM_TYPE e1{}, dest{};
-  ELEM_TYPE e2 = fpRegs_.read<ELEM_TYPE>(fs2);
+  auto e2 = fpRegs_.read<ELEM_TYPE>(fs2);
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   if (start >= vecRegs_.elemCount())
     return;
@@ -20904,7 +20901,7 @@ Hart<URV>::execVfwcvtbf16_f_f_v(const DecodedInst* di)
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  vs1 = di->op1();
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -20940,7 +20937,7 @@ Hart<URV>::execVfwmaccbf16_vv(const DecodedInst* di)
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  vs1 = di->op1(),  vs2 = di->op2();
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {
@@ -20973,7 +20970,7 @@ Hart<URV>::execVfwmaccbf16_vf(const DecodedInst* di)
   bool masked = di->isMasked();
   unsigned vd = di->op0(),  fs1 = di->op1(),  vs2 = di->op2();
   unsigned group = vecRegs_.groupMultiplierX8(),  start = csRegs_.peekVstart();
-  ElementWidth dsew, sew = vecRegs_.elemWidth();
+  ElementWidth dsew{}, sew = vecRegs_.elemWidth();
 
   if (not vecRegs_.isDoubleWideLegal(sew, dsew, group))
     {

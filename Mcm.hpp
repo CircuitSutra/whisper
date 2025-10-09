@@ -47,6 +47,7 @@ namespace WdRiscv
     bool       canceled_  : 1  = false;
     bool       bypass_    : 1  = false;   // True if a bypass operation.
     bool       isIo_      : 1  = false;   // True if in IO region.
+    bool       cache_     : 1  = false;   // True if operation goes to cache. 
 
     /// Return true if address range of this operation overlaps that of the given one.
     bool overlaps(const MemoryOp& other) const
@@ -227,7 +228,7 @@ namespace WdRiscv
     /// forward). For vector load elemIx is the element index and field is the segment
     /// field number (0 if non segment).
     bool readOp(Hart<URV>& hart, uint64_t time, uint64_t instrTag, uint64_t physAddr,
-		unsigned size, uint64_t rtlData, unsigned elemIx, unsigned field);
+		unsigned size, uint64_t rtlData, unsigned elemIx, unsigned field, bool cache);
 
     /// This is a write operation bypassing the merge buffer. The cache parameter indicates
     /// whether the write operation should go to cache or memory.
@@ -497,7 +498,7 @@ namespace WdRiscv
     /// Helper to public readOp which splits line crossing ops into two calling this
     /// method for each.
     bool readOp_(Hart<URV>& hart, uint64_t time, uint64_t tag, uint64_t pa, unsigned size,
-                 uint64_t rtlData, unsigned elemIx, unsigned field);
+                 uint64_t rtlData, unsigned elemIx, unsigned field, bool cache);
 
     using MemoryOpVec = std::vector<MemoryOp>;
 
@@ -517,7 +518,7 @@ namespace WdRiscv
                            unsigned size, uint64_t rtlData, uint64_t refData) const;
 
     /// Read up to a double word (size <= 8) from the reference model memory.
-    bool referenceModelRead(Hart<URV>& hart, uint64_t pa, unsigned size, uint64_t& val);
+    bool referenceModelRead(Hart<URV>& hart, uint64_t pa, unsigned size, uint64_t& val, bool cache);
 
     /// Return true if the physical adresses of the given read operation, op, overlaps the
     /// the range of addresses associated with a memory access for the given vector
@@ -754,13 +755,11 @@ namespace WdRiscv
     /// instruction overlap the given address.
     bool vecOverlapsRtlPhysAddr(const McmInstr& instr, uint64_t addr) const
     {
-      for (auto opIx : instr.memOps_)
-	{
-	  auto& op = sysMemOps_.at(opIx);
-	  if (op.overlaps(addr))
-	    return true;
-	}
-      return false;
+      return std::any_of(instr.memOps_.begin(), instr.memOps_.end(),
+                         [this, addr] (auto opIx) {
+                            const auto& op = sysMemOps_.at(opIx);
+                            return op.overlaps(addr);
+                         });
     }
 
     /// Return true if given instruction data addresses overlap the given address. Return
@@ -790,6 +789,8 @@ namespace WdRiscv
     bool instrHasRead(const McmInstr& instr) const;
 
     bool instrHasWrite(const McmInstr& instr) const;
+
+    bool instrHasBypassPlusCache(const McmInstr& instr) const;
 
     bool checkStoreComplete(unsigned hartIx, const McmInstr& instr) const;
 
@@ -1029,7 +1030,7 @@ namespace WdRiscv
       // Dependency time of most recent branch in program order or 0 if branch does not
       // depend on a prior memory instruction.
       uint64_t branchTime_ = 0;
-      uint64_t branchProducer_;
+      uint64_t branchProducer_ = 0;
 
       // Dependency time of most recent vsetvl or vsetvli in program order or
       // 0 if vset does not depend on prior memory instruction.

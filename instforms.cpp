@@ -643,6 +643,98 @@ IFormInst::encodeFld(unsigned rd, unsigned rs1, int offset)
 
 
 bool
+IFormInst::encodeVle8_v(unsigned vd, unsigned rs1, bool masked)
+{
+  if (vd > 31 or rs1 > 31)
+    return false;  // Register(s) out of bounds.
+
+  // VLE8.V instruction encoding:
+  // Opcode: 0000111 (0x07) - LOAD-FP/vector load opcode  
+  // funct3: 000 (0) - differentiates from other vector loads
+  // imm12: 000000000000 (0) - unit stride, masked, nf=0
+  fields.opcode = 0x07;
+  fields.rd = vd & 0x1f;
+  fields.funct3 = 0;
+  fields.rs1 = rs1 & 0x1f;
+  fields.imm = 0;  // unit stride, masked, mew=0, nf=0
+
+  if (not masked)
+    fields.imm |= 0x20;  // Bit 25 of opcode.
+
+  return true;
+}
+
+
+bool
+IFormInst::encodeVle16_v(unsigned vd, unsigned rs1, bool masked)
+{
+  if (vd > 31 or rs1 > 31)
+    return false;  // Register(s) out of bounds.
+
+  // VLE16.V instruction encoding:
+  // Opcode: 0000111 (0x07) - LOAD-FP/vector load opcode  
+  // funct3: 101 (5) - differentiates from other vector loads
+  // imm12: 000000000000 (0) - unit stride, masked, nf=0
+  fields.opcode = 0x07;
+  fields.rd = vd & 0x1f;
+  fields.funct3 = 5;
+  fields.rs1 = rs1 & 0x1f;
+  fields.imm = 0;  // unit stride, masked, mew=0, nf=0
+
+  if (not masked)
+    fields.imm |= 0x20;  // Bit 25 of opcode.
+
+  return true;
+}
+
+
+bool
+IFormInst::encodeVle32_v(unsigned vd, unsigned rs1, bool masked)
+{
+  if (vd > 31 or rs1 > 31)
+    return false;  // Register(s) out of bounds.
+
+  // VLE32.V instruction encoding:
+  // Opcode: 0000111 (0x07) - LOAD-FP/vector load opcode  
+  // funct3: 110 (6) - differentiates from other vector loads
+  // imm12: 000000000000 (0) - unit stride, masked, nf=0
+  fields.opcode = 0x07;
+  fields.rd = vd & 0x1f;
+  fields.funct3 = 6;
+  fields.rs1 = rs1 & 0x1f;
+  fields.imm = 0;  // unit stride, masked, mew=0, nf=0
+
+  if (not masked)
+    fields.imm |= 0x20;  // Bit 25 of opcode.
+
+  return true;
+}
+
+
+bool
+IFormInst::encodeVle64_v(unsigned vd, unsigned rs1, bool masked)
+{
+  if (vd > 31 or rs1 > 31)
+    return false;  // Register(s) out of bounds.
+
+  // VLE64.V instruction encoding:
+  // Opcode: 0000111 (0x07) - LOAD-FP/vector load opcode  
+  // funct3: 111 (7) - differentiates from other vector loads
+  // imm12: 000000000000 (0) - unit stride, masked, nf=0
+  fields.opcode = 0x07;
+  fields.rd = vd & 0x1f;
+  fields.funct3 = 7;
+  fields.rs1 = rs1 & 0x1f;
+  fields.imm = 0;  // unit stride, masked, mew=0, nf=0
+
+  if (not masked)
+    fields.imm |= 0x20;  // Bit 25 of opcode.
+
+  return true;
+}
+
+
+bool
 IFormInst::encodeSlli(unsigned rd, unsigned rs1, unsigned shamt, bool rv64)
 {
   if (rd > 31 or rs1 > 31)
@@ -2389,5 +2481,49 @@ WdRiscv::encodeFcvtdlu(uint32_t rd, uint32_t rs1, uint32_t rm, uint32_t& inst)
   if (not rfi.encodeFcvtdlu(rd, rs1, rm))
     return false;
   inst = rfi.code;
+  return true;
+}
+
+
+bool
+WdRiscv::encodeVle8_v(uint32_t vd, uint32_t rs1, bool masked, uint32_t& inst)
+{
+  IFormInst ifi(0);
+  if (not ifi.encodeVle8_v(vd, rs1, masked))
+    return false;
+  inst = ifi.code;
+  return true;
+}
+
+
+bool
+WdRiscv::encodeVle16_v(uint32_t vd, uint32_t rs1, bool masked, uint32_t& inst)
+{
+  IFormInst ifi(0);
+  if (not ifi.encodeVle16_v(vd, rs1, masked))
+    return false;
+  inst = ifi.code;
+  return true;
+}
+
+
+bool
+WdRiscv::encodeVle32_v(uint32_t vd, uint32_t rs1, bool masked, uint32_t& inst)
+{
+  IFormInst ifi(0);
+  if (not ifi.encodeVle32_v(vd, rs1, masked))
+    return false;
+  inst = ifi.code;
+  return true;
+}
+
+
+bool
+WdRiscv::encodeVle64_v(uint32_t vd, uint32_t rs1, bool masked, uint32_t& inst)
+{
+  IFormInst ifi(0);
+  if (not ifi.encodeVle64_v(vd, rs1, masked))
+    return false;
+  inst = ifi.code;
   return true;
 }

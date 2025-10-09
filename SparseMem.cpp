@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <cassert>
 #include "SparseMem.hpp"
+#include "util.hpp"
 
 
 using namespace WdRiscv;
@@ -37,7 +38,7 @@ SparseMem::read(uint64_t addr, unsigned size, uint64_t& value)
     {
       if (aligned)
         return read<uint16_t>(addr, value);
-      uint64_t low, high;
+      uint64_t low = 0, high = 0;
       if (read<uint8_t>(addr, low) and read<uint8_t>(addr+1, high))
         {
           value = (high << 8) | low;
@@ -50,7 +51,7 @@ SparseMem::read(uint64_t addr, unsigned size, uint64_t& value)
     {
       if (aligned)
         return read<uint32_t>(addr, value);
-      uint64_t a0, a1, a2, a3;
+      uint64_t a0 = 0, a1 = 0, a2 = 0, a3 = 0;
       if (read<uint8_t>(addr, a0) and read<uint8_t>(addr+1, a1) and
           read<uint8_t>(addr+2, a2) and read<uint8_t>(addr+3, a3))
         {
@@ -64,7 +65,7 @@ SparseMem::read(uint64_t addr, unsigned size, uint64_t& value)
     {
       if (aligned)
         return read<uint64_t>(addr, value);
-      uint64_t a0, a1, a2, a3, a4, a5, a6, a7;
+      uint64_t a0 = 0, a1 = 0, a2 = 0, a3 = 0, a4 = 0, a5 = 0, a6 = 0, a7 = 0;
       if (read<uint8_t>(addr, a0) and read<uint8_t>(addr+1, a1) and
           read<uint8_t>(addr+2, a2) and read<uint8_t>(addr+3, a3) and
           read<uint8_t>(addr+4, a4) and read<uint8_t>(addr+5, a5) and
@@ -126,7 +127,7 @@ SparseMem::write(uint64_t addr, unsigned size, uint64_t val)
 bool
 SparseMem::writeHexFile(const std::string& path) const
 {
-  FILE* out = fopen(path.c_str(), "w");
+  util::file::SharedFile out = util::file::make_shared_file(fopen(path.c_str(), "w"));
   if (not out)
     {
       std::cerr << "Error: SparseMem::writeHexFile failed - cannot open "
@@ -139,9 +140,9 @@ SparseMem::writeHexFile(const std::string& path) const
   for (const auto& kv : pageMap_)
     {
       uint64_t addr = kv.first * pageSize_;             // Page address
-      const std::vector<uint8_t>& data_sp = kv.second;  // Page data
-      const uint8_t* data = data_sp.data();
-      if (fprintf(out, "@%0" PRIx64 "\n", addr) < 0)
+      const std::vector<uint8_t>& data = kv.second;     // Page data
+      unsigned offset = 0;
+      if (fprintf(out.get(), "@%0" PRIx64 "\n", addr) < 0)
         {
           ok = false;
           break;
@@ -152,19 +153,17 @@ SparseMem::writeHexFile(const std::string& path) const
         {
           size_t chunk = std::min(remain, size_t(16));
           const char* sep = "";
-          for (size_t i = 0; i < chunk; ++i)
+          for (size_t i = 0; i < chunk; ++i, ++offset)
             {
-              if (fprintf(out, "%s%02x", sep, *data++) < 0)
+              if (fprintf(out.get(), "%s%02x", sep, data.at(offset)) < 0)
                 ok = false;
               sep = " ";
             }
-          if (fprintf(out, "\n") < 0)
+          if (fprintf(out.get(), "\n") < 0)
             ok = false;
           remain -= chunk;
         }
     }
-
-  fclose(out);
 
   return ok;
 }

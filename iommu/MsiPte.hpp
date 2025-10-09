@@ -14,9 +14,11 @@
 
 #pragma once
 
+#include <cstdint>
+
+
 namespace TT_IOMMU
 {
-
 
   /// Union to pack/unpack first double word of basic MSI PTE.
   union MsiPte0

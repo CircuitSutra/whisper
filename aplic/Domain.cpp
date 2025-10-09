@@ -5,7 +5,7 @@ using namespace TT_APLIC;
 
 Domain::Domain(
     const Aplic *aplic,
-    std::shared_ptr<Domain> parent,
+    const std::shared_ptr<Domain>& parent,
     const DomainParams& params
 ):
     aplic_(aplic),
@@ -28,14 +28,10 @@ void Domain::reset()
     mmsiaddrcfgh_ = Mmsiaddrcfgh{params_.mmsiaddrcfgh};
     smsiaddrcfg_ = params_.smsiaddrcfg;
     smsiaddrcfgh_ = Smsiaddrcfgh{params_.smsiaddrcfgh};
-    for (unsigned i = 0; i < sourcecfg_.size(); i++) {
-        sourcecfg_[i] = Sourcecfg{};
-        target_[i] = Target{};
-    }
-    for (unsigned i = 0; i < setip_.size(); i++) {
-        setip_[i] = 0;
-        setie_[i] = 0;
-    }
+    sourcecfg_.fill(Sourcecfg{});
+    target_.fill(Target{});
+    setip_.fill(0);
+    setie_.fill(0);
 
     unsigned num_harts = aplic_->numHarts();
     for (unsigned i = 0; i < num_harts; i++)
@@ -44,7 +40,7 @@ void Domain::reset()
     for (unsigned i = 0; i < num_harts; i++)
         idcs_[i] = Idc{};
 
-    for (auto child : children_)
+    for (const auto& child : children_)
         child->reset();
 }
 
@@ -57,10 +53,10 @@ void Domain::updateTopi()
         idcs_[hart_index].topi = Topi{};
     }
     for (unsigned i = 1; i <= num_sources; i++) {
-        unsigned hart_index = target_[i].dm0.hart_index;
+        unsigned hart_index = target_.at(i).dm0.hart_index;
         if (not includesHart(hart_index))
             continue;
-        unsigned priority = target_[i].dm0.iprio;
+        unsigned priority = target_.at(i).dm0.iprio;
         unsigned ithreshold = idcs_[hart_index].ithreshold;
         auto& topi = idcs_[hart_index].topi;
         unsigned topi_prio = topi.fields.priority;
@@ -84,10 +80,10 @@ void Domain::inferXeipBits()
         }
         unsigned num_sources = aplic_->numSources();
         for (unsigned i = 1; i <= num_sources; i++) {
-            unsigned hart_index = target_[i].dm0.hart_index;
+            unsigned hart_index = target_.at(i).dm0.hart_index;
             if (not includesHart(hart_index))
                 continue;
-            unsigned priority = target_[i].dm0.iprio;
+            unsigned priority = target_.at(i).dm0.iprio;
             unsigned idelivery = idcs_[hart_index].idelivery;
             unsigned ithreshold = idcs_[hart_index].ithreshold;
             bool under_threshold = ithreshold == 0 or priority < ithreshold;
@@ -115,7 +111,7 @@ void Domain::runCallbacksAsRequired()
                 forwardViaMsi(i);
         }
     }
-    for (auto child : children_)
+    for (const auto& child : children_)
         child->runCallbacksAsRequired();
 }
 
@@ -144,7 +140,7 @@ bool Domain::rectifiedInputValue(unsigned i) const
     if (not sourceIsActive(i))
         return false;
     bool state = aplic_->getSourceState(i);
-    switch (sourcecfg_[i].d0.sm) {
+    switch (sourcecfg_.at(i).d0.sm) {
         case Detached:
             return false;
         case Edge1:
@@ -153,8 +149,8 @@ bool Domain::rectifiedInputValue(unsigned i) const
         case Edge0:
         case Level0:
             return not state;
+        default: assert(false);
     }
-    assert(false);
     return false;
 }
 
@@ -162,7 +158,7 @@ bool Domain::sourceIsImplemented(unsigned i) const
 {
     if (i == 0 or i > aplic_->numSources())
         return false;
-    if (parent() and not parent()->sourcecfg_[i].dx.d)
+    if (parent() and not parent()->sourcecfg_.at(i).dx.d)
         return false;
     return true;
 }

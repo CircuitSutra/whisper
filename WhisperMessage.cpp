@@ -95,7 +95,7 @@ public:
 
   friend constexpr ospanstream& operator<<(ospanstream& s, hton h)
   {
-    typename std::remove_const<T>::type v = *h.val_;
+    std::remove_const_t<T> v = *h.val_;
     if constexpr (std::endian::native == std::endian::little)
       v = util::byteswap(v);
     s << v;

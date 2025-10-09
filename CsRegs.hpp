@@ -15,6 +15,7 @@
 #pragma once
 
 #include <cstdint>
+#include <utility>
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
@@ -499,8 +500,8 @@ namespace WdRiscv
   public:
 
     /// Default constructor.
-    Csr()
-    { valuePtr_ = &value_; }
+    Csr() : valuePtr_(&value_)
+    { }
 
     /// Constructor. The mask indicates which bits are writable: A zero bit
     /// in the mask corresponds to a non-writable (preserved) bit in the
@@ -509,11 +510,11 @@ namespace WdRiscv
     Csr(std::string name, CsrNumber number, bool mandatory,
 	bool implemented, URV value, URV writeMask = ~URV(0))
       : name_(std::move(name)), number_(unsigned(number)), mandatory_(mandatory),
-	implemented_(implemented), initialValue_(value), value_(value),
-	writeMask_(writeMask), pokeMask_(writeMask)
+	implemented_(implemented), initialValue_(value), privMode_(PrivilegeMode((number_ & 0x300) >> 8)), value_(value),
+	valuePtr_(&value_), writeMask_(writeMask), pokeMask_(writeMask)
     {
-      valuePtr_ = &value_;
-      privMode_ = PrivilegeMode((number_ & 0x300) >> 8);
+      
+      
     }
 
     /// Copy constructor is not available.
@@ -660,8 +661,8 @@ namespace WdRiscv
 
     struct Field
     {
-      std::string field;
-      unsigned width;
+      std::string field{};
+      unsigned width = 0U;
     };
 
     // Returns CSR fields
@@ -833,7 +834,7 @@ namespace WdRiscv
 
   private:
 
-    std::string name_;
+    std::string name_{};
     unsigned number_ = 0;
     bool mandatory_ = false;     // True if mandated by architecture.
     bool implemented_ = false;   // True if register is implemented.
@@ -859,16 +860,16 @@ namespace WdRiscv
     URV pokeMask_ = ~URV(0);
     URV readMask_ = ~URV(0);  // Used for sstatus.
 
-    std::vector<std::function<void(Csr<URV>&, URV)>> postPoke_;
-    std::vector<std::function<void(Csr<URV>&, URV)>> postWrite_;
+    std::vector<std::function<void(Csr<URV>&, URV)>> postPoke_{};
+    std::vector<std::function<void(Csr<URV>&, URV)>> postWrite_{};
 
-    std::vector<std::function<void(Csr<URV>&, URV&)>> prePoke_;
-    std::vector<std::function<void(Csr<URV>&, URV&)>> preWrite_;
+    std::vector<std::function<void(Csr<URV>&, URV&)>> prePoke_{};
+    std::vector<std::function<void(Csr<URV>&, URV&)>> preWrite_{};
 
-    std::vector<std::function<void(Csr<URV>&)>> postReset_;
+    std::vector<std::function<void(Csr<URV>&)>> postReset_{};
 
     // Optionally define fields within a CSR with name and widths
-    std::vector<Field> fields_;
+    std::vector<Field> fields_{};
   };
 
 
@@ -953,7 +954,7 @@ namespace WdRiscv
 
     /// Associate an IMSIC with this register file.
     void attachImsic(std::shared_ptr<TT_IMSIC::Imsic> imsic)
-    { imsic_ = imsic; }
+    { imsic_ = std::move(imsic); }
 
     /// Return true if the given CSR number corresponds to a custom CSR (See table 3 of
     /// section 2.2 of the privileged spec version 20241017).
@@ -983,6 +984,19 @@ namespace WdRiscv
       return sip;
     }
 
+    /// Return the effective VSIP value.
+    URV effectiveVsip() const
+    {
+      URV sip = effectiveSip();
+      URV vsip = sip & peekHideleg();
+      if (aiaEnabled_ and superEnabled_)
+        {
+          URV hvip = peekHvip() & ~peekHideleg() & peekHvien();
+          vsip |= hvip;
+        }
+      return vsip;
+    }
+
   protected:
 
     /// Advance a csr number by the given amount (add amount to number).
@@ -1010,7 +1024,7 @@ namespace WdRiscv
     /// implemented.
     Csr<URV>* getImplementedCsr(CsrNumber num)
     {
-      size_t ix = size_t(num);
+      auto ix = size_t(num);
       if (ix >= regs_.size()) return nullptr;
       Csr<URV>* csr = &regs_.at(ix);
       return csr->isImplemented() ? csr : nullptr;
@@ -1021,7 +1035,7 @@ namespace WdRiscv
     /// implemented.
     const Csr<URV>* getImplementedCsr(CsrNumber num) const
     {
-      size_t ix = size_t(num);
+      auto ix = size_t(num);
       if (ix >= regs_.size()) return nullptr;
       const Csr<URV>* csr = &regs_.at(ix);
       return csr->isImplemented() ? csr : nullptr;
@@ -1200,8 +1214,8 @@ namespace WdRiscv
 	{
 	  auto offset = tempPair.first;
 	  auto val = tempPair.second;
-	  CsrNumber csrn = CsrNumber(unsigned(offset) + unsigned(CsrNumber::TDATA1));
-	  change.push_back(std::pair<CsrNumber, uint64_t>(csrn, val));
+	  auto csrn = CsrNumber(unsigned(offset) + unsigned(CsrNumber::TDATA1));
+	  change.emplace_back(csrn, val);
 	}
     }
 
@@ -1345,7 +1359,7 @@ namespace WdRiscv
     /// Return true if given number corresponds to an implemented CSR.
     bool isImplemented(CsrNumber num) const
     {
-      size_t ix = size_t(num);
+      auto ix = size_t(num);
       return ix< regs_.size() and regs_.at(ix).isImplemented();
     }
 
@@ -1512,19 +1526,6 @@ namespace WdRiscv
     {
       const auto& csr = regs_.at(size_t(CsrNumber::HVICTL));
       return csr.read();
-    }
-
-    /// Return the effective VSIP value.
-    URV effectiveVsip() const
-    {
-      URV sip = effectiveSip();
-      URV vsip = sip & peekHideleg();
-      if (aiaEnabled_ and superEnabled_)
-        {
-          URV hvip = peekHvip() & ~peekHideleg() & peekHvien();
-          vsip |= hvip;
-        }
-      return vsip;
     }
 
     /// Return the machine effective interrupt enable mask. This is
@@ -1737,6 +1738,9 @@ namespace WdRiscv
 
     /// Helper to write method.
     bool writeMvip(URV value);
+
+    /// Helper to read method.
+    bool readHip(URV& value) const;
 
     /// Called whenever MVIEN or MIDELEG change to make HIDELEG read-only-zero where
     /// bot MVIEN and MIDELEG are zero.
@@ -1958,7 +1962,7 @@ namespace WdRiscv
     /// Return true if given CSR is a hypervisor CSR.
     bool isHypervisor(CsrNumber csrn) const
     {
-      size_t ix = size_t(csrn);
+      auto ix = size_t(csrn);
       if (ix < regs_.size())
         return regs_.at(ix).isHypervisor();
       return false;
@@ -1967,7 +1971,7 @@ namespace WdRiscv
     /// Return true if given CSR is an AIA CSR.
     bool isAia(CsrNumber csrn) const
     {
-      size_t ix = size_t(csrn);
+      auto ix = size_t(csrn);
       if (ix < regs_.size())
         return regs_.at(ix).isAia();
       return false;
@@ -2372,8 +2376,6 @@ namespace WdRiscv
 
   private:
 
-    bool rv32_ = sizeof(URV) == 4;
-
     const PmpManager& pmpMgr_;
 
     std::vector< Csr<URV> > regs_;
@@ -2388,23 +2390,24 @@ namespace WdRiscv
     // Counters implementing machine performance counters.
     PerfRegs mPerfRegs_;
 
-    bool interruptEnable_ = false;  // Cached MSTATUS MIE bit.
 
-    // These can be obtained from Triggers. Speed up access by caching
-    // them in here.
-    bool hasActiveTrigger_ = false;
-    bool hasActiveInstTrigger_ = false;
-
-    bool mdseacLocked_ = false; // Once written, MDSEAC persists until
-                                // MDEAU is written.
     URV maxEventId_ = ~URV(0);  // Default unlimited.
-    bool hasPerfEventSet_ = false;
     std::unordered_set<unsigned> perfEventSet_;
 
     URV shadowSie_ = 0;     // Used where mideleg is 0 and mvien is 1.
 
     unsigned geilen_ = 0;   // Guest interrupt count.
 
+    bool rv32_ = sizeof(URV) == 4;  // True if in RV32 (false if in RV64).
+    bool interruptEnable_ = false;  // Cached MSTATUS MIE bit.
+
+    // These can be obtained from Triggers. Speed up access by caching them in here.
+    bool hasActiveTrigger_ = false;
+    bool hasActiveInstTrigger_ = false;
+
+    bool hasPerfEventSet_ = false;  // True if perf events defiend in perfEventSet_.
+
+    bool mdseacLocked_ = false;   // Once written, MDSEAC persists until MDEAU is written.
     bool userEnabled_ = false;    // User mode enabled
     bool superEnabled_ = false;   // Supervisor
     bool hyperEnabled_ = false;   // Hypervisor
@@ -2416,16 +2419,15 @@ namespace WdRiscv
     bool aiaEnabled_ = false;     // Aia extension.
     bool mcdelegEnabled_ = true;  // Mvdeleg extension (counter delegation).
 
-    bool recordWrite_ = true;
-    bool debugMode_ = false;
+    bool recordWrite_ = true;     // True if CSR writes should be recorded (for tracing).
+    bool debugMode_ = false;      // True if in debug mode.
     bool virtMode_ = false;       // True if hart virtual (V) mode is on.
+    bool seiPin_ = false;         // Value of software external interrupt pin.
 
     std::vector<InterruptCause> mInterrupts_;
     std::vector<InterruptCause> sInterrupts_;
     std::vector<InterruptCause> vsInterrupts_;
 
     std::vector<CsrNumber> customH_;   // Custom CSR marked as belonging to H extension.
-
-    bool seiPin_ = false;
   };
 }

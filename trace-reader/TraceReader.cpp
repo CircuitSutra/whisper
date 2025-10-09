@@ -1,29 +1,40 @@
-#include <TraceReader.hpp>
 #include <sstream>
-#include <inttypes.h>
+#include <cinttypes>
 #include <cassert>
+#include <ranges>
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/hex.hpp>
 #include <boost/io/ios_state.hpp>
 #include <boost/iostreams/copy.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
+
+#if WITH_BZIP2
 #include <boost/iostreams/filter/bzip2.hpp>
+#endif
+
+#if WITH_ZSTD
 #include <boost/iostreams/filter/zstd.hpp>
+#endif
+
+#include "TraceReader.hpp"
 #include "PageTableMaker.hpp"
+
+
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic, cppcoreguidelines-owning-memory)
 
 using namespace WhisperUtil;
 
 
 // Log file characters corresponding to the operand types (these
 // correspond to the entries in OperandType).
-static std::vector<char> operandTypeChar = { 'x', 'f', 'c', 'v', 'i' };
+static const std::vector<char> operandTypeChar = { 'x', 'f', 'c', 'v', 'i' };
 
 // Log file characters corresponding to privilege mode (thses correspond
 // to the entries in PrivMode).
-static std::vector<char> privChar = { 'm', 's', 'u' };
+static const std::vector<char> privChar = { 'm', 's', 'u' };
 
 // Map a header string to a HeaderTag.
-static std::unordered_map<std::string, HeaderTag> headerMap = {
+static const std::unordered_map<std::string, HeaderTag> headerMap = {
   {"pc",              HeaderTag::Pc },
   {"inst",            HeaderTag::Inst },
   {"modified regs",   HeaderTag::DestRegs },
@@ -41,9 +52,10 @@ static std::unordered_map<std::string, HeaderTag> headerMap = {
 
 static const unsigned cacheLineSize = 64;
 
+
 TraceReader::TraceReader(const std::string& inputPath)
   : intRegs_(32), fpRegs_(32), csRegs_(4096), vecRegs_(32),
-    fileStream_(inputPath.c_str()), input_(nullptr)
+    fileStream_(inputPath.c_str())
 {
   for (auto& vecReg : vecRegs_)
     vecReg.push_back(0);
@@ -56,15 +68,23 @@ TraceReader::TraceReader(const std::string& inputPath)
     }
   else if (len > 4 and inputPath.substr(len - 4) == ".bz2")
     {
+#if WITH_BZIP2
       inStreambuf_.push(boost::iostreams::bzip2_decompressor());
       inStreambuf_.push(fileStream_);
       input_ = new std::istream(&inStreambuf_);
+#else
+      std::cerr << "This trace reader was not compiled for bz2 files\n";
+#endif
     }
   else if (len > 4 and inputPath.substr(len - 4) == ".zst")
     {
+#if WITH_ZSTD
       inStreambuf_.push(boost::iostreams::zstd_decompressor());
       inStreambuf_.push(fileStream_);
       input_ = new std::istream(&inStreambuf_);
+#else
+      std::cerr << "This trace reader was not compiled for zst files\n";
+#endif
     }
   else
     input_ = new std::istream(fileStream_.rdbuf());
@@ -72,8 +92,10 @@ TraceReader::TraceReader(const std::string& inputPath)
 
 
 TraceReader::TraceReader(const std::string& inputPath, const std::string& initPath)
-  : TraceReader(inputPath) {
-  readInitialState(initPath);
+  : TraceReader(inputPath)
+{
+  if (not initPath.empty())
+    readInitialState(initPath);
 }
 
 
@@ -215,128 +237,135 @@ TraceRecord::clear()
 
 
 void
-TraceRecord::print(std::ostream& os) const
+TraceReader::printRecord(std::ostream& os, const TraceRecord& rec) const
 {
   boost::io::ios_flags_saver restore_flags(os);
-  os << "PC=" << std::hex << virtPc;
-  if (physPc != virtPc)
-    os << ":" << std::hex << physPc;
-  os << "  inst=" << std::hex << inst << " size=" << unsigned(instSize);
-  if (instType != 0)
-    os << " type=" << instType;
-  os << " virt=" << virt;
-  if (size_t(priv) < privChar.size())
-    os << " priv=" << privChar.at(size_t(priv));
-  if (hasTrap)
-    os << " trap=" << std::hex << trap;
-  if (not assembly.empty())
-    os << " disas=\"" << assembly << '"';
-  if (dataSize)
-    os << " dataSize=" << std::dec << unsigned(dataSize);
+  os << "PC=0x" << std::hex << rec.virtPc;
+  if (rec.physPc != rec.virtPc)
+    os << ":0x" << rec.physPc;
+  os << "  inst=0x" << rec.inst << " size=" << std::dec << unsigned(rec.instSize);
+  if (rec.instType != 0)
+    os << " type=" << rec.instType;
+  os << " virt=" << rec.virt;
+  if (size_t(rec.priv) < privChar.size())
+    os << " priv=" << privChar.at(size_t(rec.priv));
+  if (rec.hasTrap)
+    os << " trap=0x" << std::hex << rec.trap << std::dec;
+  if (not rec.assembly.empty())
+    os << " disas=\"" << rec.assembly << '"';
+  if (rec.dataSize)
+    os << " dataSize=" << unsigned(rec.dataSize);
   os << '\n';
 
-  if (not hasTrap and (instType == 'j' or instType == 'c' or instType == 't'
-		       or instType == 'c'))
-    os << "  branch_target: " << std::hex << takenBranchTarget << '\n';
-
-  for (const auto& mreg : modifiedRegs)
+  if (rec.isVector())
     {
-      os << "  dest: " << operandTypeChar.at(size_t(mreg.type))
-	 << std::dec << mreg.number
-	 << '=';
+      os << "  vl=" << vlValue() << " vstart=" << vstartValue() << " groupX8="
+         << groupMultiplierX8() << " sewib=" << vecElemWidthInBytes()
+         << " ta=" << tailAgnostic() << " ma=" << maskAgnostic()
+         << " vill=" << vtypeVill() << '\n';
+    }
 
+  if (not rec.hasTrap and (rec.instType == 'j' or rec.instType == 'c'
+                           or rec.instType == 't' or rec.instType == 'c'))
+    os << "  branch_target: " << std::hex << rec.takenBranchTarget << std::dec << '\n';
+
+  for (const auto& mreg : rec.modifiedRegs)
+    {
+      os << "  dest: " << operandTypeChar.at(size_t(mreg.type))	 << mreg.number << '=';
+
+      os << std::hex;
       if (mreg.type == OperandType::Vec)
         {
-	  auto& vv = mreg.vecValue;
-          for (auto it = vv.rbegin(); it != vv.rend(); ++it)
-            os << std::hex << std::setw(2) << std::setfill('0') << (unsigned) *it;
+	  const auto& vv = mreg.vecValue;
+          for (unsigned byte : std::ranges::reverse_view(vv))
+            os << "0x" << std::setw(2) << std::setfill('0') << byte;
 
           os << " prev=";
-	  auto& pv = mreg.vecPrevValue;
-          for (auto it = pv.rbegin(); it != pv.rend(); ++it)
-            os << std::hex << std::setw(2) << std::setfill('0') << (unsigned) *it;
+	  const auto& pv = mreg.vecPrevValue;
+          for (unsigned byte : std::ranges::reverse_view(pv))
+            os << "0x" << std::setw(2) << std::setfill('0') << byte;
         }
       else
-        os << std::hex << mreg.value << " prev=" << mreg.prevValue;
+        os << "0x" << mreg.value << " prev=0x" << mreg.prevValue;
 
-      os << '\n';
+      os << std::dec << '\n';
     }
 
-  if (instType == 'f')
+  if (rec.instType == 'f')
     {
-      os << "  fp_flags: " << std::hex << unsigned(fpFlags) << '\n';
-      os << "  rounding_mode: " << std::hex << unsigned(roundingMode) << '\n';
+      os << "  fp_flags: 0x" << std::hex << unsigned(rec.fpFlags) << '\n';
+      os << "  rounding_mode: 0x" << unsigned(rec.roundingMode) << '\n';
+      os << std::dec;
     }
 
-  for (const auto& src : sourceOperands)
+  for (const auto& src : rec.sourceOperands)
     {
       if (src.type == OperandType::Imm)
-	os << "  src: imm=" << std::hex << src.value << '\n';
+	os << "  src: imm=0x" << std::hex << src.value << std::dec << '\n';
       else
 	{
-	  os << "  src: " << operandTypeChar.at(size_t(src.type));
-	  os << std::dec << src.number;
-          os << '=';
+	  os << "  src: " << operandTypeChar.at(size_t(src.type)) << src.number
+             << std::hex << "=0x";
 	  if (src.type == OperandType::Vec)
 	    {
               for (auto val : src.vecValue)
-                os << std::hex << std::setw(2) << std::setfill('0') << (unsigned) val;
+                os << "0x" << std::setw(2) << std::setfill('0') << (unsigned) val;
 	      if (src.emul != 1)
 		os << "m" << src.emul;
 	    }
 	  else
-	    os << std::hex << src.value;
-	  os << '\n';
+	    os << src.value;
+	  os << std::dec << '\n';
 	}
     }
 
-  if (not virtAddrs.empty())
+  if (not rec.virtAddrs.empty())
     {
-      os << (virtAddrs.size() == 1 ? "  mem: "  :  "  mems:\n");
-      for (size_t i = 0; i < virtAddrs.size(); ++i)
+      os << (rec.virtAddrs.size() == 1 ? "  mem: "  :  "  mems:\n");
+      for (size_t i = 0; i < rec.virtAddrs.size(); ++i)
 	{
-	  if (virtAddrs.size() > 1)
+	  if (rec.virtAddrs.size() > 1)
 	    os << "    ";
-	  os << std::hex << virtAddrs.at(i);
-	  if (i < physAddrs.size() and physAddrs.at(i) != virtAddrs.at(i))
-	    os << ":" << std::hex << physAddrs.at(i);
-	  if (i < memVals.size())
-	    os << "=" << std::hex << memVals.size();
-	  if (i < maskedAddrs.size() and maskedAddrs.at(i))
+	  os << "0x" << std::hex << rec.virtAddrs.at(i);
+	  if (i < rec.physAddrs.size() and rec.physAddrs.at(i) != rec.virtAddrs.at(i))
+	    os << ":0x" << rec.physAddrs.at(i);
+	  if (i < rec.memVals.size())
+	    os << "=" << rec.memVals.size();
+	  if (i < rec.maskedAddrs.size() and rec.maskedAddrs.at(i))
 	    os << " masked";
-	  os << '\n';
+	  os << std::dec << '\n';
 	}
     }
 
-  if (not ipteAddrs.empty())
+  if (not rec.ipteAddrs.empty())
     {
       os << "  ipte addrs:\n";
-      for (const auto& [key, val] : ipteAddrs)
+      for (const auto& [key, val] : rec.ipteAddrs)
         {
           const char* sep = "";
-          os << "   " << std::hex << key << ":";
+          os << "   0x" << std::hex << key << ":";
           for (auto addr : val)
             {
-              os << sep << " " << addr;
+              os << sep << " 0x" << addr;
               sep = ",";
             }
-          os << '\n';
+          os << std::dec << '\n';
         }
     }
 
-  if (not dpteAddrs.empty())
+  if (not rec.dpteAddrs.empty())
     {
       os << "  dpte addrs:\n";
-      for (const auto& [key, val] : dpteAddrs)
+      for (const auto& [key, val] : rec.dpteAddrs)
         {
           const char* sep = "";
-          os << "   " << std::hex << key << ":";
+          os << "   0x" << std::hex << key << ":";
           for (auto addr : val)
             {
-              os << sep << " " << addr;
+              os << sep << " 0x" << addr;
               sep = ",";
             }
-          os << '\n';
+          os << std::dec << '\n';
         }
     }
 }
@@ -347,7 +376,7 @@ uint64_t
 hexStrToNum(const char* x)
 {
   uint64_t res = 0, nibble = 0;
-  char c;
+  char c = 0;
   while ((c = *x++))
     {
       if (c >= '0' and c <= '9')
@@ -369,7 +398,7 @@ uint64_t
 hexStrToNum(const char* x, const char*& rest)
 {
   uint64_t res = 0, nibble = 0;
-  char c;
+  char c = 0;
   while ((c = *x))
     {
       if (c >= '0' and c <= '9')
@@ -744,37 +773,33 @@ determineDataSize(TraceRecord& record, const std::vector<uint64_t>& csRegs)
   else
     {
       if (record.instSize == 4)
-	{
-	  unsigned sizeCode = (record.inst >> 12) & 3;
-	  if      (sizeCode == 0) record.dataSize = 1;
-	  else if (sizeCode == 1) record.dataSize = 2;
-	  else if (sizeCode == 2) record.dataSize = 4;
-	  else if (sizeCode == 3) record.dataSize = 8;
-	}
+        {
+          unsigned sizeCode = (record.inst >> 12) & 3;
+          if      (sizeCode == 0) record.dataSize = 1;
+          else if (sizeCode == 1) record.dataSize = 2;
+          else if (sizeCode == 2) record.dataSize = 4;
+          else if (sizeCode == 3) record.dataSize = 8;
+        }
       else if (record.instSize == 2)
-	{
-	  unsigned f3 = (record.inst >> 13) & 7;
-	  unsigned quad = record.inst & 3; // Opcode quadrant
-	  if (quad == 0 or quad == 2)
-	    {
-	      if (f3 == 1 or f3 == 3 or f3 == 5 or f3 == 7)
-		record.dataSize = 8;
-	      else if (f3 == 2 or f3 == 6)
-		record.dataSize = 4;
+        {
+          unsigned f3 = (record.inst >> 13) & 7;
+          unsigned quad = record.inst & 3; // Opcode quadrant
+          if (quad == 0 or quad == 2)
+            {
+              if (f3 == 1 or f3 == 3 or f3 == 5 or f3 == 7)
+                record.dataSize = 8;
+              else if (f3 == 2 or f3 == 6)
+                record.dataSize = 4;
               else if (f3 == 4)
                 {
                   unsigned f6 = (record.inst >> 10) & 0x3f;
-                  if (f6 == 0x20)
+                  if (f6 == 0x20 or f6 == 0x22)
                     record.dataSize = 1;
-                  else if (f6 == 0x21)
-                    record.dataSize = 2;
-                  else if (f6 == 0x22)
-                    record.dataSize = 1;
-                  else if (f6 == 0x23)
+                  else if (f6 == 0x21 or f6 == 0x23)
                     record.dataSize = 2;
                 }
-	    }
-	}
+            }
+        }
     }
 }
 
@@ -818,7 +843,7 @@ TraceReader::parseLine(std::string& line, uint64_t lineNum, TraceRecord& record)
       if (*sourceOps)
 	{
 	  mySplit(subfields_, sourceOps, ';');
-	  for (auto source : subfields_)
+	  for (auto* source : subfields_)
 	    {
 	      if (strncmp(source, "rm=", 3) == 0)
 		{
@@ -1022,8 +1047,8 @@ TraceReader::extractHeaderIndices(const std::string& line, uint64_t lineNum)
 	  std::cerr << "Error: Line " << lineNum << ": Unknown tag: " << tag << '\n';
 	  continue;
 	}
-      size_t ix = size_t(iter->second);
-      indices_.at(ix) = i;
+      auto ix = size_t(iter->second);
+      indices_.at(ix) = static_cast<int>(i);
     }
   colCount_ = cols.size();
 
@@ -1131,3 +1156,6 @@ TraceReader::genPageTableWalk(uint64_t vaddr, uint64_t paddr,
     return false;
   return pageMaker_->makeWalk(vaddr, paddr, walk);
 }
+
+
+// NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic, cppcoreguidelines-owning-memory)

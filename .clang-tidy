@@ -1,43 +1,55 @@
-# TODO - enable this once other warnings are removed
-# -readability-inconsistent-declaration-parameter-name,
-#
-# TODO - these checks are flagged in a bunch of places.  May be nice to enable eventually but not necessary
-# -readability-implicit-bool-conversion,
-# -readability-named-parameter,
-# -readability-uppercase-literal-suffix
+# Would like clang-diagnostic, but we need compile_commands.json?
 
 Checks: >
-    -*,
-    boost-use-to-string,
-    bugprone-*,
-    cppcoreguidelines-avoid-non-const-global-variables,
-    cppcoreguidelines-misleading-capture-default-by-value,
-    cppcoreguidelines-narrowing-conversions,
-    cppcoreguidelines-rvalue-reference-param-not-moved,
-    misc-redundant-expression,
+    clang-analyzer-*,
     modernize-*,
     performance-*,
     readability-*,
-    -bugprone-easily-swappable-parameters,
-    -modernize-use-auto,
-    -modernize-use-nodiscard,
-    -modernize-use-trailing-return-type,
-    -readability-braces-around-statements,
-    -readability-function-cognitive-complexity,
-    -readability-function-size,
+    bugprone-*,
+    cppcoreguidelines-*,
+    -clang-diagnostic-*,
     -readability-identifier-length,
-    -readability-isolate-declaration,
-    -readability-magic-numbers,
-    -readability-suspicious-call-argument,
-
-    -readability-inconsistent-declaration-parameter-name,
-
+    -readability-identifier-naming,
+    -readability-braces-around-statements,
+    -cppcoreguidelines-pro-type-union-access,
     -readability-implicit-bool-conversion,
+    -readability-magic-numbers,
+    -modernize-use-trailing-return-type,
+    -readability-isolate-declaration,
+    -cppcoreguidelines-avoid-magic-numbers,
+    -bugprone-easily-swappable-parameters,
+    -modernize-use-nodiscard,
+    -bugprone-reserved-identifier,
+    -cppcoreguidelines-special-member-functions,
+    -readability-function-cognitive-complexity,
     -readability-named-parameter,
-    -readability-uppercase-literal-suffix
+    -readability-uppercase-literal-suffix,
+    -cppcoreguidelines-macro-usage,
+    -cppcoreguidelines-avoid-const-or-ref-data-members,
+    -cppcoreguidelines-non-private-member-variables-in-classes,
+    -readability-avoid-unconditional-preprocessor-if,
+    -readability-inconsistent-declaration-parameter-name,
+    -readability-simplify-boolean-expr,
+    -cppcoreguidelines-avoid-do-while,
+    -cppcoreguidelines-pro-type-vararg,
+    -modernize-macro-to-enum,
+    -bugprone-assignment-in-if-condition,
+    -readability-suspicious-call-argument,
+    -readability-container-data-pointer,
+    -misc-confusable-identifiers
 
 CheckOptions:
   - key:   bugprone-reserved-identifier.AllowedIdentifiers
     value: '_Count;_End'
   - key:   bugprone-signed-char-misuse.CharTypdefsToIgnore
     value: 'int8_t'
+  - key:   cppcoreguidelines-pro-type-member-init.UseAssignment
+    value: true
+  - key:   clang-analyzer-optin.performance.Padding:AllowedPad
+    value: 200
+  - key:   cppcoreguidelines-owning-memory.LegacyResourceProducers
+    value: '::malloc;::aligned_alloc;::realloc;::calloc;::fopen;::freopen;::tmpfile;::popen'
+  - key:   cppcoreguidelines-owning-memory.LegacyResourceConsumers
+    value: '::free;::realloc;::freopen;::fclose;::pclose'
+
+HeaderFilterRegex: ''

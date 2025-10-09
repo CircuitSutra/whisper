@@ -143,13 +143,13 @@ static uint64_t setupDeviceTable(Iommu& iommu, MemoryModel& mem, uint32_t devId,
     unsigned ddi0 = dId.ithDdi(0, extended);
     
     // Write a valid DDT entry directly to memory
-    uint64_t ddteAddr = rootPpn * pageSize + ddi0 * 8;
+    uint64_t ddteAddr = rootPpn * pageSize + ddi0 * 8UL;
     Ddte ddte(0);
     ddte.bits_.v_ = 1;
     mem.write(ddteAddr, 8, ddte.value_);
     
     // Calculate device context address
-    unsigned leafSize = iommu.devDirTableLeafSize(extended);
+    uint64_t leafSize = Iommu::devDirTableLeafSize(extended);
     return rootPpn * pageSize + ddi0 * leafSize;
 }
 
@@ -199,8 +199,8 @@ static void setupMsiPageTable(MemoryModel& mem) {
         pte0.bits_.m_ = 3;              // Mode 3 (basic translate)
         pte0.bits_.ppn_ = TestValues::MSI_TARGET_PPN; // Target physical page
         
-        mem.write(msiTableAddr + i * 16, 8, pte0.value_);
-        mem.write(msiTableAddr + i * 16 + 8, 8, 0); // Second half is 0 for basic mode
+        mem.write(msiTableAddr + i * 16UL, 8, pte0.value_);
+        mem.write(msiTableAddr + i * 16UL + 8, 8, 0); // Second half is 0 for basic mode
     }
     
     // Add a special entry at the file number we're testing
@@ -216,18 +216,18 @@ static void setupMsiPageTable(MemoryModel& mem) {
 
 // Test just the MSI address matching functionality
 static void testMsiAddressMatching(DeviceContext& dc) {
-    std::cout << "Testing MSI address matching logic:" << std::endl;
+    std::cout << "Testing MSI address matching logic:" << '\n';
     
     uint64_t msiAddr = TestValues::MSI_IOVA;
     bool isMsiAddr = dc.isMsiAddress(msiAddr);
     
     std::cout << "  MSI address 0x" << std::hex << msiAddr << std::dec 
-              << " matches pattern: " << (isMsiAddr ? "Yes" : "No") << std::endl;
+              << " matches pattern: " << (isMsiAddr ? "Yes" : "No") << '\n';
              
     if (isMsiAddr) {
-        std::cout << "  ✓ MSI Address Matching passed!" << std::endl;
+        std::cout << "  ✓ MSI Address Matching passed!" << '\n';
     } else {
-        std::cout << "  ✗ MSI Address Matching failed!" << std::endl;
+        std::cout << "  ✗ MSI Address Matching failed!" << '\n';
     }
     
     // Debug the matching logic
@@ -235,37 +235,37 @@ static void testMsiAddressMatching(DeviceContext& dc) {
     uint64_t pattern = dc.msiPattern() >> 12;
     uint64_t mask = dc.msiMask() >> 12;
     
-    std::cout << "  Debug info:" << std::endl;
-    std::cout << "    Shifted IOVA: 0x" << std::hex << shiftedIova << std::dec << std::endl;
-    std::cout << "    Pattern: 0x" << std::hex << pattern << std::dec << std::endl;
-    std::cout << "    Mask: 0x" << std::hex << mask << std::dec << std::endl;
+    std::cout << "  Debug info:" << '\n';
+    std::cout << "    Shifted IOVA: 0x" << std::hex << shiftedIova << std::dec << '\n';
+    std::cout << "    Pattern: 0x" << std::hex << pattern << std::dec << '\n';
+    std::cout << "    Mask: 0x" << std::hex << mask << std::dec << '\n';
     std::cout << "    Result of match: " 
-              << ((shiftedIova & ~mask) == (pattern & ~mask) ? "True" : "False") << std::endl;
+              << ((shiftedIova & ~mask) == (pattern & ~mask) ? "True" : "False") << '\n';
 }
 
 // Test extracting MSI bits for interrupt file number
 static void testMsiBitsExtraction(DeviceContext& dc) {
-    std::cout << "\nTesting MSI bits extraction logic:" << std::endl;
+    std::cout << "\nTesting MSI bits extraction logic:" << '\n';
     
     uint64_t msiAddr = TestValues::MSI_IOVA;
-    uint64_t fileNum = dc.extractMsiBits(msiAddr >> 12, dc.msiMask());
+    uint64_t fileNum = DeviceContext::extractMsiBits(msiAddr >> 12, dc.msiMask());
     
     std::cout << "  MSI address 0x" << std::hex << msiAddr << std::dec 
-              << " yields file number: 0x" << std::hex << fileNum << std::dec << std::endl;
+              << " yields file number: 0x" << std::hex << fileNum << std::dec << '\n';
     
     // Extra debug info
-    std::cout << "  Debug info:" << std::endl;
-    std::cout << "    Shifted IOVA: 0x" << std::hex << (msiAddr >> 12) << std::dec << std::endl;
-    std::cout << "    Mask: 0x" << std::hex << dc.msiMask() << std::dec << std::endl;
+    std::cout << "  Debug info:" << '\n';
+    std::cout << "    Shifted IOVA: 0x" << std::hex << (msiAddr >> 12) << std::dec << '\n';
+    std::cout << "    Mask: 0x" << std::hex << dc.msiMask() << std::dec << '\n';
 }
 
 // Test MSI PTE retrieval
 static void testMsiPteRetrieval(MemoryModel& mem, DeviceContext& dc) {
-    std::cout << "\nTesting MSI PTE retrieval:" << std::endl;
+    std::cout << "\nTesting MSI PTE retrieval:" << '\n';
     
     uint64_t pageSize = 4096;
     uint64_t msiAddr = TestValues::MSI_IOVA;
-    uint64_t fileNum = dc.extractMsiBits(msiAddr >> 12, dc.msiMask());
+    uint64_t fileNum = DeviceContext::extractMsiBits(msiAddr >> 12, dc.msiMask());
     
     uint64_t pteAddr = TestValues::MSI_PPN * pageSize + fileNum * 16;
     
@@ -273,28 +273,28 @@ static void testMsiPteRetrieval(MemoryModel& mem, DeviceContext& dc) {
     uint64_t pte0 = 0;
     bool success = mem.read(pteAddr, 8, pte0);
     
-    std::cout << "  Reading MSI PTE from address 0x" << std::hex << pteAddr << std::dec << std::endl;
-    std::cout << "  Success: " << (success ? "Yes" : "No") << std::endl;
+    std::cout << "  Reading MSI PTE from address 0x" << std::hex << pteAddr << std::dec << '\n';
+    std::cout << "  Success: " << (success ? "Yes" : "No") << '\n';
     
     if (success) {
         MsiPte0 msipte(pte0);
-        std::cout << "  PTE.valid: " << msipte.bits_.v_ << std::endl;
-        std::cout << "  PTE.mode: " << msipte.bits_.m_ << std::endl;
-        std::cout << "  PTE.ppn: 0x" << std::hex << msipte.bits_.ppn_ << std::dec << std::endl;
+        std::cout << "  PTE.valid: " << msipte.bits_.v_ << '\n';
+        std::cout << "  PTE.mode: " << msipte.bits_.m_ << '\n';
+        std::cout << "  PTE.ppn: 0x" << std::hex << msipte.bits_.ppn_ << std::dec << '\n';
         
         if (msipte.bits_.v_ && msipte.bits_.m_ == 3 && msipte.bits_.ppn_ == TestValues::MSI_TARGET_PPN) {
-            std::cout << "  ✓ MSI PTE Retrieval passed!" << std::endl;
+            std::cout << "  ✓ MSI PTE Retrieval passed!" << '\n';
         } else {
-            std::cout << "  ✗ MSI PTE Retrieval failed!" << std::endl;
+            std::cout << "  ✗ MSI PTE Retrieval failed!" << '\n';
         }
     } else {
-        std::cout << "  ✗ MSI PTE Retrieval failed - memory read error!" << std::endl;
+        std::cout << "  ✗ MSI PTE Retrieval failed - memory read error!" << '\n';
     }
 }
 
 // Manual MSI translation test that simulates what the IOMMU does internally
 static void testManualMsiTranslation(MemoryModel& mem, DeviceContext& dc) {
-    std::cout << "\nManual MSI Translation Test:" << std::endl;
+    std::cout << "\nManual MSI Translation Test:" << '\n';
     
     uint64_t pageSize = 4096;
     uint64_t msiAddr = TestValues::MSI_IOVA;
@@ -302,13 +302,13 @@ static void testManualMsiTranslation(MemoryModel& mem, DeviceContext& dc) {
     // Step 1: Check if address is MSI address
     if (!dc.isMsiAddress(msiAddr)) {
         std::cout << "  ✗ Address 0x" << std::hex << msiAddr << std::dec 
-                  << " is not an MSI address!" << std::endl;
+                  << " is not an MSI address!" << '\n';
         return;
     }
     
     // Step 2: Extract file number
-    uint64_t fileNum = dc.extractMsiBits(msiAddr >> 12, dc.msiMask());
-    std::cout << "  File number: 0x" << std::hex << fileNum << std::dec << std::endl;
+    uint64_t fileNum = DeviceContext::extractMsiBits(msiAddr >> 12, dc.msiMask());
+    std::cout << "  File number: 0x" << std::hex << fileNum << std::dec << '\n';
     
     // Step 3: Read MSI PTE
     uint64_t pteAddr = TestValues::MSI_PPN * pageSize + fileNum * 16;
@@ -316,39 +316,39 @@ static void testManualMsiTranslation(MemoryModel& mem, DeviceContext& dc) {
     bool readSuccess = mem.read(pteAddr, 8, pte0) && mem.read(pteAddr + 8, 8, pte1);
     
     if (!readSuccess) {
-        std::cout << "  ✗ Failed to read MSI PTE!" << std::endl;
+        std::cout << "  ✗ Failed to read MSI PTE!" << '\n';
         return;
     }
     
     // Step 4: Validate PTE
     MsiPte0 msipte(pte0);
     if (!msipte.bits_.v_) {
-        std::cout << "  ✗ MSI PTE is not valid!" << std::endl;
+        std::cout << "  ✗ MSI PTE is not valid!" << '\n';
         return;
     }
     
     if (msipte.bits_.m_ != 3) { // 3 = basic/flat mode
-        std::cout << "  ✗ MSI PTE mode " << msipte.bits_.m_ << " is not supported in this test!" << std::endl;
+        std::cout << "  ✗ MSI PTE mode " << msipte.bits_.m_ << " is not supported in this test!" << '\n';
         return;
     }
     
     // Step 5: Perform translation
     uint64_t translatedAddr = (msipte.bits_.ppn_ << 12) | (msiAddr & 0xFFF);
-    std::cout << "  Translated address: 0x" << std::hex << translatedAddr << std::dec << std::endl;
+    std::cout << "  Translated address: 0x" << std::hex << translatedAddr << std::dec << '\n';
     
     // Check result
     uint64_t expectedAddr = (TestValues::MSI_TARGET_PPN << 12) | (msiAddr & 0xFFF);
     if (translatedAddr == expectedAddr) {
-        std::cout << "  ✓ Manual MSI Translation passed!" << std::endl;
+        std::cout << "  ✓ Manual MSI Translation passed!" << '\n';
     } else {
-        std::cout << "  ✗ Manual MSI Translation failed!" << std::endl;
-        std::cout << "    Expected: 0x" << std::hex << expectedAddr << std::dec << std::endl;
+        std::cout << "  ✗ Manual MSI Translation failed!" << '\n';
+        std::cout << "    Expected: 0x" << std::hex << expectedAddr << std::dec << '\n';
     }
 }
 
 // Add to msi-translation.cpp after the component tests
 static void testIommuMsiTranslation(Iommu& iommu) {
-    std::cout << "\n--- Full IOMMU MSI Translation Test ---" << std::endl;
+    std::cout << "\n--- Full IOMMU MSI Translation Test ---" << '\n';
     
     // Create a request that uses the MSI address
     IommuRequest req;
@@ -363,37 +363,37 @@ static void testIommuMsiTranslation(Iommu& iommu) {
     unsigned cause = 0;
     bool result = iommu.translate(req, pa, cause);
     
-    std::cout << "  MSI Translation result: " << (result ? "SUCCESS" : "FAILED") << std::endl;
-    std::cout << "  Cause: " << cause << std::endl;
+    std::cout << "  MSI Translation result: " << (result ? "SUCCESS" : "FAILED") << '\n';
+    std::cout << "  Cause: " << cause << '\n';
     
     if (result) {
-        std::cout << "  Translated PA: 0x" << std::hex << pa << std::dec << std::endl;
+        std::cout << "  Translated PA: 0x" << std::hex << pa << std::dec << '\n';
         
         // Check if translation is correct - currently the implementation returns the pattern-based address
         uint64_t expectedPa = (TestValues::MSI_ADDR_PATTERN) | (TestValues::MSI_IOVA & 0xFFF);
         if (pa == expectedPa) {
-            std::cout << "  ✓ MSI Translation passed!" << std::endl;
+            std::cout << "  ✓ MSI Translation passed!" << '\n';
         } else {
-            std::cout << "  ✗ MSI Translation failed - wrong physical address" << std::endl;
-            std::cout << "    Expected: 0x" << std::hex << expectedPa << std::dec << std::endl;
+            std::cout << "  ✗ MSI Translation failed - wrong physical address" << '\n';
+            std::cout << "    Expected: 0x" << std::hex << expectedPa << std::dec << '\n';
         }
     } else {
-        std::cout << "  ✗ MSI Translation failed" << std::endl;
+        std::cout << "  ✗ MSI Translation failed" << '\n';
     }
 }
 
 // Test MSI-specific fault conditions
 static void testMsiFaultConditions(Iommu& iommu, MemoryModel& mem, DeviceContext& dc) {
-    std::cout << "\n==== MSI Fault Conditions Test ====" << std::endl;
+    std::cout << "\n==== MSI Fault Conditions Test ====" << '\n';
     
     // Calculate file number for the MSI IOVA
     uint64_t msiAddr = TestValues::MSI_IOVA;
-    uint64_t fileNum = dc.extractMsiBits(msiAddr >> 12, dc.msiMask());
+    uint64_t fileNum = DeviceContext::extractMsiBits(msiAddr >> 12, dc.msiMask());
     uint64_t pageSize = 4096;
     uint64_t pteAddr = TestValues::MSI_PPN * pageSize + fileNum * 16;
     
-    std::cout << "  Target MSI file number: 0x" << std::hex << fileNum << std::dec << std::endl;
-    std::cout << "  Target PTE address: 0x" << std::hex << pteAddr << std::dec << std::endl;
+    std::cout << "  Target MSI file number: 0x" << std::hex << fileNum << std::dec << '\n';
+    std::cout << "  Target PTE address: 0x" << std::hex << pteAddr << std::dec << '\n';
     
     // Store original MSI PTE to restore later
     std::vector<uint64_t> originalPte(2);
@@ -424,7 +424,7 @@ static void testMsiFaultConditions(Iommu& iommu, MemoryModel& mem, DeviceContext
               mem.setReadHandler([pteAddr](uint64_t addr, unsigned /*size*/, uint64_t& /*data*/) {
                     if (addr == pteAddr || addr == pteAddr + 8) {
                         std::cout << "  ** Intercepting MSI PTE read at 0x" << std::hex << addr 
-                                  << " - returning failure **" << std::dec << std::endl;
+                                  << " - returning failure **" << std::dec << '\n';
                         return false;
                     }
                     return true;
@@ -433,7 +433,7 @@ static void testMsiFaultConditions(Iommu& iommu, MemoryModel& mem, DeviceContext
                 // Verify handler works by trying to read the PTE
                 uint64_t test = 0;
                 bool readResult = mem.read(pteAddr, 8, test);
-                std::cout << "  Verification read result: " << (readResult ? "success" : "failure") << std::endl;
+                std::cout << "  Verification read result: " << (readResult ? "success" : "failure") << '\n';
             },
             0 // Currently falls back to regular translation and succeeds
         },
@@ -452,7 +452,7 @@ static void testMsiFaultConditions(Iommu& iommu, MemoryModel& mem, DeviceContext
                 uint64_t verify = 0;
                 mem.read(pteAddr, 8, verify);
                 std::cout << "  Verified PTE write: 0x" << std::hex << verify 
-                          << " at address 0x" << pteAddr << std::dec << std::endl;
+                          << " at address 0x" << pteAddr << std::dec << '\n';
             },
             0 // Currently falls back to regular translation and succeeds
         },
@@ -470,7 +470,7 @@ static void testMsiFaultConditions(Iommu& iommu, MemoryModel& mem, DeviceContext
                 uint64_t verify = 0;
                 mem.read(pteAddr, 8, verify);
                 std::cout << "  Verified PTE write: 0x" << std::hex << verify 
-                          << " at address 0x" << pteAddr << std::dec << std::endl;
+                          << " at address 0x" << pteAddr << std::dec << '\n';
             },
             0 // Currently falls back to regular translation and succeeds
         },
@@ -494,7 +494,7 @@ static void testMsiFaultConditions(Iommu& iommu, MemoryModel& mem, DeviceContext
                 mem.read(pteAddr, 8, verify1);
                 mem.read(pteAddr + 8, 8, verify2);
                 std::cout << "  Verified PTE write: 0x" << std::hex << verify1 
-                          << " 0x" << verify2 << " at address 0x" << pteAddr << std::dec << std::endl;
+                          << " 0x" << verify2 << " at address 0x" << pteAddr << std::dec << '\n';
             },
             0 // Currently falls back to regular translation and succeeds
         },
@@ -523,7 +523,7 @@ static void testMsiFaultConditions(Iommu& iommu, MemoryModel& mem, DeviceContext
                 mem.read(pteAddr, 8, verify1);
                 mem.read(pteAddr + 8, 8, verify2);
                 std::cout << "  Verified MRIF PTE write: 0x" << std::hex << verify1 
-                          << " 0x" << verify2 << " at address 0x" << pteAddr << std::dec << std::endl;
+                          << " 0x" << verify2 << " at address 0x" << pteAddr << std::dec << '\n';
             },
             0 // Should succeed
         }
@@ -531,7 +531,7 @@ static void testMsiFaultConditions(Iommu& iommu, MemoryModel& mem, DeviceContext
     
     // Run all the fault tests
     for (const auto& test : faultTests) {
-        std::cout << "\nTesting: " << test.name << std::endl;
+        std::cout << "\nTesting: " << test.name << '\n';
         
         // Setup the test conditions
         test.setup();
@@ -550,20 +550,20 @@ static void testMsiFaultConditions(Iommu& iommu, MemoryModel& mem, DeviceContext
         // Check the result
         if (test.expectedCause == 0) {
             if (result) {
-                std::cout << "  ✓ Translation succeeded as expected" << std::endl;
-                std::cout << "  Translated PA: 0x" << std::hex << pa << std::dec << std::endl;
+                std::cout << "  ✓ Translation succeeded as expected" << '\n';
+                std::cout << "  Translated PA: 0x" << std::hex << pa << std::dec << '\n';
             } else {
-                std::cout << "  ✗ Translation failed unexpectedly with cause " << cause << std::endl;
+                std::cout << "  ✗ Translation failed unexpectedly with cause " << cause << '\n';
             }
         } else {
             if (!result && cause == test.expectedCause) {
-                std::cout << "  ✓ Translation failed with expected cause " << cause << std::endl;
+                std::cout << "  ✓ Translation failed with expected cause " << cause << '\n';
             } else if (!result) {
-                std::cout << "  ✗ Translation failed with wrong cause: " << cause << std::endl;
-                std::cout << "    Expected cause: " << test.expectedCause << std::endl;
+                std::cout << "  ✗ Translation failed with wrong cause: " << cause << '\n';
+                std::cout << "    Expected cause: " << test.expectedCause << '\n';
             } else {
-                std::cout << "  ✗ Translation succeeded unexpectedly" << std::endl;
-                std::cout << "    Expected cause: " << test.expectedCause << std::endl;
+                std::cout << "  ✗ Translation succeeded unexpectedly" << '\n';
+                std::cout << "    Expected cause: " << test.expectedCause << '\n';
             }
         }
         
@@ -574,29 +574,29 @@ static void testMsiFaultConditions(Iommu& iommu, MemoryModel& mem, DeviceContext
     // Restore original PTE
     mem.write(pteAddr, 8, originalPte[0]);
     mem.write(pteAddr + 8, 8, originalPte[1]);
-    std::cout << "  Restored original PTE" << std::endl;
+    std::cout << "  Restored original PTE" << '\n';
     
-    std::cout << "\nMSI Fault Conditions Tests Completed" << std::endl;
+    std::cout << "\nMSI Fault Conditions Tests Completed" << '\n';
 }
 
 // Direct MSI PTE modification test that targets the exact PTE the IOMMU uses
 static void testDirectPteModification(Iommu& iommu, MemoryModel& mem, DeviceContext& dc) {
-    std::cout << "\n==== Direct MSI PTE Modification Test ====" << std::endl;
+    std::cout << "\n==== Direct MSI PTE Modification Test ====" << '\n';
     
     // Calculate file number and PTE address exactly as the IOMMU would
     uint64_t msiAddr = TestValues::MSI_IOVA;
-    uint64_t fileNum = dc.extractMsiBits(msiAddr >> 12, dc.msiMask());
+    uint64_t fileNum = DeviceContext::extractMsiBits(msiAddr >> 12, dc.msiMask());
     uint64_t pageSize = 4096;
     uint64_t pteAddr = TestValues::MSI_PPN * pageSize + fileNum * 16;
     
-    std::cout << "  Extracted file number: 0x" << std::hex << fileNum << std::dec << std::endl;
-    std::cout << "  PTE address: 0x" << std::hex << pteAddr << std::dec << std::endl;
+    std::cout << "  Extracted file number: 0x" << std::hex << fileNum << std::dec << '\n';
+    std::cout << "  PTE address: 0x" << std::hex << pteAddr << std::dec << '\n';
     
     // Save original PTE
     uint64_t originalPte0 = 0, originalPte1 = 0;
     mem.read(pteAddr, 8, originalPte0);
     mem.read(pteAddr + 8, 8, originalPte1);
-    std::cout << "  Original PTE: 0x" << std::hex << originalPte0 << std::dec << std::endl;
+    std::cout << "  Original PTE: 0x" << std::hex << originalPte0 << std::dec << '\n';
     
     // Create request for testing
     IommuRequest req;
@@ -608,19 +608,19 @@ static void testDirectPteModification(Iommu& iommu, MemoryModel& mem, DeviceCont
     
     uint64_t pa = 0;
     unsigned cause = 0;
-    bool result;
+    bool result = false;
     
     // Test 1: MSI PTE Load Access Fault
     // --------------------------------
-    std::cout << "\n  Test 1: MSI PTE Load Access Fault" << std::endl;
+    std::cout << "\n  Test 1: MSI PTE Load Access Fault" << '\n';
     
     // Setup handler to make reads to this specific PTE fail
     mem.setReadHandler([pteAddr](uint64_t addr, unsigned /*size*/, uint64_t& /*data*/) {
         std::cout << "    Read handler called for address 0x" << std::hex << addr 
-                  << " (checking against 0x" << pteAddr << ")" << std::dec << std::endl;
+                  << " (checking against 0x" << pteAddr << ")" << std::dec << '\n';
         
         if (addr >= pteAddr && addr < pteAddr + 16) {
-            std::cout << "    ** Intercepting MSI PTE read - returning failure **" << std::endl;
+            std::cout << "    ** Intercepting MSI PTE read - returning failure **" << '\n';
             return false;
         }
         return true;
@@ -629,16 +629,16 @@ static void testDirectPteModification(Iommu& iommu, MemoryModel& mem, DeviceCont
     // Attempt translation
     result = iommu.translate(req, pa, cause);
     
-    std::cout << "    Translation result: " << (result ? "SUCCESS" : "FAILED") << std::endl;
-    std::cout << "    Cause: " << cause << std::endl;
-    std::cout << "    Expected cause: 261" << std::endl;
+    std::cout << "    Translation result: " << (result ? "SUCCESS" : "FAILED") << '\n';
+    std::cout << "    Cause: " << cause << '\n';
+    std::cout << "    Expected cause: 261" << '\n';
     
     // Clear memory handler
     mem.setReadHandler(nullptr);
     
     // Test 2: MSI PTE Not Valid
     // -------------------------
-    std::cout << "\n  Test 2: MSI PTE Not Valid" << std::endl;
+    std::cout << "\n  Test 2: MSI PTE Not Valid" << '\n';
     
     // Write invalid PTE (clear V bit)
     MsiPte0 invalidPte(0);  // All zeros - valid bit is cleared
@@ -649,18 +649,18 @@ static void testDirectPteModification(Iommu& iommu, MemoryModel& mem, DeviceCont
     uint64_t verifyVal = 0;
     mem.read(pteAddr, 8, verifyVal);
     std::cout << "    Verified PTE write: 0x" << std::hex << verifyVal 
-              << " at address 0x" << pteAddr << std::dec << std::endl;
+              << " at address 0x" << pteAddr << std::dec << '\n';
     
     // Attempt translation
     result = iommu.translate(req, pa, cause);
     
-    std::cout << "    Translation result: " << (result ? "SUCCESS" : "FAILED") << std::endl;
-    std::cout << "    Cause: " << cause << std::endl;
-    std::cout << "    Expected cause: 262" << std::endl;
+    std::cout << "    Translation result: " << (result ? "SUCCESS" : "FAILED") << '\n';
+    std::cout << "    Cause: " << cause << '\n';
+    std::cout << "    Expected cause: 262" << '\n';
     
     // Test 3: MSI PTE Misconfigured (invalid mode)
     // --------------------------------------------
-    std::cout << "\n  Test 3: MSI PTE Misconfigured (invalid mode)" << std::endl;
+    std::cout << "\n  Test 3: MSI PTE Misconfigured (invalid mode)" << '\n';
     
     // Write misconfigured PTE with invalid mode
     MsiPte0 misconfiguredPte(0);
@@ -672,18 +672,18 @@ static void testDirectPteModification(Iommu& iommu, MemoryModel& mem, DeviceCont
     // Verify write took effect
     mem.read(pteAddr, 8, verifyVal);
     std::cout << "    Verified PTE write: 0x" << std::hex << verifyVal 
-              << " at address 0x" << pteAddr << std::dec << std::endl;
+              << " at address 0x" << pteAddr << std::dec << '\n';
     
     // Attempt translation
     result = iommu.translate(req, pa, cause);
     
-    std::cout << "    Translation result: " << (result ? "SUCCESS" : "FAILED") << std::endl;
-    std::cout << "    Cause: " << cause << std::endl;
-    std::cout << "    Expected cause: 263" << std::endl;
+    std::cout << "    Translation result: " << (result ? "SUCCESS" : "FAILED") << '\n';
+    std::cout << "    Cause: " << cause << '\n';
+    std::cout << "    Expected cause: 263" << '\n';
     
     // Test 4: MSI PTE Misconfigured (reserved bits)
     // ---------------------------------------------
-    std::cout << "\n  Test 4: MSI PTE Misconfigured (reserved bits)" << std::endl;
+    std::cout << "\n  Test 4: MSI PTE Misconfigured (reserved bits)" << '\n';
     
     // Write misconfigured PTE with reserved bits set
     MsiPte0 reservedPte(0);
@@ -702,18 +702,18 @@ static void testDirectPteModification(Iommu& iommu, MemoryModel& mem, DeviceCont
     mem.read(pteAddr, 8, verify1);
     mem.read(pteAddr + 8, 8, verify2);
     std::cout << "    Verified PTE write: 0x" << std::hex << verify1 
-              << " 0x" << verify2 << " at address 0x" << pteAddr << std::dec << std::endl;
+              << " 0x" << verify2 << " at address 0x" << pteAddr << std::dec << '\n';
     
     // Attempt translation
     result = iommu.translate(req, pa, cause);
     
-    std::cout << "    Translation result: " << (result ? "SUCCESS" : "FAILED") << std::endl;
-    std::cout << "    Cause: " << cause << std::endl;
-    std::cout << "    Expected cause: 263" << std::endl;
+    std::cout << "    Translation result: " << (result ? "SUCCESS" : "FAILED") << '\n';
+    std::cout << "    Cause: " << cause << '\n';
+    std::cout << "    Expected cause: 263" << '\n';
     
     // Test 5: MRIF Mode
     // ----------------
-    std::cout << "\n  Test 5: MRIF Mode" << std::endl;
+    std::cout << "\n  Test 5: MRIF Mode" << '\n';
     
     // Write MRIF mode PTE
     MsiMrifPte0 mrifPte0(0);
@@ -733,33 +733,33 @@ static void testDirectPteModification(Iommu& iommu, MemoryModel& mem, DeviceCont
     mem.read(pteAddr, 8, verify1);
     mem.read(pteAddr + 8, 8, verify2);
     std::cout << "    Verified MRIF PTE write: 0x" << std::hex << verify1 
-              << " 0x" << verify2 << " at address 0x" << pteAddr << std::dec << std::endl;
+              << " 0x" << verify2 << " at address 0x" << pteAddr << std::dec << '\n';
     
     // Attempt translation
     result = iommu.translate(req, pa, cause);
     
-    std::cout << "    Translation result: " << (result ? "SUCCESS" : "FAILED") << std::endl;
+    std::cout << "    Translation result: " << (result ? "SUCCESS" : "FAILED") << '\n';
     if (result) {
-        std::cout << "    Translated PA: 0x" << std::hex << pa << std::dec << std::endl;
+        std::cout << "    Translated PA: 0x" << std::hex << pa << std::dec << '\n';
     } else {
-        std::cout << "    Cause: " << cause << std::endl;
+        std::cout << "    Cause: " << cause << '\n';
     }
-    std::cout << "    Expected: Success" << std::endl;
+    std::cout << "    Expected: Success" << '\n';
     
     // Restore original PTE
     mem.write(pteAddr, 8, originalPte0);
     mem.write(pteAddr + 8, 8, originalPte1);
     mem.read(pteAddr, 8, verifyVal);
-    std::cout << "\n  Restored original PTE: 0x" << std::hex << verifyVal << std::dec << std::endl;
+    std::cout << "\n  Restored original PTE: 0x" << std::hex << verifyVal << std::dec << '\n';
     
-    std::cout << "==== Direct MSI PTE Modification Test Completed ====" << std::endl;
+    std::cout << "==== Direct MSI PTE Modification Test Completed ====" << '\n';
 }
 
 int main() {
-    std::cout << "==== IOMMU MSI Translation Test ====" << std::endl;
+    std::cout << "==== IOMMU MSI Translation Test ====" << '\n';
     
     // Create memory model and IOMMU
-    MemoryModel mem(16 * 1024 * 1024);
+    MemoryModel mem(16UL * 1024 * 1024);
     Iommu iommu(0x1000, 0x800, mem.size());
     
     // Configure IOMMU
@@ -776,26 +776,26 @@ int main() {
     iommu.writeDeviceContext(dcAddr, dc);
     
     // Print MSI configuration info
-    std::cout << "MSI Configuration:" << std::endl;
-    std::cout << "  MSI PPN: 0x" << std::hex << dc.msiPpn() << std::dec << std::endl;
-    std::cout << "  MSI Mask: 0x" << std::hex << dc.msiMask() << std::dec << std::endl;
-    std::cout << "  MSI Pattern: 0x" << std::hex << dc.msiPattern() << std::dec << std::endl;
+    std::cout << "MSI Configuration:" << '\n';
+    std::cout << "  MSI PPN: 0x" << std::hex << dc.msiPpn() << std::dec << '\n';
+    std::cout << "  MSI Mask: 0x" << std::hex << dc.msiMask() << std::dec << '\n';
+    std::cout << "  MSI Pattern: 0x" << std::hex << dc.msiPattern() << std::dec << '\n';
     std::cout << "  MSI Mode: " << (dc.msiMode() == MsiptpMode::Flat ? "Flat" : 
-                                   (dc.msiMode() == MsiptpMode::Off ? "Off" : "Unknown")) << std::endl;
+                                   (dc.msiMode() == MsiptpMode::Off ? "Off" : "Unknown")) << '\n';
     
     // Setup MSI page table
     setupMsiPageTable(mem);
     
     // Run component tests
-    std::cout << "\n--- Component Tests ---" << std::endl;
-    // testMsiAddressMatching(dc);
-    // testMsiBitsExtraction(dc);
-    // testMsiPteRetrieval(mem, dc);
-    // testManualMsiTranslation(mem, dc);
+    std::cout << "\n--- Component Tests ---" << '\n';
+    testMsiAddressMatching(dc);
+    testMsiBitsExtraction(dc);
+    testMsiPteRetrieval(mem, dc);
+    testManualMsiTranslation(mem, dc);
 
     testIommuMsiTranslation(iommu);
     testMsiFaultConditions(iommu, mem, dc);
-    // testDirectPteModification(iommu, mem, dc);
-    std::cout << "\nMSI Translation Tests Completed" << std::endl;
+    testDirectPteModification(iommu, mem, dc);
+    std::cout << "\nMSI Translation Tests Completed" << '\n';
     return 0;
 }

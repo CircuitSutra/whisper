@@ -25,7 +25,7 @@ void
 printVersion()
 {
   unsigned version = 1;
-  unsigned subversion = 855;
+  unsigned subversion = 856;
   std::cout << "Version " << version << "." << subversion << " compiled on "
 	    << __DATE__ << " at " << __TIME__ << '\n';
 #ifdef GIT_SHA
@@ -172,6 +172,13 @@ Args::collectCommandLineValues(const boost::program_options::variables_map& varM
     {
       auto numStr = varMap["branchwindow"].as<std::string>();
       if (not parseCmdLineNumber("branchwindow", numStr, this->branchWindow))
+        ok = false;
+    }
+
+  if (varMap.count("cachewindow"))
+    {
+      auto numStr = varMap["cachewindow"].as<std::string>();
+      if (not parseCmdLineNumber("cachewindow", numStr, this->cacheWindow))
         ok = false;
     }
 
@@ -451,6 +458,10 @@ Args::parseCmdLineArgs(std::span<char*> argv)
          "Trace branch instructions to the given file.")
         ("branchwindow", po::value<std::string>(),
          "Trace branches in the last n instructions.")
+        ("tracecache", po::value(&this->cacheTraceFile),
+         "Trace explicit cache line accesses (unified I/D). This includes fence.i and CMOs and collapses consecutive accesses.")
+        ("cachewindow", po::value<std::string>(),
+         "Trace n cache accesses.")
         ("tracerlib", po::value(&this->tracerLib),
          "Path to tracer extension shared library which should provide C symbol tracerExtension32 or tracerExtension64."
          "Optionally include arguments after a colon to be exposed to the shared library "

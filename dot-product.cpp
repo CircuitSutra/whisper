@@ -55,7 +55,7 @@ Hart<URV>::execVqdot_vv(const DecodedInst* di)
       return;
     }
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   for (unsigned ix = start; ix < elems; ++ix)
     {
@@ -115,7 +115,7 @@ Hart<URV>::execVqdot_vx(const DecodedInst* di)
       return;
     }
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   int32_t e2 = intRegs_.read(rs);
 
@@ -176,7 +176,7 @@ Hart<URV>::execVqdotu_vv(const DecodedInst* di)
       return;
     }
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   for (unsigned ix = start; ix < elems; ++ix)
     {
@@ -236,7 +236,7 @@ Hart<URV>::execVqdotu_vx(const DecodedInst* di)
       return;
     }
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   uint32_t e2 = intRegs_.read(rs);
 
@@ -297,7 +297,7 @@ Hart<URV>::execVqdotsu_vv(const DecodedInst* di)
       return;
     }
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   for (unsigned ix = start; ix < elems; ++ix)
     {
@@ -312,7 +312,7 @@ Hart<URV>::execVqdotsu_vv(const DecodedInst* di)
 	  for (unsigned i = 0; i < sizeof(e1); ++i)
 	    {
 	      int32_t b1 = int8_t(e1 >> i*8);  // Ith byte of e1.
-	      uint32_t b2 = uint8_t(e2 >> i*8);  // Ith byte of e2.
+	      int32_t b2 = uint8_t(e2 >> i*8);  // Ith byte of e2.
 	      dest += b1 * b2;
 	    }
 	}
@@ -358,7 +358,7 @@ Hart<URV>::execVqdotsu_vx(const DecodedInst* di)
       return;
     }
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   uint32_t e2 = intRegs_.read(rs);
 
@@ -373,7 +373,7 @@ Hart<URV>::execVqdotsu_vx(const DecodedInst* di)
 	  for (unsigned i = 0; i < sizeof(e1); ++i)
 	    {
 	      int32_t b1 = int8_t(e1 >> i*8);  // Ith byte of e1.
-	      uint32_t b2 = uint8_t(e2 >> i*8);  // Ith byte of e2.
+	      int32_t b2 = uint8_t(e2 >> i*8);  // Ith byte of e2.
 	      dest += b1 * b2;
 	    }
 	}
@@ -419,7 +419,7 @@ Hart<URV>::execVqdotus_vx(const DecodedInst* di)
       return;
     }
 
-  unsigned destGroup = std::max(vecRegs_.groupMultiplierX8(GroupMultiplier::One), group);
+  unsigned destGroup = std::max(VecRegs::groupMultiplierX8(GroupMultiplier::One), group);
 
   int32_t e2 = intRegs_.read(rs);
 
@@ -433,7 +433,7 @@ Hart<URV>::execVqdotus_vx(const DecodedInst* di)
 
 	  for (unsigned i = 0; i < sizeof(e1); ++i)
 	    {
-	      uint32_t b1 = uint8_t(e1 >> i*8);  // Ith byte of e1.
+	      int32_t b1 = uint8_t(e1 >> i*8);  // Ith byte of e1.
 	      int32_t b2 = int8_t(e2 >> i*8);  // Ith byte of e2.
 	      dest += b1 * b2;
 	    }

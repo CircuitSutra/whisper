@@ -3,6 +3,7 @@
 #include <fstream>
 #include <sstream>
 #include <boost/algorithm/string.hpp>
+#include <utility>
 #include <unistd.h>
 #include <poll.h>
 #include <termios.h>
@@ -13,6 +14,7 @@
 #endif
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <span>
 #include "Uart8250.hpp"
 
 
@@ -21,7 +23,8 @@ using namespace WdRiscv;
 FDChannel::FDChannel(int in_fd, int out_fd)
   : in_fd_(in_fd), out_fd_(out_fd), is_tty_(isatty(in_fd_))
 {
-  if (pipe(terminate_pipe_))
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
+  if (pipe(terminate_pipe_.data()))
     throw std::runtime_error("FDChannel: Failed to get termination pipe\n");
 
   pollfds_[0].fd = in_fd_;
@@ -40,23 +43,24 @@ FDChannel::FDChannel(int in_fd, int out_fd)
   }
 }
 
-size_t FDChannel::read(uint8_t *arr, size_t n) {
+size_t FDChannel::read(std::span<uint8_t> arr, size_t n) {
   while (true) {
-    int code = poll(pollfds_, 2, 10);
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
+    int code = poll(pollfds_.data(), 2, 10);
 
     if (code > 0)
     {
       // Terminated
       if ((pollfds_[1].revents & POLLIN))
         {
-          char buf;
+          char buf = 0;
           (void) ::read(terminate_pipe_[0], &buf, 1);
           return 0;
         }
 
       if ((pollfds_[0].revents & POLLIN) != 0)
       {
-        ssize_t count = ::read(in_fd_, arr, n);
+        ssize_t count = ::read(in_fd_, arr.data(), n);
         // std::cout << "Read " << count << " bytes from in_fd_\n";
         if (count < 0)
           throw std::runtime_error("FDChannel: Failed to read from in_fd_\n");
@@ -90,7 +94,7 @@ size_t FDChannel::read(uint8_t *arr, size_t n) {
 }
 
 void FDChannel::write(uint8_t byte) {
-  int written;
+  long written = 0;
   do {
     written = ::write(out_fd_, &byte, 1);
   } while (written != 1 && written != -1);
@@ -114,19 +118,19 @@ void FDChannel::restoreTermios() {
 
 FDChannel::~FDChannel() {
   restoreTermios();
-  
-  for (uint8_t i = 0; i < 2; i++) {
-    if (terminate_pipe_[i] != -1)
-      close(terminate_pipe_[i]);
+
+  for (int i : terminate_pipe_) {
+    if (i != -1)
+      close(i);
   }
 }
 
 PTYChannelBase::PTYChannelBase() {
-  char name[256];
-  if (openpty(&master_, &slave_, name, nullptr, nullptr) < 0)
+  std::array<char, 256> name{};
+  if (openpty(&master_, &slave_, name.data(), nullptr, nullptr) < 0)
     throw std::runtime_error("Failed to open a PTY\n");
 
-  std::cerr << "Info: Got PTY " << name << "\n";
+  std::cerr << "Info: Got PTY " << name.data() << "\n";
 }
 
 PTYChannelBase::~PTYChannelBase()
@@ -139,14 +143,14 @@ PTYChannelBase::~PTYChannelBase()
 }
 
 
-PTYChannel::PTYChannel() : PTYChannelBase(), FDChannel(master_, master_)
+PTYChannel::PTYChannel() :  FDChannel(master_, master_)
 { }
 
 
 SocketChannelBase::SocketChannelBase(int server_fd) {
-  struct sockaddr_in client_addr;
-  socklen_t client_len = sizeof(client_addr);
-  conn_fd_ = accept(server_fd, (struct sockaddr *)&client_addr, &client_len);
+  struct sockaddr client_addr{};
+  socklen_t client_len = sizeof(struct sockaddr_in);
+  conn_fd_ = accept(server_fd, &client_addr, &client_len);
   if (conn_fd_ < 0)
     throw std::runtime_error("Failed to accept socket connection\n");
 }
@@ -165,7 +169,7 @@ SocketChannel::SocketChannel(int server_fd) : SocketChannelBase(server_fd), FDCh
 ForkChannel::ForkChannel(std::unique_ptr<UartChannel> readWriteChannel, std::unique_ptr<UartChannel> writeOnlyChannel)
   : readWriteChannel_(std::move(readWriteChannel)), writeOnlyChannel_(std::move(writeOnlyChannel)) {}
 
-size_t ForkChannel::read(uint8_t *buf, size_t size) {
+size_t ForkChannel::read(std::span<uint8_t> buf, size_t size) {
   return readWriteChannel_->read(buf, size);
 }
 
@@ -182,10 +186,10 @@ void ForkChannel::terminate() {
 Uart8250::Uart8250(uint64_t addr, uint64_t size,
     std::shared_ptr<TT_APLIC::Aplic> aplic, uint32_t iid,
     std::unique_ptr<UartChannel> channel, bool enableInput, unsigned regShift)
-  : IoDevice("uart8250", addr, size, aplic, iid), channel_(std::move(channel)), regShift_(regShift)
+  : IoDevice("uart8250", addr, size, std::move(aplic), iid), channel_(std::move(channel)), regShift_(regShift)
 {
   if (enableInput)
-    this->enable();
+    Uart8250::enable();
 }
 
 void Uart8250::disable()
@@ -199,7 +203,7 @@ void Uart8250::disable()
 Uart8250::~Uart8250()
 {
   if (not terminate_)
-    disable();
+    Uart8250::disable();
 }
 
 void Uart8250::enable() {
@@ -254,11 +258,13 @@ uint32_t Uart8250::read(uint64_t addr) {
       case 5: return lsr_;
       case 6: return msr_;
       case 7: return scr_;
+      default: assert(false);
     }
   } else {
     switch (offset) {
       case 0: return dll_;
       case 1: return dlm_;
+      default: assert(false);
     }
   }
 
@@ -369,7 +375,7 @@ bool Uart8250::loadSnapshot(const std::string& filename)
       std::istringstream iss(data);
       iss >> std::hex;
       std::string regName;
-      unsigned value;
+      unsigned value = 0;
       if (not (iss >> regName >> value))
         {
           std::cerr << "Error: failed to parse UART snapshot file " << filename << " line " << lineno << ": \n" << line << '\n';
@@ -409,8 +415,8 @@ void Uart8250::monitorInput() {
     if (terminate_)
       return;
 
-    std::array<uint8_t, FIFO_SIZE> arr;
-    size_t count = channel_->read(arr.data(), FIFO_SIZE);
+    std::array<uint8_t, FIFO_SIZE> arr{};
+    size_t count = channel_->read(arr, FIFO_SIZE);
     if (count == 0)
       // EOF
       return;
@@ -423,7 +429,7 @@ void Uart8250::monitorInput() {
         return;
 
       for (; i < count && rx_fifo.size() < FIFO_SIZE; i++) {
-        rx_fifo.push(arr[i]);
+        rx_fifo.push(arr.at(i));
       }
 
       lsr_ |= 1;  // Set receiver data ready

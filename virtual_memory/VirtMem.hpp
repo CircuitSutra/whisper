@@ -189,7 +189,7 @@ namespace WdRiscv
       std::fill(supportedModes_.begin(), supportedModes_.end(), false);
       for (auto mode : modes)
       {
-        unsigned ix = unsigned(mode);
+        auto ix = unsigned(mode);
         if (ix < supportedModes_.size())
           supportedModes_.at(ix) = true;
       }
@@ -199,22 +199,29 @@ namespace WdRiscv
     /// supported but that can be modified with setSupportedModes.
     bool isModeSupported(Mode mode)
     {
-      unsigned ix = unsigned(mode);
+      auto ix = unsigned(mode);
       return ix < supportedModes_.size() ? supportedModes_.at(ix) : false;
     }
 
     /// Used to record the page table walk addresses for logging.
     struct WalkEntry
     {
-      /// Non-leaf PTE with guest-virt-addr, guest-phys-addr, phys-addr, or leaf PTE.
-      enum Type { GVA = 0, GPA = 1, PA = 2, RE = 3 };
+      /// Entry type
+      enum Type
+        {
+          GVA = 0,  // Non-leaf PTE with guest-virtual-address
+          GPA = 1,  // Non-leaf PTE with guest-physiscal-address
+          PA = 2,   // Non-leaf PTE with physical-address
+          LEAF = 3, // Leaf PTE
+          RE = LEAF // Leaf PTE
+        };
 
       WalkEntry(uint64_t addr, Type type)
         : addr_(addr), type_(type)
       { assert(type != Type::PA); }
 
       WalkEntry(uint64_t addr)
-        : addr_(addr), type_(Type::PA)
+        : addr_(addr) 
       { }
 
       uint64_t addr_ = 0;
@@ -224,22 +231,26 @@ namespace WdRiscv
       bool dUpdated_ = false;  // True if D bit updated by this walk (for leaf entries)
     };
 
-    /// Return the addresses of the instruction page table entries
-    /// used in the last page table walk. Return empty vector if the
-    /// last executed instruction did not induce an instruction page
-    /// table walk.
-    const std::vector<WalkEntry>& getFetchWalks(unsigned ix) const
-    { return ix < fetchWalks_.size() ? fetchWalks_.at(ix) : emptyWalk_; }
+    /// Return the addresses and types (WalkEntry) of the instruction page table entries
+    /// used by the instruction (fetch) page table walk having the given index and
+    /// associated with the last executed instruction. An instruction fetch may induce
+    /// multiple page table walks (see numFetchWalks). Return empty vector if the last
+    /// executed instruction did not induce any instruction page table walk or if the walk
+    /// index is out of bounds.
+    const std::vector<WalkEntry>& getFetchWalks(unsigned walkIx) const
+    { return walkIx < fetchWalks_.size() ? fetchWalks_.at(walkIx) : emptyWalk_; }
 
-    /// Return the addresses of the data page table entries used in
-    /// the last page table walk. Return empty vector if the last
-    /// executed instruction did not induce a data page table walk.
+    /// Data access counterpart to getFetchWalks.
     const std::vector<WalkEntry>& getDataWalks(unsigned ix) const
     { return ix < dataWalks_.size() ? dataWalks_.at(ix) : emptyWalk_; }
 
+    /// Return all the fetch page walks associated with the last executed instruction.
+    /// Each entry in the returned vector corresponds to one page table walk and is itself
+    /// a vector of page table entry addresses and corresponding types.
     const std::vector<std::vector<WalkEntry>>& getFetchWalks() const
     { return fetchWalks_; }
 
+    /// Data access counterpart to getDataWalks.
     const std::vector<std::vector<WalkEntry>>& getDataWalks() const
     { return dataWalks_; }
 
@@ -766,8 +777,8 @@ namespace WdRiscv
     const Walk emptyWalk_;
 
     // Track page crossing information
-    bool fetchPageCross_;
-    bool dataPageCross_;
+    bool fetchPageCross_ = false;
+    bool dataPageCross_ = false;
 
     // Extra trap information
     bool s1ImplAccTrap_ = false;

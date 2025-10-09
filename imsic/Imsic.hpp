@@ -8,6 +8,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <algorithm>
 
 
 namespace TT_IMSIC      // TensTorrent Incoming Message Signaled Interrupt Controller.
@@ -52,14 +53,14 @@ namespace TT_IMSIC      // TensTorrent Incoming Message Signaled Interrupt Contr
     /// using the config method. An non-configured file does not cover
     /// any address.
     File ()
-    { }
+    = default;
 
     /// Define a file with n-1 interrupt identities: 1 to
     /// n-1. Identity 0 is reserved. Initial value: All disabled none
     /// pending. The given address must be page aligned and n must be
     /// a multiple of 64.
     File (uint64_t address, unsigned n)
-      : addr_(address), pending_(n), enabled_(n), topId_(0), config_(true)
+      : addr_(address), pending_(n), enabled_(n),  config_(true)
     {
       assert((address & pageSize_) == 0);
       assert((n % 64) == 0);
@@ -279,6 +280,12 @@ namespace TT_IMSIC      // TensTorrent Incoming Message Signaled Interrupt Contr
     bool loadSnapshot(const std::string& filename)
     {
       std::ifstream ifs(filename);
+      if (not ifs.is_open())
+        {
+          std::cerr << "Warning: Imsic::saveSnapshot could not open snapshot file for reading: '" << filename << "'\n";
+          return true;
+        }
+
       std::string line;
       uint64_t errors = 0;
       unsigned lineNum = 0;
@@ -441,10 +448,10 @@ namespace TT_IMSIC      // TensTorrent Incoming Message Signaled Interrupt Contr
     {
       if (mfile_.isValidAddress(addr) or sfile_.isValidAddress(addr))
 	return true;
-      for (const auto& gfile : gfiles_)
-	if (gfile.isValidAddress(addr))
-	  return true;
-      return false;
+      return std::any_of(gfiles_.begin(), gfiles_.end(),
+                          [addr] (const auto& gfile) {
+                            return gfile.isValidAddress(addr);
+                          });
     }
 
     /// Write to this IMSIC. Return false doing nothing if address is
@@ -565,7 +572,7 @@ namespace TT_IMSIC      // TensTorrent Incoming Message Signaled Interrupt Contr
 	{
 	  if (not guest or guest >= gfiles_.size())
 	    return false;
-	  auto& gfile = gfiles_.at(guest);
+	  const auto& gfile = gfiles_.at(guest);
 	  return gfile.iregRead(select, value);
 	}
       return sfile_.iregRead(select, value);
@@ -674,7 +681,7 @@ namespace TT_IMSIC      // TensTorrent Incoming Message Signaled Interrupt Contr
 
       mfile_.iregModified(mselects);
       sfile_.iregModified(sselects);
-      for (auto& g : gfiles_)
+      for (const auto& g : gfiles_)
         {
           std::vector<std::pair<unsigned, unsigned>> tmp;
           g.iregModified(tmp);
@@ -687,7 +694,7 @@ namespace TT_IMSIC      // TensTorrent Incoming Message Signaled Interrupt Contr
 
       mfile_.externalInterrupts(minterrupts);
       sfile_.externalInterrupts(sinterrupts);
-      for (auto& g : gfiles_)
+      for (const auto& g : gfiles_)
         {
           std::vector<unsigned> tmp;
           g.externalInterrupts(tmp);
@@ -732,11 +739,9 @@ namespace TT_IMSIC      // TensTorrent Incoming Message Signaled Interrupt Contr
     {
       using EIC = File::ExternalInterruptCsr;
 
-      if ((select >= EIC::RES0 and select <= EIC::RES1) or
+      return (select >= EIC::RES0 and select <= EIC::RES1) or
           (select >= EIC::RES2 and select <= EIC::RES3) or
-          (select >= EIC::RES4))
-        return true;
-      return false;
+          (select >= EIC::RES4);
     }
 
     bool saveSnapshot(const std::string& filename) const
@@ -777,7 +782,15 @@ namespace TT_IMSIC      // TensTorrent Incoming Message Signaled Interrupt Contr
   public:
 
     /// Constructor.
-    ImsicMgr(unsigned hartCount, unsigned pageSize);
+    ImsicMgr(unsigned pageSize);
+
+    /// Instantiate Imsics, one per hart
+    void createImsics(unsigned hartCount)
+    {
+      imsics_.resize(hartCount);
+      for (unsigned ix = 0; ix < hartCount; ++ix)
+        imsics_.at(ix) = std::make_shared<Imsic>();
+    }
 
     /// Configure machine privilege IMISC files (one per
     /// hart). Machine files will be at addresses addr, addr + stride,
@@ -913,7 +926,7 @@ namespace TT_IMSIC      // TensTorrent Incoming Message Signaled Interrupt Contr
     std::shared_ptr<Imsic> ithImsic(unsigned i)
     {
       if (i >= imsics_.size())
-	return std::shared_ptr<Imsic>();
+	return {};
       return imsics_.at(i);
     }
 

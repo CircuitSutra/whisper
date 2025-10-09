@@ -34,6 +34,7 @@
 #include <optional>
 #include <iostream>
 #include <bit>
+#include <cassert>
 #include "riscv_enums.hpp"
 
 namespace TT_IOMMU
@@ -152,8 +153,7 @@ namespace TT_IOMMU
     enum AccessReason { None, Fetch, LdSt };
 
     /// Constructor: Mark all memory as no access to user/supervisor.
-    PmpManager()
-    { }
+    PmpManager() = default;
 
     /// Destructor.
     ~PmpManager() = default;
@@ -529,7 +529,7 @@ namespace TT_IOMMU
     }
 
     /// Print current pmp map matching a particular address.
-    void printRegion(std::ostream& os, Region region) const
+    static void printRegion(std::ostream& os, Region region) 
     {
       const auto& pmp = region.pmp_;
       os << "pmp ix: " << std::dec << pmp.pmpIndex() << "\n";
@@ -575,6 +575,6 @@ namespace TT_IOMMU
 
     // PMPs used in most recent instruction
     mutable std::vector<PmpTrace> pmpTrace_;
-    AccessReason reason_;
+    AccessReason reason_{};
   };
 }

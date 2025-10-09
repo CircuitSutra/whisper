@@ -228,9 +228,9 @@ namespace WdRiscv
     enum class PrivModeMask : uint32_t { U = 1, S = 2, M = 4, VU = 8, VS = 16 };
 
     /// Return mask corresponding to given privilege mode and V bit.
-    uint32_t privModeToMask(PrivilegeMode mode, bool isVirt)
+    static uint32_t privModeToMask(PrivilegeMode mode, bool isVirt)
     {
-      uint32_t n = static_cast<uint32_t>(mode);
+      auto n = static_cast<uint32_t>(mode);
       n = n + 1;
       if (isVirt)
 	n *= 8;
