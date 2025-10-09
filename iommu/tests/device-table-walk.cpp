@@ -100,9 +100,10 @@ static uint64_t setupDeviceTableWithBuilder(TT_IOMMU::Iommu& iommu, MemoryModel&
     bool msi_flat = iommu.isDcExtended();
     uint64_t dc_addr = tableBuilder.addDeviceContext(dc, devId, ddtp, msi_flat);
     
+    Ddtp ddtpObj(ddtp.value_);
     std::cout << "[TABLE_BUILDER] Created DDT structure for device ID 0x" 
-              << std::hex << devId << " using " << static_cast<int>(mode) << "-level mode" 
-              << ", device context at 0x" << dc_addr << std::dec << '\n';;
+              << std::hex << devId << " using " << ddtpObj.levels() << "-level mode" 
+              << ", device context at 0x" << dc_addr << std::dec << '\n';
     
     return dc_addr;
 }
@@ -263,19 +264,19 @@ void testDeviceContextTranslation() {
                                                    TestValues::SIMPLE_DEV_ID, Ddtp::Mode::Level2);
     
     // Write a device context with more complex settings
-            DeviceContext dc = createDeviceContext(
-                true,    // valid
-        true,    // enable_ats  
-                false,   // enable_pri
-                false,   // t2gpa
-                false,   // dtf
-                false,   // pdtv
-                false,   // prpr
-                false,   // gade 
-                false,   // sade
-                false,   // dpe
-                false,   // sbe
-                false,   // sxl
+    DeviceContext dc = createDeviceContext(
+        true,    // valid
+        false,   // enable_ats (disabled since ATS capability not set)
+        false,   // enable_pri
+        false,   // t2gpa
+        false,   // dtf
+        false,   // pdtv
+        false,   // prpr
+        false,   // gade 
+        false,   // sade
+        false,   // dpe
+        false,   // sbe
+        false,   // sxl
         IohgatpMode::Bare,  // iohgatp_mode
         0,       // gscid
         0,       // iohgatp_ppn
@@ -291,6 +292,10 @@ void testDeviceContextTranslation() {
     DeviceContext readDc;
     unsigned cause = 0;
     bool readSuccess = iommu.loadDeviceContext(TestValues::SIMPLE_DEV_ID, readDc, cause);
+    
+    if (!readSuccess) {
+        std::cout << "[ERROR] loadDeviceContext failed with cause: " << cause << '\n';
+    }
     
     printTestResult("Device context write/read", readSuccess);
     

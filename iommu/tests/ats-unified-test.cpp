@@ -55,19 +55,21 @@ public:
     std::cout << "[ATS_HELPER] Setting up device context for ID 0x" << std::hex << devId 
               << " with ATS=" << (enableAts ? "enabled" : "disabled") << std::dec << '\n';
     
-    // Set up DDTP for 2-level DDT
-    ddtp_t ddtp;
-    ddtp.bits_.mode_ = Ddtp::Mode::Level2;
-    ddtp.bits_.ppn_ = memMgr_.getFreePhysicalPages(1);
-    
-    // Configure DDTP register in the IOMMU
-    iommu_->writeCsr(CsrNumber::Ddtp, ddtp.value_);
-    
-    // Debug: Verify DDTP was written correctly
+    // Check if DDTP is already configured; if so, reuse it instead of creating a new root
     uint64_t ddtpValue = iommu_->readCsr(CsrNumber::Ddtp);
-    Ddtp readDdtp{ddtpValue};
-    std::cout << "[DEBUG] DDTP written: 0x" << std::hex << ddtp.value_ 
-              << ", read: 0x" << ddtpValue << ", mode: " << static_cast<int>(readDdtp.mode()) << std::dec << '\n';
+    ddtp_t ddtp{ddtpValue};
+    
+    if (ddtp.bits_.mode_ == Ddtp::Mode::Off || ddtp.bits_.mode_ == Ddtp::Mode::Bare) {
+      // DDTP not yet configured, set up a new 2-level DDT root
+      ddtp.bits_.mode_ = Ddtp::Mode::Level2;
+      ddtp.bits_.ppn_ = memMgr_.getFreePhysicalPages(1);
+      iommu_->writeCsr(CsrNumber::Ddtp, ddtp.value_);
+      std::cout << "[DEBUG] Created new DDTP: 0x" << std::hex << ddtp.value_ << std::dec << '\n';
+    } else {
+      // DDTP already configured, reuse existing root
+      std::cout << "[DEBUG] Reusing existing DDTP: 0x" << std::hex << ddtp.value_ 
+                << ", mode: " << static_cast<int>(ddtp.mode()) << std::dec << '\n';
+    }
     
     // Create device context with ATS configuration
     device_context_t dc = {};
@@ -219,6 +221,45 @@ private:
     iommu_->setMemReadCb(readFunc_);
     iommu_->setMemWriteCb(writeFunc_);
     
+    // Install stage1 translation callback (identity translation)
+    std::function<bool(uint64_t, unsigned, bool, bool, bool, uint64_t&, unsigned&)> stage1_cb =
+      [](uint64_t va, unsigned /*privMode*/, bool, bool, bool, uint64_t& gpa, unsigned& cause) { 
+        gpa = va; // Identity translation
+        cause = 0;
+        return true; 
+      };
+    iommu_->setStage1Cb(stage1_cb);
+    
+    // Install stage2 translation callback (identity translation)
+    std::function<bool(uint64_t, unsigned, bool, bool, bool, uint64_t&, unsigned&)> stage2_cb =
+      [](uint64_t gpa, unsigned /*privMode*/, bool, bool, bool, uint64_t& pa, unsigned& cause) { 
+        pa = gpa; // Identity translation
+        cause = 0;
+        return true; 
+      };
+    iommu_->setStage2Cb(stage2_cb);
+    
+    // Install stage2 trap info callback
+    std::function<void(uint64_t&, bool&, bool&)> trap_cb =
+      [](uint64_t& /*gpa*/, bool& /*implicit*/, bool& /*write*/) { 
+        // Do nothing
+      };
+    iommu_->setStage2TrapInfoCb(trap_cb);
+    
+    // Install stage1 configuration callback
+    std::function<void(unsigned, unsigned, uint64_t, bool)> stage1_config_cb =
+      [](unsigned /*mode*/, unsigned /*asid*/, uint64_t /*ppn*/, bool /*sum*/) {
+        // Do nothing
+      };
+    iommu_->setStage1ConfigCb(stage1_config_cb);
+    
+    // Install stage2 configuration callback
+    std::function<void(unsigned, unsigned, uint64_t)> stage2_config_cb =
+      [](unsigned /*mode*/, unsigned /*vmid*/, uint64_t /*ppn*/) {
+        // Do nothing
+      };
+    iommu_->setStage2ConfigCb(stage2_config_cb);
+    
     // Configure capabilities
     uint64_t caps = 0;
     caps |= (1ULL << 0);  // version 1.0
@@ -364,11 +405,16 @@ void testMultipleDevicesAts() {
         Iommu::AtsResponse resp;
         unsigned cause = 0;
         
+        std::cout << "[DEBUG] Testing device 0x" << std::hex << devId << " with IOVA 0x" << atsReq.iova << std::dec << '\n';
+        
         bool success = iommu.atsTranslate(atsReq, resp, cause);
         if (success && resp.success) {
             successCount++;
             std::cout << "[ATS] Device 0x" << std::hex << devId << ": IOVA 0x" << atsReq.iova 
                       << " -> PA 0x" << resp.translatedAddr << std::dec << '\n';
+        } else {
+            std::cout << "[ATS] Device 0x" << std::hex << devId << ": FAILED - success=" << success 
+                      << ", resp.success=" << resp.success << ", cause=" << std::dec << cause << '\n';
         }
     }
     

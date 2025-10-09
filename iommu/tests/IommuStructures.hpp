@@ -10,8 +10,8 @@
 namespace IOMMU {
 
 constexpr uint64_t PAGESIZE = 4096;
-constexpr uint8_t BASE_FORMAT_DC_SIZE = 64;
-constexpr uint8_t EXT_FORMAT_DC_SIZE = 128;
+constexpr uint8_t BASE_FORMAT_DC_SIZE = 32;
+constexpr uint8_t EXT_FORMAT_DC_SIZE = 64;
 constexpr uint8_t CQ_ENTRY_SZ = 16;
 constexpr uint8_t FQ_ENTRY_SZ = 32;
 
