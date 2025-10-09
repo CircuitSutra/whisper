@@ -28,12 +28,7 @@ using iohgatp_t = TT_IOMMU::Iohgatp;
 using iosatp_t = TT_IOMMU::Iosatp;
 using fsc_t = TT_IOMMU::Fsc;
 using device_context_t = TT_IOMMU::ExtendedDeviceContext;
-
-// Process context memory layout (16 bytes total)
-struct process_context_t {
-    uint64_t ta{0};   // Translation Attributes (ProcTransAttrib)
-    uint64_t fsc{0};  // First Stage Context (Iosatp/FSC)
-};
+using process_context_t = TT_IOMMU::ProcessContext;
 
 using DdtpMode = TT_IOMMU::Ddtp::Mode;
 using PdtpMode = TT_IOMMU::PdtpMode;
