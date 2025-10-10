@@ -946,6 +946,16 @@ applyVectorConfig(Hart<URV>& hart, const nlohmann::json& config)
         hart.enableTrapNonZeroVstart(flag);
     }
 
+  tag = "trap_out_of_bounds_vstart";
+  if (vconf.contains(tag))
+    {
+      bool flag = false;
+      if (not getJsonBoolean(tag, vconf.at(tag), flag))
+        errors++;
+      else
+        hart.enableTrapOobVstart(flag);
+    }
+
   if (errors == 0)
     hart.configVector(bytesPerVec, bytesPerElem.at(0), bytesPerElem.at(1), &minBytesPerLmul,
 		      &maxBytesPerLmul);

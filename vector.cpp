@@ -159,14 +159,13 @@ template <typename URV>
 bool
 Hart<URV>::checkVecIntInst(const DecodedInst* di)
 {
-  return checkVecIntInst(di, vecRegs_.groupMultiplier(), vecRegs_.elemWidth());
+  return checkVecIntInst(di, vecRegs_.elemWidth(), vecRegs_.groupMultiplier());
 }
 
 
 template <typename URV>
 bool
-Hart<URV>::checkVecIntInst(const DecodedInst* di, GroupMultiplier /*gm*/,
-			   ElementWidth /*eew*/)
+Hart<URV>::checkVecIntInst(const DecodedInst* di, ElementWidth eew, GroupMultiplier gm)
 {
   if (not checkSewLmulVstart(di))
     return false;
@@ -190,14 +189,12 @@ Hart<URV>::checkVecIntInst(const DecodedInst* di, GroupMultiplier /*gm*/,
 	  }
     }
 
-#if 0
-  // Use of vstart values greater than vlmax is reserved (section 3.7 of spec).
-  if (vstart > vecRegs_.vlmax(gm, eew))
+  // Use of vstart values greater than vlmax is reserved (section 32.3.7 of spec).
+  if (trapOobVstart_ and csRegs_.peekVstart() >= vecRegs_.vlmax(eew, gm))
     {
       postVecFail(di);
       return false;
     }
-#endif
 
   return true;
 }
@@ -206,7 +203,7 @@ Hart<URV>::checkVecIntInst(const DecodedInst* di, GroupMultiplier /*gm*/,
 template <typename URV>
 bool
 Hart<URV>::checkVecFpInst(const DecodedInst* di, bool wide,
-                               bool (Hart::*fp16LegalFn)() const)
+                          bool (Hart::*fp16LegalFn)() const)
 {
   if (not checkVecIntInst(di))
     return false;
@@ -217,15 +214,18 @@ Hart<URV>::checkVecFpInst(const DecodedInst* di, bool wide,
 
 template <typename URV>
 bool
-Hart<URV>::checkVecLdStInst(const DecodedInst* di)
+Hart<URV>::isLegalVecLdSt(const DecodedInst* di, ElementWidth eew, GroupMultiplier emul)
 {
+  if (not preVecExec())
+    return false;
+
+  if (not vecRegs_.legalConfig(eew, emul) or not vecRegs_.legalConfig())
+    return false;
+
   // Dest register (vd) cannot overlap mask register v0 and data source (vs3)
   // cannot overlap mask register v0.
   if (di->isMasked() and di->op0() == 0)
-    {
-      postVecFail(di);
-      return false;
-    }
+    return false;
 
   // None of the vector source registers can overlap mask regiser v0.
   // This is only applicable to vector indexed ld/st.
@@ -234,11 +234,12 @@ Hart<URV>::checkVecLdStInst(const DecodedInst* di)
     {
       for (unsigned i = 1; i < di->operandCount(); ++i)
 	if (di->ithOperand(i) == 0 and di->ithOperandType(i) == OperandType::VecReg)
-	  {
-	    postVecFail(di);
-	    return false;
-	  }
+          return false;
     }
+
+  // Use of vstart values greater than vlmax is reserved (section 32.3.7 of spec).
+  if (trapOobVstart_ and csRegs_.peekVstart() >= vecRegs_.vlmax(eew, emul))
+    return false;
 
   return true;
 }
@@ -565,14 +566,12 @@ Hart<URV>::checkVecMaskInst(const DecodedInst* di, unsigned dest,
   if (not checkSewLmulVstart(di))
     return false;
 
-#if 0
-  // Use of vstart values greater than vlmax is reserved (section 3.7 of spec).
-  if (vstart > vecRegs_.vlmax())
+  // Use of vstart values greater than vlmax is reserved (section 32.3.7 of spec).
+  if (trapOobVstart_ and csRegs_.peekVstart() >= vecRegs_.vlmax())
     {
       postVecFail(di);
       return false;
     }
-#endif
 
   // Source register (eew != 1) cannot overlap v0 (eew == 1) if instruction
   // is masked.
@@ -614,14 +613,12 @@ Hart<URV>::checkVecMaskInst(const DecodedInst* di, unsigned op0, unsigned op1,
   if (not checkSewLmulVstart(di))
     return false;
 
-#if 0
-  // Use of vstart values greater than vlmax is reserved (section 3.7 of spec).
-  if (vstart > vecRegs_.vlmax())
+  // Use of vstart values greater than vlmax is reserved (section 32.3.7 of spec).
+  if (trapOobVstart_ and csRegs_.peekVstart() >= vecRegs_.vlmax())
     {
       postVecFail(di);
       return false;
     }
-#endif
 
   // Source registers (eew != 1) cannot overlap v0 (eew == 1) if instruction
   // is masked.
@@ -906,8 +903,11 @@ Hart<URV>::checkVecLdStIndexedInst(const DecodedInst* di, unsigned vd, unsigned 
                                    unsigned offsetWidth, unsigned offsetGroupX8,
                                    unsigned fieldCount)
 {
-  if (not checkVecLdStInst(di))
-    return false;
+  if (not isLegalVecLdSt(di, vecRegs_.elemWidth(), vecRegs_.groupMultiplier()))
+    {
+      postVecFail(di);
+      return false;
+    }
 
   unsigned sew = vecRegs_.elemWidthInBits();
   uint32_t groupX8 = vecRegs_.groupMultiplierX8();
@@ -8883,7 +8883,7 @@ Hart<URV>::execVmv_s_x(const DecodedInst* di)
   SRV val = intRegs_.read(rs1);
 
   bool setTail = vecRegs_.isTailAgnostic() and vecRegs_.isTailAgnosticOnes();
-  unsigned tail = vecRegs_.vlmax(GroupMultiplier::One, sew);
+  unsigned tail = vecRegs_.vlmax(sew, GroupMultiplier::One);
 
   using EW = ElementWidth;
   switch (sew)
@@ -9019,7 +9019,7 @@ Hart<URV>::execVfmv_s_f(const DecodedInst* di)
   ElementWidth sew = vecRegs_.elemWidth();
 
   bool setTail = vecRegs_.isTailAgnostic() and vecRegs_.isTailAgnosticOnes();
-  unsigned tail = vecRegs_.vlmax(GroupMultiplier::One, sew);
+  unsigned tail = vecRegs_.vlmax(sew, GroupMultiplier::One);
 
   using EW = ElementWidth;
   switch (sew)
@@ -11079,17 +11079,14 @@ template <typename ELEM_TYPE>
 bool
 Hart<URV>::vectorLoad(const DecodedInst* di, ElementWidth eew, bool faultFirst)
 {
-  if (not checkVecLdStInst(di))
-    return false;
-
   // Compute emul: lmul*eew/sew
   unsigned groupX8 = vecRegs_.groupMultiplierX8();
   groupX8 = groupX8 * VecRegs::elemWidthInBits(eew) / vecRegs_.elemWidthInBits();
   GroupMultiplier emul = GroupMultiplier::One;
   bool badConfig = not VecRegs::groupNumberX8ToSymbol(groupX8, emul);
-  badConfig = badConfig or not vecRegs_.legalConfig(eew, emul);
+  badConfig = badConfig or not isLegalVecLdSt(di, eew, emul);
 
-  if (not preVecExec() or badConfig or not vecRegs_.legalConfig())
+  if (badConfig)
     {
       postVecFail(di);
       return false;
@@ -11291,18 +11288,15 @@ template <typename ELEM_TYPE>
 bool
 Hart<URV>::vectorStore(const DecodedInst* di, ElementWidth eew)
 {
-  if (not checkVecLdStInst(di))
-    return false;
-
   // Compute emul: lmul*eew/sew
   unsigned groupX8 = vecRegs_.groupMultiplierX8();
   groupX8 = groupX8 * VecRegs::elemWidthInBits(eew) / vecRegs_.elemWidthInBits();
 
   GroupMultiplier emul = GroupMultiplier::One;
   bool badConfig = not VecRegs::groupNumberX8ToSymbol(groupX8, emul);
-  badConfig = badConfig or not vecRegs_.legalConfig(eew, emul);
+  badConfig = badConfig or not isLegalVecLdSt(di, eew, emul);
 
-  if (not preVecExec() or badConfig or not vecRegs_.legalConfig())
+  if (badConfig)
     {
       postVecFail(di);
       return false;
@@ -11905,18 +11899,14 @@ template <typename ELEM_TYPE>
 bool
 Hart<URV>::vectorLoadStrided(const DecodedInst* di, ElementWidth eew)
 {
-  if (not checkVecLdStInst(di))
-    return false;
-
   // Compute emul: lmul*eew/sew
   unsigned groupX8 = vecRegs_.groupMultiplierX8();
   groupX8 = groupX8 * VecRegs::elemWidthInBits(eew) / vecRegs_.elemWidthInBits();
   GroupMultiplier emul = GroupMultiplier::One;
-
   bool badConfig = not VecRegs::groupNumberX8ToSymbol(groupX8, emul);
-  badConfig = badConfig or not vecRegs_.legalConfig(eew, emul);
+  badConfig = badConfig or not isLegalVecLdSt(di, eew, emul);
 
-  if (not preVecExec() or badConfig or not vecRegs_.legalConfig())
+  if (badConfig)
     {
       postVecFail(di);
       return false;
@@ -12084,18 +12074,14 @@ template <typename ELEM_TYPE>
 bool
 Hart<URV>::vectorStoreStrided(const DecodedInst* di, ElementWidth eew)
 {
-  if (not checkVecLdStInst(di))
-    return false;
-
   // Compute emul: lmul*eew/sew
   unsigned groupX8 = vecRegs_.groupMultiplierX8();
   groupX8 = groupX8 * VecRegs::elemWidthInBits(eew) / vecRegs_.elemWidthInBits();
-
   GroupMultiplier emul = GroupMultiplier::One;
   bool badConfig = not VecRegs::groupNumberX8ToSymbol(groupX8, emul);
-  badConfig = badConfig or not vecRegs_.legalConfig(eew, emul);
+  badConfig = badConfig or not isLegalVecLdSt(di, eew, emul);
 
-  if (not preVecExec() or badConfig or not vecRegs_.legalConfig())
+  if (badConfig)
     {
       postVecFail(di);
       return false;
@@ -12888,18 +12874,15 @@ bool
 Hart<URV>::vectorLoadSeg(const DecodedInst* di, ElementWidth eew,
 			 unsigned fieldCount, uint64_t stride, bool faultFirst)
 {
-  if (not checkVecLdStInst(di))
-    return false;
-
   // Compute emul: lmul*eew/sew
   unsigned groupX8 = vecRegs_.groupMultiplierX8();
   groupX8 = groupX8 * VecRegs::elemWidthInBits(eew) / vecRegs_.elemWidthInBits();
   GroupMultiplier emul = GroupMultiplier::One;
   bool badConfig = not VecRegs::groupNumberX8ToSymbol(groupX8, emul);
-  badConfig = badConfig or not vecRegs_.legalConfig(eew, emul);
+  badConfig = badConfig or not isLegalVecLdSt(di, eew, emul);
   badConfig = badConfig or (groupX8*fieldCount > 64);
 
-  if (not preVecExec() or badConfig or not vecRegs_.legalConfig())
+  if (badConfig)
     {
       postVecFail(di);
       return false;
@@ -13134,21 +13117,17 @@ bool
 Hart<URV>::vectorStoreSeg(const DecodedInst* di, ElementWidth eew,
 			  unsigned fieldCount, uint64_t stride)
 {
-  if (not checkVecLdStInst(di))
-    return false;
-
   // Compute emul: lmul*eew/sew
   unsigned groupX8 = vecRegs_.groupMultiplierX8();
   groupX8 = groupX8 * VecRegs::elemWidthInBits(eew) / vecRegs_.elemWidthInBits();
   GroupMultiplier emul = GroupMultiplier::One;
   bool badConfig = not VecRegs::groupNumberX8ToSymbol(groupX8, emul);
-  badConfig = badConfig or not vecRegs_.legalConfig(eew, emul);
+  badConfig = badConfig or not isLegalVecLdSt(di, eew, emul);
 
   // emul*fieldcount cannot be larger than 8 registers.
   badConfig = badConfig or (groupX8*fieldCount > 64);
 
-  unsigned start = csRegs_.peekVstart();
-  if (not preVecExec() or badConfig or not vecRegs_.legalConfig())
+  if (badConfig)
     {
       postVecFail(di);
       return false;
@@ -13160,6 +13139,7 @@ Hart<URV>::vectorStoreSeg(const DecodedInst* di, ElementWidth eew,
   if (not checkVecOpsVsEmul(di, vd, groupX8))
     return false;
 
+  unsigned start = csRegs_.peekVstart();
   uint64_t addr = intRegs_.read(rs1) + start*stride;
   unsigned elemCount = vecRegs_.elemCount(), elemSize = sizeof(ELEM_TYPE);
   unsigned eg = groupX8 >= 8 ? groupX8 / 8 : 1;
