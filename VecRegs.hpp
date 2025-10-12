@@ -369,7 +369,7 @@ namespace WdRiscv
 
     /// Return the element count in a register group defined by the
     /// given group multiplier and element width.
-    uint32_t vlmax(GroupMultiplier gm, ElementWidth eew) const
+    uint32_t vlmax(ElementWidth eew, GroupMultiplier gm) const
     {
       uint32_t gm8 = groupMultiplierX8(gm);
       uint32_t eewInBits = elemWidthInBits(eew);

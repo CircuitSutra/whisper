@@ -131,17 +131,15 @@ Hart<URV>::Hart(unsigned hartIx, URV hartId, unsigned numHarts, Memory& memory,
   // Define the default machine interrupts in high to low priority. VS interrupts
   // VSTIP/VSEIP/VSSIP are always delegated to supervisor privilege (section 19.4.2 of
   // privileged spec).
-  mInterrupts_ = { IC{24}, IC{23}, IC{43}, // Ascalon local interrupts.
-                   IC::M_EXTERNAL, IC::M_SOFTWARE, IC::M_TIMER,
+  mInterrupts_ = { IC::M_EXTERNAL, IC::M_SOFTWARE, IC::M_TIMER,
                    IC::S_EXTERNAL, IC::S_SOFTWARE, IC::S_TIMER,
-                   IC::G_EXTERNAL, IC::LCOF, IC{35} };
+                   IC::G_EXTERNAL, IC::LCOF };
 
   // Define the default supervisor (S/HS) interrupts in high to low priority.
-  sInterrupts_ = { IC{24}, IC{23}, IC{43}, // Ascalon local interrupts.
-                   IC::M_EXTERNAL, IC::M_SOFTWARE, IC::M_TIMER,
+  sInterrupts_ = { IC::M_EXTERNAL, IC::M_SOFTWARE, IC::M_TIMER,
                    IC::S_EXTERNAL, IC::S_SOFTWARE, IC::S_TIMER,
                    IC::G_EXTERNAL, IC::VS_EXTERNAL, IC::VS_SOFTWARE,
-                   IC::VS_TIMER, IC::LCOF, IC{35} };
+                   IC::VS_TIMER, IC::LCOF };
 
   // Define the virtual supervisor (VS) interrupts in high to low priority.
   vsInterrupts_ = { IC::VS_EXTERNAL, IC::VS_SOFTWARE, IC::VS_TIMER, IC::LCOF };

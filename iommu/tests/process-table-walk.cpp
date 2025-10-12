@@ -79,15 +79,11 @@ static uint64_t setupTablesWithBuilder(Iommu& iommu, MemoryModel& /* memory */,
     std::cout << "[TABLE_BUILDER] Created device context at 0x" << std::hex << dc_addr 
               << " for device ID 0x" << devId << std::dec << '\n';
     
-    // Create a process context
-    process_context_t pc = {};
-    pc.ta = 0x1;  // Translation Attributes: V=1 (valid)
-    
-    // Set up process SATP for address translation (FSC field)
+    // Create a process context and set up SATP for addr translation (FSC field)
     TT_IOMMU::Iosatp iosatp(0);
     iosatp.bits_.mode_ = TT_IOMMU::IosatpMode::Sv39;
     iosatp.bits_.ppn_ = memMgr.getFreePhysicalPages(1);
-    pc.fsc = iosatp.value_;
+    process_context_t pc{0x1, iosatp.value_};  // TA.valid=1, FSC=iosatp
     
     // Add process context using TableBuilder
     uint64_t pc_addr = tableBuilder.addProcessContext(dc, pc, processId);
@@ -265,12 +261,11 @@ void testMultipleProcesses() {
     std::vector<uint64_t> pcAddrs;
     
     for (uint32_t pid : processIds) {
-        process_context_t pc = {};
-        pc.ta = 0x1;  // Translation Attributes: V=1 (valid)
         TT_IOMMU::Iosatp iosatp(0);
         iosatp.bits_.mode_ = TT_IOMMU::IosatpMode::Sv39;
         iosatp.bits_.ppn_ = memMgr.getFreePhysicalPages(1);
-        pc.fsc = iosatp.value_;
+
+        process_context_t pc{0x1, iosatp.value_};  // TA.V=1, FSC=iosatp.
         
         uint64_t pc_addr = tableBuilder.addProcessContext(dc, pc, pid);
         pcAddrs.push_back(pc_addr);

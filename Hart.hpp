@@ -1333,10 +1333,13 @@ namespace WdRiscv
     /// Enable collection of instruction frequencies.
     void enableInstructionFrequency(bool b);
 
-    /// Enable/disable trapping of arithmetic vector instruction when
-    /// vstart is non-zero.
+    /// Enable/disable trapping of arithmetic vector instruction when vstart is non-zero.
     void enableTrapNonZeroVstart(bool flag)
     { trapNonZeroVstart_ = flag; }
+
+    /// Enable/disable trapping on out of bound vstart value (vstart >= VLMAX).
+    void enableTrapOobVstart(bool flag)
+    { trapOobVstart_ = flag; }
 
     /// Enable/disable the c (compressed) extension.
     void enableRvc(bool flag)
@@ -3689,10 +3692,13 @@ namespace WdRiscv
     bool checkVecIntInst(const DecodedInst* di);
 
     /// Same as above but with explicit group multiplier and element width.
-    bool checkVecIntInst(const DecodedInst* di, GroupMultiplier gm, ElementWidth eew);
+    bool checkVecIntInst(const DecodedInst* di, ElementWidth eew, GroupMultiplier gm);
 
-    /// Same as above but for vector load/store. Ignores vstart.
-    bool checkVecLdStInst(const DecodedInst* di);
+    /// Return true if given effective element widht and group multiplier are valid for
+    /// given vector load/store instruction and if destination/source overlap is valid and
+    /// if vstart value is valid. Return false otherwise. Do not take an exception on
+    /// invalid configs.
+    bool isLegalVecLdSt(const DecodedInst* di, ElementWidth eew, GroupMultiplier gm);
 
     /// Return true if given arithmetic (non load/store) instruction is
     /// legal. Check if vector extension is enabled. Check if the
@@ -5995,6 +6001,7 @@ namespace WdRiscv
     bool misalDataOk_ = true;
     bool misalHasPriority_ = true;
     bool trapNonZeroVstart_ = true;  // Trap if vstart > 0 in arith vec instructions
+    bool trapOobVstart_ = false;     // Trap if vstart out of bounds: vstart >= VLMAX
     bool bigEnd_ = false;            // True if big endian
     bool stimecmpActive_ = false;    // True if STIMECMP CSR is implemented.
     bool vstimecmpActive_ = false;   // True if VSTIMECMP CSR is implemented.

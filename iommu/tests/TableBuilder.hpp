@@ -197,8 +197,8 @@ public:
         // Write process context at leaf level
         uint64_t pc_addr = addr + (pdi.at(0) * sizeof(pc));
         bool ok = true;
-        ok = ok and write_func_(pc_addr + 0, 8, pc.ta);
-        ok = ok and write_func_(pc_addr + 8, 8, pc.fsc);
+        ok = ok and write_func_(pc_addr + 0, 8, pc.ta());
+        ok = ok and write_func_(pc_addr + 8, 8, pc.fsc());
         if (not ok) {
             std::cerr << "[TABLE] Failed to write process context at 0x" << std::hex << pc_addr << '\n';
             return 0;
