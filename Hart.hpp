@@ -1267,6 +1267,17 @@ namespace WdRiscv
     void setInstructionCountLimit(uint64_t limit)
     { instCountLim_ = limit; }
 
+    /// Mark a hart without supervisor/user extensions and without ACLINT/AIA as capable
+    /// of receiveing interrupts. This is used by a test-bench that injects interrupts
+    /// directly into MIP.
+    void setCanReceiveInterrupts(bool flag)
+    { canReceiveInterrupts_ = flag; }
+
+    /// Return true if this hart can receive interrupts either because it has an interrupt
+    /// controller or it was marked as such with setCanReceiveInterrupts.
+    bool canReceiveInterrupts() const
+    { return canReceiveInterrupts_ or isRvaia() or hasAclint(); }
+
     /// Return current instruction count limit.
     uint64_t getInstructionCountLimit() const
     { return instCountLim_; }
@@ -6130,6 +6141,7 @@ namespace WdRiscv
     uint64_t semihostSlliTag_ = 0;  // Tag (rank) of slli instruction.
 
     bool hintOps_ = false; // Enable HINT ops.
+    bool canReceiveInterrupts_ = false;  // True if interruptable without AIA/ACLINT
 
     // For lockless handling of MIP. We assume the software won't
     // trigger multiple interrupts while handling. To be cleared when
