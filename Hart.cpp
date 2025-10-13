@@ -5606,9 +5606,12 @@ Hart<URV>::simpleRun()
     {
       while (true)
         {
-          bool hasLim = (instCountLim_ < ~uint64_t(0));
-          if (hasLim or bbFile_ or instrLineTrace_ or not branchTraceFile_.empty() or
-	      not cacheTraceFile_.empty() or isRvs() or isRvu() or isRvv() or hasAclint())
+          bool hasLim = (instCountLim_ < ~uint64_t(0)) or bbFile_ or instrLineTrace_;
+          hasLim = hasLim or isRvs() or isRvu() or isRvv();
+          hasLim = hasLim or not branchTraceFile_.empty() or not cacheTraceFile_.empty();
+          hasLim = hasLim or canReceiveInterrupts();
+
+          if (hasLim)
             simpleRunWithLimit();
           else
             simpleRunNoLimit();

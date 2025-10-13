@@ -2689,6 +2689,13 @@ HartConfig::applyConfig(Hart<URV>& hart, bool userMode, bool verbose) const
         }
     }
 
+  tag = "can_receive_interrupts";
+  if (config_->contains(tag))
+    {
+      bool flag = false;
+      getJsonBoolean(tag, config_->at(tag), flag) or errors++;
+      hart.setCanReceiveInterrupts(flag);
+    }
 
   return errors == 0;
 }
