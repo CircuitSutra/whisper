@@ -22,6 +22,10 @@
 #include <type_traits>
 #include <cassert>
 #include <utility>
+#include <span>
+#include <memory>
+
+namespace gsl { template <typename T> using owner = T; }
 
 namespace util
 {
@@ -76,7 +80,7 @@ namespace util
   static std::string join(std::string_view separator, Arg arg, Args&&... args)
   {
     constexpr auto getLen = [](auto&& stringOrStringWiew) -> std::size_t {
-      if constexpr (std::is_convertible<decltype(stringOrStringWiew), const char*>::value)
+      if constexpr (std::is_convertible_v<decltype(stringOrStringWiew), const char*>)
         {
           return std::strlen(stringOrStringWiew);
         }
@@ -87,17 +91,17 @@ namespace util
     };
 
     std::string result;
-    result.reserve((getLen(arg) + ... + getLen(args)) + (separator.size() * sizeof...(Args)));
+    result.reserve((getLen(arg) + ... + getLen(std::forward<Args>(args))) + (separator.size() * sizeof...(Args)));
 
     result += arg;
-    (result.append(separator).append(args), ...);
+    (result.append(separator).append(std::forward<Args>(args)), ...);
 
     return result;
   }
 
   /// Until we have C++23 and std::byteswap
   template <typename T,
-              std::enable_if_t<std::is_integral<T>::value, int> = 0>
+              std::enable_if_t<std::is_integral_v<T>, int> = 0>
   constexpr T byteswap(T x)
   {
     if constexpr (sizeof(x) == 1)
@@ -123,4 +127,70 @@ namespace util
       return hash_type{}(std::forward<T>(str));
     }
   };
+
+  namespace file {
+
+    // For closing owned files.
+    enum FileCloseF {
+      FCLOSE,
+      PCLOSE,
+      NONE
+    };
+
+    struct FileCloser
+    {
+      FileCloser(FileCloseF f) : f_(f) {};
+
+      void operator()(gsl::owner<FILE*> file) const {
+        if (not file or file == stdout or file == stderr)
+          return;
+        if (f_ == FileCloseF::FCLOSE)
+          fclose(file);
+        if (f_ == FileCloseF::PCLOSE)
+          pclose(file);
+      }
+
+      FileCloseF f_ = FileCloseF::NONE;
+    };
+
+    using SharedFile = std::shared_ptr<FILE>;
+
+    inline SharedFile make_shared_file(gsl::owner<FILE*> file, FileCloseF f = FileCloseF::FCLOSE) {
+        return { file, FileCloser{f} };
+    }
+  }
+
+  template <typename T>
+    requires std::is_arithmetic_v<T>
+  constexpr auto view_bytes_as_span_of(std::span<const unsigned char> bytes) -> std::span<const T> {
+    assert((bytes.size() % sizeof(T)) == 0);
+    return std::span<const T>(
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+        reinterpret_cast<const T*>(bytes.data()),
+        bytes.size() / sizeof(T)
+    );
+  }
+
+  template <typename T>
+    requires std::is_arithmetic_v<T>
+  constexpr auto view_bytes_as_span_of(std::span<const char> bytes) -> std::span<const T> {
+    assert((bytes.size() % sizeof(T)) == 0);
+    return std::span<const T>(
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+        reinterpret_cast<const T*>(bytes.data()),
+        bytes.size() / sizeof(T)
+    );
+  }
+
+  template <typename T, typename F>
+    requires std::is_arithmetic_v<F> && std::is_arithmetic_v<T>
+  constexpr auto view_arith_as_arr_of(F& f) -> std::span<T, sizeof(F) / sizeof(T)> {
+    static_assert(sizeof(F) > sizeof(T));
+    static_assert(sizeof(F) % sizeof(T) == 0);
+    return std::span<T, sizeof(F) / sizeof(T)>(
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+        reinterpret_cast<T*>(&f),
+        sizeof(F) / sizeof(T)
+    );
+  }
 }

@@ -132,7 +132,7 @@ namespace TT_IOMMU
 
     /// Return an integer represenation of the attributes. For now,
     /// just return as-is, could modify later.
-    uint32_t attributesToInt()
+    uint32_t attributesToInt() const
     { return attrib_; }
 
     /// Convert given string to a Pma object. Return true on success return false if
@@ -214,7 +214,7 @@ namespace TT_IOMMU
           if (trace_)
             pmaTrace_.push_back({unsigned(std::distance(regions_.begin(), it)),
                                   addr, it->firstAddr_, it->lastAddr_, reason_});
-	  auto& region = *it;
+	  const auto& region = *it;
 	  if (not region.pma_.hasMemMappedReg())
 	    return region.pma_;
           return memMappedPma(region.pma_, addr);
@@ -304,12 +304,14 @@ namespace TT_IOMMU
     /// region.
     bool overlapsMemMappedRegs(uint64_t start, uint64_t end) const
     {
+      // NOLINTBEGIN(readability-use-anyofallof)
       for (const auto& region : memMappedRanges_)
         {
           auto [low, high] = region;
-          if (not (end < low or start > high))
+          if (end >= low && start <= high)
             return true;
         }
+      // NOLINTEND(readability-use-anyofallof)
 
       return false;
     }
@@ -337,8 +339,8 @@ namespace TT_IOMMU
     void updateMemMappedAttrib(unsigned ix);
 
     /// Unpack the value of a PMACFG CSR.
-    void unpackPmacfg(uint64_t value, bool& valid, uint64_t& low, uint64_t& high,
-                      Pma& pma) const;
+    static void unpackPmacfg(uint64_t value, bool& valid, uint64_t& low, uint64_t& high,
+                      Pma& pma) ;
 
   protected:
 
@@ -416,7 +418,7 @@ namespace TT_IOMMU
       { return addr >= firstAddr_ and addr <= lastAddr_; }
 
       bool overlaps(uint64_t low, uint64_t high) const
-      { return not (high < firstAddr_ or low > lastAddr_); }
+      { return high >= firstAddr_ && low <= lastAddr_; }
 
       uint64_t firstAddr_ = 0;
       uint64_t lastAddr_ = 0;
@@ -448,7 +450,7 @@ namespace TT_IOMMU
     }
 
     /// Print current pmp map matching a particular address.
-    void printRegion(std::ostream& os, Region region) const;
+    static void printRegion(std::ostream& os, Region region) ;
 
     std::vector<Region> regions_;
     uint64_t memSize_ = 0;
@@ -460,6 +462,6 @@ namespace TT_IOMMU
 
     bool trace_ = false;  // Collect stats if true.
     mutable std::vector<PmaTrace> pmaTrace_;
-    AccessReason reason_;
+    AccessReason reason_{};
   };
 }

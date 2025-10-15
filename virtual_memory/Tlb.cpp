@@ -29,9 +29,8 @@ Tlb::insertEntry(uint64_t virtPageNum, uint64_t physPageNum, uint32_t asid, uint
       --entry->counter_;
       return false;
     }
-  else
-    {
-      entry->valid_ = true;
+  
+          entry->valid_ = true;
       entry->virtPageNum_ = virtPageNum;
       entry->physPageNum_ = physPageNum;
       entry->counter_ = 0;
@@ -43,7 +42,7 @@ Tlb::insertEntry(uint64_t virtPageNum, uint64_t physPageNum, uint32_t asid, uint
       entry->write_ = write;
       entry->exec_ = exec;
       return true;
-    }
+   
 }
 
 
@@ -85,10 +84,9 @@ Tlb::insertEntry(const TlbEntry& te)
       --entry->counter_;
       return false;
     }
-  else
-    {
-      *entry = te;
+  
+          *entry = te;
       entry->counter_ = 0;
       return true;
-    }
+   
 }

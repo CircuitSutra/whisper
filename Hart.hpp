@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <bitset>
+#include <utility>
 #include <vector>
 #include <set>
 #include <unordered_map>
@@ -120,8 +121,8 @@ namespace WdRiscv
     uint64_t memValue = 0;     // Value of changed memory if any.
 
     // An exception will result in changing multiple CSRs.
-    std::vector<CsrNumber> csrIx;   // Numbers of changed CSRs if any.
-    std::vector<uint64_t> csrValue; // Values of changed CSRs if any.
+    std::vector<CsrNumber> csrIx{};   // Numbers of changed CSRs if any.
+    std::vector<uint64_t> csrValue{}; // Values of changed CSRs if any.
   };
 
   /// Model a RISCV hart with integer registers of type URV (uint32_t
@@ -142,7 +143,7 @@ namespace WdRiscv
     /// within a system of cores -- see sysHartIndex method) and
     /// associate it with the given memory. The MHARTID is configured as
     /// a read-only CSR with a reset value of hartId.
-    Hart(unsigned hartIx, URV hartId, unsigned numHarts, Memory& memory, Syscall<URV>& syscall, std::atomic<uint64_t>& time);
+    Hart(unsigned hartIx, URV hartId, unsigned numHarts, Memory& memory, Syscall<URV>& syscall, uint64_t& time);
 
     /// Destructor.
     ~Hart();
@@ -788,8 +789,8 @@ namespace WdRiscv
     { conIoValid_ = false; }
 
     /// Console output gets directed to given file.
-    void setConsoleOutput(FILE* out)
-    { consoleOut_ = out; }
+    void setConsoleOutput(util::file::SharedFile out)
+    { consoleOut_ = std::move(out); }
 
     /// If a console io memory mapped location is defined then put its
     /// address in address and return true; otherwise, return false
@@ -847,7 +848,7 @@ namespace WdRiscv
     /// Set the output file in which to dump the state of accessed
     /// memory lines. Return true on success and false if file cannot
     /// be opened.
-    void setInitialStateFile(FILE* file)
+    void setInitialStateFile(const util::file::SharedFile& file)
     { initStateFile_ = file; }
 
     /// Disassemble given instruction putting results into the given
@@ -917,7 +918,7 @@ namespace WdRiscv
     { return virtMem_.clearPageTableWalk(); }
 
     /// Return the IMSIC associated with this hart.
-    const std::shared_ptr<TT_IMSIC::Imsic> imsic() const
+    std::shared_ptr<TT_IMSIC::Imsic> imsic() const
     { return imsic_; }
 
     /// Locate the ELF function containing the give address returning true
@@ -931,16 +932,16 @@ namespace WdRiscv
     /// returning true on success and false if address is out of
     /// bounds. Memory is little-endian. Bypass physical memory
     /// attribute checking if usePma is false.
-    bool peekMemory(uint64_t addr, uint8_t& val, bool usePma) const;
+    bool peekMemory(uint64_t addr, uint8_t& val, bool usePma, bool skipData = false) const;
 
     /// Half-word version of the preceding method.
-    bool peekMemory(uint64_t addr, uint16_t& val, bool usePma) const;
+    bool peekMemory(uint64_t addr, uint16_t& val, bool usePma, bool skipData = false) const;
 
     /// Word version of the preceding method.
-    bool peekMemory(uint64_t addr, uint32_t& val, bool usePma) const;
+    bool peekMemory(uint64_t addr, uint32_t& val, bool usePma, bool skipData = false) const;
 
     /// Double-word version of the preceding method.
-    bool peekMemory(uint64_t addr, uint64_t& val, bool usePma) const;
+    bool peekMemory(uint64_t addr, uint64_t& val, bool usePma, bool skipData = false) const;
 
     /// Set the memory byte at the given address to the given value.
     /// Return true on success and false on failure (address out of
@@ -1266,6 +1267,17 @@ namespace WdRiscv
     void setInstructionCountLimit(uint64_t limit)
     { instCountLim_ = limit; }
 
+    /// Mark a hart without supervisor/user extensions and without ACLINT/AIA as capable
+    /// of receiveing interrupts. This is used by a test-bench that injects interrupts
+    /// directly into MIP.
+    void setCanReceiveInterrupts(bool flag)
+    { canReceiveInterrupts_ = flag; }
+
+    /// Return true if this hart can receive interrupts either because it has an interrupt
+    /// controller or it was marked as such with setCanReceiveInterrupts.
+    bool canReceiveInterrupts() const
+    { return canReceiveInterrupts_ or isRvaia() or hasAclint(); }
+
     /// Return current instruction count limit.
     uint64_t getInstructionCountLimit() const
     { return instCountLim_; }
@@ -1332,10 +1344,13 @@ namespace WdRiscv
     /// Enable collection of instruction frequencies.
     void enableInstructionFrequency(bool b);
 
-    /// Enable/disable trapping of arithmetic vector instruction when
-    /// vstart is non-zero.
+    /// Enable/disable trapping of arithmetic vector instruction when vstart is non-zero.
     void enableTrapNonZeroVstart(bool flag)
     { trapNonZeroVstart_ = flag; }
+
+    /// Enable/disable trapping on out of bound vstart value (vstart >= VLMAX).
+    void enableTrapOobVstart(bool flag)
+    { trapOobVstart_ = flag; }
 
     /// Enable/disable the c (compressed) extension.
     void enableRvc(bool flag)
@@ -1512,13 +1527,6 @@ namespace WdRiscv
     /// Similar to above but performs an "access".
     Pma accessPma(uint64_t addr) const
     { return memory_.pmaMgr_.accessPma(addr); }
-
-    bool isPmaCacheable(uint64_t addr) const
-    {
-      Pma pma = memory_.pmaMgr_.getPma(addr);
-      pma = overridePmaWithPbmt(pma, virtMem_.lastEffectivePbmt());
-      return pma.isCacheable();
-    }
 
     /// Set memory protection access reason.
     void setMemProtAccIsFetch(bool fetch)
@@ -2021,6 +2029,14 @@ namespace WdRiscv
     /// Restore the collected branch traces at the given path.
     bool loadBranchTrace(const std::string& path);
 
+    /// Same as branch trace but for explicit cache accesses.
+    void traceCacheAccesses(const std::string& file, uint64_t n)
+    { cacheTraceFile_ = file; cacheBuffer_.resize(n); }
+
+    bool saveCacheTrace(const std::string& path);
+
+    bool loadCacheTrace(const std::string& path);
+
     /// Set behavior of first access to a virtual memory page: Either
     /// we take a page fault (flag is true) or we update the A/D bits
     /// of the PTE. When V is on, this applies to the first stage (VS)
@@ -2237,15 +2253,15 @@ namespace WdRiscv
 
     /// Enable basic block stats if given file is non-null. Print
     /// stats every instCount instructions.
-    void enableBasicBlocks(FILE* file, uint64_t instCount)
-    { bbFile_ = file; bbLimit_ = instCount; }
+    void enableBasicBlocks(util::file::SharedFile file, uint64_t instCount)
+    { bbFile_ = std::move(file); bbLimit_ = instCount; }
 
     /// Enable memory consistency model.
     void setMcm(std::shared_ptr<Mcm<URV>> mcm,
                 std::shared_ptr<TT_CACHE::Cache> fetchCache,
                 std::shared_ptr<TT_CACHE::Cache> dataCache);
 
-    typedef TT_PERF::PerfApi PerfApi;
+    using PerfApi = TT_PERF::PerfApi;
 
     /// Enable performance model API.
     void setPerfApi(std::shared_ptr<PerfApi> perfApi);
@@ -2350,8 +2366,8 @@ namespace WdRiscv
       imsic_ = imsic;
       imsicMbase_ = mbase; imsicMend_ = mend;
       imsicSbase_ = sbase; imsicSend_ = send;
-      imsicRead_ = readFunc;
-      imsicWrite_ = writeFunc;
+      imsicRead_ = std::move(readFunc);
+      imsicWrite_ = std::move(writeFunc);
       imsic_->enableTrace(trace);
       csRegs_.attachImsic(imsic);
 
@@ -2382,13 +2398,13 @@ namespace WdRiscv
     }
 
     void attachPci(std::shared_ptr<Pci> pci)
-    { pci_ = pci; }
+    { pci_ = std::move(pci); }
 
     void attachAplic(std::shared_ptr<TT_APLIC::Aplic> aplic)
-    { aplic_ = aplic; }
+    { aplic_ = std::move(aplic); }
 
     void attachIommu(std::shared_ptr<TT_IOMMU::Iommu> iommu)
-    { iommu_ = iommu; }
+    { iommu_ = std::move(iommu); }
 
     /// Return true if given extension is enabled.
     constexpr bool extensionIsEnabled(RvExtension ext) const
@@ -2462,9 +2478,8 @@ namespace WdRiscv
             return memory_.peek(addr, data, false);
           return true;
         }
-      else
-        {
-          bool ok = true;
+      
+                  bool ok = true;
           for (unsigned i = 0; i < sizeof(SZ); ++i)
             {
               uint8_t byte = 0;
@@ -2473,7 +2488,7 @@ namespace WdRiscv
               data |= (SZ(byte) << (i*8));
             }
           return ok;
-        }
+       
     }
 
     /// Return pointer to the memory consistency model object.
@@ -2699,7 +2714,7 @@ namespace WdRiscv
         {
           timeSample_++;
           if (timeSample_ >= (URV(1) << timeDownSample_) * numHarts_) {
-            time_.fetch_add(1, std::memory_order_relaxed);
+            std::atomic_ref(time_).fetch_add(1, std::memory_order_relaxed);
             timeSample_ = 0;
           }
         }
@@ -2717,7 +2732,7 @@ namespace WdRiscv
             return;
           }
           timeSample_ = (URV(1) << timeDownSample_) * numHarts_ - 1;
-          time_.fetch_sub(1, std::memory_order_relaxed);
+          std::atomic_ref(time_).fetch_sub(1, std::memory_order_relaxed);
         }
     }
 
@@ -2990,7 +3005,7 @@ namespace WdRiscv
     // Return true if FS field of mstatus is not off.
     bool isFpEnabled() const
     {
-      unsigned fpOff = unsigned(FpStatus::Off);
+      auto fpOff = unsigned(FpStatus::Off);
       if (virtMode_)
 	return mstatus_.bits_.FS != fpOff and vsstatus_.bits_.FS != fpOff;
       return mstatus_.bits_.FS != fpOff;
@@ -3058,7 +3073,7 @@ namespace WdRiscv
     // Return true if VS field of mstatus is not off.
     bool isVecEnabled() const
     {
-      unsigned vecOff = unsigned(VecStatus::Off);
+      auto vecOff = unsigned(VecStatus::Off);
       if (virtMode_)
 	return mstatus_.bits_.VS != vecOff and vsstatus_.bits_.VS != vecOff;
       return mstatus_.bits_.VS != vecOff;
@@ -3387,6 +3402,11 @@ namespace WdRiscv
     void doCsrWrite(const DecodedInst* di, CsrNumber csr, URV csrVal,
                     unsigned intReg, URV intRegVal);
 
+    /// Helper to CSR set/clear instructions: Write csr and integer register if csr is
+    /// writeable. The scMask is the mask to be set/cleared.
+    void doCsrScWrite(const DecodedInst* di, CsrNumber csrn, URV csrVal,
+                      URV scMask, unsigned intReg, URV intVal);
+
     /// Helper to CSR instructions: Read CSR register returning true on success and false
     /// on failure (CSR does not exist or is not accessible). The isWrite flags should be
     /// set to true if doCsrRead is called from a CSR instruction that would write the CSR
@@ -3683,10 +3703,13 @@ namespace WdRiscv
     bool checkVecIntInst(const DecodedInst* di);
 
     /// Same as above but with explicit group multiplier and element width.
-    bool checkVecIntInst(const DecodedInst* di, GroupMultiplier gm, ElementWidth eew);
+    bool checkVecIntInst(const DecodedInst* di, ElementWidth eew, GroupMultiplier gm);
 
-    /// Same as above but for vector load/store. Ignores vstart.
-    bool checkVecLdStInst(const DecodedInst* di);
+    /// Return true if given effective element widht and group multiplier are valid for
+    /// given vector load/store instruction and if destination/source overlap is valid and
+    /// if vstart value is valid. Return false otherwise. Do not take an exception on
+    /// invalid configs.
+    bool isLegalVecLdSt(const DecodedInst* di, ElementWidth eew, GroupMultiplier gm);
 
     /// Return true if given arithmetic (non load/store) instruction is
     /// legal. Check if vector extension is enabled. Check if the
@@ -3810,6 +3833,10 @@ namespace WdRiscv
     /// Emit a trace record for the given branch instruction or trap in the
     /// branch trace file.
     void traceBranch(const DecodedInst* di);
+
+    /// Emit a cache trace record.
+    void traceCache(uint64_t virtAddr, uint64_t pa1, uint64_t pa2, bool r, bool w,
+                    bool x, bool fencei, bool inval);
 
     /// Called at the end of successful vector instruction to clear the
     /// vstart register and mark VS dirty if a vector register was
@@ -5845,7 +5872,7 @@ namespace WdRiscv
     unsigned cacheLineShift_ = 6;
 
     bool autoIncrementTimer_ = true;
-    std::atomic<uint64_t>& time_;  // All harts increment this value.
+    uint64_t time_;  // All harts increment this value.
     uint64_t timeDownSample_ = 0;
     uint64_t timeSample_ = 0;
 
@@ -5952,7 +5979,7 @@ namespace WdRiscv
     bool mipPoked_ = false;          // Prevent MIP pokes from being clobbered by CLINT.
     bool seiPin_ = false;            // Supervisor external interrupt pin value.
     unsigned mxlen_ = 8*sizeof(URV);
-    FILE* consoleOut_ = nullptr;
+    util::file::SharedFile consoleOut_ = nullptr;
 
     int gdbInputFd_ = -1;  // Input file descriptor when running in gdb mode.
 
@@ -5968,8 +5995,8 @@ namespace WdRiscv
 
     // Decoded instruction cache.
     std::vector<DecodedInst> decodeCache_;
-    uint32_t decodeCacheSize_ = 0;
-    uint32_t decodeCacheMask_ = 0;  // Derived from decodeCacheSize_
+    uint32_t decodeCacheSize_;
+    uint32_t decodeCacheMask_;  // Derived from decodeCacheSize_
 
     // Following is for test-bench support. It allow us to cancel div/rem
     bool hasLastDiv_ = false;
@@ -5985,6 +6012,7 @@ namespace WdRiscv
     bool misalDataOk_ = true;
     bool misalHasPriority_ = true;
     bool trapNonZeroVstart_ = true;  // Trap if vstart > 0 in arith vec instructions
+    bool trapOobVstart_ = false;     // Trap if vstart out of bounds: vstart >= VLMAX
     bool bigEnd_ = false;            // True if big endian
     bool stimecmpActive_ = false;    // True if STIMECMP CSR is implemented.
     bool vstimecmpActive_ = false;   // True if VSTIMECMP CSR is implemented.
@@ -6062,7 +6090,7 @@ namespace WdRiscv
     bool bbPrevIsBranch_ = true;
 
     std::unordered_map<uint64_t, BbStat> basicBlocks_; // Map pc to basic-block frequency.
-    FILE* bbFile_ = nullptr;            // Basic block file.
+    util::file::SharedFile bbFile_;
 
     std::shared_ptr<TT_CACHE::Cache> fetchCache_;
     std::shared_ptr<TT_CACHE::Cache> dataCache_;
@@ -6081,13 +6109,28 @@ namespace WdRiscv
     };
     boost::circular_buffer<BranchRecord> branchBuffer_;
 
+    // Record of combined I and D cache line-aligned accesses. This includes CMOs and fence.i.
+    // This only has explicit addresses (not implicit like ptw). We collapse consecutive I-side
+    // and D-side accesses separately.
+    std::string cacheTraceFile_;
+    struct CacheRecord
+    {
+      char type_ = 0;             // R/W/X/E (fence.i)/V (inval).
+      uint64_t vlineNum_ = 0;     // Cache line address.
+      uint64_t plineNum_ = 0;
+      uint64_t count_ = 0;        // Last total instr associated with this access (instCounter_).
+    };
+    boost::circular_buffer<CacheRecord> cacheBuffer_;
+    CacheRecord* lastCacheFetch_ = nullptr;
+    CacheRecord* lastCacheData_ = nullptr;
+
     std::shared_ptr<Mcm<URV>> mcm_;    // Memory consistency model.
     std::shared_ptr<PerfApi> perfApi_; // Memory consistency model.
     bool ooo_ = false;                 // Out of order execution (mcm or perfApi).
 
     bool wrsCancelsLr_ = true;         // wrs_sto/wrs_nto instructions do cancel-lr.
 
-    FILE* initStateFile_ = nullptr;
+    util::file::SharedFile initStateFile_;
     std::unordered_set<uint64_t> initInstrLines_;
     std::unordered_set<uint64_t> initDataLines_;
 
@@ -6098,6 +6141,7 @@ namespace WdRiscv
     uint64_t semihostSlliTag_ = 0;  // Tag (rank) of slli instruction.
 
     bool hintOps_ = false; // Enable HINT ops.
+    bool canReceiveInterrupts_ = false;  // True if interruptable without AIA/ACLINT
 
     // For lockless handling of MIP. We assume the software won't
     // trigger multiple interrupts while handling. To be cleared when

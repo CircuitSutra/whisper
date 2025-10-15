@@ -76,8 +76,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
       : tag_(tag), iva_(iva), ipa_(ipa), ipa2_(ipa2)
     { }
 
-    ~InstrPac()
-    { }
+    ~InstrPac() = default;
 
     /// This supports PerfApi::shouldFlush. It is not meant to be called directly.
     bool shouldFlush() const
@@ -115,13 +114,13 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     uint64_t stData() const
     { return stData_; }
 
-    /// Return a vector of pa/va/skip tripletcorresponding to the
+    /// Return a vector of pa/va/skip triplet corresponding to the
     /// virtual-addr/physical-addr/skip of the elements of the vector load/store
     /// instruction of this packet. The skip flag will be true if the corresponding element
     /// was skipped because it was masked-off or it was a tail element.  The return
     /// vector will be empty if the instruction is not a vector load/store or if no
     /// memory was accessed by the instruction.
-    typedef std::tuple<uint64_t, uint64_t, bool> VaPaSkip;
+    using VaPaSkip = std::tuple<uint64_t, uint64_t, bool>;
     const std::vector<VaPaSkip>& vecDataAddrs() const
     { return vecAddrs_; }
 
@@ -174,10 +173,10 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
 	  auto mode = di_.ithOperandMode(i);
 	  if (mode == OM::Read or mode == OM::ReadWrite)
 	    {
-	      auto& producer = opProducers_.at(i);
+	      const auto& producer = opProducers_.at(i);
 	      if (producer.scalar and producer.scalar->tag_ == other.tag_)
 		return true;
-              for (auto& entry : producer.vec)
+              for (const auto& entry : producer.vec)
                 if (entry and entry->tag_ == other.tag_)
                   return true;
 	    }
@@ -274,10 +273,11 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     bool isFence() const
     { return di_.isFence(); }
 
-    bool isDeviceLdSt()
+    bool isDeviceLdSt() const
     { return deviceAccess_; }
 
-    bool isVset()
+    /// Return true if this is a vsetvli/vstivli/vsetvl instruction.
+    bool isVset() const
     { return di_.isVsetvli() || di_.isVsetivli() || di_.isVsetvl(); }
 
     /// Return true if this is a privileged instruction (ebreak/ecall/mret)
@@ -286,14 +286,10 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
       if (di_.instEntry())
         {
           auto instId = di_.instEntry()->instId();
-          if (instId == WdRiscv::InstId::ebreak)
-            return true;
-          else if (instId == WdRiscv::InstId::ecall)
-            return true;
-          else if (instId == WdRiscv::InstId::mret)
-            return true;
-          else if (instId == WdRiscv::InstId::sret)
-            return true;
+          return (instId == WdRiscv::InstId::ebreak or 
+                  instId == WdRiscv::InstId::ecall or
+                  instId == WdRiscv::InstId::mret or
+                  instId == WdRiscv::InstId::sret);
         }
       return false;
     }
@@ -405,7 +401,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     std::array<OpProducer, 8> opProducers_;
 
     // Global register index of a destination register and its corresponding value.
-    typedef std::pair<unsigned, OpVal> DestValue;
+    using DestValue = std::pair<unsigned, OpVal>;
 
     // One expicit destination register and up to 4 implicit ones (FCSR, VL, VTYPE, VSTART)
     std::array<DestValue, 5> destValues_;
@@ -492,7 +488,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     /// hart. Return a null pointer if the given tag has not yet been fetched.
     std::shared_ptr<InstrPac> getInstructionPacket(unsigned hartIx, uint64_t tag)
     {
-      auto& packetMap = hartPacketMaps_.at(hartIx);
+      const auto& packetMap = hartPacketMaps_.at(hartIx);
       auto iter = packetMap.find(tag);
       if (iter != packetMap.end())
 	return iter->second;
@@ -502,7 +498,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     /// Return number of instruction packets in the given hart.
     size_t getInstructionPacketCount(unsigned hartIx) const
     {
-      auto& packetMap = hartPacketMaps_.at(hartIx);
+      const auto& packetMap = hartPacketMaps_.at(hartIx);
       return packetMap.size();
     }
 
@@ -600,15 +596,15 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     void getVectorOperandsLmul(Hart64& hart, InstrPac& packet);
 
     /// Helper to getVectorOperandsLmul
-    void getVecOpsLmul(Hart64& hart, InstrPac& packet);
+    static void getVecOpsLmul(Hart64& hart, InstrPac& packet);
 
     /// Return the page number corresponding to the given address
     uint64_t pageNum(uint64_t addr) const
-    { return addr >> 12; }
+    { return addr >> pageShift_; }
 
     /// Return the address of the page with the given page number.
     uint64_t pageAddress(uint64_t pageNum) const
-    { return pageNum << 12; }
+    { return pageNum << pageShift_; }
 
     /// Return the difference between the next page boundary and the current
     /// address. Return 0 if address is on a page boundary.
@@ -619,7 +615,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
 
     bool commitMemoryWrite(Hart64& hart, const InstrPac& packet);
 
-    void insertPacket(unsigned hartIx, uint64_t tag, std::shared_ptr<InstrPac> ptr)
+    void insertPacket(unsigned hartIx, uint64_t tag, const std::shared_ptr<InstrPac>& ptr)
     {
       auto& packetMap = hartPacketMaps_.at(hartIx);
       if (not packetMap.empty() and packetMap.rbegin()->first >= tag)
@@ -635,7 +631,7 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
 
     /// Return the global register index for the local (within regiser file) inxex of the
     /// given type (INT, FP, CSR, ...)  and the given relative register number.
-    unsigned globalRegIx(WdRiscv::OperandType type, unsigned regNum)
+    unsigned globalRegIx(WdRiscv::OperandType type, unsigned regNum) const
     {
       using OT = WdRiscv::OperandType;
       switch(type)
@@ -651,20 +647,20 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
       return ~unsigned(0);
     }
 
-    bool peekRegister(Hart64& hart, WdRiscv::OperandType type, unsigned regNum,
-		      OpVal& value);
+    static bool peekRegister(Hart64& hart, WdRiscv::OperandType type, unsigned regNum,
+                             OpVal& value);
 
-    bool pokeRegister(Hart64& hart, WdRiscv::OperandType type, unsigned regNum,
-                      const OpVal& value);
+    static bool pokeRegister(Hart64& hart, WdRiscv::OperandType type, unsigned regNum,
+                             const OpVal& value);
 
-    bool peekVecRegGroup(Hart64& hart, unsigned regNum, unsigned lmul, OpVal& value);
+    static bool peekVecRegGroup(Hart64& hart, unsigned regNum, unsigned lmul, OpVal& value);
 
     /// Get from the producing packet, the value of the register with the given global
     /// register index.
-    void getDestValue(const InstrPac& producer, unsigned gri, OpVal& val) const
+    static void getDestValue(const InstrPac& producer, unsigned gri, OpVal& val)
     {
       assert(producer.executed());
-      for (auto& p : producer.destValues_)
+      for (const auto& p : producer.destValues_)
 	if (p.first == gri)
           {
             val = p.second;
@@ -682,10 +678,10 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
 
       // Producer should have exactly one vector destination which may be a non-trivial
       // group (LMUL > 1).
-      for (auto& pdv : producer.destValues_)
+      for (const auto& pdv : producer.destValues_)
         {
-          auto& vec = pdv.second.vec;  // Produced vector data.
-          if (vec.size())  // If vector destination
+          const auto& vec = pdv.second.vec;  // Produced vector data.
+          if (not vec.empty())  // If vector destination
             {
               unsigned group = vec.size() / vecRegSize;
               if (group == 0)
@@ -699,31 +695,31 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
               return true;
             }
         }
-      
+
       return false;
     }
 
     /// Save hart register values corresponding to packet operands in prevVal.  Return
     /// true on success. Return false if any of the required hart registers cannot be
     /// read.
-    bool saveHartValues(Hart64& hart, const InstrPac& packet,
-			std::array<OpVal, 8>& prevVal);
+    static bool saveHartValues(Hart64& hart, const InstrPac& packet,
+                               std::array<OpVal, 8>& prevVal);
 
     /// Install packet operand values (some obtained from previous in-flight instructions)
     /// into the hart registers. Return true on success. Return false if any of the
     /// required hart registers cannot be written.
-    bool setHartValues(Hart64& hart, const InstrPac& packet);
+    static bool setHartValues(Hart64& hart, const InstrPac& packet);
 
     /// Restore the hart registers corresponding to the packet operands to the values in
     /// the prevVal array.
-    void restoreHartValues(Hart64& hart, const InstrPac& packet,
-			   const std::array<OpVal, 8>& prevVal);
+    static void restoreHartValues(Hart64& hart, const InstrPac& packet,
+                                  const std::array<OpVal, 8>& prevVal);
 
     /// Helper to execute. Restore IMSIC top interrupt if csrn is one of M/S/VS TOPEI.
-    void restoreImsicTopei(Hart64& hart, WdRiscv::CsrNumber csrn, unsigned id, unsigned guest);
+    static void restoreImsicTopei(Hart64& hart, WdRiscv::CsrNumber csrn, unsigned id, unsigned guest);
 
     /// Helper to execute. Save IMSIC top interupt if csrn is one of M/S/VS TOPEI.
-    void saveImsicTopei(Hart64& hart, WdRiscv::CsrNumber csrn, unsigned& id, unsigned& guest);
+    static void saveImsicTopei(Hart64& hart, WdRiscv::CsrNumber csrn, unsigned& id, unsigned& guest);
 
     /// Record the results (register values) corresponding to the operands of the packet
     /// after the execution of the instruction of that packet.
@@ -734,22 +730,22 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
 
     /// Check execute stage results versus retire stage. Return true on match and false on
     /// mismatch.
-    bool checkExecVsRetire(const Hart64& hart, const InstrPac& packet) const;
+    static bool checkExecVsRetire(const Hart64& hart, const InstrPac& packet);
 
     /// Helper to decode method.
-    void determineExplicitOperands(InstrPac& packet);
+    static void determineExplicitOperands(InstrPac& packet);
 
     /// Helper to decode method.
-    void determineImplicitOperands(InstrPac& packet);
+    static void determineImplicitOperands(InstrPac& packet);
 
   private:
 
     /// Map an instruction tag to corresponding packet.
-    typedef std::map<uint64_t, std::shared_ptr<InstrPac>> PacketMap;
+    using PacketMap = std::map<uint64_t, std::shared_ptr<InstrPac>>;
 
     /// Map a global register index to the in-flight instruction producing that
     /// register. This is register renaming.
-    typedef std::vector<std::shared_ptr<InstrPac>> RegProducers;
+    using RegProducers = std::vector<std::shared_ptr<InstrPac>>;
 
     System64& system_;
     std::shared_ptr<InstrPac> prevFetch_;
@@ -773,7 +769,8 @@ namespace TT_PERF         // Tenstorrent Whisper Performance Model API
     FILE* commandLog_ = nullptr;
     std::vector<FILE*> traceFiles_;   // One per hart.
 
-    unsigned pageSize_ = 4096;
+    unsigned pageSize_ = 4096;  // Page size in bytes
+    unsigned pageShift_ = 12;   // log2(pageSize_) : number of bits to represent offset in page.
 
     /// Global indexing for all registers.
     const unsigned intRegOffset_  = 0;

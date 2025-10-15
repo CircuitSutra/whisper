@@ -121,8 +121,8 @@ Iommu::write(uint64_t addr, unsigned size, uint64_t data)
           const unsigned pmpcfgSize = 8;
           if (size != pmpcfgSize or (addr & (pmpcfgSize - 1)) != 0)
             return false;
-          unsigned ix = (addr - pmpcfgAddr_) / pmpcfgSize;
           assert(0  && "legalize pmpcfg value");
+          unsigned ix = (addr - pmpcfgAddr_) / pmpcfgSize;
           pmpcfg_.at(ix) = data;
           updateMemoryProtection();
           return true;
@@ -148,8 +148,8 @@ Iommu::write(uint64_t addr, unsigned size, uint64_t data)
       const unsigned pmacfgSize = 8;
       if (size != pmacfgSize or (addr & (pmacfgSize - 1)) != 0)
         return false;
-      unsigned ix = (addr - pmacfgAddr_) / pmacfgSize;
       assert(0 && "legalize pmacfg value");
+      unsigned ix = (addr - pmacfgAddr_) / pmacfgSize;
       pmacfg_.at(ix) = data;
       updateMemoryAttributes(ix);
       return true;
@@ -243,7 +243,8 @@ Iommu::defineCsrs()
     {
       CN num{unsigned(CN::MsiCfgTbl0) + i};
       std::string name = base + std::to_string(i);
-      csrAt(num).define(name, offset, size, 0, ones, 0, 0);
+      uint64_t mask = (i % 2 == 0) ? ones & ~uint64_t(3) : ones;
+      csrAt(num).define(name, offset, size, 0, mask, 0, 0);
     }
 
   if (offset > size_)
@@ -296,14 +297,15 @@ Iommu::loadDeviceContext(unsigned devId, DeviceContext& dc, unsigned& cause)
       //    accessing ddte violates a PMA or PMP check, then stop and report "DDT entry
       //    load access fault" (cause = 257).
       uint64_t ddteVal = 0;
-      uint64_t ddteAddr = addr + idFields.ithDdi(ii, extended)*8;
+      uint64_t ddteAddr = addr + idFields.ithDdi(ii, extended)*size_t(8);
       if (not memReadDouble(ddteAddr, bigEnd, ddteVal))
 	{
 	  cause = 257;
 	  return false;
 	}
 
-      deviceDirWalk_.push_back(std::pair<uint64_t, uint64_t>(ddteAddr, ddteVal));
+      auto walkEntry = std::pair<uint64_t, uint64_t>(ddteAddr, ddteVal);
+      deviceDirWalk_.push_back(walkEntry);
 
       // PMA and PMP should be covered by the memory read callback.
 
@@ -341,11 +343,11 @@ Iommu::loadDeviceContext(unsigned devId, DeviceContext& dc, unsigned& cause)
   //    accessing DC violates a PMA or PMP check, then stop and report "DDT entry load
   //    access fault" (cause = 257). If DC access detects a data corruption
   //    (a.k.a. poisoned data), then stop and report "DDT data corruption" (cause = 268).
-  unsigned dcSize = extended? 64 : 32;
+  uint64_t dcSize = extended? 64 : 32;
   uint64_t dcAddr = addr + idFields.ithDdi(0, extended) * dcSize;
   unsigned dwordCount = dcSize / 8;  // Double word count.
   std::vector<uint64_t> dcd(dwordCount);  // Device context data.
-  for (unsigned i = 0; i < dwordCount; ++i)
+  for (size_t i = 0; i < dwordCount; ++i)
     if (not memReadDouble(dcAddr + i*8, bigEnd, dcd.at(i)))
       {
 	cause = 257;
@@ -427,14 +429,15 @@ Iommu::loadProcessContext(const DeviceContext& dc, uint32_t pid,
       //    accessing pdte violates a PMA or PMP check, then stop and report "PDT entry
       //    load access fault" (cause = 265).
       uint64_t pdte = 0;
-      uint64_t pdteAddr = aa + procid.ithPdi(ii) * 8;
+      uint64_t pdteAddr = aa + procid.ithPdi(ii) * uint64_t(8);
       if (not memReadDouble(pdteAddr, bigEnd, pdte))
 	{
 	  cause = 265;
 	  return false;
 	}
 
-      processDirWalk_.push_back(std::pair<uint64_t, uint64_t>(pdteAddr, pdte));
+      auto walkEntry = std::pair<uint64_t, uint64_t>(pdteAddr, pdte);
+      processDirWalk_.emplace_back(walkEntry);
 
       // 5. If pdte access detects a data corruption (a.k.a. poisoned data), then stop and
       //    report "PDT data corruption" (cause = 269).
@@ -464,7 +467,7 @@ Iommu::loadProcessContext(const DeviceContext& dc, uint32_t pid,
   //    violates a PMA or PMP check, then stop and report "PDT entry load access fault"
   //    (cause = 265). If PC access detects a data corruption (a.k.a. poisoned data), then
   //    stop and report "PDT data corruption" (cause = 269).
-  uint64_t pca = aa + procid.ithPdi(0)*16;
+  uint64_t pca = aa + procid.ithPdi(0) * uint64_t(16);
   if (not readProcessContext(dc, pca, pc))
     {
       cause = 265;
@@ -472,7 +475,7 @@ Iommu::loadProcessContext(const DeviceContext& dc, uint32_t pid,
     }
 
   // Check for poisoned data. This would require a test-bench API.
-  
+
   // 10. If PC.ta.V == 0, stop and report "PDT entry not valid" (cause = 266).
   if (not pc.valid())
     {
@@ -502,13 +505,13 @@ Iommu::misconfiguredDc(const DeviceContext& dc) const
   if (dc.nonZeroReservedBits(extended)){
     return true;
   }
-    
-  
+
+
   // 2. capabilities.ATS is 0 and DC.tc.EN_ATS, or DC.tc.EN_PRI, or DC.tc.PRPR is 1
   if (caps.bits_.ats_ == 0 and (dc.ats() or dc.pri() or dc.prpr())){
     return true;
   }
-    
+
 
   // 3. DC.tc.EN_ATS is 0 and DC.tc.T2GPA is 1
   // 4. DC.tc.EN_ATS is 0 and DC.tc.EN_PRI is 1
@@ -583,7 +586,7 @@ Iommu::misconfiguredDc(const DeviceContext& dc) const
       if (not caps.bits_.sv39_ and mode == IosatpMode::Sv39){
         return true;
       }
-       
+
       if (not caps.bits_.sv48_ and mode == IosatpMode::Sv48){
         return true;
       }
@@ -624,7 +627,7 @@ Iommu::misconfiguredDc(const DeviceContext& dc) const
   else
     {
       // When GXL=0, only Bare, Sv39x4, Sv48x4, and Sv57x4 are valid
-      if (gmode != IohgatpMode::Bare && gmode != IohgatpMode::Sv39x4 && 
+      if (gmode != IohgatpMode::Bare && gmode != IohgatpMode::Sv39x4 &&
           gmode != IohgatpMode::Sv48x4 && gmode != IohgatpMode::Sv57x4){
         return true;
       }
@@ -723,7 +726,7 @@ Iommu::misconfiguredPc(const ProcessContext& pc, bool sxl) const
 	mode != IosatpMode::Sv48 and mode != IosatpMode::Sv57)
       return true;
 
-  
+
   // 3. DC.tc.SXL is 0 and PC.fsc.MODE is not one of the supported modes
   //    a. capabilities.Sv39 is 0 and PC.fsc.MODE is Sv39
   //    b. capabilities.Sv48 is 0 and PC.fsc.MODE is Sv48
@@ -807,20 +810,24 @@ Iommu::translate(const IommuRequest& req, uint64_t& pa, unsigned& cause)
           assert(0);
         }
 
-      if (not queueFull(CsrNumber::Fqb, CsrNumber::Fqh, CsrNumber::Fqt))
+      Fqcsr fqcsr{uint32_t(readCsr(CsrNumber::Fqcsr))};
+      if (fqcsr.bits_.fqon_)
         {
-          writeFaultRecord(record);
+          if (queueFull(CsrNumber::Fqb, CsrNumber::Fqh, CsrNumber::Fqt))
+            {
+              fqcsr.bits_.fqof_ = 1;
+              pokeCsr(CsrNumber::Fqcsr, fqcsr.value_);
+            }
+          else
+            writeFaultRecord(record);
 
-          // Signal interrupt pending in Ipsr.
-          Ipsr ipsr{uint32_t(readCsr(CsrNumber::Ipsr))};
-          ipsr.bits_.fip_ = 1;  // Fault queue interrupt pending.
-          pokeCsr(CsrNumber::Ipsr, ipsr.value_);
-        }
-      else
-        {
-          Fqcsr fqcsr{uint32_t(readCsr(CsrNumber::Fqcsr))};
-          fqcsr.bits_.fqof_ = 1;
-          pokeCsr(CsrNumber::Fqcsr, fqcsr.value_);
+          if (fqcsr.bits_.fie_)
+            {
+              // Signal interrupt pending in Ipsr.
+              Ipsr ipsr{uint32_t(readCsr(CsrNumber::Ipsr))};
+              ipsr.bits_.fip_ = 1;  // Fault queue interrupt pending.
+              pokeCsr(CsrNumber::Ipsr, ipsr.value_);
+            }
         }
     }
 
@@ -976,7 +983,7 @@ Iommu::translate_(const IommuRequest& req, uint64_t& pa, unsigned& cause, bool& 
       return true;
     }
 
-  unsigned pscid = dc.pscid();
+  unsigned pscid = 0;   // dc.pscid();
   bool sum = false;  // Supervisor has access to user pages.
 
   // 9. If request is a Translated request and DC.tc.T2GPA is 1 then the IOVA is a GPA. Go
@@ -1045,7 +1052,7 @@ Iommu::translate_(const IommuRequest& req, uint64_t& pa, unsigned& cause, bool& 
 	      //        set.
 	      if (req.privMode == PrivilegeMode::Supervisor and not pc.ens())
 		{
-                  repFault = not dtf;   // Sec 4.2, table 11.                  
+                  repFault = not dtf;   // Sec 4.2, table 11.
 		  cause = 260;
 		  return false;
 		}
@@ -1136,7 +1143,7 @@ Iommu::msiTranslate(const DeviceContext& dc, const IommuRequest& req,
   //    in Section 3.1.3.6.
   if (not dc.isMsiAddress(gpa))
     return false;   // MSI translation does not apply.
-  
+
   // 4. If the address is not determined to be that of a virtual interrupt file then stop
   //    this process and instead use the regular translation data structures to do the
   //    address translation.
@@ -1152,7 +1159,7 @@ Iommu::msiTranslate(const DeviceContext& dc, const IommuRequest& req,
   //      x = abcdefgh
   //      y = 10100110
   //    then the value of extract(x, y) has bits 0000acfg.
-  uint64_t ii = dc.extractMsiBits(aa >> 12, dc.msiMask());
+  uint64_t ii = DeviceContext::extractMsiBits(aa >> 12, dc.msiMask());
 
   // 6. Let m be (DC.msiptp.PPN x pageSize).
   uint64_t mm = dc.msiPpn() * pageSize_;
@@ -1171,7 +1178,7 @@ Iommu::msiTranslate(const DeviceContext& dc, const IommuRequest& req,
   // 8. If msipte access detects a data corruption (a.k.a. poisoned data), then stop and
   //    report "MSI PT data corruption" (cause = 270).
   MsiPte0 msiPte0(pte0);
-  
+
   // 9. If msipte.V == 0, then stop and report "MSI PTE not valid" (cause = 262).
   if (not msiPte0.bits_.v_)
     {
@@ -1242,7 +1249,7 @@ Iommu::msiTranslate(const DeviceContext& dc, const IommuRequest& req,
 	  cause = 263;
 	  return false;
 	}
-      
+
       mrif = mpte0.bits_.addr_ * 512;  // c.
       nnpn = mpte1.bits_.nppn_ << 12;  // d.
       nid = (mpte1.bits_.nidh_ << 10) | (mpte1.bits_.nidl_);  // e.
@@ -1272,8 +1279,8 @@ Iommu::stage1Translate(uint64_t satpVal, uint64_t hgatpVal, PrivilegeMode pm, un
                        uint64_t va, uint64_t& gpa, unsigned& cause)
 {
   Iosatp satp{satpVal};
-  unsigned privMode = unsigned(pm);
-  unsigned transMode = unsigned(satp.bits_.mode_);   // Sv39, Sv48, ...
+  auto privMode = unsigned(pm);
+  auto transMode = unsigned(satp.bits_.mode_);   // Sv39, Sv48, ...
   uint64_t ppn = satp.bits_.ppn_;
   stage1Config_(transMode, procId, ppn, sum);
 
@@ -1293,8 +1300,8 @@ Iommu::stage2Translate(uint64_t hgatpVal, PrivilegeMode pm, bool r, bool w, bool
 {
   Iohgatp hgatp{hgatpVal};
 
-  unsigned privMode = unsigned(pm);
-  unsigned transMode = unsigned(hgatp.bits_.mode_);  // Sv39x4, Sv48x4, ...
+  auto privMode = unsigned(pm);
+  auto transMode = unsigned(hgatp.bits_.mode_);  // Sv39x4, Sv48x4, ...
   unsigned gcsid = hgatp.bits_.gcsid_;
   uint64_t ppn = hgatp.bits_.ppn_;
 
@@ -1303,14 +1310,14 @@ Iommu::stage2Translate(uint64_t hgatpVal, PrivilegeMode pm, bool r, bool w, bool
 }
 
 
-void 
+void
 Iommu::configureCapabilities(uint64_t value)
 {
   csrAt(CsrNumber::Capabilities).configureReset(value);
 }
 
 
-void 
+void
 Iommu::reset()
 {
   for (auto& csr : csrs_)
@@ -1363,8 +1370,7 @@ Iommu::applyCapabilityRestrictions()
     }
 
     // If capabilities.IGS == WSI, set msi_cfg_tbl to 0
-    Fctl fctl(csrAt(CN::Fctl).read());
-    if (caps.bits_.igs_ == fctl.bits_.wsi_) {
+    if (caps.bits_.igs_ == unsigned(IgsMode::Wsi)) {
       for (unsigned i = 0; i < 32; ++i) {
           csrAt(static_cast<CN>(static_cast<uint32_t>(CN::MsiCfgTbl0) + i)).configureMask(0);
       }
@@ -1421,7 +1427,7 @@ Iommu::queueFull(CsrNumber qbn, CsrNumber qhn, CsrNumber qtn) const
   uint64_t head = readCsr(qhn);
   uint64_t tail = readCsr(qtn);
   uint64_t cap = queueCapacity(qbn);
-  
+
   uint64_t nextTail = (tail + 1) % cap;
   return nextTail == head;
 }
@@ -1589,13 +1595,17 @@ Iommu::writeFaultRecord(const FaultRecord& record)
 
   uint64_t slotAddr = qaddr + qtail * sizeof(record);
   assert((sizeof(record) % 8) == 0);
-  unsigned dwords = sizeof(record) / 8;   // Double-word count
-  const uint64_t* ptr = reinterpret_cast<const uint64_t*>(&record);
+
+  // Interpret FaultRecord as a an array of double words.
+  FaultRecDwords recDwords;
+  recDwords.rec = record;
+  const auto& dwords = recDwords.dwords;
 
   bool bigEnd = faultQueueBigEnd();
 
-  for (unsigned i = 0; i < dwords; ++i, slotAddr += 8, ++ptr)
-    memWriteDouble(slotAddr, bigEnd, *ptr);
+  // Write fault record to memory.
+  for (unsigned i = 0; i < dwords.size(); ++i, slotAddr += 8)
+    memWriteDouble(slotAddr, bigEnd, dwords.at(i));
 
   // Move tail.
   ++qtail;
@@ -1606,7 +1616,7 @@ Iommu::writeFaultRecord(const FaultRecord& record)
 
 
 bool
-Iommu::wiredInterrupts()
+Iommu::wiredInterrupts() const
 {
   Capabilities caps{readCsr(CsrNumber::Capabilities)};
 
@@ -1636,99 +1646,100 @@ Iommu::writeCsr(CsrNumber csrn, uint64_t data)
       writeIpsr(data);
       return;
     }
-          
+
   auto& csr = csrs_.at(unsigned(csrn));
-      
+
   // Handle special registers that require activation
   if (csrn == CsrNumber::Fqcsr) {
     uint32_t value = data & 0xFFFFFFFF;
     uint32_t oldValue = csr.read() & 0xFFFFFFFF;
-        
+
     // Check if fqen bit is being set from 0 to 1
     if ((value & 0x1) && !(oldValue & 0x1)) {
       // Set busy bit
       value |= (1 << 17);
       csr.write(value);
-          
+
       // Validate queue configuration
       uint64_t fqb = readCsr(CsrNumber::Fqb);
       uint64_t queuePpn = (fqb >> 10) & 0x3FFFFFFFFFF; // Extract PPN
       // uint64_t queueSize = 1ULL << ((fqb & 0x1F) + 1); // Extract LOG2SZ-1 and calculate size
-          
+
       // Check if queue base is valid (basic validation)
       if (queuePpn != 0) {
         // Queue validation successful, set fqon bit
         value |= (1 << 16); // Set fqon bit
         value &= ~(1 << 17); // Clear busy bit
         csr.write(value);
-        return;
       } else {
         // Queue validation failed, just clear busy bit
         value &= ~(1 << 17); // Clear busy bit
         csr.write(value);
-        return;
       }
     }
-  } else if (csrn == CsrNumber::Cqcsr) {
+    return;
+  }
+
+  if (csrn == CsrNumber::Cqcsr) {
     uint32_t value = data & 0xFFFFFFFF;
     uint32_t oldValue = csr.read() & 0xFFFFFFFF;
-        
+
     // Check if cqen bit is being set from 0 to 1
     if ((value & 0x1) && !(oldValue & 0x1)) {
       // Set busy bit
       value |= (1 << 17);
       csr.write(value);
-          
+
       // Validate queue configuration
       uint64_t cqb = readCsr(CsrNumber::Cqb);
       uint64_t queuePpn = (cqb >> 10) & 0x3FFFFFFFFFF; // Extract PPN
       // uint64_t queueSize = 1ULL << ((cqb & 0x1F) + 1); // Extract LOG2SZ-1 and calculate size
-          
+
       // Check if queue base is valid (basic validation)
       if (queuePpn != 0) {
         // Queue validation successful, set cqon bit
         value |= (1 << 16); // Set cqon bit
         value &= ~(1 << 17); // Clear busy bit
         csr.write(value);
-        return;
       } else {
         // Queue validation failed, just clear busy bit
         value &= ~(1 << 17); // Clear busy bit
         csr.write(value);
-        return;
       }
     }
-  } else if (csrn == CsrNumber::Pqcsr) {
+    return;
+  }
+
+  if (csrn == CsrNumber::Pqcsr) {
     uint32_t value = data & 0xFFFFFFFF;
     uint32_t oldValue = csr.read() & 0xFFFFFFFF;
-        
+
     // Check if pqen bit is being set from 0 to 1
     if ((value & 0x1) && !(oldValue & 0x1)) {
       // Set busy bit
       value |= (1 << 17);
       csr.write(value);
-          
+
       // Validate queue configuration
       uint64_t pqb = readCsr(CsrNumber::Pqb);
       uint64_t queuePpn = (pqb >> 10) & 0x3FFFFFFFFFF; // Extract PPN
       // uint64_t queueSize = 1ULL << ((pqb & 0x1F) + 1); // Extract LOG2SZ-1 and calculate size
-          
+
       // Check if queue base is valid (basic validation)
       if (queuePpn != 0) {
         // Queue validation successful, set pqon bit
         value |= (1 << 16); // Set pqon bit
         value &= ~(1 << 17); // Clear busy bit
         csr.write(value);
-        return;
       } else {
         // Queue validation failed, just clear busy bit
         value &= ~(1 << 17); // Clear busy bit
         csr.write(value);
-        return;
       }
     }
+    return;
   }
-      
+
   // Normal write for other registers
   csr.write(data);
 
@@ -1738,13 +1749,13 @@ Iommu::writeCsr(CsrNumber csrn, uint64_t data)
       data = readCsr(csrn);
       fctlBe_ = Fctl{uint32_t(data)}.bits_.be_;
     }
-    
+
   // Process command queue when tail pointer is updated
   if (csrn == CsrNumber::Cqt)
     {
       processCommandQueue();
     }
-    
+
   // Process page request queue when tail pointer is updated
   if (csrn == CsrNumber::Pqt)
     {
@@ -1756,30 +1767,30 @@ void
 Iommu::processCommandQueue()
 {
   using CN = CsrNumber;
-  
+
   // Check if command queue is enabled
   uint32_t cqcsrVal = readCsr(CN::Cqcsr);
-  
+
   // Extract the cqon bit (bit 16) to check if queue is active
   bool cqon = (cqcsrVal >> 16) & 1;
-  
+
   if (!cqon)
     return; // Command queue not active
-    
+
   // Process commands while queue is not empty
   while (!queueEmpty(CN::Cqb, CN::Cqh, CN::Cqt))
   {
     uint64_t qcap = queueCapacity(CN::Cqb);
     uint64_t qaddr = queueAddress(CN::Cqb);
     uint64_t qhead = readCsr(CN::Cqh);
-    
+
     if (qhead >= qcap)
       break; // Invalid head pointer
-      
+
     // Read command from queue
     uint64_t cmdAddr = qaddr + qhead * 16; // Commands are 16 bytes
     AtsCommandData cmdData;
-    
+
     bool bigEnd = false; // Command queue endianness (typically little endian)
     if (!memReadDouble(cmdAddr, bigEnd, cmdData.dw0) ||
         !memReadDouble(cmdAddr + 8, bigEnd, cmdData.dw1))
@@ -1789,34 +1800,48 @@ Iommu::processCommandQueue()
       writeCsr(CN::Cqh, qhead);
       continue;
     }
-    
+
+    // Convert to Command for type checking
+    AtsCommand cmd(cmdData);
+
     // Process the command based on its type
-    if (isAtsInvalCommand(cmdData))
+    if (isAtsInvalCommand(cmd))
     {
-      executeAtsInvalCommand(cmdData);
+      executeAtsInvalCommand(cmd);
     }
-    else if (isAtsPrgrCommand(cmdData))
+    else if (isAtsPrgrCommand(cmd))
     {
-      executeAtsPrgrCommand(cmdData);
+      executeAtsPrgrCommand(cmd);
+    }
+    else if (isIodirCommand(cmd))
+    {
+      executeIodirCommand(cmd);
+    }
+    else if (isIofenceCCommand(cmd))
+    {
+      executeIofenceCCommand(cmd);
+    }
+    else if (isIotinvalVmaCommand(cmd) || isIotinvalGvmaCommand(cmd))
+    {
+      executeIotinvalCommand(cmd);
     }
     else
     {
       // Unknown command type, potentially log error
       // For now, just skip it
     }
-    
+
     // Advance head pointer
     qhead = (qhead + 1) % qcap;
     writeCsr(CN::Cqh, qhead);
   }
 }
 
-void 
-Iommu::executeAtsInvalCommand(const AtsCommandData& cmdData)
+void
+Iommu::executeAtsInvalCommand(const AtsCommand& atsCmd)
 {
   // Parse ATS.INVAL command
-  AtsInvalCommand cmd;
-  cmd = *reinterpret_cast<const AtsInvalCommand*>(&cmdData);
+  const auto& cmd = atsCmd.inval;  // Reinterpret generic command as an AtsInvalCommand.
   
   // Check if ATS capability is enabled
   Capabilities caps{readCsr(CsrNumber::Capabilities)};
@@ -1825,45 +1850,41 @@ Iommu::executeAtsInvalCommand(const AtsCommandData& cmdData)
     // ATS not supported, ignore command
     return;
   }
-  
+
   // Extract command fields
   uint32_t rid = cmd.RID;
-  uint32_t pid = cmd.PID;  
+  uint32_t pid = cmd.PID;
   bool pv = cmd.PV;
   bool dsv = cmd.DSV;
   uint32_t dseg = cmd.DSEG;
   uint64_t address = cmd.address;
   bool global = cmd.G;
-  
+
   // Calculate device ID
   uint32_t devId = dsv ? ((dseg << 16) | rid) : rid;
-  
+
   // ========================================================================
   // IMPLEMENTED FUNCTIONALITY
   // ========================================================================
-  
+
   // 1. VALIDATE DEVICE CONTEXT
   DeviceContext dc;
   unsigned cause = 0;
   if (!loadDeviceContext(devId, dc, cause))
   {
     // Device context load failed - log error and complete command
-    #ifdef DEBUG_ATS
     printf("ATS.INVAL: Failed to load device context for devId=0x%x, cause=%u\n", devId, cause);
-    #endif
     return;
   }
-  
+
   // Verify that ATS is enabled for this device
   if (!dc.ats())
   {
     // ATS not enabled for this device - log error and complete command
-    #ifdef DEBUG_ATS
     printf("ATS.INVAL: ATS not enabled for devId=0x%x\n", devId);
-    #endif
     return;
   }
-  
+
   // 2. VALIDATE COMMAND PARAMETERS
   // Validate process ID if PV=1
   if (pv)
@@ -1871,37 +1892,31 @@ Iommu::executeAtsInvalCommand(const AtsCommandData& cmdData)
     // Check if device supports process directory table
     if (!dc.pdtv())
     {
-      #ifdef DEBUG_ATS
       printf("ATS.INVAL: Process ID specified but device doesn't support PDT, devId=0x%x\n", devId);
-      #endif
       return;
     }
-    
+
     // Validate PID is within supported range based on PDT mode
     Procid procid(pid);
     unsigned pdi1 = procid.ithPdi(1);
     unsigned pdi2 = procid.ithPdi(2);
     PdtpMode pdtpMode = dc.pdtpMode();
-    
+
     if ((pdtpMode == PdtpMode::Pd17 && pdi2 != 0) ||
         (pdtpMode == PdtpMode::Pd8 && (pdi2 != 0 || pdi1 != 0)))
     {
-      #ifdef DEBUG_ATS
       printf("ATS.INVAL: PID 0x%x out of range for PDT mode, devId=0x%x\n", pid, devId);
-      #endif
       return;
     }
   }
-  
+
   // Validate address alignment if address-specific invalidation
   if (address != 0 && (address & 0xFFF) != 0)
   {
-    #ifdef DEBUG_ATS
     printf("ATS.INVAL: Address 0x%lx not page-aligned, devId=0x%x\n", address, devId);
-    #endif
     return;
   }
-  
+
   // 3. DETERMINE INVALIDATION SCOPE
   enum class InvalidationScope {
     GlobalDevice,      // G=1: All entries for this device
@@ -1910,7 +1925,7 @@ Iommu::executeAtsInvalCommand(const AtsCommandData& cmdData)
     ProcessAndAddress  // PV=1 && address != 0: Process-specific address
   };
   
-  InvalidationScope scope;
+  InvalidationScope scope{};
   if (global)
   {
     scope = InvalidationScope::GlobalDevice;
@@ -1930,81 +1945,32 @@ Iommu::executeAtsInvalCommand(const AtsCommandData& cmdData)
   else
   {
     // Invalid combination - no scope specified
-    #ifdef DEBUG_ATS
     printf("ATS.INVAL: Invalid invalidation scope, devId=0x%x\n", devId);
-    #endif
     return;
   }
-  
-  // ========================================================================
-  // MISSING FUNCTIONALITY - What still needs to be implemented:
-  // ========================================================================
-  
-  // 4. GENERATE PCIE INVALIDATION REQUEST MESSAGE
-  //    - Create PCIe "Invalidation Request" message according to PCIe ATS spec
-  //    - Message should target the device function identified by RID
-  //    - Include appropriate invalidation parameters:
-  //      * PASID (if PV=1, use PID as PASID)
-  //      * Address range to invalidate
-  //      * Invalidation type (global, process-specific, address-specific)
-  
-  // 5. SEND MESSAGE TO DEVICE
-  //    - Use platform-specific PCIe infrastructure to send message
-  //    - This would typically involve:
-  //      * Formatting the message according to PCIe TLP format
-  //      * Routing through PCIe fabric to target device
-  //      * Handling any PCIe-level errors or routing failures
-  
-  // 6. TRACK PENDING INVALIDATION
-  //    - Add entry to pending invalidation tracking structure
-  //    - Include timeout information for this invalidation request
-  //    - Associate with command queue entry for completion tracking
-  
-  // 7. HANDLE ASYNCHRONOUS COMPLETION
-  //    - Set up mechanism to receive "Invalidation Completion" response
-  //    - When response received:
-  //      * Remove from pending invalidation list
-  //      * Update command completion status
-  //      * Signal any waiting IOFENCE.C commands
-  
-  // 8. TIMEOUT HANDLING
-  //    - Implement timeout mechanism (platform-specific timeout value)
-  //    - If timeout occurs:
-  //      * Mark invalidation as timed out
-  //      * Report timeout status to subsequent IOFENCE.C commands
-  //      * Allow software to detect and retry failed invalidations
-  
-  // 9. INTEGRATION WITH IOFENCE.C
-  //    - Ensure IOFENCE.C commands wait for all pending ATS.INVAL completions
-  //    - Report any timeouts or failures to IOFENCE.C completion status
-  
-  // ========================================================================
-  // Placeholder functionality only
-  // ========================================================================
-  
-#ifdef DEBUG_ATS
-  printf("ATS.INVAL: devId=0x%x, pid=0x%x, pv=%d, addr=0x%lx, global=%d, scope=%d\n", 
-         devId, pid, pv, address, global, static_cast<int>(scope));
-  
-    (void)devId; (void)pid; (void)pv; (void)address; (void)global; (void)scope;
-#endif
 
-  // TODO: Implement actual ATS invalidation functionality as described above
-  // This would require:
-  // - Platform-specific PCIe message generation and routing
-  // - Asynchronous response handling infrastructure  
-  // - Timeout and error handling mechanisms
-  // - Integration with command queue completion tracking
-  (void) scope;
+  // ========================================================================
+  // COMMAND SUCCESSFULLY PARSED AND VALIDATED
+  // ========================================================================
+
+  printf("ATS.INVAL: devId=0x%x, pid=0x%x, pv=%d, addr=0x%lx, global=%d, scope=%d\n",
+         devId, pid, pv, address, global, static_cast<int>(scope));
+  printf("ATS.INVAL: Command parsed and validated successfully\n");
+
+  // PCIe simulation placeholder
+  printf("TODO: PCIe ATS Invalidation Request message simulation to be implemented here\n");
+  printf("      Would send invalidation request to device BDF 0x%x via PCIe fabric\n", rid);
+
+  // Suppress unused variable warnings
+  (void)devId; (void)pid; (void)pv; (void)address; (void)global; (void)scope;
 }
 
-void 
-Iommu::executeAtsPrgrCommand(const AtsCommandData& cmdData)
+void
+Iommu::executeAtsPrgrCommand(const AtsCommand& atsCmd)
 {
   // Parse ATS.PRGR command
-  AtsPrgrCommand cmd;
-  cmd = *reinterpret_cast<const AtsPrgrCommand*>(&cmdData);
-  
+  const auto& cmd = atsCmd.prgr; // Reinterpret generic command as AtsPrgrCommand
+
   // Check if ATS capability is enabled
   Capabilities caps{readCsr(CsrNumber::Capabilities)};
   if (!caps.bits_.ats_)
@@ -2012,7 +1978,7 @@ Iommu::executeAtsPrgrCommand(const AtsCommandData& cmdData)
     // ATS not supported, ignore command
     return;
   }
-  
+
   // Extract command fields
   uint32_t rid = cmd.RID;
   uint32_t pid = cmd.PID;
@@ -2020,228 +1986,309 @@ Iommu::executeAtsPrgrCommand(const AtsCommandData& cmdData)
   uint32_t resp_code = cmd.responsecode;
   bool dsv = cmd.DSV;
   uint32_t dseg = cmd.DSEG;
-  
+
   // Calculate device ID
   uint32_t devId = dsv ? ((dseg << 16) | rid) : rid;
-  
+
   // ========================================================================
   // IMPLEMENTED FUNCTIONALITY
   // ========================================================================
-  
+
   // 1. VALIDATE DEVICE CONTEXT
   DeviceContext dc;
   unsigned cause = 0;
   if (!loadDeviceContext(devId, dc, cause))
   {
     // Device context load failed - log error and complete command
-    #ifdef DEBUG_ATS
     printf("ATS.PRGR: Failed to load device context for devId=0x%x, cause=%u\n", devId, cause);
-    #endif
     return;
   }
-  
+
   // Verify that ATS is enabled for this device
   if (!dc.ats())
   {
     // ATS not enabled for this device - log error and complete command
-    #ifdef DEBUG_ATS
     printf("ATS.PRGR: ATS not enabled for devId=0x%x\n", devId);
-    #endif
     return;
   }
-  
+
   // 2. VALIDATE PRI (PAGE REQUEST INTERFACE) CAPABILITY
   // Check if device supports Page Request Interface
   if (!dc.pri())
   {
-    #ifdef DEBUG_ATS
     printf("ATS.PRGR: PRI not enabled for devId=0x%x\n", devId);
-    #endif
     return;
   }
-  
+
   // 3. VALIDATE COMMAND PARAMETERS
-  // Validate process ID
-  if (!dc.pdtv())
+  // Validate process ID if PV=1
+  bool pv = cmd.PV;
+  if (pv)
   {
-    #ifdef DEBUG_ATS
-    printf("ATS.PRGR: Process ID specified but device doesn't support PDT, devId=0x%x\n", devId);
-    #endif
-    return;
+    // Check if device supports process directory table
+    if (!dc.pdtv())
+    {
+      printf("ATS.PRGR: Process ID specified but device doesn't support PDT, devId=0x%x\n", devId);
+      return;
+    }
+
+    // Validate PID is within supported range based on PDT mode
+    Procid procid(pid);
+    unsigned pdi1 = procid.ithPdi(1);
+    unsigned pdi2 = procid.ithPdi(2);
+    PdtpMode pdtpMode = dc.pdtpMode();
+
+    if ((pdtpMode == PdtpMode::Pd17 && pdi2 != 0) ||
+        (pdtpMode == PdtpMode::Pd8 && (pdi2 != 0 || pdi1 != 0)))
+    {
+      printf("ATS.PRGR: PID 0x%x out of range for PDT mode, devId=0x%x\n", pid, devId);
+      return;
+    }
   }
-  
-  // Validate PID is within supported range based on PDT mode
-  Procid procid(pid);
-  unsigned pdi1 = procid.ithPdi(1);
-  unsigned pdi2 = procid.ithPdi(2);
-  PdtpMode pdtpMode = dc.pdtpMode();
-  
-  if ((pdtpMode == PdtpMode::Pd17 && pdi2 != 0) ||
-      (pdtpMode == PdtpMode::Pd8 && (pdi2 != 0 || pdi1 != 0)))
-  {
-    #ifdef DEBUG_ATS
-    printf("ATS.PRGR: PID 0x%x out of range for PDT mode, devId=0x%x\n", pid, devId);
-    #endif
-    return;
-  }
-  
+
   // Validate response code is within valid range
   // PCIe spec defines response codes: 0=Success, 1=Invalid Request, 2=Response Failure
   if (resp_code > 2)
   {
-    #ifdef DEBUG_ATS
     printf("ATS.PRGR: Invalid response code %u, devId=0x%x\n", resp_code, devId);
-    #endif
     return;
   }
-  
+
   // Validate PRGI (Page Request Group Index)
-  // PRGI should be non-zero and within reasonable bounds
+  // PRGI should be non-zero (0 is reserved)
   if (prgi == 0)
   {
-    #ifdef DEBUG_ATS
     printf("ATS.PRGR: Invalid PRGI 0, devId=0x%x\n", devId);
-    #endif
     return;
   }
-  
+
   // ========================================================================
-  // MISSING FUNCTIONALITY - What still needs to be implemented:
+  // COMMAND SUCCESSFULLY PARSED AND VALIDATED
   // ========================================================================
-  
-  // 4. VALIDATE AND TRACK PRGI (IMPLEMENTED)
-  // Check if PRGI corresponds to a previously received Page Request
-  auto it = std::find_if(pendingPageRequests_.begin(), pendingPageRequests_.end(),
-    [devId, pid, prgi](const PageRequest& req) {
-      return req.devId == devId && 
-             req.pid == pid && 
-             req.prgi == prgi;
-    });
-  
-  if (it == pendingPageRequests_.end())
+
+  printf("ATS.PRGR: devId=0x%x, pid=0x%x, pv=%d, prgi=0x%x, resp_code=%u\n",
+         devId, pid, pv, prgi, resp_code);
+  printf("ATS.PRGR: Command parsed and validated successfully\n");
+
+  // PCIe simulation placeholder
+  printf("TODO: PCIe ATS Page Request Group Response message simulation to be implemented here\n");
+  printf("      Would send PRGR response (code=%u) to device BDF 0x%x via PCIe fabric\n", resp_code, rid);
+
+  // Suppress unused variable warnings
+  (void)devId; (void)pid; (void)pv; (void)prgi; (void)resp_code; (void)dsv; (void)dseg;
+}
+
+void
+Iommu::executeIodirCommand(const AtsCommand& atsCmd)
+{
+  // TODO
+  const auto& cmd = atsCmd.iodir;  // Retinterpret genric command as IodirCommand.
+  bool isInvalDdt = cmd.func3 == IodirFunc::INVAL_DDT;
+  bool isInvalPdt = cmd.func3 == IodirFunc::INVAL_PDT;
+  if (isInvalDdt)
+    printf("IODIR.INVAL_DDT: PID=%d, DV=%d, DID=%d \n", cmd.PID, cmd.DV, cmd.DID);
+  if (isInvalPdt)
+    printf("IODIR.INVAL_PDT: PID=%d, DV=%d, DID=%d \n", cmd.PID, cmd.DV, cmd.DID);
+
+  addr_ = addr_ + 0; // Silence clang tidy. Temporary until this method is fully implemented.
+}
+
+void
+Iommu::executeIofenceCCommand(const AtsCommand& atsCmd)
+{
+  // Parse IOFENCE.C command
+  const auto& cmd = atsCmd.iofence; // Reinterpret generic command as IofenceCCommand
+
+  // Extract command fields
+  bool AV = cmd.AV;
+  bool WSI = cmd.WSI;
+  bool PR = cmd.PR;
+  bool PW = cmd.PW;
+  uint64_t addr = cmd.ADDR << 2; // Convert from ADDR[63:2] to full address
+  uint32_t data = cmd.DATA;
+
+  printf("IOFENCE.C: AV=%d, WSI=%d, PR=%d, PW=%d, addr=0x%lx, data=0x%x\n",
+         AV, WSI, PR, PW, addr, data);
+
+  // Execute memory ordering (PR/PW bits)
+  if (PR || PW)
   {
-    // No matching page request found
-    #ifdef DEBUG_ATS
-    printf("ATS.PRGR: No matching pending request for devId=0x%x, pid=0x%x, prgi=0x%x\n", 
-           devId, pid, prgi);
-    #endif
-    return;
+    // TODO: Implement memory ordering guarantees
+    // For now, assume ordering is handled by the memory system
   }
-  
-  // Found matching page request, remove it from pending list
-  #ifdef DEBUG_ATS
-  PageRequest matchedRequest = *it;
-  printf("ATS.PRGR: Found and removed pending request for addr=0x%lx\n", matchedRequest.address);
-  #endif
 
-  pendingPageRequests_.erase(it);
-  
-  // 5. GENERATE PCIE PAGE REQUEST GROUP RESPONSE MESSAGE
-  //    - Create PCIe "Page Request Group Response" message according to PCIe spec
-  //    - Message should target the device function identified by RID
-  //    - Include appropriate response parameters:
-  //      * PASID (use PID as PASID)
-  //      * PRGI (Page Request Group Index from command)
-  //      * Response Code (Success, Invalid Request, Response Failure)
-  
-  // 6. SEND MESSAGE TO DEVICE
-  //    - Use platform-specific PCIe infrastructure to send response message
-  //    - This would typically involve:
-  //      * Formatting the message according to PCIe TLP format
-  //      * Routing through PCIe fabric to target device
-  //      * Handling any PCIe-level errors or routing failures
-  
-  // 7. COORDINATE WITH MEMORY MANAGEMENT
-  //    - If response code is Success:
-  //      * Ensure that the requested memory pages are properly mapped
-  //      * Update any necessary memory management structures
-  //      * Coordinate with OS virtual memory subsystem
-  //    - If response code indicates failure:
-  //      * Log the failure reason for debugging
-  //      * May need to coordinate with fault handling mechanisms
-  
-  // 8. INTEGRATION WITH FAULT HANDLING
-  //    - Update fault queue entries if this response resolves a fault
-  //    - Signal completion of fault handling to software
-  //    - Update fault statistics and error tracking
-  
-  // ========================================================================
-  // Placeholder functionality only
-  // ========================================================================
-  
-  #ifdef DEBUG_ATS
-  printf("ATS.PRGR: devId=0x%x, pid=0x%x, prgi=0x%x, resp_code=%u (processed)\n", 
-         devId, pid, prgi, resp_code);
-  
-    (void)devId; (void)pid; (void)prgi; (void)resp_code;
+  // Execute memory write if AV=1
+  if (AV)
+  {
+    if (!memWrite(addr, 4, data))
+    {
+      printf("IOFENCE.C: Failed to write data 0x%x to address 0x%lx\n", data, addr);
+    }
+    else
+    {
+#ifdef DEBUG_ATS
+      printf("IOFENCE.C: Successfully wrote data 0x%x to address 0x%lx\n", data, addr);
 #endif
+    }
+  }
 
-  // TODO: Implement actual ATS page request group response functionality as described above
-  // This would require:
-  // - Platform-specific PCIe message generation and routing
-  // - Integration with OS memory management
-  // - Coordination with fault handling mechanisms
+  // Generate interrupt if WSI=1
+  if (WSI)
+  {
+    // Set fence_w_ip bit in cqcsr
+    uint64_t cqcsr = readCsr(CsrNumber::Cqcsr);
+    cqcsr |= (1ULL << 17); // fence_w_ip bit
+    writeCsr(CsrNumber::Cqcsr, cqcsr);
+  }
+
+  printf("IOFENCE.C: Command completed\n");
+}
+
+void
+Iommu::executeIotinvalCommand(const AtsCommand& atsCmd)
+{
+  // Parse IOTINVAL command (handles both VMA and GVMA)
+  const auto& cmd = atsCmd.iotinval; // Reinterpret genric command as IotinvalCommand
+
+  // Extract command fields
+  bool AV = cmd.AV;        // Address Valid
+  bool PSCV = cmd.PSCV;    // Process Soft-Context Valid
+  bool GV = cmd.GV;        // Guest Soft-Context Valid
+  uint32_t PSCID = cmd.PSCID;  // Process Soft-Context ID
+  uint32_t GSCID = cmd.GSCID;  // Guest Soft-Context ID
+  uint64_t addr = cmd.ADDR << 12; // Convert from ADDR[63:12] to full address (page-aligned)
+  bool isVma = (cmd.func3 == IotinvalFunc::VMA);
+  bool isGvma = (cmd.func3 == IotinvalFunc::GVMA);
+
+  const char* cmdName = isVma ? "IOTINVAL.VMA" : "IOTINVAL.GVMA";
+
+  printf("%s: AV=%d, PSCV=%d, GV=%d, PSCID=0x%x, GSCID=0x%x, addr=0x%lx\n",
+         cmdName, AV, PSCV, GV, PSCID, GSCID, addr);
+
+  // ========================================================================
+  // IOTINVAL.VMA - First-stage page table cache invalidation
+  // ========================================================================
+  if (isVma) {
+    // Validate VMA-specific parameters
+    if (PSCV && !AV) {
+      printf("IOTINVAL.VMA: Invalid combination - PSCV=1 requires AV=1\n");
+      return;
+    }
+
+    // Table 9: IOTINVAL.VMA operands and operations (8 combinations)
+    if (!GV && !AV && !PSCV) {
+      printf("IOTINVAL.VMA: Invalidating all first-stage page table cache entries for all host address spaces\n");
+    }
+    else if (!GV && !AV && PSCV) {
+      printf("IOTINVAL.VMA: Invalidating first-stage entries for host address space with PSCID=0x%x\n", PSCID);
+    }
+    else if (!GV && AV && !PSCV) {
+      printf("IOTINVAL.VMA: Invalidating first-stage entries for address 0x%lx in all host address spaces\n", addr);
+    }
+    else if (!GV && AV && PSCV) {
+      printf("IOTINVAL.VMA: Invalidating first-stage entries for address 0x%lx in host address space PSCID=0x%x\n", addr, PSCID);
+    }
+    else if (GV && !AV && !PSCV) {
+      printf("IOTINVAL.VMA: Invalidating all first-stage entries for VM address spaces with GSCID=0x%x\n", GSCID);
+    }
+    else if (GV && !AV && PSCV) {
+      printf("IOTINVAL.VMA: Invalidating first-stage entries for VM address space PSCID=0x%x, GSCID=0x%x\n", PSCID, GSCID);
+    }
+    else if (GV && AV && !PSCV) {
+      printf("IOTINVAL.VMA: Invalidating first-stage entries for address 0x%lx in all VM address spaces with GSCID=0x%x\n", addr, GSCID);
+    }
+    else if (GV && AV && PSCV) {
+      printf("IOTINVAL.VMA: Invalidating first-stage entries for address 0x%lx in VM address space PSCID=0x%x, GSCID=0x%x\n", addr, PSCID, GSCID);
+    }
+  }
+  // ========================================================================
+  // IOTINVAL.GVMA - Second-stage page table cache invalidation
+  // ========================================================================
+  else if (isGvma) {
+    // Validate GVMA-specific parameters
+    if (PSCV) {
+      printf("IOTINVAL.GVMA: Invalid command - PSCV must be 0 for GVMA commands\n");
+      return;
+    }
+
+    // Table 10: IOTINVAL.GVMA operands and operations (3 combinations)
+    if (!GV) {
+      // When GV=0, AV is ignored per Table 10
+      printf("IOTINVAL.GVMA: Invalidating all second-stage page table cache entries for all VM address spaces (AV ignored)\n");
+    }
+    else if (GV && !AV) {
+      printf("IOTINVAL.GVMA: Invalidating all second-stage entries for VM address spaces with GSCID=0x%x\n", GSCID);
+    }
+    else if (GV && AV) {
+      printf("IOTINVAL.GVMA: Invalidating second-stage leaf entries for address 0x%lx in VM address space GSCID=0x%x\n", addr, GSCID);
+    }
+  }
+
+  // TODO: Implement actual IOATC (IOMMU Address Translation Cache) invalidation
+  // This is a stub implementation - actual invalidation logic would:
+  // 1. Identify matching IOATC entries based on the invalidation scope
+  // 2. Remove/invalidate those entries from the translation cache
+  // 3. Ensure ordering with respect to previous memory operations per specification
+
+  printf("%s: Command completed (stub implementation)\n", cmdName);
+
+  addr_ = addr_ + 0;
 }
 
 void
 Iommu::processPageRequestQueue()
 {
   using CN = CsrNumber;
-  
-  // Check if page request queue is enabled  
+
+  // Check if page request queue is enabled
   uint32_t pqcsrVal = readCsr(CN::Pqcsr);
   bool pqon = (pqcsrVal >> 16) & 1;  // Extract pqon bit
-  
+
   if (!pqon)
     return; // Page request queue not active
-    
+
   // Process page requests while queue is not empty
   while (!queueEmpty(CN::Pqb, CN::Pqh, CN::Pqt))
   {
     uint64_t qcap = queueCapacity(CN::Pqb);
     uint64_t qaddr = queueAddress(CN::Pqb);
     uint64_t qhead = readCsr(CN::Pqh);
-    
+
     if (qhead >= qcap)
       break; // Invalid head pointer
-      
+
     // Read page request from queue (32 bytes per entry)
     uint64_t reqAddr = qaddr + qhead * 32;
-    uint64_t reqData[4];
-    
-    // Variables for parsed request data
-    uint32_t devId = 0;
-    uint32_t pid = 0;
-    bool pidValid = false;
-    uint64_t address = 0;
-    uint32_t prgi = 0;
+    std::array<uint64_t, 4> reqData{};
     
     bool bigEnd = false; // Page request queue endianness
-    for (int i = 0; i < 4; i++)
-    {
-      if (!memReadDouble(reqAddr + i*8, bigEnd, reqData[i]))
+
+    bool readOk = true;
+    for (size_t i = 0; i < reqData.size() and readOk; i++)
+      readOk = memReadDouble(reqAddr + i*8, bigEnd, reqData.at(i));
+
+    if (not readOk)
       {
         // Memory read failed, advance head and continue
         qhead = (qhead + 1) % qcap;
         writeCsr(CN::Pqh, qhead);
-        goto next_request;
+        continue;
       }
-    }
     
     // Parse page request (format defined in RISC-V IOMMU spec)
     // This is a simplified parsing - real implementation would need
     // to handle the full page request format
-    devId = reqData[0] & 0xFFFFFF;
-    pid = (reqData[0] >> 32) & 0xFFFFF;
-    pidValid = (reqData[0] >> 52) & 1;
-    address = reqData[1] & ~0xFFFULL; // Page aligned
-    prgi = reqData[2] & 0xFFFF;
+    uint32_t devId = reqData.at(0) & 0xFFFFFF;
+    uint32_t pid = (reqData.at(0) >> 32) & 0xFFFFF;
+    bool pidValid = (reqData.at(0) >> 52) & 1;
+    uint64_t address = reqData.at(1) & ~0xFFFULL; // Page aligned
+    uint32_t prgi = reqData.at(2) & 0xFFFF;
     
     // Send page request to device (this would be implementation specific)
     sendPageRequest(devId, pid, address, prgi);
-    
+
     // Track the pending request
-    PageRequest request;
+    PageRequest request{};
     request.devId = devId;
     request.pid = pid;
     request.pidValid = pidValid;
@@ -2249,42 +2296,37 @@ Iommu::processPageRequestQueue()
     request.prgi = prgi;
     pendingPageRequests_.push_back(request);
     
-    next_request:
     // Advance head pointer
     qhead = (qhead + 1) % qcap;
     writeCsr(CN::Pqh, qhead);
   }
 }
 
-void 
+void
 Iommu::sendPageRequest(uint32_t devId, uint32_t pid, uint64_t address, uint32_t prgi)
 {
   // ========================================================================
   // IMPLEMENTED FUNCTIONALITY
   // ========================================================================
-  
+
   // 1. VALIDATE DEVICE CONTEXT
   DeviceContext dc;
   unsigned cause = 0;
   if (!loadDeviceContext(devId, dc, cause))
   {
     // Device context load failed - log error and return
-    #ifdef DEBUG_ATS
     printf("sendPageRequest: Failed to load device context for devId=0x%x, cause=%u\n", devId, cause);
-    #endif
     return;
   }
-  
+
   // 2. VALIDATE PRI CAPABILITY
   // Check if device supports Page Request Interface
   if (!dc.pri())
   {
-    #ifdef DEBUG_ATS
     printf("sendPageRequest: PRI not enabled for devId=0x%x\n", devId);
-    #endif
     return;
   }
-  
+
   // 3. VALIDATE COMMAND PARAMETERS
   // Validate process ID (assuming pid != 0 means process-specific request)
   bool pidValid = (pid != 0);
@@ -2293,119 +2335,62 @@ Iommu::sendPageRequest(uint32_t devId, uint32_t pid, uint64_t address, uint32_t 
     // Check if device supports process directory table
     if (!dc.pdtv())
     {
-      #ifdef DEBUG_ATS
       printf("sendPageRequest: Process ID specified but device doesn't support PDT, devId=0x%x\n", devId);
-      #endif
       return;
     }
-    
+
     // Validate PID is within supported range based on PDT mode
     Procid procid(pid);
     unsigned pdi1 = procid.ithPdi(1);
     unsigned pdi2 = procid.ithPdi(2);
     PdtpMode pdtpMode = dc.pdtpMode();
-    
+
     if ((pdtpMode == PdtpMode::Pd17 && pdi2 != 0) ||
         (pdtpMode == PdtpMode::Pd8 && (pdi2 != 0 || pdi1 != 0)))
     {
-      #ifdef DEBUG_ATS
       printf("sendPageRequest: PID 0x%x out of range for PDT mode, devId=0x%x\n", pid, devId);
-      #endif
       return;
     }
   }
-  
+
   // Validate address alignment
   if ((address & 0xFFF) != 0)
   {
-    #ifdef DEBUG_ATS
     printf("sendPageRequest: Address 0x%lx not page-aligned, devId=0x%x\n", address, devId);
-    #endif
     return;
   }
-  
+
   // Validate PRGI (Page Request Group Index)
   // PRGI should be non-zero and within reasonable bounds
   if (prgi == 0)
   {
-    #ifdef DEBUG_ATS
     printf("sendPageRequest: Invalid PRGI 0, devId=0x%x\n", devId);
-    #endif
     return;
   }
-  
-  // ========================================================================
-  // MISSING FUNCTIONALITY - What still needs to be implemented:
-  // ========================================================================
-  
-  // 4. GENERATE PCIE PAGE REQUEST MESSAGE (PRM)
-  //    - Create PCIe "Page Request Message" according to PCIe PRI spec
-  //    - Message should target the device function
-  //    - Include appropriate request parameters:
-  //      * PASID (if pidValid=true, use pid as PASID)
-  //      * Virtual Address (page-aligned address)
-  //      * PRGI (Page Request Group Index from parameter)
-  //      * Permission flags (Read, Write, Execute) - determine from context
-  //      * Privilege level (User vs Supervisor) - determine from context
-  
-  // 5. SEND MESSAGE TO DEVICE
-  //    - Use platform-specific PCIe infrastructure to send PRM
-  //    - This would typically involve:
-  //      * Formatting the message according to PCIe TLP format
-  //      * Routing through PCIe fabric to target device
-  //      * Handling any PCIe-level errors or routing failures
-  
-  // 6. COORDINATE WITH OS MEMORY MANAGEMENT
-  //    - Notify OS that a page fault has occurred
-  //    - Provide fault details (address, permissions, process context)
-  //    - Wait for OS to handle the fault (page-in, permission update, etc.)
-  //    - Coordinate with virtual memory subsystem for page availability
-  
-  // 7. HANDLE TIMEOUT AND RETRY
-  //    - Implement timeout mechanism (platform-specific timeout value)
-  //    - If timeout occurs without response:
-  //      * Retry the request (up to maximum retry count)
-  //      * If max retries exceeded, report fault to software
-  //      * Clean up outstanding request tracking
-  
-  // 8. INTEGRATION WITH FAULT HANDLING
-  //    - If page request fails or times out:
-  //      * Generate appropriate fault record in fault queue
-  //      * Include fault details for software debugging
-  //      * Update fault statistics and error tracking
-  
-  // ========================================================================
-  // Placeholder functionality only
-  // ========================================================================
-  
-  #ifdef DEBUG_ATS
-  printf("sendPageRequest: devId=0x%x, pid=0x%x, pidValid=%d, addr=0x%lx, prgi=0x%x\n", 
-         devId, pid, pidValid, address, prgi);
-  
-    (void)devId; (void)pid; (void)pidValid; (void)address; (void)prgi;
-#endif
 
-  // ========================================================================
-  // Placeholder functionality only
-  // ========================================================================
-  
-  // TRACK OUTSTANDING REQUEST (IMPLEMENTED)
+  printf("sendPageRequest: devId=0x%x, pid=0x%x, pidValid=%d, addr=0x%lx, prgi=0x%x\n",
+         devId, pid, pidValid, address, prgi);
+
+  // PCIe simulation placeholder
+  printf("TODO: PCIe Page Request message simulation to be implemented here\n");
+  printf("      Would send page request to device ID 0x%x via PCIe fabric\n", devId);
+
+  (void)devId; (void)pid; (void)pidValid; (void)address; (void)prgi;
+
   // Add request to outstanding page request tracking structure
-  PageRequest request;
+  PageRequest request{};
   request.devId = devId;
   request.pid = pid;
   request.address = address;
   request.prgi = prgi;
   request.pidValid = pidValid;
-  
+
   pendingPageRequests_.push_back(request);
-  
-  #ifdef DEBUG_ATS
-  printf("sendPageRequest: devId=0x%x, pid=0x%x, pidValid=%d, addr=0x%lx, prgi=0x%x (tracked)\n", 
+
+  printf("sendPageRequest: devId=0x%x, pid=0x%x, pidValid=%d, addr=0x%lx, prgi=0x%x (tracked)\n",
          devId, pid, pidValid, address, prgi);
-  
-    (void)devId; (void)pid; (void)pidValid; (void)address; (void)prgi;
-#endif
+
+  (void)devId; (void)pid; (void)pidValid; (void)address; (void)prgi;
 
   // TODO: Implement actual page request functionality as described above
   // This would require:
@@ -2445,7 +2430,7 @@ Iommu::atsTranslate(const IommuRequest& req, AtsResponse& response, unsigned& ca
   }
 
   using CN = CsrNumber;
-  
+
   // Check if ATS capability is supported
   Capabilities caps(csrAt(CN::Capabilities).read());
   if (not caps.bits_.ats_)
@@ -2509,7 +2494,7 @@ Iommu::atsTranslate(const IommuRequest& req, AtsResponse& response, unsigned& ca
 
   uint64_t translatedAddr = 0;
   bool isMsiAddr = false;
-  
+
   // Check if this is an MSI address
   if (dc.isMsiAddress(req.iova))
   {
@@ -2521,7 +2506,7 @@ Iommu::atsTranslate(const IommuRequest& req, AtsResponse& response, unsigned& ca
     uint64_t mrif = 0;
     uint64_t nnpn = 0;
     unsigned nid = 0;
-    
+
     if (msiTranslate(dc, req, gpa, pa, isMrif, mrif, nnpn, nid, cause))
     {
       if (isMrif)
@@ -2536,10 +2521,7 @@ Iommu::atsTranslate(const IommuRequest& req, AtsResponse& response, unsigned& ca
         response.global = false;
         return true;
       }
-      else
-      {
-        translatedAddr = pa;
-      }
+      translatedAddr = pa;
     }
     else
     {
@@ -2568,7 +2550,6 @@ Iommu::atsTranslate(const IommuRequest& req, AtsResponse& response, unsigned& ca
           response.readPerm = false;
           response.writePerm = false;
           response.execPerm = false;
-          return true;
         }
         else if (cause == 1 or cause == 5 or cause == 7 or  // Access faults
                  cause == 261 or cause == 263 or            // MSI PTE faults
@@ -2584,8 +2565,8 @@ Iommu::atsTranslate(const IommuRequest& req, AtsResponse& response, unsigned& ca
           // Permanent errors return UR
           response.success = false;
           response.isCompleterAbort = false;
-          return false;
         }
+        return false;
       }
     }
     else
@@ -2604,7 +2585,6 @@ Iommu::atsTranslate(const IommuRequest& req, AtsResponse& response, unsigned& ca
           response.readPerm = false;
           response.writePerm = false;
           response.execPerm = false;
-          return true;
         }
         else if (cause == 1 or cause == 5 or cause == 7 or  // Access faults
                  cause == 261 or cause == 263 or            // MSI PTE faults
@@ -2613,15 +2593,14 @@ Iommu::atsTranslate(const IommuRequest& req, AtsResponse& response, unsigned& ca
           // Configuration errors return CA
           response.success = false;
           response.isCompleterAbort = true;
-          return false;
         }
         else
         {
           // Permanent errors return UR
           response.success = false;
           response.isCompleterAbort = false;
-          return false;
         }
+        return false;
       }
     }
   }
@@ -2629,28 +2608,24 @@ Iommu::atsTranslate(const IommuRequest& req, AtsResponse& response, unsigned& ca
   // Translation successful - build response
   response.success = true;
   response.translatedAddr = translatedAddr;
-  
+
   // Set permission bits (would need to get actual permissions from page tables)
   // For now, grant requested permissions if translation succeeded
   response.readPerm = r;
   response.writePerm = w;
   response.execPerm = x and r; // Execute only if read is also granted
-  
+
   // Set other response fields per spec section 3.6
   response.privMode = req.hasProcId and (req.privMode == PrivilegeMode::Supervisor);
   response.noSnoop = false; // Always 0 per spec
   response.global = false;  // Would need to get from first-stage page tables
   response.ama = 0;         // Default 000b
-  
+
   // Set CXL.io bit based on device type and memory type
   response.cxlIo = false;   // Default, would need device-specific logic
-  if (isMsiAddr)
+  if (isMsiAddr or dc.t2gpa())
   {
-    response.cxlIo = true;  // MSI addresses set CXL.io = 1
-  }
-  else if (dc.t2gpa())
-  {
-    response.cxlIo = true;  // T2GPA mode sets CXL.io = 1
+    response.cxlIo = true;  // MSI addresses or T@GPA mode, set CXL.io = 1
   }
 
   return true;
@@ -2666,7 +2641,7 @@ Iommu::t2gpaTranslate(const IommuRequest& req, uint64_t& gpa, unsigned& cause)
   cause = 0;
 
   using CN = CsrNumber;
-  
+
   // Check IOMMU mode
   Ddtp ddtp{csrAt(CN::Ddtp).read()};
   if (ddtp.mode() == Ddtp::Mode::Off)
@@ -2705,17 +2680,17 @@ Iommu::t2gpaTranslate(const IommuRequest& req, uint64_t& gpa, unsigned& cause)
     // Process directory table mode
     ProcessContext pc;
     unsigned procId = req.hasProcId ? req.procId : 0;
-    
+
     if (req.hasProcId or dc.dpe())
     {
       if (not loadProcessContext(dc, procId, pc, cause))
         return false;
-      
+
       // Use process context for first-stage translation
       uint64_t iosatp = pc.fsc(); // FSC field contains the IOSATP value
       uint64_t iohgatp = dc.iohgatp();
       bool sum = pc.sum();
-      
+
       if (not stage1Translate(iosatp, iohgatp, req.privMode, procId, r, w, x, sum, req.iova, gpa, cause))
         return false;
     }
@@ -2732,7 +2707,7 @@ Iommu::t2gpaTranslate(const IommuRequest& req, uint64_t& gpa, unsigned& cause)
     uint64_t iosatp = dc.iosatp();
     uint64_t iohgatp = dc.iohgatp();
     bool sum = false;
-    
+
     if (not stage1Translate(iosatp, iohgatp, req.privMode, 0, r, w, x, sum, req.iova, gpa, cause))
       return false;
   }
@@ -2740,7 +2715,7 @@ Iommu::t2gpaTranslate(const IommuRequest& req, uint64_t& gpa, unsigned& cause)
   // In T2GPA mode, we stop here and return the GPA
   // The device will use this GPA in subsequent translated requests
   // which will then undergo second-stage translation
-  
+
   return true;
 }
 
@@ -2777,7 +2752,7 @@ Iommu::definePmpRegs(uint64_t cfgAddr, unsigned cfgCount,
                 << "double-word aligned\n";
       return false;
     }
-      
+
   if ((addrAddr & 7) != 0)
     {
       std::cerr << "Invalid IOMMU PMPADDR address: " << addrAddr << ": must be "
@@ -2841,7 +2816,7 @@ Iommu::definePmaRegs(uint64_t cfgAddr, unsigned cfgCount)
                 << "double-word aligned\n";
       return false;
     }
-      
+
   pmacfgCount_ = cfgCount;
   pmacfgAddr_ = cfgAddr;
 
@@ -2862,10 +2837,11 @@ Iommu::updateMemoryAttributes(unsigned pmacfgIx)
   Pma pma;
   bool valid = false;
 
-  pmaMgr_.unpackPmacfg(val, valid, low, high, pma);
+  PmaManager::unpackPmacfg(val, valid, low, high, pma);
   if (valid)
     {
       if (not pmaMgr_.defineRegion(pmacfgIx, low, high, pma))
 	assert(0);
     }
 }
+

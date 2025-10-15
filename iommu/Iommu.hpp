@@ -49,7 +49,7 @@ namespace TT_IOMMU
     /// GPA that would be translated using stage2 translation even though this method
     /// returns true (in this case is-translated means is partially translated).
     bool isTranslated() const  // Translated request
-    { return type == Ttype::TransRead or type == Ttype::TransWrite; }
+    { return type == Ttype::TransRead or type == Ttype::TransWrite or type == Ttype::TransExec; }
 
     /// Return true if the request is for a read.
     bool isRead() const
@@ -88,7 +88,7 @@ namespace TT_IOMMU
     /// this object according to the configured capabilities.
     Iommu(uint64_t addr, uint64_t size, uint64_t memorySize)
       : addr_(addr), size_(size), pmaMgr_(memorySize)
-    { 
+    {
       wordToCsr_.resize(size / 4, nullptr);
       defineCsrs();
     }
@@ -101,7 +101,7 @@ namespace TT_IOMMU
     /// below.
     Iommu(uint64_t addr, uint64_t size, uint64_t memorySize, uint64_t capabilities)
       : addr_(addr), size_(size), pmaMgr_(memorySize)
-    { 
+    {
       wordToCsr_.resize(size / 4, nullptr);
       defineCsrs();
       configureCapabilities(capabilities);
@@ -183,7 +183,7 @@ namespace TT_IOMMU
       bool isCompleterAbort = false; // True for CA, false for UR (when success=false)
       uint64_t translatedAddr = 0; // Translated address (SPA or GPA based on T2GPA)
       bool readPerm = false;       // R bit in ATS completion
-      bool writePerm = false;      // W bit in ATS completion  
+      bool writePerm = false;      // W bit in ATS completion
       bool execPerm = false;       // X bit in ATS completion
       bool privMode = false;       // Priv bit in ATS completion
       bool noSnoop = false;        // N bit in ATS completion (always 0 per spec)
@@ -281,6 +281,11 @@ namespace TT_IOMMU
     uint64_t getCsrAddress(CsrNumber csrn) const
     { return addr_ + csrs_.at(size_t(csrn)).offset_; }
 
+    /// Return the base address of the queue associated with the given queue base CSR.
+    /// Public wrapper for testing.
+    uint64_t getQueueAddress(CsrNumber qbase) const
+    { return queueAddress(qbase); }
+
     /// Load device context given a device id. Return true on success and false on
     /// failure. Set cause to failure cause on failure.
     bool loadDeviceContext(unsigned devId, DeviceContext& dc, unsigned& cause);
@@ -292,17 +297,17 @@ namespace TT_IOMMU
 
     /// Return true if this IOMMU uses wired interrupts. Return false it it uses message
     /// signaled interrupts (MSI). This is for interrupting the core in case of a fault.
-    bool wiredInterrupts();
+    bool wiredInterrupts() const;
 
     /// Read the given CSR. If the CSR is of size 4, the top 32 bits of the result
     /// will be zero.
     uint64_t readCsr(CsrNumber csrn) const
     {
-      auto& csr = csrs_.at(unsigned(csrn));
+      const auto& csr = csrs_.at(unsigned(csrn));
       uint64_t val = csr.read();
       if (csr.size() == 4)
         val = (val << 32) >> 32;
-      return csr.read();
+      return val;
     }
 
     /// Write the given CSR. If the CSR is of size 4, the top 32 bits of data are ignored.
@@ -311,7 +316,7 @@ namespace TT_IOMMU
     void writeCsr(CsrNumber csrn, uint64_t data);
 
     /// Return the device directory table leaf entry size.
-    unsigned devDirTableLeafSize(bool extended) const
+    static unsigned devDirTableLeafSize(bool extended) 
     { return extended ? sizeof(ExtendedDeviceContext) : sizeof(BaseDeviceContext); }
 
     /// Return the pagesize.
@@ -450,7 +455,7 @@ namespace TT_IOMMU
 
     /// Return true if the device directory table is big endian.
     bool devDirTableBe() const
-    { return fctlBe_; }  // Cached FCTL.BE }
+    { return fctlBe_; }  // Cached FCTL.BE
 
     /// Return true if the device directory table is big endian.
     bool devDirBigEnd() const
@@ -507,25 +512,33 @@ namespace TT_IOMMU
       bool bigEnd = devDirTableBe();
       return memWriteDouble(addr, bigEnd, ddte);
     }
-    
+
     /// Write to memory, at the given address, he base/extended part of the given device
     /// context based on whether or not the device is extended. Honor the endianness of the
     /// device directory table. Return true on success and false on failure.
     bool writeDeviceContext(uint64_t addr, const DeviceContext& dc)
     {
       bool bigEnd = devDirTableBe();
-      bool extended = isDcExtended();
-      unsigned leafSize = devDirTableLeafSize(extended);
 
-      assert(leafSize <= sizeof(dc));
-      assert((leafSize % 8) == 0);
+      bool ok = memWriteDouble(addr, bigEnd, dc.transControl().value_);
+      addr += 8;
+      ok = memWriteDouble(addr, bigEnd, dc.iohgatp()) and ok;
+      addr += 8;
+      ok = memWriteDouble(addr, bigEnd, dc.transAttrib().value_) and ok;
+      addr += 8;
+      ok = memWriteDouble(addr, bigEnd, dc.firstStageContext()) and ok;
+      addr += 8;
 
-      const uint64_t* ptr = reinterpret_cast<const uint64_t*>(&dc);
-
-      bool ok = true;
-      for (unsigned i = 0; i < leafSize; i += 8, addr += 8, ++ptr)
-        ok = memWriteDouble(addr, bigEnd, *ptr) and ok;
-
+      if (isDcExtended())
+        {
+          ok = memWriteDouble(addr, bigEnd, dc.msiTablePointer()) and ok;
+          addr += 8;
+          ok = memWriteDouble(addr, bigEnd, dc.fullMsiMask()) and ok;
+          addr += 8;
+          ok = memWriteDouble(addr, bigEnd, dc.fullMsiPattern()) and ok;
+          addr += 8;
+          ok = memWriteDouble(addr, bigEnd, 0) and ok; // Reserved field.
+        }
       return ok;
     }
 
@@ -540,27 +553,58 @@ namespace TT_IOMMU
     { walk = processDirWalk_; }
 
     /// Return true if the given command is an ATS command (has the correct opcode).
-    bool isAtsCommand(const AtsCommand& cmd) const
+    static bool isAtsCommand(const AtsCommand& cmd) 
     { return cmd.isAts(); }
 
-    bool isAtsInvalCommand(const AtsCommand& cmd) const
+    static bool isAtsInvalCommand(const AtsCommand& cmd) 
     { return cmd.isInval(); }
     
-    bool isAtsPrgrCommand(const AtsCommand& cmd) const
+    static bool isAtsPrgrCommand(const AtsCommand& cmd) 
     { return cmd.isPrgr(); }
 
+    /// Return true if the given command is an IODIR command (has the correct opcode).
+    static bool isIodirCommand(const AtsCommand& cmd)
+    { return cmd.isIodir(); }
+
+    /// Return true if the given command is an IOFENCE command (has the correct opcode).
+    static bool isIofenceCommand(const AtsCommand& cmd) 
+    { return cmd.isIofence(); }
+
+    static bool isIofenceCCommand(const AtsCommand& cmd) 
+    { return cmd.isIofenceC(); }
+
+    /// Return true if the given command is an IOTINVAL command (has the correct opcode).
+    static bool isIotinvalCommand(const AtsCommand& cmd) 
+    { return cmd.isIotinval(); }
+
+    static bool isIotinvalVmaCommand(const AtsCommand& cmd) 
+    { return cmd.isIotinvalVma(); }
+
+    static bool isIotinvalGvmaCommand(const AtsCommand& cmd) 
+    { return cmd.isIotinvalGvma(); }
+
     /// Execute an ATS.INVAL command for address translation cache invalidation
-    void executeAtsInvalCommand(const AtsCommandData& cmdData);
-    
+    void executeAtsInvalCommand(const AtsCommand& cmd);
+
     /// Execute an ATS.PRGR command for page request group response
-    void executeAtsPrgrCommand(const AtsCommandData& cmdData);
+    void executeAtsPrgrCommand(const AtsCommand& cmd);
+
+    /// Execute an IODIR command
+    void executeIodirCommand(const AtsCommand& cmdData);
+
+    /// Execute an IOFENCE.C command for command queue fence
+    void executeIofenceCCommand(const AtsCommand& cmdData);
+
+    /// Execute an IOTINVAL command for page table cache invalidation (VMA or GVMA)
+    void executeIotinvalCommand(const AtsCommand& cmdData);
+
 
     /// Process pending page requests in the page request queue
     void processPageRequestQueue();
-    
+
     /// Send a page request to a device
     void sendPageRequest(uint32_t devId, uint32_t pid, uint64_t address, uint32_t prgi);
-    
+
     /// Check if a page request is pending for the given parameters
     bool isPageRequestPending(uint32_t devId, uint32_t pid, uint32_t prgi) const;
 
@@ -695,7 +739,7 @@ namespace TT_IOMMU
     /// PmaManager.
     void updateMemoryAttributes(unsigned pmacfgIx);
 
-  protected:
+  
 
     /// Return the configuration byte of a PMPCFG register corresponding to the PMPADDR
     /// register having the given index (index 0 corresponds to PMPADDR0). Given index
@@ -757,12 +801,13 @@ namespace TT_IOMMU
       uint32_t prgi;
       bool pidValid;
     };
-    
+
     std::vector<PageRequest> pendingPageRequests_;
 
+
     bool pmpEnabled_ = false;        // Physical memory protection (PMP)
-    unsigned pmpcfgCount_ = 0;       // Number of PMPCFG registers
-    unsigned pmpaddrCount_ = 0;      // Number of PMPADDR registers
+    uint64_t pmpcfgCount_ = 0;       // Number of PMPCFG registers
+    uint64_t pmpaddrCount_ = 0;      // Number of PMPADDR registers
     uint64_t pmpcfgAddr_ = 0;        // Address of first PMPCFG register
     uint64_t pmpaddrAddr_ = 0;       // Address of first PMPADDR register
 
@@ -772,7 +817,7 @@ namespace TT_IOMMU
     PmpManager pmpMgr_;
 
     bool pmaEnabled_ = false;        // Physical memory attributes (PMA)
-    unsigned pmacfgCount_ = 0;       // Count of PMACFG registers
+    uint64_t pmacfgCount_ = 0;       // Count of PMACFG registers
     uint64_t pmacfgAddr_ = 0;        // Address of first PMACFG register
 
     std::vector<uint64_t> pmacfg_;   // Cached values of PMACFG registers

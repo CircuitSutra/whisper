@@ -8,6 +8,12 @@ ifeq ($(BOOST_ROOT), /tools_vendor/FOSS/boost/1.82)
   CXXFLAGS += -D_GLIBCXX_USE_CXX11_ABI=0
 endif
 
+# Set to zero if the boost_iostreams library is not compiled with bzip2.
+WITH_BZIP2 = 1
+
+# Set to zero if the boost_iostreams library is not compiled with zstd.
+WITH_ZSTD = 1
+
 SRCS := TraceReader.cpp PageTableMaker.cpp
 OBJS := $(SRCS:.cpp=.o)
 DEPS := $(OBJS:.o=.d)
@@ -18,7 +24,7 @@ TraceReader.a: $(OBJS)
 	$(AR) cr $@ $^
 
 sample-reader: sample-reader.o TraceReader.a
-	$(CXX) -o $@ $^ -L$(BOOST_LIB_DIR) -lboost_iostreams -lz
+	$(CXX) -o $@ $^ -L$(BOOST_LIB_DIR) -l:libboost_iostreams.a -lz
 
 -include $(DEPS)
 

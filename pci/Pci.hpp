@@ -29,9 +29,7 @@ class Pci {
         config_mmio<T>(addr, data, w);
       else if (addr >= mmio_base_ and addr < (mmio_base_ + mmio_len_))
         mmio<T>(addr, data, w);
-
-      return;
-    }
+   }
 
     // Finds a device on buses and returns a pointer to it if it's registered.
     std::shared_ptr<PciDev> find_registered_device(unsigned bus, unsigned slot,
@@ -48,18 +46,18 @@ class Pci {
     }
 
     // Register a device to the bus.
-    bool register_device(std::shared_ptr<PciDev> dev, unsigned bus,
+    bool register_device(const std::shared_ptr<PciDev>& dev, unsigned bus,
                           unsigned slot)
     {
       if (bus >= buses_.size())
         {
-          std::cerr << "Error: bus location not instantiated" << std::endl;
+          std::cerr << "Error: bus location not instantiated" << '\n';
           return false;
         }
 
       if (slot >= buses_.at(bus).size())
         {
-          std::cerr << "Error: slot location not instantiated" << std::endl;
+          std::cerr << "Error: slot location not instantiated" << '\n';
           return false;
         }
 
@@ -91,7 +89,7 @@ class Pci {
                   continue;
                 }
 
-              std::cerr << "Error: Ran out of MMIO memory" << std::endl;
+              std::cerr << "Error: Ran out of MMIO memory" << '\n';
               return false;
             }
 
@@ -101,20 +99,20 @@ class Pci {
 
       if (not dev->setup())
         {
-          std::cerr << "Error: Failed to setup PCI device" << std::endl;
+          std::cerr << "Error: Failed to setup PCI device" << '\n';
           return false;
         }
 
       return true;
     }
 
-    void define_read_mem(const std::function<bool(uint64_t, size_t, uint64_t&)> f)
+    void define_read_mem(const std::function<bool(uint64_t, size_t, uint64_t&)>& f)
     { read_mem_ = f; }
 
-    void define_write_mem(const std::function<bool(uint64_t, size_t, uint64_t)> f)
+    void define_write_mem(const std::function<bool(uint64_t, size_t, uint64_t)>& f)
     { write_mem_ = f; }
 
-    void define_msi(const std::function<bool(uint64_t, unsigned, uint64_t)> f)
+    void define_msi(const std::function<bool(uint64_t, unsigned, uint64_t)>& f)
     { msi_ = f; }
 
   private:

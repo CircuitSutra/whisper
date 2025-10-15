@@ -28,8 +28,8 @@ namespace WdRiscv
   {
     /// Constructor: Either pass a valid r-form value or start with any
     /// value and then use an encode method.
-    RFormInst(uint32_t inst)
-    { code = inst; }
+    RFormInst(uint32_t inst) : code(inst)
+    { }
 
     /// Return top 5-bits of instruction (for atomic insts).
     unsigned top5() const
@@ -172,8 +172,8 @@ namespace WdRiscv
   {
     /// Constructor: Either pass a valid b-form value or start with any
     /// value and then use an encode method.
-    BFormInst(uint32_t inst)
-    { code = inst; }
+    BFormInst(uint32_t inst) : code(inst)
+    { }
 
     /// Return immediate value as signed.
     int32_t immed() const
@@ -219,8 +219,8 @@ namespace WdRiscv
   {
     /// Constructor: Either pass a valid i-form value or start with any
     /// value and then use an encode method.
-    IFormInst(uint32_t inst)
-    { code = inst; }
+    IFormInst(uint32_t inst) : code(inst)
+    { }
 
     /// Return immediate value as signed.
     int32_t immed() const
@@ -365,6 +365,18 @@ namespace WdRiscv
     /// Encode "csrrw rd, csr, rs" into this object.
     bool encodeCsrrci(uint32_t rd, uint32_t imm, uint32_t csr);
 
+    /// Encode "vle8.v vd, (rs1)" into this object.
+    bool encodeVle8_v(unsigned vd, unsigned rs1, bool masked);
+
+    /// Encode "vle16.v vd, (rs1)" into this object.
+    bool encodeVle16_v(unsigned vd, unsigned rs1, bool masked);
+
+    /// Encode "vle32.v vd, (rs1)" into this object.
+    bool encodeVle32_v(unsigned vd, unsigned rs1, bool masked);
+
+    /// Encode "vle64.v vd, (rs1)" into this object.
+    bool encodeVle64_v(unsigned vd, unsigned rs1, bool masked);
+
     uint32_t code;
 
     struct
@@ -405,8 +417,8 @@ namespace WdRiscv
   {
     /// Constructor: Either pass a valid s-form value or start with any
     /// value and then use an encode method.
-    SFormInst(uint32_t inst)
-    { code = inst; }
+    SFormInst(uint32_t inst) : code(inst)
+    { }
 
     /// Return immediate value as signed.
     int32_t immed() const
@@ -463,8 +475,8 @@ namespace WdRiscv
   {
     /// Constructor: Either pass a valid u-form value or start with
     /// any value and then use an encode method.
-    UFormInst(uint32_t inst)
-    { code = inst; }
+    UFormInst(uint32_t inst) : code(inst)
+    { }
 
     /// Return immediate value as signed.
     int32_t immed() const
@@ -492,8 +504,8 @@ namespace WdRiscv
   {
     /// Constructor: Either pass a valid u-form value or start with
     /// any value and then use an encode method.
-    JFormInst(uint32_t inst)
-    { code = inst; }
+    JFormInst(uint32_t inst) : code(inst)
+    { }
 
     /// Return immediate value as signed.
     int32_t immed() const
@@ -522,8 +534,8 @@ namespace WdRiscv
   {
     /// Constructor: Either pass a valid cb-form value or start with
     /// any value and then use an encode method.
-    CbFormInst(uint16_t inst)
-    { code = inst; }
+    CbFormInst(uint16_t inst) : code(inst)
+    { }
 
     /// Return immediate value encoded in this object.
     int immed() const
@@ -561,8 +573,8 @@ namespace WdRiscv
   /// c.sub, c.xor, c.or and c.and.
   union CaiFormInst
   {
-    CaiFormInst(uint16_t inst)
-    { code = inst; }
+    CaiFormInst(uint16_t inst) : code(inst)
+    { }
     
     int andiImmed() const
     {
@@ -611,8 +623,8 @@ namespace WdRiscv
   /// c.lui, c.lwsp, c.slli, c.ebreak, c.jalr and c.jr
   union CiFormInst
   {
-    CiFormInst(uint16_t inst)
-    { code = inst; }
+    CiFormInst(uint16_t inst) : code(inst)
+    { }
 
     uint32_t code;
 
@@ -685,8 +697,8 @@ namespace WdRiscv
   /// Pack/unpack cl-form instructions: c.lw, c.ld
   union ClFormInst
   {
-    ClFormInst(uint16_t inst)
-    { code = inst; }
+    ClFormInst(uint16_t inst) : code(inst)
+    { }
 
     uint32_t code;
 
@@ -721,8 +733,8 @@ namespace WdRiscv
   // Encode c.addi4spn
   union CiwFormInst
   {
-    CiwFormInst(uint16_t inst)
-    { code = inst; }
+    CiwFormInst(uint16_t inst) : code(inst)
+    { }
 
     uint32_t code;
 
@@ -754,8 +766,8 @@ namespace WdRiscv
   /// Pack/unpack compressed cj-form instructions: c.jal and c.j
   union CjFormInst
   {
-    CjFormInst(uint16_t inst)
-    { code = inst; }
+    CjFormInst(uint16_t inst) : code(inst)
+    { }
 
     uint32_t code;
 
@@ -788,8 +800,8 @@ namespace WdRiscv
   /// Pack/unpack c.swsp and similar instructions.
   union CswspFormInst
   {
-    CswspFormInst(uint16_t inst)
-    { code = inst; }
+    CswspFormInst(uint16_t inst) : code(inst)
+    { }
 
     uint32_t code;
 
@@ -822,8 +834,8 @@ namespace WdRiscv
   /// Pack/unpack c.sw and similar instructions.
   union CsFormInst
   {
-    CsFormInst(uint16_t inst)
-    { code = inst; }
+    CsFormInst(uint16_t inst) : code(inst)
+    { }
 
     uint32_t code;
 
@@ -858,8 +870,8 @@ namespace WdRiscv
   // Pack/unpack Zcb instructions (CLB, CSB, CLH, CSH. CU. and CMMV formats).
   union ClbFormInst
   {
-    ClbFormInst(uint16_t inst)
-    { code = inst; }
+    ClbFormInst(uint16_t inst) : code(inst)
+    { }
 
     unsigned funct1() const
     { return bits.uimm >> 1; }
@@ -1148,6 +1160,30 @@ namespace WdRiscv
   /// Return true on success and false if any of the arguments
   /// are out of bounds.
   bool encodeFld(uint32_t rd, uint32_t rs1, uint32_t offset, uint32_t& inst);
+
+  /// Encode "vle8.v vd, (rs1)": encodeVle8_v(vd, rs1, false, inst).
+  /// Encode "vle8.v vd, (rs1), v0.t": encodeVle8_v(vd, rs1, true, inst).
+  /// Return true on success and false if any of the arguments
+  /// are out of bounds.
+  bool encodeVle8_v(uint32_t vd, uint32_t rs1, bool masked, uint32_t& inst);
+
+  /// Encode "vle16.v vd, (rs1)": encodeVle16_v(vd, rs1, false, inst).
+  /// Encode "vle16.v vd, (rs1), v0.t": encodeVle16_v(vd, rs1, true, inst).
+  /// Return true on success and false if any of the arguments
+  /// are out of bounds.
+  bool encodeVle16_v(uint32_t vd, uint32_t rs1, bool masked, uint32_t& inst);
+
+  /// Encode "vle32.v vd, (rs1)": encodeVle32_v(vd, rs1, false, inst).
+  /// Encode "vle32.v vd, (rs1), v0.t": encodeVle32_v(vd, rs1, true, inst).
+  /// Return true on success and false if any of the arguments
+  /// are out of bounds.
+  bool encodeVle32_v(uint32_t vd, uint32_t rs1, bool masked, uint32_t& inst);
+
+  /// Encode "vle64.v vd, (rs1)": encodeVle64_v(vd, rs1, false, inst).
+  /// Encode "vle64.v vd, (rs1), v0.t": encodeVle64_v(vd, rs1, true, inst).
+  /// Return true on success and false if any of the arguments
+  /// are out of bounds.
+  bool encodeVle64_v(uint32_t vd, uint32_t rs1, bool masked, uint32_t& inst);
 
   /// Encode "fsw rs2, offset(rs1)": encodeFsw(rs1, rs2, offset, inst).
   /// The third argument (offset) is treaded as signed.

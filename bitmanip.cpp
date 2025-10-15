@@ -158,7 +158,7 @@ Hart<URV>::execOrc_b(const DecodedInst* di)
   auto bytes = std::bit_cast<std::array<uint8_t, sizeof(URV)>>(urv);
   for (size_t i = 0; i < bytes.size(); i++)
     {
-      bytes[i] = (bytes[i] == 0 ? 0 : UINT8_MAX);
+      bytes.at(i) = (bytes.at(i) == 0 ? 0 : UINT8_MAX);
     }
   urv = std::bit_cast<URV>(bytes);
 

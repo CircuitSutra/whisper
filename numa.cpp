@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 199309L
 #include <iostream>
 #include <fstream>
+#include <ranges>
 #include <sstream>
 #include <vector>
 #include <algorithm>
@@ -9,11 +10,12 @@
 #include <string>
 #include <thread>
 #include <optional>
-#include <time.h>
+#include <cmath>
+#include <ctime>
 #include <random>
 #include <unistd.h>
-#include <cmath>
-#include <string.h>
+#include <cstring>
+#include <cassert>
 
 static std::vector<int>
 parse_cpu_list(const std::string& cpu_list_str)
@@ -23,7 +25,7 @@ parse_cpu_list(const std::string& cpu_list_str)
 
     std::vector<int> cpus;
     while (std::getline(ss, part, ',')) {
-        size_t pos = part.find("-");
+        size_t pos = part.find('-');
         if (pos != std::string::npos) {
             int start = std::stoi(part.substr(0, pos));
             int end = std::stoi(part.substr(pos+1));
@@ -72,10 +74,10 @@ struct Stats {
     int idle;
 };
 
-static std::map<int, Stats>
+static std::map<unsigned, Stats>
 get_stats()
 {
-    std::map<int, Stats> stats;
+    std::map<unsigned, Stats> stats;
 
     std::ifstream file;
     file.open("/proc/stat");
@@ -101,9 +103,9 @@ get_stats()
                 break;
             }
         }
-        if (core_stats_line == "")
+        if (core_stats_line.empty())
             continue;
-        Stats core_stats;
+        Stats core_stats{};
         std::stringstream ss(core_stats_line);
         std::string stat;
         for (int i = 0; i < 5; i++) {
@@ -113,6 +115,7 @@ get_stats()
                 case 2: core_stats.nice   = std::stoi(stat); break;
                 case 3: core_stats.system = std::stoi(stat); break;
                 case 4: core_stats.idle   = std::stoi(stat); break;
+                default: assert(false);
             }
         }
         stats[core] = core_stats;
@@ -124,22 +127,22 @@ get_stats()
 static void
 sleep_double(double interval)
 {
-    double seconds;
+    double seconds = NAN;
     double fractional = modf(interval, &seconds);
     struct timespec req = {
         .tv_sec = (time_t) seconds,
         .tv_nsec = (long) (fractional*1e9)
     };
-    struct timespec rem;
+    struct timespec rem{};
     while (nanosleep(&req, &rem)) {
         req = rem;
     }
 }
 
-static std::map<int, int>
+static std::map<unsigned, int>
 get_cores_load(double interval)
 {
-    std::map<int, int> cores_load;
+    std::map<unsigned, int> cores_load;
 
     auto stats1 = get_stats();
     sleep_double(interval);
@@ -168,7 +171,7 @@ find_low_load_cluster(double max_load, unsigned cluster_size, double interval)
     auto cores_load = get_cores_load(interval);
 
     for (const auto& [node, cpus] : numa_nodes) {
-        std::vector<int> start_cpus;
+        std::vector<unsigned> start_cpus;
         for (auto cpu : cpus) {
             if (cpu % 2 == 0)
                 start_cpus.push_back(cpu);
@@ -176,9 +179,9 @@ find_low_load_cluster(double max_load, unsigned cluster_size, double interval)
 
         for (auto start_cpu : start_cpus) {
             std::vector<int> cluster;
-            for (unsigned i = 0; i < cluster_size; i++) {
+            for (int i = 0; i < int(cluster_size); i++) {
                 if (std::find(cpus.begin(), cpus.end(), start_cpu + i) != cpus.end())
-                    cluster.push_back(start_cpu + i);
+                    cluster.push_back(int(start_cpu) + i);
             }
 
             if (cluster.size() != cluster_size)
@@ -225,6 +228,7 @@ get_cpubind_cmd(unsigned cores, double max_load, std::string& error)
     return command;
 }
 
+// NOLINTBEGIN(*-avoid-c-arrays, cppcoreguidelines-pro-bounds-pointer-arithmetic)
 void
 attempt_numactl(int argc, char * argv[], unsigned cores, double max_load)
 {
@@ -232,21 +236,22 @@ attempt_numactl(int argc, char * argv[], unsigned cores, double max_load)
     for (int i = 0; i < argc; i++)
       if (strcmp(argv[i], "--numa") != 0)
         command_args.push_back(argv[i]);
-    command_args.push_back(NULL);
+    command_args.push_back(nullptr);
 
     std::string error;
     auto cpubind_command = get_cpubind_cmd(cores, max_load, error);
 
-    if (cpubind_command.size() == 0) {
+    if (cpubind_command.empty()) {
         std::cerr << error << ": running without CPU binding.\n";
         return;
     }
-    for (auto it = cpubind_command.rbegin(); it != cpubind_command.rend(); ++it)
-      command_args.insert(command_args.begin(), 1, strdup(it->c_str()));
+    for (auto & it : std::ranges::reverse_view(cpubind_command))
+      command_args.insert(command_args.begin(), 1, strdup(it.c_str()));
 
-    for (auto arg : command_args)
-      if (arg != NULL)
+    for (auto *arg : command_args)
+      if (arg != nullptr)
         std::cout << arg << " ";
     std::cout << "\n";
     execvp(command_args[0], command_args.data());
 }
+// NOLINTEND(*-avoid-c-arrays, cppcoreguidelines-pro-bounds-pointer-arithmetic)

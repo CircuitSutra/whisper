@@ -227,7 +227,7 @@ Hart<URV>::loadReserve(const DecodedInst* di, uint32_t rd, uint32_t rs1)
     return false;
 
   // Unsigned version of LOAD_TYPE
-  using ULT = typename std::make_unsigned<LOAD_TYPE>::type;
+  using ULT = std::make_unsigned_t<LOAD_TYPE>;
 
   uint64_t addr1 = virtAddr, addr2 = virtAddr;
   uint64_t gaddr1 = virtAddr;
@@ -280,6 +280,9 @@ Hart<URV>::loadReserve(const DecodedInst* di, uint32_t rd, uint32_t rs1)
 
   if (not hasOooVal)
     memRead(addr1, addr1, uval);
+
+  if (cacheBuffer_.max_size() and not cacheTraceFile_.empty())
+    traceCache(virtAddr, addr1, addr1, true, false, false, false, false);
 
   URV value = uval;
   if (not std::is_same<ULT, LOAD_TYPE>::value)
@@ -419,6 +422,9 @@ Hart<URV>::storeConditional(const DecodedInst* di, URV virtAddr, STORE_TYPE stor
   STORE_TYPE temp = 0;
   memPeek(addr1, addr2, temp, false /*usePma*/);
   ldStData_ = temp;
+
+  if (cacheBuffer_.max_size() and not cacheTraceFile_.empty())
+    traceCache(virtAddr, addr1, addr1, false, true, false, false, false);
 
   invalidateDecodeCache(addr1, sizeof(STORE_TYPE));
   return true;

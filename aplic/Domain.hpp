@@ -7,6 +7,7 @@
 #include <memory>
 #include <cassert>
 #include <algorithm>
+#include <optional>
 
 namespace TT_APLIC {
 
@@ -19,9 +20,9 @@ struct DomainParams {
     std::string name;
     std::optional<std::string> parent;
     std::optional<size_t> child_index;
-    uint64_t base;
-    uint64_t size;
-    Privilege privilege;
+    uint64_t base = 0;
+    uint64_t size = 0;
+    Privilege privilege {};
     std::vector<unsigned> hart_indices {};
     unsigned ipriolen = 8;
     unsigned eiidlen = 11;
@@ -35,8 +36,8 @@ struct DomainParams {
     uint32_t smsiaddrcfgh = 0;
 };
 
-typedef std::function<bool(unsigned hart_index, Privilege privilege, bool xeip)> DirectDeliveryCallback;
-typedef std::function<bool(uint64_t addr, uint32_t data)> MsiDeliveryCallback;
+using DirectDeliveryCallback = std::function<bool (unsigned int, Privilege, bool)>;
+using MsiDeliveryCallback = std::function<bool (uint64_t, uint32_t)>;
 
 enum SourceMode {
     Inactive,
@@ -223,6 +224,9 @@ class Domain
 
 public:
 
+    Domain(const Domain&) = delete;
+    Domain& operator=(const Domain&) = delete;
+
     const std::string& name() const { return params_.name; }
     std::shared_ptr<Domain> root() const;
     std::shared_ptr<Domain> parent() const { return parent_.lock(); }
@@ -231,6 +235,7 @@ public:
     uint64_t size() const { return params_.size; }
     Privilege privilege() const { return params_.privilege; }
     std::span<const unsigned> hartIndices() const { return params_.hart_indices; }
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     bool includesHart(unsigned hart_index) const {
         const auto& indices = params_.hart_indices;
         return std::find(indices.begin(), indices.end(), hart_index) != indices.end();
@@ -250,9 +255,7 @@ public:
     }
 
     bool containsAddr(uint64_t addr) const {
-        if (addr >= params_.base and addr < params_.base + params_.size)
-            return true;
-        return false;
+        return addr >= params_.base and addr < params_.base + params_.size;
     }
 
     uint32_t readDomaincfg() const { return domaincfg_.value; }
@@ -273,7 +276,7 @@ public:
         Sourcecfg new_sourcecfg{value};
         new_sourcecfg.legalize(children_.size());
 
-        auto old_sourcecfg = sourcecfg_[i];
+        auto old_sourcecfg = sourcecfg_.at(i);
 
         std::shared_ptr<Domain> new_child = new_sourcecfg.dx.d ? children_[new_sourcecfg.d1.child_index] : nullptr;
         std::shared_ptr<Domain> old_child = old_sourcecfg.dx.d ? children_[old_sourcecfg.d1.child_index] : nullptr;
@@ -283,18 +286,18 @@ public:
 
         bool riv_before = rectifiedInputValue(i);
         bool source_was_active = sourceIsActive(i);
-        sourcecfg_[i] = new_sourcecfg;
+        sourcecfg_.at(i) = new_sourcecfg;
         bool riv_after = rectifiedInputValue(i);
         bool source_is_active = sourceIsActive(i);
 
         bool riv_posedge = not riv_before and riv_after;
 
         if (not source_is_active) {
-            target_[i].value = 0;
+            target_.at(i).value = 0;
             clearIe(i);
             clearIp(i);
         } else if (not source_was_active and dmIsDirect()) {
-            target_[i].dm0.iprio = 1;
+            target_.at(i).dm0.iprio = 1;
         }
 
         if (sourceIsEdgeSensitive(i)) {
@@ -395,7 +398,7 @@ public:
         runCallbacksAsRequired();
     }
 
-    uint32_t readSetipnum() const { return 0; }
+    static uint32_t readSetipnum() { return 0; }
 
     void writeSetipnum(uint32_t value) {
         trySetIp(value);
@@ -406,7 +409,7 @@ public:
         assert(i < 32);
         uint32_t result = 0;
         for (unsigned j = 0; j < 32; j++) {
-            uint32_t bit = uint32_t(rectifiedInputValue(i*32+j));
+            auto bit = uint32_t(rectifiedInputValue(i*32+j));
             result |= bit << j;
         }
         return result;
@@ -421,7 +424,7 @@ public:
         runCallbacksAsRequired();
     }
 
-    uint32_t readClripnum() const { return 0; }
+    static uint32_t readClripnum() { return 0; }
 
     void writeClripnum(uint32_t value) {
         tryClearIp(value);
@@ -439,14 +442,14 @@ public:
         runCallbacksAsRequired();
     }
 
-    uint32_t readSetienum() const { return 0; }
+    static uint32_t readSetienum() { return 0; }
 
     void writeSetienum(uint32_t value) {
         setIe(value);
         runCallbacksAsRequired();
     }
 
-    uint32_t readClrie(unsigned /*i*/) const { return 0; }
+    static uint32_t readClrie(unsigned /*i*/) { return 0; }
 
     void writeClrie(unsigned i, uint32_t value) {
         assert(i < 32);
@@ -457,21 +460,21 @@ public:
         runCallbacksAsRequired();
     }
 
-    uint32_t readClrienum() const { return 0; }
+    static uint32_t readClrienum() { return 0; }
 
     void writeClrienum(uint32_t value) {
         clearIe(value);
         runCallbacksAsRequired();
     }
 
-    uint32_t readSetipnumLe() const { return 0; }
+    static uint32_t readSetipnumLe() { return 0; }
 
     void writeSetipnumLe(uint32_t value) {
         if (params_.le_supported)
             writeSetipnum(value);
     }
 
-    uint32_t readSetipnumBe() const { return 0; }
+    static uint32_t readSetipnumBe() { return 0; }
 
     void writeSetipnumBe(uint32_t value) {
         if (params_.be_supported)
@@ -497,7 +500,7 @@ public:
             return;
         Target target{value};
         target.legalize(DeliveryMode(domaincfg_.fields.dm), params_);
-        target_[i] = target;
+        target_.at(i) = target;
         updateTopi();
         runCallbacksAsRequired();
     }
@@ -531,7 +534,7 @@ public:
     uint32_t readClaimi(unsigned hart_index) {
         auto topi = idcs_.at(hart_index).topi;
         if (dmIsDirect()) {
-            auto sm = sourcecfg_[topi.fields.iid].d0.sm;
+            auto sm = sourcecfg_.at(topi.fields.iid).d0.sm;
             if (topi.value == 0)
                 idcs_.at(hart_index).iforce = 0;
             else if (sm == Detached or sm == Edge0 or sm == Edge1)
@@ -548,35 +551,35 @@ public:
             return false;
         if (i == 0) {
             if (msi_callback_) {
-                uint64_t addr = msiAddr(genmsi_.fields.hart_index, 0); 
+                uint64_t addr = msiAddr(genmsi_.fields.hart_index, 0);
                 uint32_t data = genmsi_.fields.eiid;
                 msi_callback_(addr, data);
-            }   
+            }
             genmsi_.fields.busy = 0;
         } else {
             if (msi_callback_) {
-                uint64_t addr = msiAddr(target_[i].dm1.hart_index, target_[i].dm1.guest_index);
-                uint32_t data = target_[i].dm1.eiid;
+                uint64_t addr = msiAddr(target_.at(i).dm1.hart_index, target_.at(i).dm1.guest_index);
+                uint32_t data = target_.at(i).dm1.eiid;
                 msi_callback_(addr, data);
-            }   
+            }
             clearIp(i);
         }
         return true;
     }
 
-    uint32_t peekDomaincfg()            { return domaincfg_.value; }
+    uint32_t peekDomaincfg() const            { return domaincfg_.value; }
     uint32_t peekSourcecfg(unsigned i)  { return sourcecfg_.at(i).value; }
-    uint32_t peekMmsiaddrcfg()          { return mmsiaddrcfg_; }
-    uint32_t peekMmsiaddrcfgh()         { return mmsiaddrcfgh_.value; }
-    uint32_t peekSmsiaddrcfg()          { return smsiaddrcfg_; }
-    uint32_t peekSmsiaddrcfgh()         { return smsiaddrcfgh_.value; }
+    uint32_t peekMmsiaddrcfg() const          { return mmsiaddrcfg_; }
+    uint32_t peekMmsiaddrcfgh() const         { return mmsiaddrcfgh_.value; }
+    uint32_t peekSmsiaddrcfg() const          { return smsiaddrcfg_; }
+    uint32_t peekSmsiaddrcfgh() const         { return smsiaddrcfgh_.value; }
     uint32_t peekSetip(unsigned i)      { return setip_.at(i); }
     uint32_t peekSetie(unsigned i)      { return setie_.at(i); }
-    uint32_t peekGenmsi()               { return genmsi_.value; }
+    uint32_t peekGenmsi() const               { return genmsi_.value; }
     uint32_t peekTarget(unsigned i)     { return target_.at(i).value; }
 
     void pokeDomaincfg(uint32_t value)              { domaincfg_.value = value; }
-    void pokeSourcecfg(unsigned i, uint32_t value)  { sourcecfg_[i].value = value; }
+    void pokeSourcecfg(unsigned i, uint32_t value)  { sourcecfg_.at(i).value = value; }
     void pokeMmsiaddrcfg(uint32_t value)            { mmsiaddrcfg_ = value; }
     void pokeMmsiaddrcfgh(uint32_t value)           { mmsiaddrcfgh_.value = value; }
     void pokeSmsiaddrcfg(uint32_t value)            { smsiaddrcfg_ = value; }
@@ -604,13 +607,11 @@ public:
 private:
     Domain(
         const Aplic *aplic,
-        std::shared_ptr<Domain> parent,
+        const std::shared_ptr<Domain>& parent,
         const DomainParams& domain_params
     );
-    Domain(const Domain&) = delete;
-    Domain& operator=(const Domain&) = delete;
 
-    bool use_be(uint64_t addr)
+    bool use_be(uint64_t addr) const
     {
         uint64_t offset = addr - params_.base;
         bool is_setipnum_le = offset == 0x2000;
@@ -631,6 +632,7 @@ private:
         assert(addr % 4 == 0);
         assert(addr >= params_.base and addr < params_.base + params_.size);
         uint64_t offset = addr - params_.base;
+        // NOLINTBEGIN(bugprone-switch-missing-default-case)
         switch (offset) {
             case 0x0000: return readDomaincfg();
             case 0x1bc0: return readMmsiaddrcfg();
@@ -644,29 +646,30 @@ private:
             case 0x2000: return readSetipnumLe();
             case 0x2004: return readSetipnumBe();
             case 0x3000: return readGenmsi();
+            default: ;
         }
 
         if (offset >= 0x0004 and offset <= 0x0ffc) {
             unsigned i = offset/4;
             return readSourcecfg(i);
-        } else if (offset >= 0x1c00 and offset <= 0x1c7c) {
+        } if (offset >= 0x1c00 and offset <= 0x1c7c) {
             unsigned i = (offset - 0x1c00)/4;
             return readSetip(i);
-        } else if (offset >= 0x1d00 and offset <= 0x1d7c) {
+        } if (offset >= 0x1d00 and offset <= 0x1d7c) {
             unsigned i = (offset - 0x1d00)/4;
             return readInClrip(i);
-        } else if (offset >= 0x1e00 and offset <= 0x1e7c) {
+        } if (offset >= 0x1e00 and offset <= 0x1e7c) {
             unsigned i = (offset - 0x1e00)/4;
             return readSetie(i);
-        } else if (offset >= 0x1f00 and offset <= 0x1f7c) {
+        } if (offset >= 0x1f00 and offset <= 0x1f7c) {
             unsigned i = (offset - 0x1f00)/4;
             return readClrie(i);
-        } else if (offset >= 0x3004 and offset <= 0x3ffc) {
+        } if (offset >= 0x3004 and offset <= 0x3ffc) {
             unsigned i = (offset - 0x3000)/4;
             return readTarget(i);
-        } else if (offset >= 0x4000) {
+        } if (offset >= 0x4000) {
             unsigned hart_index = (offset - 0x4000)/32;
-            unsigned idc_offset = (offset - 0x4000) - 32*hart_index;
+            unsigned idc_offset = (offset - 0x4000) - static_cast<uint32_t>(32*hart_index);
             if (hart_index >= idcs_.size())
                 return 0;
             switch (idc_offset) {
@@ -675,8 +678,10 @@ private:
                 case 0x08: return readIthreshold(hart_index);
                 case 0x18: return readTopi(hart_index);
                 case 0x1c: return readClaimi(hart_index);
+                default: ;
             }
         }
+        // NOLINTEND(bugprone-switch-missing-default-case)
 
         return 0;
     }
@@ -693,6 +698,7 @@ private:
         assert(addr % 4 == 0);
         assert(addr >= params_.base and addr < params_.base + params_.size);
         uint64_t offset = addr - params_.base;
+        // NOLINTBEGIN(bugprone-switch-missing-default-case)
         switch (offset) {
             case 0x0000: writeDomaincfg(data); return;
             case 0x1bc0: writeMmsiaddrcfg(data); return;
@@ -706,6 +712,7 @@ private:
             case 0x2000: writeSetipnumLe(data); return;
             case 0x2004: writeSetipnumBe(data); return;
             case 0x3000: writeGenmsi(data); return;
+            default: ;
         }
         if (offset >= 0x0004 and offset <= 0x0ffc) {
             unsigned i = offset/4;
@@ -727,7 +734,7 @@ private:
             writeTarget(i, data);
         } else if (offset >= 0x4000) {
             unsigned hart_index = (offset - 0x4000)/32;
-            unsigned idc_offset = (offset - 0x4000) - 32*hart_index;
+            unsigned idc_offset = (offset - 0x4000) - static_cast<uint32_t>(32*hart_index);
             if (hart_index >= idcs_.size())
                 return;
             switch (idc_offset) {
@@ -736,21 +743,23 @@ private:
                 case 0x08: writeIthreshold(hart_index, data); return;
                 case 0x18: writeTopi(hart_index, data); return;
                 case 0x1c: writeClaimi(hart_index, data); return;
+                default: ;
             }
+        // NOLINTEND(bugprone-switch-missing-default-case)
         }
     }
 
-    void setDirectCallback(DirectDeliveryCallback callback)
+    void setDirectCallback(const DirectDeliveryCallback& callback)
     {
         direct_callback_ = callback;
-        for (auto child : children_)
+        for (const auto& child : children_)
             child->setDirectCallback(callback);
     }
 
-    void setMsiCallback(MsiDeliveryCallback callback)
+    void setMsiCallback(const MsiDeliveryCallback& callback)
     {
         msi_callback_ = callback;
-        for (auto child : children_)
+        for (const auto& child : children_)
             child->setMsiCallback(callback);
     }
 
@@ -759,12 +768,12 @@ private:
     void edge(unsigned i)
     {
         assert(i > 0 && i < 1024);
-        if (sourcecfg_[i].dx.d) {
-            children_[sourcecfg_[i].d1.child_index]->edge(i);
+        if (sourcecfg_.at(i).dx.d) {
+            children_[sourcecfg_.at(i).d1.child_index]->edge(i);
             return;
         }
         auto riv = rectifiedInputValue(i);
-        auto sm = sourcecfg_[i].d0.sm;
+        auto sm = sourcecfg_.at(i).d0.sm;
         if (sm == Edge1 or sm == Edge0) {
             if (riv)
                 setIp(i);
@@ -800,7 +809,7 @@ private:
     {
         if (not sourceIsActive(i))
             return false;
-        auto sm = sourcecfg_[i].d0.sm;
+        auto sm = sourcecfg_.at(i).d0.sm;
         return sm == Level1 or sm == Level0;
     }
 
@@ -808,7 +817,7 @@ private:
     {
         if (not sourceIsActive(i))
             return false;
-        auto sm = sourcecfg_[i].d0.sm;
+        auto sm = sourcecfg_.at(i).d0.sm;
         return sm == Edge1 or sm == Edge0;
     }
 
@@ -826,12 +835,12 @@ private:
     void undelegate(unsigned i)
     {
         assert(i > 0 && i < 1024);
-        if (sourcecfg_[i].dx.d) {
-            auto child = children_[sourcecfg_[i].d1.child_index];
+        if (sourcecfg_.at(i).dx.d) {
+            auto child = children_[sourcecfg_.at(i).d1.child_index];
             child->undelegate(i);
         }
-        sourcecfg_[i] = Sourcecfg{};
-        target_[i] = Target{};
+        sourcecfg_.at(i) = Sourcecfg{};
+        target_.at(i) = Target{};
         clearIp(i);
         clearIe(i);
     }
@@ -840,7 +849,7 @@ private:
     {
         if (not sourceIsActive(i))
             return;
-        switch (sourcecfg_[i].d0.sm) {
+        switch (sourcecfg_.at(i).d0.sm) {
             case Detached:
             case Edge0:
             case Edge1:
@@ -859,7 +868,7 @@ private:
     {
         if (not sourceIsActive(i))
             return;
-        switch (sourcecfg_[i].d0.sm) {
+        switch (sourcecfg_.at(i).d0.sm) {
             case Detached:
             case Edge0:
             case Edge1:
@@ -882,13 +891,13 @@ private:
         if (set and not sourceIsActive(i))
             return;
         auto& setix = ie ? setie_ : setip_;
-        uint32_t value = setix[i/32];
+        uint32_t value = setix.at(i/32);
         uint32_t one_hot = 1 << (i % 32);
         if (set)
             value |= one_hot;
         else
             value &= ~one_hot;
-        setix[i/32] = value;
+        setix.at(i/32) = value;
         updateTopi();
     }
 
@@ -913,12 +922,12 @@ private:
 
     Domaincfg domaincfg_;
     std::array<Sourcecfg, 1024> sourcecfg_;
-    uint32_t     mmsiaddrcfg_;
+    uint32_t     mmsiaddrcfg_ = 0U;
     Mmsiaddrcfgh mmsiaddrcfgh_;
-    uint32_t     smsiaddrcfg_;
+    uint32_t     smsiaddrcfg_ = 0U;
     Smsiaddrcfgh smsiaddrcfgh_;
-    std::array<uint32_t, 32> setip_;
-    std::array<uint32_t, 32> setie_;
+    std::array<uint32_t, 32> setip_{};
+    std::array<uint32_t, 32> setie_{};
     Genmsi genmsi_;
     std::array<Target, 1024> target_;
     std::vector<Idc> idcs_;

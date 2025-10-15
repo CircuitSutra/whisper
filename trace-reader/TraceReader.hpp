@@ -98,7 +98,7 @@ namespace WhisperUtil  {
 
       // compare modified regs, the order may or may not match
       if (modifiedRegs.size() != rhs.modifiedRegs.size()) return false;
-      for (auto &it: modifiedRegs) {
+      for (const auto &it: modifiedRegs) {
         if (std::find(rhs.modifiedRegs.begin(), rhs.modifiedRegs.end(), it) == rhs.modifiedRegs.end()) {
           return false;
         }
@@ -106,7 +106,7 @@ namespace WhisperUtil  {
 
       // compare source operands, the order may or may not match
       if (sourceOperands.size() != rhs.sourceOperands.size()) return false;
-      for (auto &it : sourceOperands) {
+      for (const auto &it : sourceOperands) {
         if (std::find(rhs.sourceOperands.begin(), rhs.sourceOperands.end(), it) == rhs.sourceOperands.end()) {
           return false;
         }
@@ -114,7 +114,7 @@ namespace WhisperUtil  {
       
       // compare contextCSRs, ignoring the value for now
       if (contextCSRs.size() != rhs.contextCSRs.size()) return false;
-      for (auto &it : contextCSRs) {
+      for (const auto &it : contextCSRs) {
         auto rhsit = std::find_if(rhs.contextCSRs.begin(), rhs.contextCSRs.end(), [&](const std::pair<unsigned, uint64_t> &rhs) {
           return rhs.first == it.first;
         });
@@ -127,7 +127,7 @@ namespace WhisperUtil  {
 
       // compare dpteAddrs between the records
       if (dpteAddrs.size() != rhs.dpteAddrs.size()) return false;
-      for (auto &it : dpteAddrs) {
+      for (const auto &it : dpteAddrs) {
         auto rhsit = std::find(rhs.dpteAddrs.begin(), rhs.dpteAddrs.end(), it);
         if (rhsit == rhs.dpteAddrs.end()) return false;
       }
@@ -156,7 +156,7 @@ namespace WhisperUtil  {
 
       // compare modified regs, the order may or may not match
       if (modifiedRegs.size() != rhs.modifiedRegs.size()) return true;
-      for (auto &it: modifiedRegs) {
+      for (const auto &it: modifiedRegs) {
         if (std::find(rhs.modifiedRegs.begin(), rhs.modifiedRegs.end(), it) == rhs.modifiedRegs.end()) {
           return true;
         }
@@ -164,14 +164,14 @@ namespace WhisperUtil  {
 
       // compare source operands, the order may or may not match
       if (sourceOperands.size() != rhs.sourceOperands.size()) return true;
-      for (auto &it : sourceOperands) {
+      for (const auto &it : sourceOperands) {
         if (std::find(rhs.sourceOperands.begin(), rhs.sourceOperands.end(), it) == rhs.sourceOperands.end()) {
           return true;
         }
       }
 
       if (contextCSRs.size() != rhs.contextCSRs.size()) return true;
-      for (auto &it : contextCSRs) {
+      for (const auto &it : contextCSRs) {
         auto rhsit = std::find_if(rhs.contextCSRs.begin(), rhs.contextCSRs.end(), [&](const std::pair<unsigned, uint64_t> &rhs) {
           return rhs.first == it.first;
         });
@@ -183,7 +183,7 @@ namespace WhisperUtil  {
       if (maskedAddrs != rhs.maskedAddrs) return true;
 
       if (dpteAddrs.size() != rhs.dpteAddrs.size()) return true;
-      for (auto &it : dpteAddrs) {
+      for (const auto &it : dpteAddrs) {
         auto rhsit = std::find(rhs.dpteAddrs.begin(), rhs.dpteAddrs.end(), it);
         if (rhsit == rhs.dpteAddrs.end()) return true;
       }
@@ -200,9 +200,6 @@ namespace WhisperUtil  {
 
     // Clear this record.
     void clear();
-
-    // Print this record to the given stream
-    void print(std::ostream& os) const;
 
     // Return true if this is a floating point instruction.
     bool isFp() const
@@ -295,13 +292,16 @@ namespace WhisperUtil  {
     bool isIllegal() const
     { return inst == 0 or ~inst == 0; }
 
+    // Return the instruction name.
+    std::string instructionName() const
+    {
+      auto pos = assembly.find(' ');
+      if (pos == std::string::npos)
+        return assembly;
+      return assembly.substr(0, pos);
+    }
   };
 
-  inline std::ostream & operator<<(std::ostream & os, const TraceRecord & data)
-  {
-    data.print(os);
-    return os;
-  }
 
   // Reader for whisper CSV log file.
   // Samle usage:
@@ -309,7 +309,7 @@ namespace WhisperUtil  {
   //   TraceReader reader;
   //   while (reader.nextRecord(record))
   //     {
-  //        record.print(std::cout);
+  //        reader.printRecord(std::cout, record);
   //     }
   class TraceReader
   {
@@ -397,6 +397,63 @@ namespace WhisperUtil  {
     const std::vector<uint8_t>& vecRegValue(unsigned ix) const
     { return vecRegs_.at(ix); }
 
+    /// Return the current value of the vector start (VL) CSR.
+    uint64_t vstartValue() const
+    { return csrValue(0x8); }
+
+    /// Return the current value of the vector length (VL) CSR.
+    uint64_t vlValue() const
+    { return csrValue(0xc20); }
+
+    /// Return the current value of the vector type (VTYPE) CSR.
+    uint64_t vtypeValue() const
+    { return csrValue(0xc21); }
+
+    /// Retrun the raw vector group multiplier (from the current value of the VTYPE CSR).
+    /// Encoding: m1=0, m2=1, m4=2, m8=3, reserved=4, mf8=5, mf4=6, mf2=7
+    unsigned rawLmul() const
+    { return vtypeValue() & 7; }
+
+    /// Return the group multiplier times 8: mf8=1, mf4=2, mf2=1, m1=8, m2=16, m4=32,
+    /// m8=64.  Return zero if lmul value is reserved.
+    unsigned groupMultiplierX8() const
+    {
+      unsigned raw = rawLmul();
+      assert(raw < 8);
+
+      if (raw == 4)
+        return 0;
+
+      if (raw < 4)
+        return (1 << raw)*8;
+
+      return (1 << (raw-5));
+    }
+
+    /// Return the raw SEW field  from the current value of the VTYPE CSR.
+    unsigned rawSew() const
+    { return vtypeValue() >> 3 & 7; }
+
+    /// Return the vector element width (in bytes) from the current value of the VTYPE
+    /// CSR.
+    unsigned vecElemWidthInBytes() const
+    { return 1 << rawSew(); }
+
+    /// Return the tail aganostic (VTA) flag from the current value of the VTYPE CSR.
+    bool tailAgnostic() const
+    { return (vtypeValue() >> 6) & 1; }
+
+    /// Return the mask aganostic (VMA) flag from the current value of the VTYPE CSR.
+    bool maskAgnostic() const
+    { return (vtypeValue() >> 7) & 1; }
+
+    /// Return the illegal flag (VILL) from the current value of the VTYPE CSR. This is a
+    /// hack. We need to know whether we are in RV32 or RV64 to do this right.
+    bool vtypeVill() const
+    { return ((vtypeValue() >> 31) & 1) | ((vtypeValue() >> 63) & 1); }
+
+    void printRecord(std::ostream& stream, const TraceRecord& record) const;
+
   protected:
 
     /// Read the file containing initial vlues of registers.
@@ -404,6 +461,7 @@ namespace WhisperUtil  {
 
     // Extract a pair of addresses from the given field. Return true on
     // success and false on failure.
+    static
     bool extractAddressPair(uint64_t lineNum, const char* tag,
 			    const char* pairString,
 			    uint64_t& virt, uint64_t& phys,
@@ -430,7 +488,7 @@ namespace WhisperUtil  {
 
   private:
 
-    typedef std::vector<uint8_t> VecReg;
+    using VecReg = std::vector<uint8_t>;
 
     std::vector<uint64_t> intRegs_;
     std::vector<uint64_t> fpRegs_;

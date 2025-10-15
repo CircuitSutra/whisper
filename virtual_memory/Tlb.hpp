@@ -380,34 +380,36 @@ namespace WdRiscv
 
     /// Return the size of a page/megapage for the given mode and TLB entry level in units
     /// of 4k-bytes.
-    uint64_t sizeIn4kBytes(Mode mode, unsigned level) const
+    static uint64_t sizeIn4kBytes(Mode mode, unsigned level) 
     {
       if (mode == Mode::Bare)
         return 0;
 
       if (level <= 1) return 1;                 // 4K bytes
 
+      uint64_t k = 1024;
+
       if (mode == Mode::Sv32)
         {
-          if (level == 2) return 1024;          // 4M bytes
+          if (level == 2) return k  ;          // 4M bytes
         }
       else if (mode == Mode::Sv39)
         {
           if (level == 2) return 512;           // 2M bytes
-          if (level == 3) return 256*1024;      // 1G bytes
+          if (level == 3) return 256*k;         // 1G bytes
         }
       else if (mode == Mode::Sv48)
         {
           if (level == 2) return 512;           // 2M bytes
-          if (level == 3) return 256*1024;      // 1G bytes
-          if (level == 4) return 128*1024*1024; // 512G bytes
+          if (level == 3) return 256*k;         // 1G bytes
+          if (level == 4) return 128*k*k;       // 512G bytes
         }
       else if (mode == Mode::Sv57)
         {
           if (level == 2) return 512;           // 2M bytes
-          if (level == 3) return 256*1024;      // 1G bytes
-          if (level == 4) return 128*1024*1024; // 512G bytes
-          if (level == 5) return uint64_t(64)*1024*1204*1024;  // 256T bytes
+          if (level == 3) return 256*k;         // 1G bytes
+          if (level == 4) return 128*k*k;       // 512G bytes
+          if (level == 5) return 64*k*k*k;      // 256T bytes
         }
 
       assert(0 && "Error: Assertion failed");
@@ -424,7 +426,7 @@ namespace WdRiscv
     inline TlbEntry* getEntry(uint64_t pageNum)
     {
       unsigned ix = pageNum & (entries_.size() - 1);
-      return (entries_.size())? &entries_.at(ix) : nullptr;
+      return (!entries_.empty())? &entries_.at(ix) : nullptr;
     }
 
     std::vector<TlbEntry> entries_;

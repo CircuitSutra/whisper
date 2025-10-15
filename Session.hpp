@@ -31,6 +31,7 @@
 #include <memory>               // For shared_ptr
 #include "System.hpp"
 #include "Args.hpp"
+#include "util.hpp"
 
 
 namespace WdRiscv
@@ -43,7 +44,7 @@ namespace WdRiscv
   public:
 
     /// Constructor.
-    Session();
+    Session() = default;
 
     /// Define a system. Basic system parameters (like number of harts) are taken form
     /// configuration object (likely populated from a JSON config file) and the command
@@ -82,9 +83,6 @@ namespace WdRiscv
     /// line. Return true if successful or false if any specified file fails to open.
     bool openUserFiles(const Args& args);
 
-    /// Close files opened by openUserFiles.
-    void closeUserFiles();
-
     /// Check if running an app linked with newlib/linuux CLIB.
     void checkForNewlibOrLinux(const Args& args, bool& newlib, bool& linux);
 
@@ -117,11 +115,11 @@ namespace WdRiscv
 
   private:
 
-    std::vector<FILE*> traceFiles_;
-    FILE* commandLog_ = nullptr;
-    FILE* consoleOut_ = nullptr;
-    FILE* bblockFile_ = nullptr;
-    FILE* initStateFile_ = nullptr;
+    std::vector<util::file::SharedFile> traceFiles_;
+    util::file::SharedFile commandLog_;
+    util::file::SharedFile consoleOut_;
+    util::file::SharedFile bblockFile_;
+    util::file::SharedFile initStateFile_;
 
     bool doGzip_ = false;
 

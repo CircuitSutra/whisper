@@ -56,14 +56,16 @@ Memory::Memory(uint64_t size, uint64_t pageSize)
 
 #ifndef MEM_CALLBACKS
 
+  errno = 0;
   void* mem = mmap(nullptr, size_, PROT_READ | PROT_WRITE,
 		   MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
-  if (mem == (void*) -1)
+  if (errno != 0)
     {
       std::cerr << "Error: Failed to map " << size_ << " bytes using mmap.\n";
       throw std::runtime_error("Out of memory");
     }
 
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
   data_ = reinterpret_cast<uint8_t*>(mem);
 
 #endif
@@ -119,7 +121,7 @@ Memory::loadHexFile(const std::string& fileName)
 	      continue;
 	    }
 	  char* end = nullptr;
-	  addr = std::strtoull(line.c_str() + 1, &end, 16);
+	  addr = std::strtoull(&line.at(1), &end, 16);
 	  if (end and *end and not isspace(*end))
 	    {
 	      std::cerr << "Error: File " << fileName << ", Line " << lineNum << ": "
@@ -212,7 +214,7 @@ Memory::loadBinaryFile(const std::string& fileName, uint64_t addr)
   // unmapped and out of bounds addresses
   size_t unmappedCount = 0, oob = 0, num = 0;
 
-  char b;
+  char b = 0;
   while (input.get(b))
     {
       if (addr < size_)
@@ -254,22 +256,23 @@ Memory::loadBinaryFile(const std::string& fileName, uint64_t addr)
 }
 
 
-std::pair<std::unique_ptr<uint8_t[]>, size_t>
-Memory::loadFile(const std::string& filename)
+void
+Memory::loadFile(const std::string& filename, std::vector<uint8_t>& data)
 {
-  std::streampos length;
+
   std::ifstream f(filename, std::ios::binary);
   if (f.fail())
     throw std::runtime_error("Failed to load LZ4 file");
 
   f.seekg(0, std::ios::end);
-  length = f.tellg();
+  std::streampos length = f.tellg();
   f.seekg(0, std::ios::beg);
 
-  auto data = std::make_unique<uint8_t[]>(length);
-  f.read((char *)&data[0], length);
+  data.clear();
+  data.resize(length);
 
-  return std::make_pair(std::move(data), std::move(length));
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+  f.read(reinterpret_cast<char*>(data.data()), length);
 }
 
 #define BLOCK_SIZE (4*1024*1024)
@@ -285,10 +288,13 @@ Memory::loadLz4File(const std::string& fileName, uint64_t addr)
   if (LZ4F_isError(ret))
     throw std::runtime_error("Couldn't initialize LZ4 context");
 
-  auto [src, src_size] = loadFile(fileName);
-  size_t dst_size = BLOCK_SIZE;
-  auto dst = std::make_unique<uint8_t[]>(dst_size);
+  std::vector<uint8_t> src;
+  loadFile(fileName, src);
+  auto src_size = src.size();
   size_t src_offset = 0;
+
+  size_t dst_size = BLOCK_SIZE;
+  std::vector<uint8_t> dst(dst_size);
 
   size_t unmappedCount = 0, num = 0;  // Unmapped addresses, byte in file.
 
@@ -297,7 +303,8 @@ Memory::loadLz4File(const std::string& fileName, uint64_t addr)
       size_t src_bytes_read = src_size;
       size_t dst_bytes_written = dst_size;
 
-      size_t ret = LZ4F_decompress(dctx, dst.get(), &dst_bytes_written, &src[src_offset], &src_bytes_read, NULL);
+      size_t ret = LZ4F_decompress(dctx, dst.data(), &dst_bytes_written,
+                                   &src.at(src_offset), &src_bytes_read, NULL);
       if (LZ4F_isError(ret))
         throw std::runtime_error("LZ4F_decompress failed");
 
@@ -312,7 +319,7 @@ Memory::loadLz4File(const std::string& fileName, uint64_t addr)
               Pma pma;
               if (not pmaMgr_.overlapsMemMappedRegs(addr, addr + pageSize_ - 1))
                 {
-                  uint8_t* data = dst.get() + n;
+                  uint8_t* data = &dst.at(n);
                   bool allZero = *data == 0 && memcmp(data, data + 1, pageSize_ - 1) == 0;
                   if (not allZero)
                     if (not initializePage(addr, std::span(data, pageSize_)))
@@ -327,7 +334,7 @@ Memory::loadLz4File(const std::string& fileName, uint64_t addr)
 	  if (addr < size_)
 	    {
 	      // Speed things up by not initalizing zero bytes
-              char b = dst[n];
+              uint8_t b = dst.at(n);
 	      if (b and not initializeByte(addr, b))
 		{
 		  if (unmappedCount == 0)
@@ -379,8 +386,8 @@ Memory::loadElfSegment(ELFIO::elfio& reader, int segIx, uint64_t& end)
   size_t unmappedCount = 0;
 
   // Load segment directly.
-  const char* segData = seg->get_data();
-  for (size_t i = 0; i < segSize; ++i)
+  std::span segData(seg->get_data(), segSize);
+  for (size_t i = 0; i < segData.size(); ++i)
     {
       if (not initializeByte(paddr + i, segData[i]))
         {
@@ -407,12 +414,13 @@ bool
 extractUleb128(std::istream& in, Uint128& value)
 {
   value = 0;
-  uint8_t byte = 0;
+  char ch = 0;
   unsigned shift = 0;
   unsigned count = 0;
 
-  while (in.read((char*) &byte, 1) and count < 19)
+  while (in.read(&ch, 1) and count < 19)
     {
+      auto byte = std::bit_cast<uint8_t>(ch);
       uint8_t msb = byte >> 7;  // Most sig bit
       byte = (byte << 1) >> 1;  // Clear most sig bit
       value = value | (Uint128(byte) << shift);
@@ -430,6 +438,7 @@ bool
 Memory::collectElfRiscvTags(const std::string& fileName,
                             std::vector<std::string>& tags)
 {
+  // NOLINTNEXTLINE(clang-analyzer-optin.cplusplus.VirtualCall)
   ELFIO::elfio reader;
 
   if (not reader.load(fileName))
@@ -451,7 +460,7 @@ Memory::collectElfRiscvTags(const std::string& fileName,
       // 1st char is format verion. Currently supported version is 'A'.
       std::string dataString(secData, size);
       std::istringstream iss(dataString);
-      char version;
+      char version = 0;
       iss.read(&version, 1);
       if (not iss or version != 'A')
         {
@@ -461,6 +470,7 @@ Memory::collectElfRiscvTags(const std::string& fileName,
 
       // Next is a 4-byte section length.
       uint32_t secLen = 0;
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
       iss.read((char*) &secLen, sizeof(secLen));
 
       // Next is a null terminated string containing vendor name.
@@ -468,17 +478,18 @@ Memory::collectElfRiscvTags(const std::string& fileName,
       std::getline(iss, vendorName, '\0');
 
       // Next is tag: file (1), section(2) or symbol(3).
-      uint8_t tag = 0;
+      char tag = 0;
       iss.read((char*) &tag, sizeof(tag));
       if (not iss or tag != 1)
         {
-          std::cerr << "Error: Unexpected ELF RISCV section tag: " << tag << "(expecting 1)\n";
+          std::cerr << "Error: Unexpected ELF RISCV section tag: " << unsigned(tag) << "(expecting 1)\n";
           return false;
         }
 
       // Next is a 4-byte attributes size including tag and size.
       // https://embarc.org/man-pages/as/RISC_002dV_002dATTRIBUTE.html#RISC_002dV_002dATTRIBUTE
       uint32_t attribsSize = 0;
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
       iss.read((char*) &attribsSize, sizeof(attribsSize));
       if (not iss)
         {
@@ -551,7 +562,7 @@ Memory::collectElfSymbols(ELFIO::elfio& reader)
       const ELFIO::symbol_section_accessor symAccesor(reader, sec);
       ELFIO::Elf64_Addr address = 0;
       ELFIO::Elf_Xword size = 0;
-      unsigned char bind, type, other;
+      unsigned char bind = 0, type = 0, other = 0;
       ELFIO::Elf_Half index = 0;
 
       // Finding symbol by name does not work. Walk all the symbols.
@@ -810,7 +821,7 @@ Memory::isSymbolInElfFile(const std::string& path, const std::string& target)
       const ELFIO::symbol_section_accessor symAccesor(reader, sec);
       ELFIO::Elf64_Addr address = 0;
       ELFIO::Elf_Xword size = 0;
-      unsigned char bind, type, other;
+      unsigned char bind = 0, type = 0, other = 0;
       ELFIO::Elf_Half index = 0;
 
       // Finding symbol by name does not work. Walk all the symbols.
@@ -896,6 +907,7 @@ Memory::saveSnapshot_gzip(const std::string& filename,
 	}
       uint8_t* buffer = reinterpret_cast<uint8_t*>(temp.data());
 #else
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
       uint8_t* buffer = data_ + blk.first;
 #endif
       std::cerr << "*";
@@ -909,6 +921,8 @@ Memory::saveSnapshot_gzip(const std::string& filename,
           if (not success)
             break;
           remainingSize -= currentChunk;
+
+          // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
           buffer += currentChunk;
         }
       if (not success)
@@ -1428,7 +1442,7 @@ Memory::saveAddressTrace(std::string_view tag, const LineMap& lineMap,
 
   for (auto vaddr : addrVec)
     {
-      auto& entry = lineMap.at(vaddr);
+      const auto& entry = lineMap.at(vaddr);
       if (skipClean and entry.clean)
         continue;
 
@@ -1540,9 +1554,14 @@ Memory::initializeByte(uint64_t addr, uint8_t value)
   // We initialize both the memory-mapped-register and the external
   // memory to match/simplify the test-bench.
   if (writeCallback_)
-    writeCallback_(addr, 1, value);
+    {
+      writeCallback_(addr, 1, value);
+    }
   else
-    data_[addr] = value;
+    {
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+      data_[addr] = value;
+    }
   return true;
 }
 
@@ -1562,6 +1581,7 @@ Memory::initializePage(uint64_t addr, const std::span<uint8_t> buffer)
 
 #ifndef MEM_CALLBACKS
 
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
   memcpy(data_ + addr, buffer.data(), pageSize_);
   return true;
 

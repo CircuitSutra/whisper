@@ -14,6 +14,8 @@
 
 #pragma once
 
+#include <cstdint>
+
 // If using C++23 or later and std::float16_t is defined, use it.
 #if defined(__STDCPP_FLOAT16_T__)
 #include <stdfloat>
@@ -38,7 +40,17 @@ namespace std
 
 inline auto copysign(Float16 a, Float16 b)
 {
-  return __builtin_copysignf16(a, b);
+  union UF
+  {
+    UF(Float16 x) : f(x)
+    { }
+    uint16_t u;
+    Float16 f;
+  };
+
+  UF aa{a}, bb{b};
+  aa.u = (aa.u & 0x7fff) | (bb.u & 0x8000);
+  return aa.f;
 }
 
 inline auto fmax(Float16 a, Float16 b)
@@ -273,7 +285,7 @@ private:
   /// Convert a float to a Float16's internal representation.
   static CONSTEXPR_OR_CONSTEVAL uint16_t bitsFromFloat(float val)
   {
-    uint32_t ui32 = std::bit_cast<uint32_t>(val);
+    auto ui32 = std::bit_cast<uint32_t>(val);
     bool     sign = ui32 >> 31;
     int      exp  = static_cast<int>((ui32 >> 23) & 0xFF);
     uint32_t sig  = ui32 & 0x007FFFFF;
@@ -302,8 +314,8 @@ private:
     exp -= FLOAT_THIS_EXP_DIFF + 1;
 
     int      roundingMode = IS_CONSTANT_EVALUATED ? FE_TOWARDZERO : std::fegetround();
-    bool     roundNearest;
-    uint32_t roundIncrement;
+    bool     roundNearest = false;
+    uint32_t roundIncrement = 0;
     if (roundingMode == FE_DOWNWARD or roundingMode == FE_UPWARD or roundingMode == FE_TOWARDZERO)
       {
         roundIncrement = ((1U << FLOAT_THIS_SIG_DIFF) - 1) *
@@ -405,11 +417,11 @@ private:
 public:
 
   /// Default constructor: value will be zero.
-  Float16Template() {}
+  Float16Template() = default;
 
   /// Convert this Float16 to another arithmetic type.
   template <typename T>
-  requires std::is_arithmetic<T>::value
+  requires std::is_arithmetic_v<T>
   explicit constexpr operator T() const { return static_cast<T>(toFloat()); }
 
   /// Returns the whether this Float16 is equal to to another.
@@ -443,7 +455,7 @@ public:
 
   /// Construct a Float16 from an arithmetic type
   template <typename T>
-  requires std::is_arithmetic<T>::value
+  requires std::is_arithmetic_v<T>
   explicit CONSTEXPR_OR_CONSTEVAL Float16Template(T v) : u16(bitsFromFloat(static_cast<float>(v))) {}
 
   /// Binary addition operator.
@@ -809,8 +821,8 @@ struct is_fp : std::bool_constant<std::is_floating_point<T>::value or std::is_sa
 
 // Neither Float16 nor BFloat16 are C++23 native types.  Add explicity checks for both to std::is_floating_point
 template <typename T>
-struct is_fp : std::bool_constant<std::is_floating_point<T>::value or
-                                  std::is_same<T, Float16>::value  or
-                                  std::is_same<T, BFloat16>::value> {};
+struct is_fp : std::bool_constant<std::is_floating_point_v<T>or
+                                  std::is_same_v<T, Float16> or
+                                  std::is_same_v<T, BFloat16>> {};
 
 #endif

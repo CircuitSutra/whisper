@@ -14,6 +14,15 @@
 
 #pragma once
 
+#include <cstdint>
+#include <vector>
+#include <string_view>
+#include <array>
+#include <unordered_map>
+#include <cassert>
+
+#include "virtual_memory/trapEnums.hpp"
+
 namespace WdRiscv
 {
 
@@ -48,7 +57,7 @@ namespace WdRiscv
 	{
 	  if (pmm != Mode::Reserved)
 	    {
-	      unsigned ix = unsigned(pmm);
+	      auto ix = unsigned(pmm);
 	      if (ix < supportedPmms_.size())
 		supportedPmms_.at(ix) = true;
 	    }
@@ -58,7 +67,7 @@ namespace WdRiscv
     /// Return true if given pointer masking mode (PMM) is supported.
     bool isSupported(Mode pmm)
     {
-      unsigned ix = unsigned(pmm);
+      auto ix = unsigned(pmm);
       return ix < supportedPmms_.size() ? supportedPmms_.at(ix) : false;
     }
 
@@ -162,7 +171,7 @@ namespace WdRiscv
     /// Helper for below function
     static uint64_t applyPointerMaskVa(uint64_t va, unsigned shift)
     {
-      int64_t transformed = std::bit_cast<int64_t>(va);
+      auto transformed = std::bit_cast<int64_t>(va);
       transformed = (transformed << shift) >> shift;
       return std::bit_cast<uint64_t>(transformed);
     }

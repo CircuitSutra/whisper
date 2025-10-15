@@ -120,6 +120,7 @@ namespace WdRiscv
         return false;
       value = val;
 #else
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast, cppcoreguidelines-pro-bounds-pointer-arithmetic)
       value = *(reinterpret_cast<const T*>(data_ + address));
 #endif
 
@@ -150,6 +151,7 @@ namespace WdRiscv
 	return false;
       value = val;
 #else
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast, cppcoreguidelines-pro-bounds-pointer-arithmetic)
       value = *(reinterpret_cast<const T*>(data_ + address));
 #endif
 
@@ -245,6 +247,7 @@ namespace WdRiscv
       if (not writeCallback_(address, sizeof(T), val))
 	return false;
   #else
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast, cppcoreguidelines-pro-bounds-pointer-arithmetic)
       *(reinterpret_cast<T*>(data_ + address)) = value;
   #endif
 
@@ -339,6 +342,7 @@ namespace WdRiscv
       return true;
 #endif
 
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast, cppcoreguidelines-pro-bounds-pointer-arithmetic)
       value = *(reinterpret_cast<const T*>(data_ + address));
       return true;
     }
@@ -558,6 +562,7 @@ namespace WdRiscv
       return writeCallback_(address, sizeof(T), val);
 #endif
 
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast, cppcoreguidelines-pro-bounds-pointer-arithmetic)
       *(reinterpret_cast<T*>(data_ + address)) = value;
       return true;
     }
@@ -581,7 +586,7 @@ namespace WdRiscv
 
     /// Write given buffer to the page at the given address. Buffer size
     /// must be >= pageSize_.
-    bool initializePage(uint64_t addr, const std::span<uint8_t> buffer);
+    bool initializePage(uint64_t addr, std::span<uint8_t> buffer);
 
     /// Clear the information associated with last write.
     void clearLastWriteInfo(unsigned sysHartIx)
@@ -722,13 +727,13 @@ namespace WdRiscv
       uint64_t order = 0;   // Reference order.
       bool clean = true;    // True if line is never written.
     };
-    typedef std::unordered_map<uint64_t, LineEntry> LineMap;
+    using LineMap = std::unordered_map<uint64_t, LineEntry>;
 
     bool saveAddressTrace(std::string_view tag, const LineMap& lineMap,
                           const std::string& path, bool skipClean = false,
                           bool writeValues = false) const;
 
-    bool loadAddressTrace(LineMap& lineMap, uint64_t& refCount, const std::string& path);
+    static bool loadAddressTrace(LineMap& lineMap, uint64_t& refCount, const std::string& path);
 
     /// Add line of given address to the data line address trace.
     void traceDataLine(uint64_t vaddr, uint64_t paddr, bool write = false)
@@ -802,6 +807,7 @@ namespace WdRiscv
     /// Callback to initialize a page of memory.
     std::function<bool(uint64_t, const std::span<uint8_t>)> initPageCallback_ = nullptr;
 
-    std::pair<std::unique_ptr<uint8_t[]>, size_t> loadFile(const std::string& filename);
+    /// Load a file into the given vector. Throw an exception if file cannot be opened.
+    static void loadFile(const std::string& filename, std::vector<uint8_t>& data);
   };
 }

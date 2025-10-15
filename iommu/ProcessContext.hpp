@@ -14,6 +14,9 @@
 
 #pragma once
 
+#include <cstdint>
+#include <cassert>
+
 namespace TT_IOMMU
 {
 
@@ -24,7 +27,7 @@ namespace TT_IOMMU
       : value_(value)
     { }
 
-    unsigned ithPdi(unsigned i)
+    unsigned ithPdi(unsigned i) const
     {
       if (i == 0)
 	return bits_.pdi0_;
@@ -193,11 +196,11 @@ namespace TT_IOMMU
   protected:
 
     /// Return mask of reserved bits in TA field.
-    uint64_t taResMask() const
+    static uint64_t taResMask() 
     { return 0xffff'ffff'0000'0ff8; }
 
     /// Return mask of reserved bits in FSC field.
-    uint64_t fscResMask() const
+    static uint64_t fscResMask() 
     { return 0x0fff'f000'0000'0000; }
 
   private:

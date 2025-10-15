@@ -131,7 +131,7 @@ namespace WdRiscv
       : value_{low, high}
     { }
 
-    uint64_t value()
+    uint64_t value() const
     { return value64_; }
 
     uint64_t value64_;
@@ -187,7 +187,7 @@ namespace WdRiscv
       : value_(value)
     { }
 
-    uint64_t value()
+    uint64_t value() const
     { return value_; }
 
     uint64_t value_;
@@ -208,7 +208,7 @@ namespace WdRiscv
       : value_(value)
     { }
 
-    uint64_t value()
+    uint64_t value() const
     { return value_; }
 
     uint32_t value_;   // Hypervisor status register value.
@@ -238,7 +238,7 @@ namespace WdRiscv
       : value_(value)
     { }
 
-    uint64_t value()
+    uint64_t value() const
     { return value_; }
 
     uint64_t value_;   // Machine status register value.

@@ -250,8 +250,7 @@ namespace WdRiscv
     {
       if (isAddrData())
         return TriggerAction(mcontrol_.action_);
-      else
-        return TriggerAction(icount_.action_);
+              return TriggerAction(icount_.action_);
     }
 
     /// Return true if type is None or Disabled.
@@ -1162,14 +1161,14 @@ namespace WdRiscv
     /// Return true if given trigger type is supported.
     bool isSupportedType(TriggerType type) const
     {
-      unsigned ix = unsigned(type);
+      auto ix = unsigned(type);
       return ix < supportedTypes_.size() ? supportedTypes_.at(ix) : false;
     }
 
     /// Return true if given action is supported.
     bool isSupportedAction(TriggerAction action) const
     {
-      unsigned ix = unsigned(action);
+      auto ix = unsigned(action);
       return ix < supportedActions_.size() ? supportedActions_.at(ix) : false;
     }
 

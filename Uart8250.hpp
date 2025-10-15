@@ -6,6 +6,8 @@
 #include <condition_variable>
 #include <queue>
 #include <poll.h>
+#include <array>
+#include <span>
 #include "IoDevice.hpp"
 
 // Forward declaring termios becausing including termios.h leaks macro
@@ -23,7 +25,7 @@ namespace WdRiscv
     /// Block until bytes are available
     /// Return 0 on EOF
     /// Return number of bytes read and populate buf on success
-    virtual size_t read(uint8_t *buf, size_t size) = 0;
+    virtual size_t read(std::span<uint8_t> buf, size_t size) = 0;
 
     /// Send the given byte
     virtual void write(uint8_t byte) = 0;
@@ -38,16 +40,16 @@ namespace WdRiscv
     FDChannel(int in_fd, int out_fd);
     ~FDChannel() override;
 
-    size_t read(uint8_t *buf, size_t size) override;
+    size_t read(std::span<uint8_t> buf, size_t size) override;
     void write(uint8_t byte) override;
     void terminate() override;
 
   private:
     void restoreTermios();
-    
+
     int in_fd_, out_fd_;
-    int terminate_pipe_[2] = {-1, -1};
-    struct pollfd pollfds_[2];
+    std::array<int, 2> terminate_pipe_ = {-1, -1};
+    std::array<struct pollfd, 2> pollfds_{};
     bool is_tty_;
     std::unique_ptr<termios> original_termios_;
     uint8_t prev_ = 0;  // Previous character for control sequence detection
@@ -100,7 +102,7 @@ namespace WdRiscv
   class ForkChannel : public UartChannel {
     public:
       ForkChannel(std::unique_ptr<UartChannel> readWriteChannel, std::unique_ptr<UartChannel> writeOnlyChannel);
-      size_t read(uint8_t *buf, size_t size) override;
+      size_t read(std::span<uint8_t> buf, size_t size) override;
       void write(uint8_t byte) override;
       void terminate() override;
 

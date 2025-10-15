@@ -4,6 +4,7 @@ whisper
 librvcore.a
 *.a
 bazel-*
+**/*.clang-tidy.log
 
 __pycache__
 
